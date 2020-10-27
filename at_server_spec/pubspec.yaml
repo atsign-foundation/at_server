@@ -7,10 +7,9 @@ environment:
   sdk: '>=2.7.0 <3.0.0'
 
 dependencies:
-  path: ^1.6.0
   at_commons:
     git:
-      url: git://github.com/atsign-foundation/at_tools.git
+      url: git@github.com:atsign-foundation/at_tools.git
       path: at_commons
       ref: master
 #dependency_overrides:
