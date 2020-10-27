@@ -1,7 +1,9 @@
 name: at_persistence_secondary_server
 description: A starting point for Dart libraries or applications.
 version: 1.0.0
+repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
+documentation: https://atsign.dev/at_docs-dev_env/at_persistence_secondary_server/index.html
 
 environment:
   sdk: '>=2.7.0 <3.0.0'
