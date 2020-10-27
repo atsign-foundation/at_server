@@ -13,12 +13,12 @@ dependencies:
   cron: ^0.2.2
   at_persistence_spec:
     git:
-      url: git://github.com/atsign-foundation/at_server.git
+      url: git@github.com:atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
       ref: master
   at_utils:
     git:
-      url: git://github.com/atsign-foundation/at_tools.git
+      url: git@github.com:atsign-foundation/at_tools.git
       path: at_utils
       ref: master
 #dependency_overrides:

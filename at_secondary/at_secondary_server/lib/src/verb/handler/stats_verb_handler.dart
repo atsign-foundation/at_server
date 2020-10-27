@@ -1,0 +1,140 @@
+import 'dart:collection';
+import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
+import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'dart:convert';
+
+// StatsVerbHandler class is used to process stats verb
+// Stats verb will return all the possible keys you can lookup
+//Ex: stats\n
+enum MetricNames {
+  INBOUND,
+  OUTBOUND,
+  LASTCOMMIT,
+  SECONDARY_STORAGE_SIZE,
+  MOST_VISITED_ATSIGN,
+  MOST_VISITED_ATKEYS
+}
+
+extension MetricClasses on MetricNames {
+  MetricProvider get name {
+    switch (this) {
+      case MetricNames.INBOUND:
+        return InboundMetricImpl.getInstance();
+      case MetricNames.OUTBOUND:
+        return OutBoundMetricImpl.getInstance();
+      case MetricNames.LASTCOMMIT:
+        return LastCommitIDMetricImpl.getInstance();
+      case MetricNames.SECONDARY_STORAGE_SIZE:
+        return SecondaryStorageMetricImpl.getInstance();
+      case MetricNames.MOST_VISITED_ATSIGN:
+        return MostVisitedAtSignMetricImpl.getInstance();
+      case MetricNames.MOST_VISITED_ATKEYS:
+        return MostVisitedAtKeyMetricImpl.getInstance();
+      default:
+        return null;
+    }
+  }
+}
+
+final Map stats_map = {
+  '1': MetricNames.INBOUND,
+  '2': MetricNames.OUTBOUND,
+  '3': MetricNames.LASTCOMMIT,
+  '4': MetricNames.SECONDARY_STORAGE_SIZE,
+  '5': MetricNames.MOST_VISITED_ATSIGN,
+  '6': MetricNames.MOST_VISITED_ATKEYS
+};
+
+class StatsVerbHandler extends AbstractVerbHandler {
+  static Stats stats = Stats();
+
+  StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+
+  // Method to verify whether command is accepted or not
+  // Input: command
+  @override
+  bool accept(String command) => command.startsWith(getName(VerbEnum.stats));
+
+  // Method to return Instance of verb belongs to this VerbHandler
+  @override
+  Verb getVerb() {
+    return stats;
+  }
+
+  void addStatToResult(id, result) {
+    logger.info('addStatToResult for id : $id');
+    var metric = _getMetrics(id);
+    var name = metric.name.getName();
+    var value = metric.name.getMetrics();
+    var stat = Stat(id, name, value);
+    result.add(jsonEncode(stat));
+  }
+
+  // Method which will process stats Verb
+  // This will process given verb and write response to response object
+  // Input : Response, verbParams, AtConnection
+  @override
+  Future<void> processVerb(
+      Response response,
+      HashMap<String, String> verbParams,
+      InboundConnection atConnection) async {
+    try {
+      var statID = verbParams[AT_STAT_ID];
+      Set stats_list;
+      if (statID != null) {
+        //If user provides stats ID's create set out of it
+        stats_list = getStatsIDSet(statID);
+      } else {
+        // if user send only stats verb get list of all the stat ID's
+        stats_list = stats_map.keys.toSet();
+      }
+      var result = [];
+      //Iterate through stats_id_list
+      stats_list.forEach((id) => addStatToResult(id, result));
+      // Create response json
+      var response_json = result.toString();
+      response.data = response_json;
+    } catch (exception) {
+      response.isError = true;
+      response.errorMessage = exception.toString();
+      return;
+    }
+  }
+
+  // get Metric based on ID
+  MetricNames _getMetrics(String key) {
+    //use map and get name based on ID
+    if (stats_map.containsKey(key)) {
+      return stats_map[key];
+    } else {
+      throw InvalidSyntaxException;
+    }
+  }
+
+  // Method to get stat ID set form input
+  // create set using comma separated ID's. duplicates not allowed
+  Set getStatsIDSet(String statID) {
+    var startIndex = statID.indexOf(':');
+    statID = statID.substring(startIndex + 1);
+    var statIDList = statID.split(',');
+    var statIDSet = statIDList.toSet();
+    return statIDSet;
+  }
+}
+
+// Stat class is for individual metric
+class Stat {
+  var id;
+  var name;
+  var value;
+
+  Stat(this.id, this.name, this.value);
+
+  Map toJson() => {'id': id, 'name': name, 'value': value};
+}

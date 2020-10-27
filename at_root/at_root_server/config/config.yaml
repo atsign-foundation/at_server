@@ -1,0 +1,18 @@
+# The @Protocol root server configurations.
+
+server:
+  # The port on which root server runs.
+  port: 64
+
+# The @Protocol application log configurations
+log:
+  debug: false
+
+# The @Protocol security configurations.
+security:
+  # To start root server in Secure/UnSecure mode. When [useSSL] is set to false, the root server starts in un-secure mode.
+  # When [useSSL] is set to true, the root server starts in secure mode. On setting useSSL to true, the [certificateChainLocation] and
+  # [privateKeyLocation] should be populated with the path's to respective certificates.
+  useSSL: true
+  certificateChainLocation: 'certs/fullchain.pem'
+  privateKeyLocation: 'certs/privkey.pem'
