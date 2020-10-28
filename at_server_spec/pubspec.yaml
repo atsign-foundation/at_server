@@ -11,9 +11,10 @@ environment:
 dependencies:
   at_commons:
     git:
-      url: git@github.com:atsign-foundation/at_tools.git
+      url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: master
+      version: ^1.0.0
 #dependency_overrides:
 #  at_commons:
 #    path: ../at_commons

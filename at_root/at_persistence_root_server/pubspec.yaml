@@ -12,14 +12,16 @@ dependencies:
   redis: ^1.2.0
   at_persistence_spec:
     git:
-      url: git@github.com:atsign-foundation/at_server.git
+      url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
       ref: master
+      version: ^1.0.0
   at_utils:
     git:
-      url: git@github.com:atsign-foundation/at_tools.git
+      url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
       ref: master
+      version: ^1.0.0
 
 #dependency_overrides:
 #  at_persistence_spec:
