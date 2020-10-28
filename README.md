@@ -1,7 +1,5 @@
-<p align="center">
-  <img src="../.github/Orangelogo.png?sanitize=true" width="150px">
-</p>
-<h1 align="center">Now for some internet optimism.</h1>
+![image alt <](./.github/@developersmall.png) 
+### Now for a little internet optimism
 
 # at_server
 The at_server repo contains the core software implementation of the @protocol.
