@@ -1,13 +1,11 @@
 import 'dart:io';
-
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:hive/hive.dart';
 import 'package:at_utils/at_logger.dart';
 
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
-  static final CommitLogKeyStore _singleton =
-  CommitLogKeyStore._internal();
+  static final CommitLogKeyStore _singleton = CommitLogKeyStore._internal();
 
   CommitLogKeyStore._internal();
 
@@ -190,5 +188,4 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     }
     return changes;
   }
-
 }

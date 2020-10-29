@@ -7,7 +7,7 @@ export 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_
 export 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 export 'package:at_persistence_secondary_server/src/model/at_data.dart';
 export 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
-export 'package:at_persistence_spec/at_persistence.dart';
+export 'package:at_persistence_spec/at_persistence_spec.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log.dart';

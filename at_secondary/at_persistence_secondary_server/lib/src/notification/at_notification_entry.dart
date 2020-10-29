@@ -34,9 +34,7 @@ class NotificationEntry extends HiveObject {
   }
 }
 
-class NotificationEntryMeta extends HiveObject {
-
-}
+class NotificationEntryMeta extends HiveObject {}
 
 /// Hive adapter for [NotificationEntry]
 class NotificationEntryAdapter extends TypeAdapter<NotificationEntry> {

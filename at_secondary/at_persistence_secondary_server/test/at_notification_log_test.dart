@@ -123,7 +123,8 @@ void main() async {
       var notificationEntry1 = NotificationEntry([atNotification], []);
       await AtNotificationLog.getInstance().box.close();
       expect(
-          () async => await notificationKeyStore.put('@bob', notificationEntry1),
+          () async =>
+              await notificationKeyStore.put('@bob', notificationEntry1),
           throwsA(predicate((e) => e is DataStoreException)));
     });
 

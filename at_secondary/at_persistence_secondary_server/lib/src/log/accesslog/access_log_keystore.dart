@@ -1,4 +1,4 @@
-export 'package:at_persistence_spec/at_persistence.dart';
+export 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'dart:collection';
 import 'dart:io';
 
@@ -55,7 +55,8 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       var accessLogEntry = await box.get(key);
       return accessLogEntry;
     } on Exception catch (e) {
-      throw DataStoreException('Exception get access log entry:${e.toString()}');
+      throw DataStoreException(
+          'Exception get access log entry:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error getting entry from access log:${e.toString()}');
@@ -67,7 +68,8 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
     try {
       await box.delete(key);
     } on Exception catch (e) {
-      throw DataStoreException('Exception deleting access log entry:${e.toString()}');
+      throw DataStoreException(
+          'Exception deleting access log entry:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error deleting entry from access log:${e.toString()}');

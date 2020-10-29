@@ -115,7 +115,6 @@ class AtNotificationLog {
 
     return result;
   }
-
 }
 
 void _removeUnregisteredFunctions(List<NotificationFunction> nf) {

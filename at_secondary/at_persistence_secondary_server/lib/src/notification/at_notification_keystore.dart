@@ -1,7 +1,7 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_entry.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_log.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:hive/hive.dart';

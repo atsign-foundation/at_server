@@ -1,5 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class SizeBasedCompaction implements AtCompactionStrategy {
   int sizeInKB;

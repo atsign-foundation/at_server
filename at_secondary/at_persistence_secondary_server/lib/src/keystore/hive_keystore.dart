@@ -7,7 +7,7 @@ import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:hive/hive.dart';
 import 'package:utf7/utf7.dart';
 import 'package:at_commons/at_commons.dart';

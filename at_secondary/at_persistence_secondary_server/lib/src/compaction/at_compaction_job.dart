@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/src/compaction//at_compaction_service.dart';
+import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
 
 class AtCompactionJob {
   static final AtCompactionJob _singleton = AtCompactionJob._internal();
