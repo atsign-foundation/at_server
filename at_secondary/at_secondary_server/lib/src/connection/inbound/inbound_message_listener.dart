@@ -11,7 +11,7 @@ class InboundMessageListener {
   InboundConnection connection;
   var isStream;
   var logger = AtSignLogger('InboundListener');
-  final _buffer = at_commons.ByteBuffer(capacity: 512000);
+  final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
   Function(String, InboundConnection) onBufferEndCallBack;

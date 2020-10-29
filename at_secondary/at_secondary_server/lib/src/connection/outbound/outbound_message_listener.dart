@@ -9,7 +9,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 class OutboundMessageListener {
   OutboundClient client;
   var logger = AtSignLogger('OutboundMessageListener');
-  final _buffer = ByteBuffer(capacity: 512000);
+  final _buffer = ByteBuffer(capacity: 10240000);
   Queue _queue;
 
   OutboundMessageListener(this.client);
@@ -45,7 +45,6 @@ class OutboundMessageListener {
       } else {
         _buffer.append(data);
       }
-
     } else {
       _buffer.clear();
       throw BufferOverFlowException('Buffer overflow on outbound connection');
