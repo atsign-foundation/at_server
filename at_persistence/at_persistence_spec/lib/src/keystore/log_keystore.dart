@@ -5,6 +5,7 @@ abstract class LogKeyStore<K, V> {
   /// @param key Key associated with a value.
   /// @return Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key or if key is not null.
   Future<V> get(K key);
+
   /// Associates the specified value with the specified key.
   /// If the key store previously contained a mapping for the key, the old value is replaced by the specified value.
   ///
@@ -15,6 +16,7 @@ abstract class LogKeyStore<K, V> {
   Future<dynamic> add(V value);
 
   Future<dynamic> update(K key, V value);
+
   /// Removes the mapping for a key from this key store if it is present
   ///
   /// @param key - Key associated with a value.
@@ -43,5 +45,4 @@ abstract class LogKeyStore<K, V> {
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
   int getSize();
-
 }

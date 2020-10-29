@@ -1,4 +1,4 @@
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 abstract class SecondaryKeyStore<K, V, T>
     implements WritableKeystore<K, V>, SynchronizableKeyStore<K, V, T> {
