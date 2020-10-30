@@ -77,6 +77,6 @@ class AtRootConfig {
     if (_envVars.containsKey(envVar)) {
       (_envVars[envVar].toLowerCase() == 'true') ? true : false;
     }
-    return false;
+    return null;
   }
 }
