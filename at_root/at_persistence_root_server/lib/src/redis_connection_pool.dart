@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:at_persistence_root_server/src/redis_connection.dart';
 import 'package:redis/redis.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 class RedisConnectionPool {

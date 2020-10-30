@@ -1,6 +1,6 @@
 import 'dart:collection';
 import 'package:test/test.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 void main() {
   var keyStore = MapKeyStore();

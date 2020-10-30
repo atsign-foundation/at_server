@@ -1,7 +1,7 @@
 import 'package:at_persistence_root_server/src/keystore_manager.dart';
 import 'package:at_persistence_root_server/src/redis_keystore.dart';
 import 'package:test/test.dart';
-import 'package:at_persistence_spec/at_persistence.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 void main() {
   group('Keystore manager test', () {

@@ -25,25 +25,8 @@ dependencies:
       path: at_server_spec
       ref: master
       version: ^1.0.0
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: master
-      version: ^1.0.0
-#dependency_overrides:
-#  at_persistence_secondary_server:
-#    path: ../at_persistence_secondary_server
-#  at_server_spec:
-#    path: ../at_server_spec
-#  at_persistence_spec:
-#    path: ../at_persistence_spec
-#  at_utils:
-#    path: ../at_utils
-#  at_commons:
-#    path: ../at_commons
-#  at_lookup:
-#    path: ../at_lookup
+  at_lookup: ^1.0.0
+
 dev_dependencies:
   test: ^1.6.0
   test_coverage: ^0.4.1
