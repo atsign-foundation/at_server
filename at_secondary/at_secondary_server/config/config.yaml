@@ -47,11 +47,11 @@ connection:
   # Creates an inbound connection and adds the connection to inbound connection pool. At any point, at most [inbound_max_limit] connections can only be created.
   # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
   # The connection in the pool will exist until its [inbound_idle_time_millis] expires.
-  inbound_max_limit: 10
+  inbound_max_limit: 50
   # Creates an outbound connection and adds the connection to outbound connection pool. At any point, at most [outbound_max_limit] connections can only be created.
   # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
   # The connection in the pool will exist until its [outbound_idle_time_millis] expires.
-  outbound_max_limit: 10
+  outbound_max_limit: 50
 
 # The @Protocol commit log compaction job configurations.
 commit_log_compaction:

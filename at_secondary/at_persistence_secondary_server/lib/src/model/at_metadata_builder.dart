@@ -84,8 +84,7 @@ class AtMetadataBuilder {
   void setTTR(int ttr) {
     if (ttr != null) {
       atMetaData.ttr = ttr;
-      atMetaData.refreshAt =
-          _getRefreshAt(currentUtcTime.millisecondsSinceEpoch, ttr);
+      atMetaData.refreshAt = _getRefreshAt(currentUtcTime, ttr);
     }
   }
 
@@ -126,13 +125,12 @@ class AtMetadataBuilder {
     return null;
   }
 
-  DateTime _getRefreshAt(int epochNow, int ttr) {
+  DateTime _getRefreshAt(DateTime today, int ttr) {
     if (ttr == -1) {
       return null;
     }
     if (ttr != null) {
-      var refreshAt = epochNow + ttr;
-      return DateTime.fromMillisecondsSinceEpoch(refreshAt).toUtc();
+      return today.add(Duration(seconds: ttr));
     }
     return null;
   }

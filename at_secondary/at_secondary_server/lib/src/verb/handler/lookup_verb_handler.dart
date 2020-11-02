@@ -68,7 +68,9 @@ class LookupVerbHandler extends AbstractVerbHandler {
       } else {
         var cachedKey = '$CACHED:$currentAtSign:$key';
         //Get cached value.
-        response.data = await _getCachedValue(cachedKey);
+        var cachedValue = await _getCachedValue(cachedKey);
+        response.data =
+            SecondaryUtil.prepareResponseData(operation, cachedValue);
         //If cached value is null, lookup for the value.
         if (response.data == null || response.data == '') {
           var outBoundClient = OutboundClientManager.getInstance()
@@ -148,17 +150,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// Gets the cached key value.
   /// key to query for value.
   /// Return value to which the specified key is mapped, or null if the key does not have value.
-  Future<String> _getCachedValue(String key) async {
-    var value;
+  Future<AtData> _getCachedValue(String key) async {
     var atData = await keyStore.get(key);
     if (atData != null) {
       var refreshAt = atData.toJson()['metaData']['refreshAt'];
       refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
       var now = DateTime.now().toUtc().millisecondsSinceEpoch;
       if (now <= refreshAt) {
-        value = atData.data;
+        return atData;
       }
     }
-    return value;
   }
 }
