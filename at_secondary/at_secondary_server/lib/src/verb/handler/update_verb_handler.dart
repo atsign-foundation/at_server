@@ -95,46 +95,52 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           isBinary: isBinary,
           isEncrypted: isEncrypted);
       response.data = result?.toString();
-
-      // store notification entry
-      await NotificationUtil.storeNotification(atConnection, atSign, forAtSign,
-          key, NotificationType.sent, OperationType.update,
-          ttl_ms: ttl_ms);
-      if (forAtSign == null) {
-        return;
-      }
-      // send notification to other secondary if AUTO_NOTIFY is enabled
-      atSign = AtUtils.formatAtSign(atSign);
-      if (AUTO_NOTIFY && (atSign != forAtSign)) {
-        forAtSign = AtUtils.formatAtSign(forAtSign);
-        //if ttr is set, notify with value.
-        if (ttr_ms == null && metadata != null) {
-          ttr_ms = metadata.ttr;
-          isCascade = metadata.isCascade;
-        }
-        if (ttr_ms != null) {
-          key = '$AT_TTR:$ttr_ms:$CCD:$isCascade:$key:$value';
-        }
-        if (ttb_ms != null) {
-          key = '$AT_TTB:$ttb_ms:$key';
-        }
-        if (ttl_ms != null) {
-          key = '$AT_TTL:$ttl_ms:$key';
-        }
-        key = 'update:$key';
-        try {
-          await NotificationUtil.sendNotification(forAtSign, atConnection, key);
-        } catch (exception) {
-          logger.severe(
-              'Exception while sending notification ${exception.toString()}');
-        }
-      }
+      // send notification to other secondary
+      _notify(atConnection, atSign, forAtSign, key, value, ttl_ms, ttr_ms,
+          ttb_ms, isCascade, metadata);
     } on InvalidSyntaxException {
       rethrow;
     } catch (exception) {
       response.isError = true;
       response.errorMessage = exception.toString();
       return;
+    }
+  }
+
+  void _notify(atConnection, atSign, forAtSign, key, value, ttl_ms, ttr_ms,
+      ttb_ms, isCascade, metadata) async {
+    // store notification entry
+    await NotificationUtil.storeNotification(atConnection, atSign, forAtSign,
+        key, NotificationType.sent, OperationType.update,
+        ttl_ms: ttl_ms);
+    if (forAtSign == null) {
+      return;
+    }
+    // send notification to other secondary if AUTO_NOTIFY is enabled
+    atSign = AtUtils.formatAtSign(atSign);
+    if (AUTO_NOTIFY && (atSign != forAtSign)) {
+      forAtSign = AtUtils.formatAtSign(forAtSign);
+      //if ttr is set, notify with value.
+      if (ttr_ms == null && metadata != null) {
+        ttr_ms = metadata.ttr;
+        isCascade = metadata.isCascade;
+      }
+      if (ttr_ms != null) {
+        key = '$AT_TTR:$ttr_ms:$CCD:$isCascade:$key:$value';
+      }
+      if (ttb_ms != null) {
+        key = '$AT_TTB:$ttb_ms:$key';
+      }
+      if (ttl_ms != null) {
+        key = '$AT_TTL:$ttl_ms:$key';
+      }
+      key = 'update:$key';
+      try {
+        await NotificationUtil.sendNotification(forAtSign, atConnection, key);
+      } catch (exception) {
+        logger.severe(
+            'Exception while sending notification ${exception.toString()}');
+      }
     }
   }
 }
