@@ -29,6 +29,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE];
     var commit_changes =
         AtCommitLog.getInstance().getChanges(int.parse(commit_sequence));
+    logger.finer(
+        'number of changes since commitId: ${commit_sequence} is ${commit_changes.length}');
     commit_changes.removeWhere((entry) =>
         entry.atKey.startsWith('privatekey:') ||
         entry.atKey.startsWith('private:'));
@@ -40,6 +42,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
     // for each latest key entry in commit log, get the value
     await Future.forEach(commit_changes,
         (entry) => _processEntry(entry, distinctKeys, syncResultList));
+    logger.finer(
+        'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
@@ -61,9 +65,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
       var value = await keyStore.get(entry.atKey);
       if (entry.operation == CommitOp.UPDATE) {
         resultMap.putIfAbsent('value', () => value?.data);
-      } else if (entry.operation == CommitOp.UPDATE_META) {
-        _populateMetadata(value, resultMap);
-      } else if (entry.operation == CommitOp.UPDATE_ALL) {
+      } else if (entry.operation == CommitOp.UPDATE_ALL ||
+          entry.operation == CommitOp.UPDATE_META) {
         resultMap.putIfAbsent('value', () => value?.data);
         _populateMetadata(value, resultMap);
       }
