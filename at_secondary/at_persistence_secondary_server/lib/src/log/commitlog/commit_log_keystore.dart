@@ -175,11 +175,17 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     var changes = <CommitEntry>[];
     try {
       var keys = box.keys;
-      if (keys != null && keys.isNotEmpty) {
-        box
-            .valuesBetween(startKey: sequenceNumber + 1, endKey: keys.last)
-            .forEach((f) => changes.add(f));
+      if (keys == null || keys.isEmpty) {
+        return changes;
       }
+      // If sequence number is -1 return all keys from commit log.
+      if (sequenceNumber == -1) {
+        sequenceNumber = keys.first;
+      }
+      var startKey = sequenceNumber + 1;
+      box
+          .valuesBetween(startKey: startKey, endKey: keys.last)
+          .forEach((f) => changes.add(f));
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {

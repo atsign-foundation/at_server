@@ -38,23 +38,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
     commit_changes
         .sort((entry1, entry2) => entry2.commitId.compareTo(entry1.commitId));
     // for each latest key entry in commit log, get the value
-    await commit_changes.forEach((entry) async {
-      var isKeyLatest = distinctKeys.add(entry.atKey);
-      var resultMap = entry.toJson();
-      // update value only for latest entry for duplicate keys in the commit log
-      if (isKeyLatest) {
-        var value = await keyStore.get(entry.atKey);
-        if (entry.operation == CommitOp.UPDATE) {
-          resultMap.putIfAbsent('value', () => value?.data);
-        } else if (entry.operation == CommitOp.UPDATE_META) {
-          _populateMetadata(value, resultMap);
-        } else if (entry.operation == CommitOp.UPDATE_ALL) {
-          resultMap.putIfAbsent('value', () => value?.data);
-          _populateMetadata(value, resultMap);
-        }
-      }
-      syncResultList.add(resultMap);
-    });
+    await Future.forEach(commit_changes,
+        (entry) => _processEntry(entry, distinctKeys, syncResultList));
     //sort the result by commitId ascending
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
@@ -66,6 +51,24 @@ class SyncVerbHandler extends AbstractVerbHandler {
 
     response.data = result;
     return;
+  }
+
+  Future<void> _processEntry(entry, distinctKeys, syncResultList) async {
+    var isKeyLatest = distinctKeys.add(entry.atKey);
+    var resultMap = entry.toJson();
+    // update value only for latest entry for duplicate keys in the commit log
+    if (isKeyLatest) {
+      var value = await keyStore.get(entry.atKey);
+      if (entry.operation == CommitOp.UPDATE) {
+        resultMap.putIfAbsent('value', () => value?.data);
+      } else if (entry.operation == CommitOp.UPDATE_META) {
+        _populateMetadata(value, resultMap);
+      } else if (entry.operation == CommitOp.UPDATE_ALL) {
+        resultMap.putIfAbsent('value', () => value?.data);
+        _populateMetadata(value, resultMap);
+      }
+      syncResultList.add(resultMap);
+    }
   }
 
   void _populateMetadata(value, resultMap) {
@@ -83,6 +86,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
       }
       if (metaData.isCascade != null) {
         metaDataMap.putIfAbsent(CCD, () => metaData.isCascade.toString());
+      }
+      if (metaData.isBinary != null) {
+        metaDataMap.putIfAbsent(IS_BINARY, () => metaData.isBinary.toString());
+      }
+      if (metaData.isEncrypted != null) {
+        metaDataMap.putIfAbsent(
+            IS_ENCRYPTED, () => metaData.isEncrypted.toString());
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
