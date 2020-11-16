@@ -45,7 +45,6 @@ class OutboundMessageListener {
       } else {
         _buffer.append(data);
       }
-
     } else {
       _buffer.clear();
       throw BufferOverFlowException('Buffer overflow on outbound connection');
