@@ -7,8 +7,6 @@ abstract class InboundConnection extends AtConnection {
 
   bool isMonitor;
 
-  bool isStream;
-
   /// This contains the value of the atsign initiated the connection
   String initiatedBy;
 

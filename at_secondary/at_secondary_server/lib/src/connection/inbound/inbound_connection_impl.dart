@@ -10,9 +10,6 @@ class InboundConnectionImpl extends BaseConnection
   @override
   bool isMonitor = false;
 
-  @override
-  bool isStream = false;
-
   /// This contains the value of the atsign initiated the connection
   String initiatedBy;
   static int inbound_idle_time =
