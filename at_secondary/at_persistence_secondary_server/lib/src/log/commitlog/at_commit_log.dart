@@ -112,10 +112,10 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  List getEntries(int N) {
     var entries = [];
     try {
-      entries = commitLogKeyStore.getFirstNEntries(N);
+      entries = commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');

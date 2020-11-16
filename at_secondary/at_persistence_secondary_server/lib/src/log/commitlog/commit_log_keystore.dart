@@ -169,6 +169,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return null;
   }
 
+  /// For a key in commit log, if more than one entry exists,
+  /// returns a list of entries except the entry with latest commitId.
   List getDuplicateEntries() {
     var commitLogMap = box.toMap();
     var sortedKeys = commitLogMap.keys.toList(growable: false)
