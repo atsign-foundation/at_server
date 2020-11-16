@@ -61,9 +61,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
       var value = await keyStore.get(entry.atKey);
       if (entry.operation == CommitOp.UPDATE) {
         resultMap.putIfAbsent('value', () => value?.data);
-      } else if (entry.operation == CommitOp.UPDATE_META) {
-        _populateMetadata(value, resultMap);
-      } else if (entry.operation == CommitOp.UPDATE_ALL) {
+      } else if (entry.operation == CommitOp.UPDATE_ALL ||
+          entry.operation == CommitOp.UPDATE_META) {
         resultMap.putIfAbsent('value', () => value?.data);
         _populateMetadata(value, resultMap);
       }

@@ -169,6 +169,25 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return null;
   }
 
+  List getDuplicateEntries() {
+    var commitLogMap = box.toMap();
+    var sortedKeys = commitLogMap.keys.toList(growable: false)
+      ..sort((k1, k2) =>
+          commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
+    var tempSet = <String>{};
+    var expiredKeys = [];
+    sortedKeys.forEach(
+        (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
+    return expiredKeys;
+  }
+
+  void _processEntry(entry, tempSet, expiredKeys, commitLogMap) {
+    var isKeyLatest = tempSet.add(commitLogMap[entry].atKey);
+    if (!isKeyLatest) {
+      expiredKeys.add(entry);
+    }
+  }
+
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
   List<CommitEntry> getChanges(int sequenceNumber) {
@@ -178,14 +197,14 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
       if (keys == null || keys.isEmpty) {
         return changes;
       }
-      // If sequence number is -1 return all keys from commit log.
-      if (sequenceNumber == -1) {
-        sequenceNumber = keys.first;
-      }
       var startKey = sequenceNumber + 1;
-      box
-          .valuesBetween(startKey: startKey, endKey: keys.last)
-          .forEach((f) => changes.add(f));
+      logger
+          .finer('startKey: ${startKey} all commit log entries: ${box.values}');
+      box.values.forEach((f) {
+        if (f.key >= startKey) {
+          changes.add(f);
+        }
+      });
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
