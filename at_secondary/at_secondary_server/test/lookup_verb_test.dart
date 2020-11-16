@@ -44,9 +44,9 @@ void main() {
       var command = 'lookup:location@alice@';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test lookup with emoji', () {
