@@ -138,19 +138,11 @@ class HivePersistenceManager {
     return secretAsUint8List;
   }
 
-  //TODO change into to Duration and construct cron string dynamically
   void scheduleKeyExpireTask(int runFrequencyMins) {
-    logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
     cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
-      logger.finest('scheduleKeyExpireTask calling expireAll()');
       var hiveKeyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
-      var done = hiveKeyStore.deleteExpiredKeys();
-      if (done) {
-        logger.finest('scheduleKeyExpireTask expireAll() completed');
-      } else {
-        logger.finest('scheduleKeyExpireTask expireAll() failed');
-      }
+      hiveKeyStore.deleteExpiredKeys();
     });
   }
 
