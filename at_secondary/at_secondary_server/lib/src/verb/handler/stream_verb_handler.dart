@@ -65,6 +65,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
       case 'init':
         logger.info('forAtSign:${receiver}');
         logger.info('streamid:${streamId}');
+        fileName = fileName.trim();
         logger.info('fileName:${fileName}');
         logger.info('fileLength:${fileLength}');
         await NotificationUtil.storeNotification(
