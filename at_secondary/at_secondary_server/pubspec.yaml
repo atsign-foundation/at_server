@@ -13,19 +13,29 @@ dependencies:
   convert: ^2.1.1
   crypto: ^2.1.4
   crypton: ^1.1.0
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: master
-      version: ^1.0.0
+  at_persistence_secondary_server: ^1.0.1+1
+  at_lookup: ^1.0.0+1
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
       ref: master
       version: ^1.0.0
-  at_lookup: ^1.0.0
+
+
+#dependency_overrides:
+#  at_persistence_secondary_server:
+#    path: ../at_persistence_secondary_server
+#  at_server_spec:
+#    path: ../../at_server_spec
+#  at_persistence_spec:
+#    path: ../../at_persistence/at_persistence_spec
+#  at_utils:
+#    path: ../../../at_tools/at_utils
+#  at_commons:
+#    path: ../../../at_tools/at_commons
+#  at_lookup:
+#    path: ../../../at_libraries/at_lookup
 
 dev_dependencies:
   test: ^1.6.0

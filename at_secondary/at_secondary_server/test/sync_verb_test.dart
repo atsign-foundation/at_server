@@ -150,12 +150,13 @@ void main() async {
 
 Future<void> setUpFunc(storageDir) async {
   var isExists = await Directory(storageDir).exists();
-  if(!isExists) {
+  if (!isExists) {
     Directory(storageDir).createSync(recursive: true);
   }
   var persistenceManager = HivePersistenceManager.getInstance();
   await persistenceManager.init('@alice', storageDir);
-  await CommitLogKeyStore.getInstance().init('commit_log_' + _getShaForAtsign('@alice'), storageDir);
+  await CommitLogKeyStore.getInstance()
+      .init('commit_log_' + _getShaForAtsign('@alice'), storageDir);
 }
 
 void tearDownFunc() async {

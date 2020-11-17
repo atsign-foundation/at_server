@@ -285,9 +285,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:${streamId}');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId].getSocket().add(data);
     }
@@ -373,7 +371,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var signingPrivateKey = await keyStore
         .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
     signingKey = signingPrivateKey?.data;
-    logger.finer('signing private key:${signingKey}');
     keyStore.deleteExpiredKeys();
   }
 

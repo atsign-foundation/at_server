@@ -41,7 +41,7 @@ abstract class BaseConnection extends AtConnection {
   }
 
   @override
-  void write(String data){
+  void write(String data) {
     if (isInValid()) {
       throw ConnectionInvalidException('Connection is invalid');
     }
