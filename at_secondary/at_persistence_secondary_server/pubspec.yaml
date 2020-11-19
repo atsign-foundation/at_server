@@ -18,14 +18,11 @@ dependencies:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
       ref: dev_env
-      version: ^1.0.1
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
       ref: dev_env
-      version: ^1.0.1
-
 
 dev_dependencies:
   pedantic: ^1.8.0
