@@ -16,3 +16,4 @@ RUN chown -R atsign:atsign $HOME
 USER atsign
 WORKDIR $HOME
 ENTRYPOINT ["/usr/local/at/root"]
+
