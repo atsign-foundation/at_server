@@ -5,7 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_utils.dart';
 
 HashMap<String, String> getVerbParam(String regex, String command) {
-  var regExp = RegExp(regex);
+  var regExp = RegExp(regex, caseSensitive: false);
   var regexMatches = at_regex.getMatches(regExp, command);
   if (regexMatches.isEmpty) {
     throw InvalidSyntaxException('Syntax Exception');
