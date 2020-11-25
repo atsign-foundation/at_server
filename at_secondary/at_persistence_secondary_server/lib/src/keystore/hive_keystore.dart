@@ -121,6 +121,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         isEncrypted: isEncrypted);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
+    // Setting metadata defined in values
+    if (value != null && value.metaData != null) {
+      time_to_live ??= value.metaData.ttl;
+      time_to_born ??= value.metaData.ttb;
+      time_to_refresh ??= value.metaData.ttr;
+      isCascade ??= value.metaData.isCascade;
+      isBinary ??= value.metaData.isBinary;
+      isEncrypted ??= value.metaData.isEncrypted;
+    }
     // If metadata is set, set commitOp to Update all
     if (ObjectsUtil.isAnyNotNull(
         a1: time_to_live,

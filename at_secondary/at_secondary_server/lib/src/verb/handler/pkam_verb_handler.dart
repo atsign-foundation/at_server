@@ -37,14 +37,14 @@ class PkamVerbHandler extends AbstractVerbHandler {
       response.data = 'failure';
       response.isError = true;
       response.errorMessage = 'pkam publickey not found';
-      return;
+      throw UnAuthenticatedException('pkam publickey not found');
     }
     var publicKey = publicKeyData.data;
     var atSignPub = RSAPublicKey.fromString(publicKey);
 
     //retrieve stored secret using sessionid and atsign
     var storedSecret = await keyStore.get('private:$sessionID$atSign');
-    storedSecret = storedSecret.data;
+    storedSecret = storedSecret?.data;
 
     var isValidSignature;
     //Throws format exception when signature is not in multiples of 4.
