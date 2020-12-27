@@ -215,4 +215,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     }
     return changes;
   }
+
+  /// Closes the [commitLogKeyStore] instance.
+  void close() async {
+    await box.close();
+  }
 }

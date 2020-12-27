@@ -88,9 +88,11 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   void _fetchNotificationEntries(
       element, responseList, notificationKeyStore) async {
     var notificationEntry = await notificationKeyStore.get(element);
-    notificationEntry.receivedNotifications.forEach((element) {
-      responseList.add(Notification(element));
-    });
+    if (notificationEntry != null) {
+      notificationEntry.receivedNotifications.forEach((element) {
+        responseList.add(Notification(element));
+      });
+    }
   }
 
   /// when pol verb is performed, returns sent notifications of the another atsign.
