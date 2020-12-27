@@ -149,4 +149,9 @@ class HivePersistenceManager {
   List<int> _generatePersistenceSecret() {
     return Hive.generateSecureKey();
   }
+
+  /// Closes the secondary keystore.
+  void close() {
+    box.close();
+  }
 }

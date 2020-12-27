@@ -9,6 +9,7 @@ ENV GROUP_ID=1024
 RUN addgroup --gid $GROUP_ID atsign
 RUN useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash --home $HOME atsign
 RUN chown -R atsign:atsign $HOME
+RUN chown -R atsign:atsign /archive
 USER atsign
 RUN mkdir $HOME/storage
 RUN mkdir $HOME/config

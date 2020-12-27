@@ -32,7 +32,8 @@ class AtNotificationKeystore
       bool isBinary,
       bool isEncrypted}) async {
     try {
-      await atNotificationLogInstance.box?.put(key, notificationEntry);
+      await atNotificationLogInstance.box
+          ?.put(Utf7.encode(key), notificationEntry);
     } on Exception catch (exception) {
       logger.severe('AtNotificationKeystore create exception: $exception');
       throw DataStoreException('exception in create: ${exception.toString()}');
@@ -52,7 +53,7 @@ class AtNotificationKeystore
   Future<NotificationEntry> get(String key) async {
     var value;
     try {
-      value = await atNotificationLogInstance.box?.get(key);
+      value = await atNotificationLogInstance.box?.get(Utf7.encode(key));
       logger.finer('value : $value');
       return value;
     } on Exception catch (exception) {
@@ -80,11 +81,11 @@ class AtNotificationKeystore
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
           encodedKeys = atNotificationLogInstance.box.keys
-              .where((element) => element.toString().contains(RegExp(regex)));
+              .where((element) =>  Utf7.decode(element).toString().contains(RegExp(regex)));
         } else {
           encodedKeys = atNotificationLogInstance.box.keys.toList();
         }
-        encodedKeys?.forEach((key) => keys.add(Utf7.encode(key)));
+        encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
       logger.severe('Invalid regular expression : ${regex}');

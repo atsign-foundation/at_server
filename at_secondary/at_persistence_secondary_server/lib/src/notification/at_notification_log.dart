@@ -115,6 +115,10 @@ class AtNotificationLog {
 
     return result;
   }
+
+  void close() {
+    box.close();
+  }
 }
 
 void _removeUnregisteredFunctions(List<NotificationFunction> nf) {

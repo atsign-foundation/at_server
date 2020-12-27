@@ -80,4 +80,9 @@ class AtAccessLog implements AtLogType {
   int getSize() {
     return accessLogKeyStore.getSize();
   }
+
+  ///Closes the [accessLogKeyStore] instance.
+  void close() {
+    accessLogKeyStore.close();
+  }
 }
