@@ -21,7 +21,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.notify)) && command.contains('list');
+      command.startsWith('${getName(VerbEnum.notify)}:list');
 
   @override
   Verb getVerb() {
