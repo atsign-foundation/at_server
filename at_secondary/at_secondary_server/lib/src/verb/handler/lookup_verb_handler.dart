@@ -153,11 +153,16 @@ class LookupVerbHandler extends AbstractVerbHandler {
   Future<AtData> _getCachedValue(String key) async {
     var atData = await keyStore.get(key);
     if (atData != null) {
-      var refreshAt = atData.toJson()['metaData']['refreshAt'];
-      refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
-      var now = DateTime.now().toUtc().millisecondsSinceEpoch;
-      if (now <= refreshAt) {
+      if (atData.metaData.ttr != null && atData.metaData.ttr == -1) {
         return atData;
+      }
+      var refreshAt = atData.toJson()['metaData']['refreshAt'];
+      if (refreshAt != null) {
+        refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
+        var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+        if (now <= refreshAt) {
+          return atData;
+        }
       }
     }
   }
