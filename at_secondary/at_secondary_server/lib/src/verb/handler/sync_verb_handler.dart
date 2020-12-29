@@ -84,7 +84,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
       if (metaData.ttb != null) {
         metaDataMap.putIfAbsent(AT_TTB, () => metaData.ttb.toString());
       }
-      if (metaData.refreshAt != null) {
+      if (metaData.ttr != null) {
         metaDataMap.putIfAbsent(AT_TTR, () => metaData.ttr.toString());
       }
       if (metaData.isCascade != null) {

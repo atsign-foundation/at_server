@@ -52,9 +52,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
           'Scan to another atsign cannot be performed without auth');
     }
     try {
-      String keyString;
-      List<String> keys = keyStore.getKeys(regex: scanRegex);
-
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -64,6 +61,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
+        String keyString;
+        List<String> keys = keyStore.getKeys(regex: scanRegex);
         keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces
         keyString = keyString.replaceFirst(RegExp(r'^\['), '');

@@ -3,6 +3,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -85,7 +86,12 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         ttr_ms = cacheRefreshMetaMap[AT_TTR];
         isCascade = cacheRefreshMetaMap[CCD];
       }
-
+      //If ttr is set and atsign is not equal to currentAtSign, the key is
+      //cached key.
+      if (ttr_ms != null &&
+          atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
+        key = 'cached:$key';
+      }
       // update the key in data store
       var result = await keyStore.put(key, atData,
           time_to_live: ttl_ms,

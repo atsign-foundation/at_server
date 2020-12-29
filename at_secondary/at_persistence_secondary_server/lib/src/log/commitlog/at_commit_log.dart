@@ -137,4 +137,9 @@ class AtCommitLog implements AtLogType {
   int getSize() {
     return commitLogKeyStore.getSize();
   }
+
+  /// Closes the [CommitLogKeyStore] instance.
+  void close() {
+    commitLogKeyStore.close();
+  }
 }
