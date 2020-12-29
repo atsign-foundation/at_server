@@ -5,3 +5,6 @@
 ## 1.0.1
 
 - Documentation related changes
+## 1.0.1+1
+
+- Method renaming in compaction strategy
