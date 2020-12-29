@@ -80,8 +80,8 @@ class AtNotificationKeystore
       if (atNotificationLogInstance.box != null) {
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
-          encodedKeys = atNotificationLogInstance.box.keys
-              .where((element) =>  Utf7.decode(element).toString().contains(RegExp(regex)));
+          encodedKeys = atNotificationLogInstance.box.keys.where((element) =>
+              Utf7.decode(element).toString().contains(RegExp(regex)));
         } else {
           encodedKeys = atNotificationLogInstance.box.keys.toList();
         }
