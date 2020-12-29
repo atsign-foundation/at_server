@@ -22,7 +22,6 @@ dependencies:
       ref: master
       version: ^1.0.0
 
-
 #dependency_overrides:
 #  at_persistence_secondary_server:
 #    path: ../at_persistence_secondary_server

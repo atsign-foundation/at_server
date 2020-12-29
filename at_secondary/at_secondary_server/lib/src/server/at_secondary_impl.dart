@@ -301,6 +301,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       if (result) {
         //close server socket
         _serverSocket.close();
+        AtCommitLog.getInstance().close();
+        AtAccessLog.getInstance().close();
+        AtNotificationLog.getInstance().close();
+        HivePersistenceManager.getInstance().close();
         _isRunning = false;
       }
     } on Exception catch (e) {

@@ -208,4 +208,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
 
     return sortedMap;
   }
+
+  ///Closes the [accessLogKeyStore] instance.
+  void close() {
+    box.close();
+  }
 }
