@@ -15,40 +15,34 @@ HashMap<String, String> getVerbParam(String regex, String command) {
 }
 
 /// Validates the TTR and CCD metadata.
-Map<String, dynamic> validateCacheMetadata(AtMetaData metadata,
-    String verb_param_ttr, String verb_param_ccd, int ttr_ms, bool isCascade) {
-  if (verb_param_ttr == null && verb_param_ccd == null) {
-    return null;
-  }
+Map<String, dynamic> validateCacheMetadata(
+    AtMetaData metadata, int ttr_ms, bool ccd) {
   // If metadata is null, key is new.
   // When key is new, If TTR is populated and CCD is not populated, CCD defaults to false.
   // If TTR is not populated and CCD is populated, Throw InvalidSyntaxException.
   if (metadata == null) {
-    ttr_ms = AtMetadataUtil.validateTTR(verb_param_ttr);
-    isCascade = AtMetadataUtil.validateCascadeDelete(ttr_ms, verb_param_ccd);
+    ccd = AtMetadataUtil.validateCascadeDelete(ttr_ms, ccd);
   }
   // If metadata is not null, key is existing.
   if (metadata != null) {
     // On existing key, when TTR and CCD are set, update TTR and CCD values.
-    if (verb_param_ttr != null && verb_param_ccd != null) {
-      ttr_ms = AtMetadataUtil.validateTTR(verb_param_ttr);
-      isCascade = AtMetadataUtil.validateCascadeDelete(ttr_ms, verb_param_ccd);
+    if (ttr_ms != null && ccd != null) {
+      ccd = AtMetadataUtil.validateCascadeDelete(ttr_ms, ccd);
     }
     // On existing key, if TTR is null and CCD is populated, get existing TTR value.
-    if (ttr_ms == null && verb_param_ccd != null) {
+    if (ttr_ms == null && ccd != null) {
       if (metadata.ttr != null) {
         ttr_ms = metadata.ttr;
-        isCascade =
-            AtMetadataUtil.validateCascadeDelete(ttr_ms, verb_param_ccd);
+        ccd = AtMetadataUtil.validateCascadeDelete(ttr_ms, ccd);
       }
     }
     // On existing key, if CCD is null and TTR is populated, get existing CCD value.
-    if (verb_param_ccd == null && verb_param_ttr != null) {
-      isCascade = metadata.isCascade;
-      isCascade ??= false;
-      ttr_ms = AtMetadataUtil.validateTTR(verb_param_ttr);
+    if (ccd == null && ttr_ms != null) {
+      ccd = metadata.isCascade;
+      ccd ??= false;
+      ttr_ms = AtMetadataUtil.validateTTR(ttr_ms);
     }
   }
-  var valueMap = {AT_TTR: ttr_ms, CCD: isCascade};
+  var valueMap = {AT_TTR: ttr_ms, CCD: ccd};
   return valueMap;
 }

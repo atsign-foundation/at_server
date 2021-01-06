@@ -49,6 +49,9 @@ class AtMetaData extends HiveObject {
   @HiveField(14)
   bool isEncrypted;
 
+  @HiveField(15)
+  String dataSignature;
+
   @override
   String toString() {
     return toJson().toString();
@@ -72,6 +75,7 @@ class AtMetaData extends HiveObject {
     map[CCD] = isCascade;
     map[IS_BINARY] = isBinary;
     map[IS_ENCRYPTED] = isEncrypted;
+    map[PUBLIC_DATA_SIGNATURE] = dataSignature;
     return map;
   }
 
@@ -88,9 +92,9 @@ class AtMetaData extends HiveObject {
           ? null
           : DateTime.parse(json['refreshAt']);
       availableAt =
-          (json['availableAt'] == null || json['availableAt'] == 'null')
-              ? null
-              : DateTime.parse(json['availableAt']);
+      (json['availableAt'] == null || json['availableAt'] == 'null')
+          ? null
+          : DateTime.parse(json['availableAt']);
       status = json['status'];
       version = (json['version'] is String)
           ? int.parse(json['version'])
@@ -107,6 +111,7 @@ class AtMetaData extends HiveObject {
       isCascade = json[CCD];
       isBinary = json[IS_BINARY];
       isEncrypted = json[IS_ENCRYPTED];
+      dataSignature = json[PUBLIC_DATA_SIGNATURE];
     } catch (error) {
       print('AtMetaData.fromJson error: ' + error.toString());
     }
@@ -139,13 +144,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..isCascade = fields[11] as bool
       ..availableAt = fields[12] as DateTime
       ..isBinary = fields[13] as bool
-      ..isEncrypted = fields[14];
+      ..isEncrypted = fields[14]
+      ..dataSignature = fields[15];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -175,6 +181,8 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(13)
       ..write(obj.isBinary)
       ..writeByte(14)
-      ..write(obj.isEncrypted);
+      ..write(obj.isEncrypted)
+      ..writeByte(15)
+      ..write(obj.dataSignature);
   }
 }
