@@ -468,22 +468,6 @@ void main() {
   });
 
   group('A group of negative tests around ttr and ccd', () {
-    test('ttr starting with 0', () {
-      var command = 'UpDaTe:ttr:00:ccd:true:@bob:location@alice Hyderabad,TG';
-      command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
-      var response = Response();
-      var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
-      handler.keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
-          throwsA(predicate((e) =>
-              e is InvalidSyntaxException &&
-              e.message ==
-                  'Valid values for TTR are -1 and greater than or equal to 1')));
-    });
-
     test('ttr starting with -2', () {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);

@@ -24,7 +24,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-      command.contains('meta');
+      command.startsWith('update:meta:');
 
   @override
   Verb getVerb() => updateMeta;
@@ -49,7 +49,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     var ttl_ms;
     var ttb_ms;
     var ttr_ms;
-    var isCascade;
+    var ccd;
     var isBinary;
     var isEncrypted;
     var metadata;
@@ -61,14 +61,17 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+      if (ttr_ms != null) {
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+      }
       isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
       isEncrypted = AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+      ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
       metadata = await keyStore.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(
-          metadata, verbParams[AT_TTR], verbParams[CCD], ttr_ms, isCascade);
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
       if (cacheRefreshMetaMap != null) {
         ttr_ms = cacheRefreshMetaMap[AT_TTR];
-        isCascade = cacheRefreshMetaMap[CCD];
+        ccd = cacheRefreshMetaMap[CCD];
       }
     } on InvalidSyntaxException {
       rethrow;
@@ -78,7 +81,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             ttl: ttl_ms,
             ttb: ttb_ms,
             ttr: ttr_ms,
-            ccd: isCascade,
+            ccd: ccd,
             isBinary: isBinary,
             isEncrypted: isEncrypted)
         .build();
@@ -89,8 +92,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (AUTO_NOTIFY && (atSign != forAtSign)) {
-      key = _constructKeyToNotify(
-          key, forAtSign, ttl_ms, ttb_ms, ttr_ms, isCascade);
+      key = _constructKeyToNotify(key, forAtSign, ttl_ms, ttb_ms, ttr_ms, ccd);
       try {
         await NotificationUtil.sendNotification(forAtSign, atConnection, key);
       } catch (exception) {

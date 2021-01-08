@@ -70,6 +70,14 @@ void main() async {
       var handler = SyncVerbHandler(null);
       expect(handler.accept(command), true);
     });
+    test('test sync verb with regex', () {
+      var verb = Sync();
+      var command = 'sync:-1:me';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      expect(paramsMap['from_commit_seq'], '-1');
+      expect(paramsMap['regex'], 'me');
+    });
   });
 
   group('A group of sync verb handler tests', () {
@@ -143,6 +151,30 @@ void main() async {
       var response = Response();
       await verbHandler.processVerb(response, verbParams, null);
       expect(response.data, isNull);
+    });
+
+    test('test sync verb handler with regex', () async {
+      var keyStoreManager = SecondaryKeyStoreManager.getInstance();
+      keyStoreManager.init();
+      var keyStore = keyStoreManager.getKeyStore();
+      var atData_1 = AtData();
+      atData_1.data = 'newyork';
+      await keyStore.put('location.me@alice', atData_1);
+      var atData_2 = AtData();
+      atData_2.data = '1234';
+      await keyStore.put('phone@alice', atData_2);
+      var atData_3 = AtData();
+      atData_3.data = 'wonderland';
+      await keyStore.put('lastname@alice', atData_3);
+      var verbHandler = SyncVerbHandler(keyStore);
+      var verbParams = HashMap<String, String>();
+      verbParams.putIfAbsent('from_commit_seq', () => '-1');
+      verbParams.putIfAbsent('regex', () => '\\.me');
+      var response = Response();
+      await verbHandler.processVerb(response, verbParams, null);
+      var responseJSON = jsonDecode(response.data);
+      expect(responseJSON[0]['atKey'], 'location.me@alice');
+      expect(responseJSON[0]['operation'], '+');
     });
   });
   tearDown(() async => await tearDownFunc());

@@ -26,7 +26,8 @@ class HiveKeyStoreHelper {
       int ttr,
       bool isCascade,
       bool isBinary,
-      bool isEncrypted}) {
+      bool isEncrypted,
+      String dataSignature}) {
     var at_data = AtData();
     at_data.data = newData.data;
     at_data.metaData = AtMetadataBuilder(
@@ -36,7 +37,8 @@ class HiveKeyStoreHelper {
             ttr: ttr,
             ccd: isCascade,
             isBinary: isBinary,
-            isEncrypted: isEncrypted)
+            isEncrypted: isEncrypted,
+            dataSignature: dataSignature)
         .build();
     at_data.metaData.version = 0;
     return at_data;
@@ -48,7 +50,8 @@ class HiveKeyStoreHelper {
       int ttr,
       bool isCascade,
       bool isBinary,
-      bool isEncrypted}) {
+      bool isEncrypted,
+      String dataSignature}) {
     existingData.metaData = AtMetadataBuilder(
             newAtMetaData: newData.metaData,
             existingMetaData: existingData.metaData,
@@ -57,7 +60,8 @@ class HiveKeyStoreHelper {
             ttr: ttr,
             ccd: isCascade,
             isBinary: isBinary,
-            isEncrypted: isEncrypted)
+            isEncrypted: isEncrypted,
+            dataSignature: dataSignature)
         .build();
     (existingData.metaData.version == null)
         ? existingData.metaData.version = 0

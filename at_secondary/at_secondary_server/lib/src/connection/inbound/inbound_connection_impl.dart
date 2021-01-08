@@ -11,6 +11,7 @@ class InboundConnectionImpl extends BaseConnection
   bool isMonitor = false;
 
   /// This contains the value of the atsign initiated the connection
+  @override
   String initiatedBy;
   static int inbound_idle_time =
       AtSecondaryServerImpl.getInstance().serverContext.inboundIdleTimeMillis;
@@ -67,4 +68,7 @@ class InboundConnectionImpl extends BaseConnection
 
   @override
   Socket receiverSocket;
+
+  @override
+  bool isStream;
 }

@@ -2,11 +2,12 @@ import 'dart:io';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/regex_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 class InboundMetricImpl implements MetricProvider {
-  static final InboundMetricImpl _singleton = InboundMetricImpl._internal();
+  static InboundMetricImpl _singleton = InboundMetricImpl._internal();
   var connectionMetrics = ConnectionMetricsImpl();
 
   InboundMetricImpl._internal();
@@ -16,7 +17,7 @@ class InboundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics() {
+  String getMetrics({String regex}) {
     var connections = connectionMetrics.getInboundConnections().toString();
     return connections;
   }
@@ -28,7 +29,7 @@ class InboundMetricImpl implements MetricProvider {
 }
 
 class OutBoundMetricImpl implements MetricProvider {
-  static final OutBoundMetricImpl _singleton = OutBoundMetricImpl._internal();
+  static OutBoundMetricImpl _singleton = OutBoundMetricImpl._internal();
   var connectionMetrics = ConnectionMetricsImpl();
 
   OutBoundMetricImpl._internal();
@@ -38,7 +39,7 @@ class OutBoundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics() {
+  String getMetrics({String regex}) {
     var connections = connectionMetrics.getOutboundConnections().toString();
     return connections;
   }
@@ -50,8 +51,7 @@ class OutBoundMetricImpl implements MetricProvider {
 }
 
 class LastCommitIDMetricImpl implements MetricProvider {
-  static final LastCommitIDMetricImpl _singleton =
-      LastCommitIDMetricImpl._internal();
+  static LastCommitIDMetricImpl _singleton = LastCommitIDMetricImpl._internal();
   var atCommitLog = AtCommitLog.getInstance();
 
   LastCommitIDMetricImpl._internal();
@@ -61,8 +61,15 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics() {
-    var lastCommitID = atCommitLog.lastCommittedSequenceNumber().toString();
+  String getMetrics({String regex}) {
+    logger.finer('In commitID getMetrics...regex : ${regex}');
+    var lastCommitID;
+    if (regex != null) {
+      lastCommitID =
+          atCommitLog.lastCommittedSequenceNumberWithRegex(regex).toString();
+      return lastCommitID;
+    }
+    lastCommitID = atCommitLog.lastCommittedSequenceNumber().toString();
     return lastCommitID;
   }
 
@@ -73,7 +80,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 }
 
 class SecondaryStorageMetricImpl implements MetricProvider {
-  static final SecondaryStorageMetricImpl _singleton =
+  static SecondaryStorageMetricImpl _singleton =
       SecondaryStorageMetricImpl._internal();
   var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath);
 
@@ -84,7 +91,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
   }
 
   @override
-  int getMetrics() {
+  int getMetrics({String regex}) {
     var secondaryStorageSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
@@ -105,7 +112,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtSignMetricImpl implements MetricProvider {
-  static final MostVisitedAtSignMetricImpl _singleton =
+  static MostVisitedAtSignMetricImpl _singleton =
       MostVisitedAtSignMetricImpl._internal();
 
   MostVisitedAtSignMetricImpl._internal();
@@ -115,7 +122,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 
   @override
-  Map getMetrics() {
+  Map getMetrics({String regex}) {
     final length = AtSecondaryConfig.stats_top_visits;
     return AtAccessLog.getInstance().mostVisitedAtSigns(length);
   }
@@ -127,7 +134,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtKeyMetricImpl implements MetricProvider {
-  static final MostVisitedAtKeyMetricImpl _singleton =
+  static MostVisitedAtKeyMetricImpl _singleton =
       MostVisitedAtKeyMetricImpl._internal();
 
   MostVisitedAtKeyMetricImpl._internal();
@@ -137,7 +144,7 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 
   @override
-  Map getMetrics() {
+  Map getMetrics({String regex}) {
     final length = AtSecondaryConfig.stats_top_keys;
     return AtAccessLog.getInstance().mostVisitedKeys(length);
   }

@@ -24,6 +24,15 @@ void main() {
       expect(result, true);
     });
 
+    test('test stats with regex', () {
+      var command = 'stats:3:.me';
+      var verb = Stats();
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      expect(paramsMap['statId'], ':3');
+      expect(paramsMap['regex'], '.me');
+    });
+
     test('test stats command accept test with comma separated values', () {
       var command = 'stats:1,2,3';
       var handler = StatsVerbHandler(null);
@@ -35,6 +44,16 @@ void main() {
     test('test stats key- invalid keyword', () {
       var verb = Stats();
       var command = 'staats';
+      var regex = verb.syntax();
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+    });
+
+    test('test stats key with regex - invalid keyword', () {
+      var verb = Stats();
+      var command = 'stats:2:me';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

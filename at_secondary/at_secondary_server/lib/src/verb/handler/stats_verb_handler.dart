@@ -54,6 +54,8 @@ final Map stats_map = {
 class StatsVerbHandler extends AbstractVerbHandler {
   static Stats stats = Stats();
 
+  var _regex;
+
   StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
@@ -68,10 +70,15 @@ class StatsVerbHandler extends AbstractVerbHandler {
   }
 
   void addStatToResult(id, result) {
-    logger.info('addStatToResult for id : $id');
+    logger.info('addStatToResult for id : $id, regex: $_regex');
     var metric = _getMetrics(id);
     var name = metric.name.getName();
-    var value = metric.name.getMetrics();
+    var value;
+    if (id == '3' && _regex != null) {
+      value = metric.name.getMetrics(regex: _regex);
+    } else {
+      value = metric.name.getMetrics();
+    }
     var stat = Stat(id, name, value);
     result.add(jsonEncode(stat));
   }
@@ -86,6 +93,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     try {
       var statID = verbParams[AT_STAT_ID];
+      _regex = verbParams[AT_REGEX];
+      logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
       Set stats_list;
       if (statID != null) {
         //If user provides stats ID's create set out of it

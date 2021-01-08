@@ -104,7 +104,8 @@ class AtNotificationKeystore
       int time_to_refresh,
       bool isCascade,
       bool isBinary,
-      bool isEncrypted}) async {
+      bool isEncrypted,
+      String dataSignature}) async {
     var atNotificationLogInstance = AtNotificationLog.getInstance();
     try {
       assert(key != null);

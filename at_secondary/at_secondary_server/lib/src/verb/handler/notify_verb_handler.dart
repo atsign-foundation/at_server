@@ -61,8 +61,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      ttr_ms = AtMetadataUtil.validateTTR(verbParams[AT_TTR]);
-      isCascade = AtMetadataUtil.validateCascadeDelete(ttr_ms, verbParams[CCD]);
+      if (verbParams[AT_TTR] != null) {
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+      }
+      isCascade = AtMetadataUtil.validateCascadeDelete(
+          ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
     } on InvalidSyntaxException {
       rethrow;
     }

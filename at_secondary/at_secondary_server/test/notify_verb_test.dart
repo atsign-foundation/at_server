@@ -156,18 +156,6 @@ void main() {
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
 
-    test('test notify verb - invalid ttr value', () {
-      var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = InboundConnectionImpl(null, '123');
-      var notifyResponse = Response();
-      var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('ttr', () => '0');
-      expect(
-          () => notifyVerb.processVerb(
-              notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
-    });
-
     test('test notify verb - ttr = -2 invalid value ', () {
       var notifyVerb = NotifyVerbHandler(null);
       var inboundConnection = InboundConnectionImpl(null, '123');

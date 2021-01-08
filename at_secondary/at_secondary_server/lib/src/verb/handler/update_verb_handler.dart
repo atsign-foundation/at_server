@@ -1,9 +1,10 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -25,7 +26,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-      !command.contains('meta');
+      !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override
@@ -50,22 +51,24 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
+    var updateParams = _getUpdateParams(verbParams);
+
     try {
       // Get the key and update the value
-      var forAtSign = verbParams[FOR_AT_SIGN];
-      var atSign = verbParams[AT_SIGN];
-      var key = verbParams[AT_KEY];
-      var value = verbParams[AT_VALUE];
+      var forAtSign = updateParams.sharedBy;
+      var atSign = updateParams.sharedWith;
+      var key = updateParams.atKey;
+      var value = updateParams.value;
       var atData = AtData();
       atData.data = value;
       atData.metaData = AtMetaData();
-      var ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-      var ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      var isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
-      var isEncrypted =
-          AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
-      var ttr_ms;
-      var isCascade;
+      var ttl_ms = updateParams.metadata.ttl;
+      var ttb_ms = updateParams.metadata.ttb;
+      var ttr_ms = updateParams.metadata.ttr;
+      var isBinary = updateParams.metadata.isBinary;
+      var isEncrypted = updateParams.metadata.isEncrypted;
+      var dataSignature = updateParams.metadata.dataSignature;
+      var ccd = updateParams.metadata.ccd;
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -76,34 +79,38 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = '${key}${atSign}';
       }
       // Append public: as prefix if key is public
-      if (verbParams.containsKey('isPublic')) {
+      if (updateParams.metadata.isPublic != null &&
+          updateParams.metadata.isPublic) {
         key = 'public:${key}';
       }
       var metadata = await keyStore.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(
-          metadata, verbParams[AT_TTR], verbParams[CCD], ttr_ms, isCascade);
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
       if (cacheRefreshMetaMap != null) {
         ttr_ms = cacheRefreshMetaMap[AT_TTR];
-        isCascade = cacheRefreshMetaMap[CCD];
+        ccd = cacheRefreshMetaMap[CCD];
       }
+
       //If ttr is set and atsign is not equal to currentAtSign, the key is
       //cached key.
       if (ttr_ms != null &&
+          ttr_ms > 0 &&
+          atSign != null &&
           atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
         key = 'cached:$key';
       }
+
       // update the key in data store
       var result = await keyStore.put(key, atData,
           time_to_live: ttl_ms,
           time_to_born: ttb_ms,
           time_to_refresh: ttr_ms,
-          isCascade: isCascade,
+          isCascade: ccd,
           isBinary: isBinary,
-          isEncrypted: isEncrypted);
+          isEncrypted: isEncrypted,
+          dataSignature: dataSignature);
       response.data = result?.toString();
-      // send notification to other secondary
       _notify(atConnection, atSign, forAtSign, key, value, ttl_ms, ttr_ms,
-          ttb_ms, isCascade, metadata);
+          ttb_ms, ccd, metadata);
     } on InvalidSyntaxException {
       rethrow;
     } catch (exception) {
@@ -148,5 +155,33 @@ class UpdateVerbHandler extends AbstractVerbHandler {
             'Exception while sending notification ${exception.toString()}');
       }
     }
+  }
+
+  UpdateParams _getUpdateParams(HashMap<String, String> verbParams) {
+    if (verbParams['json'] != null) {
+      print('update json');
+      var jsonString = verbParams['json'];
+      Map jsonMap = jsonDecode(jsonString);
+      return UpdateParams.fromJson(jsonMap);
+    }
+    var updateParams = UpdateParams();
+    updateParams.sharedBy = verbParams[FOR_AT_SIGN];
+    updateParams.sharedWith = verbParams[AT_SIGN];
+    updateParams.atKey = verbParams[AT_KEY];
+    updateParams.value = verbParams[AT_VALUE];
+    var metadata = Metadata();
+    metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+    metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+    if (verbParams[AT_TTR] != null) {
+      metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+    }
+    metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
+    metadata.dataSignature = verbParams[PUBLIC_DATA_SIGNATURE];
+    metadata.isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
+    metadata.isEncrypted =
+        AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+    metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
+    updateParams.metadata = metadata;
+    return updateParams;
   }
 }

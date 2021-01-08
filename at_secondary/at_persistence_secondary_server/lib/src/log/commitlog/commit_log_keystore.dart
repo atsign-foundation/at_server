@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:hive/hive.dart';
@@ -33,6 +35,11 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: ${lastCommittedSequenceNum}');
+  }
+
+  /// Closes the [commitLogKeyStore] instance.
+  void close() async {
+    await box.close();
   }
 
   @override
@@ -100,9 +107,27 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return lastCommittedSequenceNum;
   }
 
-  CommitEntry lastSyncedEntry() {
-    var lastSyncedEntry = box.values
-        .lastWhere((entry) => entry.commitId != null, orElse: () => null);
+  /// Returns the latest committed sequence number with regex
+  int lastCommittedSequenceNumberWithRegex(String regex) {
+    var lastCommittedEntry = box.values.lastWhere(
+        (entry) => (_isRegexMatches(entry.atKey, regex)),
+        orElse: () => null);
+    var lastCommittedSequenceNum =
+        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+    return lastCommittedSequenceNum;
+  }
+
+  CommitEntry lastSyncedEntry({String regex}) {
+    var lastSyncedEntry;
+    if (regex != null) {
+      lastSyncedEntry = box.values.lastWhere(
+          (entry) =>
+              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
+          orElse: () => null);
+    } else {
+      lastSyncedEntry = box.values
+          .lastWhere((entry) => entry.commitId != null, orElse: () => null);
+    }
     return lastSyncedEntry;
   }
 
@@ -114,7 +139,6 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
-  @override
   int entriesCount() {
     var totalKeys = 0;
     totalKeys = box?.keys?.length;
@@ -124,7 +148,6 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// Gets the first 'N' keys from the logs
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
-  @override
   List getFirstNEntries(int N) {
     var entries = [];
     try {
@@ -148,7 +171,6 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     }
   }
 
-  @override
   int getSize() {
     var logSize = 0;
     var logLocation = Directory(storagePath);
@@ -163,14 +185,11 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return logSize ~/ 1024;
   }
 
-  @override
   List getExpired(int expiryInDays) {
     // TODO: implement getExpired
     return null;
   }
 
-  /// For a key in commit log, if more than one entry exists,
-  /// returns a list of entries except the entry with latest commitId.
   List getDuplicateEntries() {
     var commitLogMap = box.toMap();
     var sortedKeys = commitLogMap.keys.toList(growable: false)
@@ -192,8 +211,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber) {
+  List<CommitEntry> getChanges(int sequenceNumber, {String regex}) {
     var changes = <CommitEntry>[];
+    var regexString = (regex != null) ? regex : '';
     try {
       var keys = box.keys;
       if (keys == null || keys.isEmpty) {
@@ -204,7 +224,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
           .finer('startKey: ${startKey} all commit log entries: ${box.values}');
       box.values.forEach((f) {
         if (f.key >= startKey) {
-          changes.add(f);
+          if (_isRegexMatches(f.atKey, regexString)) {
+            changes.add(f);
+          }
         }
       });
     } on Exception catch (e) {
@@ -216,8 +238,15 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return changes;
   }
 
-  /// Closes the [commitLogKeyStore] instance.
-  void close() async {
-    await box.close();
+  bool _isRegexMatches(String atKey, String regex) {
+    var result = false;
+    if ((RegExp(regex).hasMatch(atKey)) ||
+        atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
+        atKey.startsWith('public:') ||
+        atKey.contains(AT_PKAM_SIGNATURE) ||
+        atKey.contains(AT_SIGNING_PRIVATE_KEY)) {
+      result = true;
+    }
+    return result;
   }
 }

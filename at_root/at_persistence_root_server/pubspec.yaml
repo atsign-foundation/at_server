@@ -10,8 +10,23 @@ environment:
 
 dependencies:
   redis: ^1.2.0
-  at_persistence_spec: ^1.0.1+1
-  at_utils: ^1.0.1+1
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: master
+
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_utils
+      ref: master
+
+#dependency_overrides:
+#  at_persistence_spec:
+#    path: ../../../at_server/at_persistence/at_persistence_spec
+#  at_utils:
+#    path: ../../../at_tools/at_utils
 
 dev_dependencies:
   pedantic: ^1.8.0
