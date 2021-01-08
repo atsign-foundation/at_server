@@ -46,9 +46,9 @@ void main() {
       var command = 'staats';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats key with regex - invalid keyword', () {
@@ -56,9 +56,9 @@ void main() {
       var command = 'stats:2:me';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats verb - upper case', () {
@@ -76,9 +76,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats verb - invalid syntax', () {
@@ -87,7 +87,7 @@ void main() {
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager();
       expect(
-              () => defaultVerbExecutor.execute(
+          () => defaultVerbExecutor.execute(
               command, inbound, defaultVerbHandlerManager),
           throwsA(predicate((e) => e is UnAuthenticatedException)));
     });

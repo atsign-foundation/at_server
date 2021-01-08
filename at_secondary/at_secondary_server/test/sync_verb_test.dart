@@ -27,9 +27,9 @@ void main() async {
       var command = 'sync:';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test sync incorrect multiple sequence number', () {
@@ -37,9 +37,9 @@ void main() async {
       var command = 'sync:5 6 7';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test sync incorrect sequence number with alphabet', () {
@@ -47,9 +47,9 @@ void main() async {
       var command = 'sync:5a';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 

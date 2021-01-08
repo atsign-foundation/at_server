@@ -30,7 +30,7 @@ class InboundConnectionImpl extends BaseConnection
     if (connection != null) {
       if (connection.getSocket() != null && getSocket() != null) {
         if (getSocket().remoteAddress.address ==
-            connection.getSocket().remoteAddress.address &&
+                connection.getSocket().remoteAddress.address &&
             getSocket().remotePort == connection.getSocket().remotePort) {
           result = true;
         }

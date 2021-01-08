@@ -31,8 +31,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     this.storagePath = storagePath;
     box = await Hive.openBox(boxName,
         compactionStrategy: (entries, deletedEntries) {
-          return deletedEntries > 1;
-        });
+      return deletedEntries > 1;
+    });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: ${lastCommittedSequenceNum}');
   }
@@ -110,10 +110,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// Returns the latest committed sequence number with regex
   int lastCommittedSequenceNumberWithRegex(String regex) {
     var lastCommittedEntry = box.values.lastWhere(
-            (entry) => (_isRegexMatches(entry.atKey, regex)),
+        (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
-    (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
     return lastCommittedSequenceNum;
   }
 
@@ -121,8 +121,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     var lastSyncedEntry;
     if (regex != null) {
       lastSyncedEntry = box.values.lastWhere(
-              (entry) =>
-          (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
+          (entry) =>
+              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
           orElse: () => null);
     } else {
       lastSyncedEntry = box.values
@@ -198,7 +198,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     var tempSet = <String>{};
     var expiredKeys = [];
     sortedKeys.forEach(
-            (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
+        (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
     return expiredKeys;
   }
 

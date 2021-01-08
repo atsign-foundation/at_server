@@ -92,9 +92,9 @@ class AtMetaData extends HiveObject {
           ? null
           : DateTime.parse(json['refreshAt']);
       availableAt =
-      (json['availableAt'] == null || json['availableAt'] == 'null')
-          ? null
-          : DateTime.parse(json['availableAt']);
+          (json['availableAt'] == null || json['availableAt'] == 'null')
+              ? null
+              : DateTime.parse(json['availableAt']);
       status = json['status'];
       version = (json['version'] is String)
           ? int.parse(json['version'])

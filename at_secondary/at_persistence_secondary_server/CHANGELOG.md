@@ -7,3 +7,7 @@
 ## 1.0.1+2
 - Notifylist issue fix for atSigns with emojis
   Add close methods for keystore.
+## 1.0.1+3
+- Public data Signing
+  Sync with regex
+  at_persistence_spec changes

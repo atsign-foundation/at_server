@@ -24,7 +24,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-          command.startsWith('update:meta:');
+      command.startsWith('update:meta:');
 
   @override
   Verb getVerb() => updateMeta;
@@ -77,13 +77,13 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
     var atMetaData = AtMetadataBuilder(
-        newAtMetaData: metadata,
-        ttl: ttl_ms,
-        ttb: ttb_ms,
-        ttr: ttr_ms,
-        ccd: ccd,
-        isBinary: isBinary,
-        isEncrypted: isEncrypted)
+            newAtMetaData: metadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: ccd,
+            isBinary: isBinary,
+            isEncrypted: isEncrypted)
         .build();
     var result = await keyStore.putMeta(key, atMetaData);
     response.data = result?.toString();
@@ -103,13 +103,13 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   }
 
   String _constructKeyToNotify(
-      String key,
-      String forAtSign,
-      int ttl_ms,
-      int ttb_ms,
-      int ttr_ms,
-      bool isCascade,
-      ) {
+    String key,
+    String forAtSign,
+    int ttl_ms,
+    int ttb_ms,
+    int ttr_ms,
+    bool isCascade,
+  ) {
     forAtSign = AtUtils.formatAtSign(forAtSign);
     //if ttr is set, notify with value.
     if (isCascade != null) {

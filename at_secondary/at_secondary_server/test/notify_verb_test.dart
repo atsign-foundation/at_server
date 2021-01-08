@@ -87,9 +87,9 @@ void main() {
       var command = 'notify:location@alice ';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify key- no from atsign', () {
@@ -97,9 +97,9 @@ void main() {
       var command = 'notify:@colin:location';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify with only key', () {
@@ -107,9 +107,9 @@ void main() {
       var command = 'notify:location';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify key- invalid keyword', () {
@@ -117,9 +117,9 @@ void main() {
       var command = 'notification:@colin:location@alice';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify verb - no key', () {
@@ -127,9 +127,9 @@ void main() {
       var command = 'notify:@colin:@alice';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify verb - invalid ttl value', () {
@@ -139,7 +139,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '0');
       expect(
-              () => notifyVerb.processVerb(
+          () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
@@ -151,7 +151,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '0');
       expect(
-              () => notifyVerb.processVerb(
+          () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
@@ -163,7 +163,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
       expect(
-              () => notifyVerb.processVerb(
+          () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
@@ -189,10 +189,10 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ccd', () => 'true');
       expect(
-              () => notifyVerb.processVerb(
+          () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException &&
+              e is InvalidSyntaxException &&
               e.message == 'TTR cannot be null on cascade delete')));
     });
   });
@@ -255,7 +255,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
@@ -306,7 +306,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';

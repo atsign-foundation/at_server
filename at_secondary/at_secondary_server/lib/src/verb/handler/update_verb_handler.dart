@@ -26,7 +26,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-          !command.startsWith('update:meta');
+      !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override

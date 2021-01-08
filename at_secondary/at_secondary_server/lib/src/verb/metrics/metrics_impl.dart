@@ -81,7 +81,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 
 class SecondaryStorageMetricImpl implements MetricProvider {
   static SecondaryStorageMetricImpl _singleton =
-  SecondaryStorageMetricImpl._internal();
+      SecondaryStorageMetricImpl._internal();
   var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath);
 
   SecondaryStorageMetricImpl._internal();
@@ -113,7 +113,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
 
 class MostVisitedAtSignMetricImpl implements MetricProvider {
   static MostVisitedAtSignMetricImpl _singleton =
-  MostVisitedAtSignMetricImpl._internal();
+      MostVisitedAtSignMetricImpl._internal();
 
   MostVisitedAtSignMetricImpl._internal();
 
@@ -135,7 +135,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
 
 class MostVisitedAtKeyMetricImpl implements MetricProvider {
   static MostVisitedAtKeyMetricImpl _singleton =
-  MostVisitedAtKeyMetricImpl._internal();
+      MostVisitedAtKeyMetricImpl._internal();
 
   MostVisitedAtKeyMetricImpl._internal();
 
