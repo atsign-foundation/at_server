@@ -22,21 +22,23 @@ class HiveKeyStoreHelper {
 
   AtData prepareDataForCreate(AtData newData,
       {int ttl,
-      int ttb,
-      int ttr,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted}) {
+        int ttb,
+        int ttr,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature}) {
     var at_data = AtData();
     at_data.data = newData.data;
     at_data.metaData = AtMetadataBuilder(
-            newAtMetaData: newData.metaData,
-            ttl: ttl,
-            ttb: ttb,
-            ttr: ttr,
-            ccd: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted)
+        newAtMetaData: newData.metaData,
+        ttl: ttl,
+        ttb: ttb,
+        ttr: ttr,
+        ccd: isCascade,
+        isBinary: isBinary,
+        isEncrypted: isEncrypted,
+        dataSignature: dataSignature)
         .build();
     at_data.metaData.version = 0;
     return at_data;
@@ -44,20 +46,22 @@ class HiveKeyStoreHelper {
 
   AtData prepareDataForUpdate(AtData existingData, AtData newData,
       {int ttl,
-      int ttb,
-      int ttr,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted}) {
+        int ttb,
+        int ttr,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature}) {
     existingData.metaData = AtMetadataBuilder(
-            newAtMetaData: newData.metaData,
-            existingMetaData: existingData.metaData,
-            ttl: ttl,
-            ttb: ttb,
-            ttr: ttr,
-            ccd: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted)
+        newAtMetaData: newData.metaData,
+        existingMetaData: existingData.metaData,
+        ttl: ttl,
+        ttb: ttb,
+        ttr: ttr,
+        ccd: isCascade,
+        isBinary: isBinary,
+        isEncrypted: isEncrypted,
+        dataSignature: dataSignature)
         .build();
     (existingData.metaData.version == null)
         ? existingData.metaData.version = 0

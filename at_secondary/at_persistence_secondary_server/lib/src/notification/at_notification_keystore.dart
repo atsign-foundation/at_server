@@ -11,7 +11,7 @@ class AtNotificationKeystore
     implements
         SecondaryKeyStore<String, NotificationEntry, NotificationEntryMeta> {
   static final AtNotificationKeystore _singleton =
-      AtNotificationKeystore._internal();
+  AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
 
@@ -26,11 +26,11 @@ class AtNotificationKeystore
   @override
   Future create(String key, NotificationEntry notificationEntry,
       {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted}) async {
+        int time_to_born,
+        int time_to_refresh,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted}) async {
     try {
       await atNotificationLogInstance.box
           ?.put(Utf7.encode(key), notificationEntry);
@@ -100,18 +100,19 @@ class AtNotificationKeystore
   @override
   Future<void> put(String key, NotificationEntry notificationEntry,
       {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted}) async {
+        int time_to_born,
+        int time_to_refresh,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature}) async {
     var atNotificationLogInstance = AtNotificationLog.getInstance();
     try {
       assert(key != null);
       var existingData = await get(key);
       logger.finer('existingData : $existingData');
       var newData =
-          (existingData == null) ? NotificationEntry([], []) : existingData;
+      (existingData == null) ? NotificationEntry([], []) : existingData;
       newData = atNotificationLogInstance.prepareNotificationEntry(
           existingData, notificationEntry);
       await create(key, newData);

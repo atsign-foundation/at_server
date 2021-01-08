@@ -58,10 +58,10 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber) {
+  List<CommitEntry> getChanges(int sequenceNumber, String regex) {
     var changes = <CommitEntry>[];
     try {
-      changes = commitLogKeyStore.getChanges(sequenceNumber);
+      changes = commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -92,8 +92,17 @@ class AtCommitLog implements AtLogType {
     return commitLogKeyStore.lastCommittedSequenceNumber();
   }
 
+  /// Returns the latest committed sequence number with regex
+  int lastCommittedSequenceNumberWithRegex(String regex) {
+    return commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  }
+
   CommitEntry lastSyncedEntry() {
     return commitLogKeyStore.lastSyncedEntry();
+  }
+
+  CommitEntry lastSyncedEntryWithRegex(String regex) {
+    return commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
@@ -112,7 +121,7 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getEntries(int N) {
+  List getFirstNEntries(int N) {
     var entries = [];
     try {
       entries = commitLogKeyStore.getDuplicateEntries();

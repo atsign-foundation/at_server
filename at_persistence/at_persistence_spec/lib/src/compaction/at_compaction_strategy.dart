@@ -7,7 +7,7 @@ abstract class AtLogType {
   /// Returns the first 'N' keys of the log instance.
   /// @param N : Fetches first 'N' entries
   /// @return List : Returns the list of keys.
-  List getEntries(int N);
+  List getFirstNEntries(int N);
 
   /// Removes the keys from storage.
   /// @param expiredKeys delete the expiredKeys from the storage

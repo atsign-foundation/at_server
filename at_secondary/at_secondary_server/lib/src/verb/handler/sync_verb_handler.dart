@@ -27,13 +27,18 @@ class SyncVerbHandler extends AbstractVerbHandler {
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE];
+    var regex = verbParams[AT_REGEX];
     var commit_changes =
-        AtCommitLog.getInstance().getChanges(int.parse(commit_sequence));
+    AtCommitLog.getInstance().getChanges(int.parse(commit_sequence), regex);
     logger.finer(
         'number of changes since commitId: ${commit_sequence} is ${commit_changes.length}');
     commit_changes.removeWhere((entry) =>
-        entry.atKey.startsWith('privatekey:') ||
+    entry.atKey.startsWith('privatekey:') ||
         entry.atKey.startsWith('private:'));
+    if (regex != null && regex != 'null') {
+      logger.finer('regex for sync : $regex');
+      commit_changes.removeWhere((entry) => !_isRegexMatches(entry.atKey, regex));
+    }
     var distinctKeys = <String>{};
     var syncResultList = [];
     //sort log by commitId descending
@@ -41,12 +46,12 @@ class SyncVerbHandler extends AbstractVerbHandler {
         .sort((entry1, entry2) => entry2.commitId.compareTo(entry1.commitId));
     // for each latest key entry in commit log, get the value
     await Future.forEach(commit_changes,
-        (entry) => _processEntry(entry, distinctKeys, syncResultList));
+            (entry) => _processEntry(entry, distinctKeys, syncResultList));
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
     syncResultList.sort(
-        (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
+            (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     var result;
 
     if (syncResultList.isNotEmpty) {
@@ -90,6 +95,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
       if (metaData.isCascade != null) {
         metaDataMap.putIfAbsent(CCD, () => metaData.isCascade.toString());
       }
+
+      if (metaData.dataSignature != null) {
+        metaDataMap.putIfAbsent(
+            PUBLIC_DATA_SIGNATURE, () => metaData.dataSignature.toString());
+      }
       if (metaData.isBinary != null) {
         metaDataMap.putIfAbsent(IS_BINARY, () => metaData.isBinary.toString());
       }
@@ -99,5 +109,17 @@ class SyncVerbHandler extends AbstractVerbHandler {
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
+  }
+
+  bool _isRegexMatches(String atKey, String regex) {
+    var result = false;
+    if ((RegExp(regex).hasMatch(atKey)) ||
+        atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
+        atKey.startsWith('public:') ||
+        atKey.contains(AT_PKAM_SIGNATURE) ||
+        atKey.contains(AT_SIGNING_PRIVATE_KEY)) {
+      result = true;
+    }
+    return result;
   }
 }

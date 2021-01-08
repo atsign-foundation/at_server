@@ -72,7 +72,7 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  List getEntries(int N) {
+  List getFirstNEntries(int N) {
     return accessLogKeyStore.getFirstNEntries(N);
   }
 
