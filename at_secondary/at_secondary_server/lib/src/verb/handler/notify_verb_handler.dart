@@ -20,7 +20,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.contains('list');
+          !command.contains('list');
 
   @override
   Verb getVerb() {
@@ -56,13 +56,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var opType;
     if (operation != null) {
       opType =
-          (operation == 'update') ? OperationType.update : OperationType.delete;
+      (operation == 'update') ? OperationType.update : OperationType.delete;
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      ttr_ms = AtMetadataUtil.validateTTR(verbParams[AT_TTR]);
-      isCascade = AtMetadataUtil.validateCascadeDelete(ttr_ms, verbParams[CCD]);
+      if (verbParams[AT_TTR] != null) {
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+      }
+      isCascade = AtMetadataUtil.validateCascadeDelete(
+          ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
     } on InvalidSyntaxException {
       rethrow;
     }
@@ -118,11 +121,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
         await _storeCachedKeys(key, metadata, atValue: atValue);
         response.data = 'data:success';
@@ -132,11 +135,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // Update metadata only if key is cached.
       if (isKeyPresent != null) {
         var atMetaData = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
         await _updateMetadata(notifyKey, atMetaData);
         response.data = 'data:success';

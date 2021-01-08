@@ -13,13 +13,14 @@ class AtMetadataBuilder {
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
   AtMetadataBuilder(
       {AtMetaData newAtMetaData,
-      AtMetaData existingMetaData,
-      int ttl,
-      int ttb,
-      int ttr,
-      bool ccd,
-      bool isBinary,
-      bool isEncrypted}) {
+        AtMetaData existingMetaData,
+        int ttl,
+        int ttb,
+        int ttr,
+        bool ccd,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -44,25 +45,23 @@ class AtMetadataBuilder {
     }
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
+    dataSignature ??= newAtMetaData.dataSignature;
 
-    if (ttl != null) {
+    if (ttl != null && ttl > 0) {
       setTTL(ttl, ttb: ttb);
     }
-    if (ttb != null) {
+    if (ttb != null && ttb > 0) {
       setTTB(ttb);
     }
-    if (ttr != null) {
+    if (ttr != null && ttr > 0) {
       setTTR(ttr);
     }
     if (ccd != null) {
       setCCD(ccd);
     }
-    if (isBinary != null) {
-      setIsBinary(isBinary);
-    }
-    if (isEncrypted != null) {
-      setIsEncrypted(isEncrypted);
-    }
+    setIsBinary(isBinary);
+    setIsEncrypted(isEncrypted);
+    setDataSignature(dataSignature);
   }
 
   void setTTL(int ttl, {int ttb}) {
@@ -103,6 +102,12 @@ class AtMetadataBuilder {
   void setIsEncrypted(bool isEncrypted) {
     if (isEncrypted != null) {
       atMetaData.isEncrypted = isEncrypted;
+    }
+  }
+
+  void setDataSignature(String dataSignature) {
+    if (dataSignature != null) {
+      atMetaData.dataSignature = dataSignature;
     }
   }
 

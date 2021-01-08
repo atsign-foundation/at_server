@@ -32,10 +32,6 @@ class StreamVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
-    if (!atConnection.getMetaData().isAuthenticated &&
-        !atConnection.getMetaData().isPolAuthenticated) {
-      throw UnAuthenticatedException('Stream verb requires either pol or auth');
-    }
     logger.info('inside stream verb handler');
     var operation = verbParams['operation'];
     var receiver = verbParams['receiver'];
@@ -48,6 +44,10 @@ class StreamVerbHandler extends AbstractVerbHandler {
       case 'receive':
         StreamManager.receiverSocketMap[streamId] = atConnection;
         var senderConnection = StreamManager.senderSocketMap[streamId];
+        if (senderConnection == null) {
+          logger.severe('sender connection is null for stream id:$streamId');
+          throw UnAuthenticatedException('Invalid stream id');
+        }
         senderConnection.getMetaData().isStream = true;
         senderConnection.getMetaData().streamId = streamId;
         atConnection.getMetaData().streamId = streamId;
@@ -57,12 +57,24 @@ class StreamVerbHandler extends AbstractVerbHandler {
         senderConnection.getSocket().write('stream:ack ${streamId}\n');
         break;
       case 'done':
+        var senderConnection = StreamManager.senderSocketMap[streamId];
+        if (senderConnection == null) {
+          logger.severe('sender connection is null for stream id:$streamId');
+          throw UnAuthenticatedException('Invalid stream id');
+        }
         StreamManager.senderSocketMap[streamId]
             .write('stream:done ${streamId}\n');
         await StreamManager.receiverSocketMap[streamId].getSocket().destroy();
         await StreamManager.senderSocketMap[streamId].getSocket().destroy();
+        StreamManager.receiverSocketMap.remove(streamId);
+        StreamManager.senderSocketMap.remove(streamId);
         break;
       case 'init':
+        if (!atConnection.getMetaData().isAuthenticated &&
+            !atConnection.getMetaData().isPolAuthenticated) {
+          throw UnAuthenticatedException(
+              'Stream init requires either pol or auth');
+        }
         logger.info('forAtSign:${receiver}');
         logger.info('streamid:${streamId}');
         fileName = fileName.trim();

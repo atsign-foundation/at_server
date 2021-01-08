@@ -20,11 +20,12 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> put(K key, V value,
       {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted});
+        int time_to_born,
+        int time_to_refresh,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -36,11 +37,11 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> create(K key, V value,
       {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted});
+        int time_to_born,
+        int time_to_refresh,
+        bool isCascade,
+        bool isBinary,
+        bool isEncrypted});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
