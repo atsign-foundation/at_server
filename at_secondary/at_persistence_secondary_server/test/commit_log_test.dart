@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 import 'dart:io';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive/commit';
+  var storageDir = Directory.current.path + '/test/hive/';
   setUp(() async => await setUpFunc(storageDir));
 
   group('A group of commit log test', () {
@@ -114,13 +114,17 @@ void main() async {
     });
   });
 
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => tearDownFunc(storageDir));
 }
 
 void setUpFunc(storageDir) async {
   await CommitLogKeyStore.getInstance().init('@alice', storageDir);
 }
 
-Future<void> tearDownFunc() async {
+Future<void> tearDownFunc(String storagePath) async {
   await Hive.deleteBoxFromDisk('@alice');
+  var isExists = await Directory(storagePath).exists();
+  if(isExists){
+    await Directory(storagePath).deleteSync(recursive: true);
+  }
 }
