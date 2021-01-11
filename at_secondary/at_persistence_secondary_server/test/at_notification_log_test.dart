@@ -136,7 +136,7 @@ void main() async {
     });
   });
 
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => tearDownFunc(storagePath));
 }
 
 void setUpFunc(storagePath, maxNotifications) async {
@@ -148,6 +148,12 @@ void processReceiveNotification(AtNotification atNotification) {
   print(atNotification);
 }
 
-Future<void> tearDownFunc() async {
+Future<void> tearDownFunc(String storagePath) async {
   await Hive.deleteBoxFromDisk('test_notify');
+  var isExists = await Directory('test/notifications').exists();
+
+  if(isExists){
+    await Directory(storagePath).deleteSync(recursive: true);
+  }
+
 }

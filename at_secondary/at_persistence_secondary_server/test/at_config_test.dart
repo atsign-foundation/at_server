@@ -75,6 +75,7 @@ void setUpFunc(storageDir) async {
       .init('commit_log_@test_user_2', storageDir);
   var persistenceManager = HivePersistenceManager.getInstance();
   await persistenceManager.init('@test_user_1', storageDir);
+  await persistenceManager.openVault('@test_user_1');
 }
 
 void tearDownFunc() async {

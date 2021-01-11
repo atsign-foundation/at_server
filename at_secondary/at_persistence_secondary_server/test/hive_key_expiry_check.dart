@@ -1,17 +1,23 @@
 import 'dart:io';
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 
 void main() async {
   var manager = HivePersistenceManager.getInstance();
-  var result = await manager.init('testbox', '/home/murali/work/2020/hive');
+  var directory = '${Directory.current}/hive';
+  var result = await manager.init('@alice', directory);
   manager.scheduleKeyExpireTask(1);
   print(result);
 
   var keyStoreManager = SecondaryKeyStoreManager.getInstance();
+  var commitKeyStore = CommitLogKeyStore.getInstance();
+  await manager.openVault('@alice');
+  await commitKeyStore.init('commitLog', directory);
   keyStoreManager.init();
+
   var atData = AtData();
   atData.data = 'abc';
   await keyStoreManager
