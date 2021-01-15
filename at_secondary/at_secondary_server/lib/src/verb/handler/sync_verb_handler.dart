@@ -29,15 +29,16 @@ class SyncVerbHandler extends AbstractVerbHandler {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE];
     var regex = verbParams[AT_REGEX];
     var commit_changes =
-    AtCommitLog.getInstance().getChanges(int.parse(commit_sequence), regex);
+        AtCommitLog.getInstance().getChanges(int.parse(commit_sequence), regex);
     logger.finer(
         'number of changes since commitId: ${commit_sequence} is ${commit_changes.length}');
     commit_changes.removeWhere((entry) =>
-    entry.atKey.startsWith('privatekey:') ||
+        entry.atKey.startsWith('privatekey:') ||
         entry.atKey.startsWith('private:'));
     if (regex != null && regex != 'null') {
       logger.finer('regex for sync : $regex');
-      commit_changes.removeWhere((entry) => !_isRegexMatches(entry.atKey, regex));
+      commit_changes
+          .removeWhere((entry) => !_isRegexMatches(entry.atKey, regex));
     }
     var distinctKeys = <String>{};
     var syncResultList = [];
@@ -46,12 +47,12 @@ class SyncVerbHandler extends AbstractVerbHandler {
         .sort((entry1, entry2) => entry2.commitId.compareTo(entry1.commitId));
     // for each latest key entry in commit log, get the value
     await Future.forEach(commit_changes,
-            (entry) => _processEntry(entry, distinctKeys, syncResultList));
+        (entry) => _processEntry(entry, distinctKeys, syncResultList));
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
     syncResultList.sort(
-            (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
+        (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     var result;
 
     if (syncResultList.isNotEmpty) {
@@ -106,6 +107,14 @@ class SyncVerbHandler extends AbstractVerbHandler {
       if (metaData.isEncrypted != null) {
         metaDataMap.putIfAbsent(
             IS_ENCRYPTED, () => metaData.isEncrypted.toString());
+      }
+      if (metaData.createdAt != null) {
+        metaDataMap.putIfAbsent(
+            CREATED_AT, () => metaData.createdAt.toString());
+      }
+      if (metaData.updatedAt != null) {
+        metaDataMap.putIfAbsent(
+            UPDATED_AT, () => metaData.updatedAt.toString());
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
