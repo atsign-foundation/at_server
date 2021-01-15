@@ -13,14 +13,14 @@ class AtMetadataBuilder {
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
   AtMetadataBuilder(
       {AtMetaData newAtMetaData,
-        AtMetaData existingMetaData,
-        int ttl,
-        int ttb,
-        int ttr,
-        bool ccd,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) {
+      AtMetaData existingMetaData,
+      int ttl,
+      int ttb,
+      int ttr,
+      bool ccd,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -53,7 +53,7 @@ class AtMetadataBuilder {
     if (ttb != null && ttb > 0) {
       setTTB(ttb);
     }
-    if (ttr != null && ttr > 0) {
+    if ((ttr != null && ttr > 0) || ttr == -1) {
       setTTR(ttr);
     }
     if (ccd != null) {
