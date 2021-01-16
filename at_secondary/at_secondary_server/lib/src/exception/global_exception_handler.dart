@@ -8,7 +8,7 @@ import 'package:at_commons/at_commons.dart';
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
   static final GlobalExceptionHandler _singleton =
-      GlobalExceptionHandler._internal();
+  GlobalExceptionHandler._internal();
 
   GlobalExceptionHandler._internal();
 
@@ -61,8 +61,8 @@ class GlobalExceptionHandler {
   }
 
   void _handleInboundLimit(AtException exception, Socket clientSocket) async {
-    var error_code = _getErrorCode(exception);
-    var error_description = _getErrorDescription(error_code);
+    var error_code = getErrorCode(exception);
+    var error_description = getErrorDescription(error_code);
     clientSocket.write('error:$error_code-$error_description\n');
     await clientSocket.close();
   }
@@ -86,8 +86,8 @@ class GlobalExceptionHandler {
     if (atConnection != null) {
       if (!atConnection.isInValid()) {
         var prompt = _getPrompt(atConnection);
-        var error_code = _getErrorCode(exception);
-        var error_description = _getErrorDescription(error_code);
+        var error_code = getErrorCode(exception);
+        var error_description = getErrorDescription(error_code);
         await _writeToSocket(
             atConnection, prompt, error_code, error_description);
       }
@@ -105,12 +105,12 @@ class GlobalExceptionHandler {
     return prompt;
   }
 
-  String _getErrorCode(Exception exception) {
+  String getErrorCode(Exception exception) {
     var error_code = error_codes[exception.runtimeType.toString()];
     return error_code;
   }
 
-  String _getErrorDescription(String error_code) {
+  String getErrorDescription(String error_code) {
     return error_description[error_code];
   }
 

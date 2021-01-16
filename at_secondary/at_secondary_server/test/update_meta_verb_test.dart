@@ -184,16 +184,23 @@ void main() {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  await CommitLogKeyStore.getInstance()
-      .init('commit_log_' + _getShaForAtsign('@kevin'), storageDir);
-  var persistenceManager = HivePersistenceManager.getInstance();
+  AtSecondaryServerImpl.getInstance().currentAtSign = '@kevin';
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign);
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@kevin', commitLogPath: storageDir);
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@kevin', storageDir);
   await persistenceManager.openVault('@kevin');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  keyStoreManager.init();
-  await AccessLogKeyStore.getInstance()
-      .init('access_log_' + _getShaForAtsign('@kevin'), storageDir);
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  hiveKeyStore.commitLog = commitLogInstance;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  keyStoreManager.keyStore = hiveKeyStore;
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog('@kevin', accessLogPath: storageDir);
   return keyStoreManager;
 }
 

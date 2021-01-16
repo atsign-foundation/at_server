@@ -5,27 +5,20 @@ import 'dart:io';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
-  static final AccessLogKeyStore _singleton = AccessLogKeyStore._internal();
-
-  AccessLogKeyStore._internal();
-
-  factory AccessLogKeyStore.getInstance() {
-    return _singleton;
-  }
-
   var logger = AtSignLogger('AccessLogKeyStore');
-
   bool _registerAdapters = false;
-
   Box box;
-
   String storagePath;
+  final _currentAtSign;
 
-  void init(String boxName, String storagePath) async {
-    Hive.init(storagePath);
+  AccessLogKeyStore(this._currentAtSign);
+
+  void init(String storagePath) async {
+    var boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     if (!_registerAdapters) {
       Hive.registerAdapter(AccessLogEntryAdapter());
       _registerAdapters = true;
@@ -76,13 +69,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
     }
   }
 
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
   @override
   void delete(expiredKeys) {
-    if (expiredKeys.isNotEmpty) {
-      box.deleteAll(expiredKeys);
-    }
+    // TODO: implement delete
   }
 
   /// Returns the total number of keys
@@ -144,9 +133,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
     return logSize ~/ 1024;
   }
 
-  /// Returning null as update is not applicable for AccessLog
   @override
   Future update(int key, AccessLogEntry value) {
+    // TODO: implement update
     return null;
   }
 

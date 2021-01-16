@@ -74,7 +74,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     var metric = _getMetrics(id);
     var name = metric.name.getName();
     var value;
-    if(id == '3' && _regex != null) {
+    if (id == '3' && _regex != null) {
       value = metric.name.getMetrics(regex: _regex);
     } else {
       value = metric.name.getMetrics();
@@ -105,7 +105,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
       }
       var result = [];
       //Iterate through stats_id_list
-      stats_list.forEach((id) => addStatToResult(id, result));
+      await Future.forEach(
+          stats_list, (element) => addStatToResult(element, result));
       // Create response json
       var response_json = result.toString();
       response.data = response_json;

@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -27,9 +28,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE];
+    var atCommitLog = await AtCommitLogManagerImpl.getInstance()
+        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     var regex = verbParams[AT_REGEX];
     var commit_changes =
-        AtCommitLog.getInstance().getChanges(int.parse(commit_sequence), regex);
+        atCommitLog.getChanges(int.parse(commit_sequence), regex);
     logger.finer(
         'number of changes since commitId: ${commit_sequence} is ${commit_changes.length}');
     commit_changes.removeWhere((entry) =>
@@ -108,13 +111,12 @@ class SyncVerbHandler extends AbstractVerbHandler {
         metaDataMap.putIfAbsent(
             IS_ENCRYPTED, () => metaData.isEncrypted.toString());
       }
+
       if (metaData.createdAt != null) {
-        metaDataMap.putIfAbsent(
-            CREATED_AT, () => metaData.createdAt.toString());
+        metaDataMap.putIfAbsent(CREATED_AT, () => metaData.createdAt.toString());
       }
       if (metaData.updatedAt != null) {
-        metaDataMap.putIfAbsent(
-            UPDATED_AT, () => metaData.updatedAt.toString());
+        metaDataMap.putIfAbsent(UPDATED_AT, () => metaData.updatedAt.toString());
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }

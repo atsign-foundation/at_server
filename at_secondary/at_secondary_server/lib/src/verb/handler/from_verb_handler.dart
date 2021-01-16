@@ -24,7 +24,7 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   FromVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
-  var atConfigInstance = AtConfig.getInstance();
+  var atConfigInstance;
 
   @override
   bool accept(String command) =>
@@ -41,6 +41,9 @@ class FromVerbHandler extends AbstractVerbHandler {
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
+        currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var fromAtSign = verbParams[AT_SIGN];
@@ -82,7 +85,9 @@ class FromVerbHandler extends AbstractVerbHandler {
       atConnectionMetadata.from = true;
       atConnectionMetadata.fromAtSign = fromAtSign;
     }
-    await AtAccessLog.getInstance().insert(fromAtSign, from.name());
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    await atAccessLog.insert(fromAtSign, from.name());
   }
 
   Future<bool> _verifyFromAtSign(
@@ -102,9 +107,9 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer('secSocket : ${secSocket}');
     var CN = secSocket.peerCertificate;
     logger.finer('CN : ${CN}');
-    // CN =null and connection is from client - do not do cert verification
     if (CN == null) {
-      //#TODO temp fix for stream verb.
+      logger.finer(
+          'CN is null.stream flag ${atConnection.getMetaData().isStream}');
       return true;
     }
 
@@ -135,6 +140,5 @@ class FromVerbHandler extends AbstractVerbHandler {
     if (commonName.contains(host)) {
       return true;
     }
-    return false;
   }
 }

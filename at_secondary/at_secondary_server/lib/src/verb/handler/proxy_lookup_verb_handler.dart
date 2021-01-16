@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_commons/at_commons.dart';
@@ -51,8 +52,9 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     // call lookup with the query
     var result = await outBoundClient.lookUp(query, handshake: false);
     response.data = result;
-    await AtAccessLog.getInstance()
-        .insert(atSign, pLookup.name(), lookupKey: key);
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    await atAccessLog.insert(atSign, pLookup.name(), lookupKey: key);
     return;
   }
 }

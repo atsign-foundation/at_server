@@ -1,11 +1,11 @@
 import 'dart:convert';
-
+import 'package:at_utils/at_logger.dart';
+import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 
 /// Class to configure blocklist for atconnections.
 class AtConfig {
@@ -18,11 +18,18 @@ class AtConfig {
   ///stores 'Configuration' type under [configkey] in secondary.
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  var persistenceManager = HivePersistenceManager.getInstance();
-  var commitLog = AtCommitLog.getInstance();
+  String _atSign;
+  var _commitLog;
+  var persistenceManager;
 
-  factory AtConfig.getInstance() {
-    return _singleton;
+  void init(AtCommitLog commitLog) {
+    _commitLog = commitLog;
+  }
+
+  AtConfig(this._commitLog, this._atSign) {
+    persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(_atSign)
+        .getHivePersistenceManager();
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.
@@ -137,7 +144,7 @@ class AtConfig {
     logger.finest('hive key:${configKey}');
     logger.finest('hive value:${newData}');
     await persistenceManager.box?.put(configKey, newData);
-    await commitLog.commit(configKey, CommitOp.UPDATE);
+    await _commitLog.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
   }
