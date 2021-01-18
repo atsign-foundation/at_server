@@ -4,7 +4,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class AtMetadataBuilder {
   var atMetaData;
   var currentUtcTime = DateTime.now().toUtc();
-  var atSign = HivePersistenceManager.getInstance().atsign;
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
   /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
@@ -12,15 +11,16 @@ class AtMetadataBuilder {
   /// ttr : Time to refresh of the key. If ttr is null, atMetadata's ttr is assigned to ttr.
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
   AtMetadataBuilder(
-      {AtMetaData newAtMetaData,
-      AtMetaData existingMetaData,
-      int ttl,
-      int ttb,
-      int ttr,
-      bool ccd,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) {
+      {String atSign,
+        AtMetaData newAtMetaData,
+        AtMetaData existingMetaData,
+        int ttl,
+        int ttb,
+        int ttr,
+        bool ccd,
+        bool isBinary,
+        bool isEncrypted,
+        String dataSignature}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -53,7 +53,8 @@ class AtMetadataBuilder {
     if (ttb != null && ttb > 0) {
       setTTB(ttb);
     }
-    if ((ttr != null && ttr > 0) || ttr == -1) {
+    // If TTR is -1, cache the key forever.
+    if (ttr != null && ttr > 0 || ttr == -1) {
       setTTR(ttr);
     }
     if (ccd != null) {

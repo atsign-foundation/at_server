@@ -1,23 +1,22 @@
 import 'dart:io';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 
-void main() async {
-  var manager = HivePersistenceManager.getInstance();
-  var directory = '${Directory.current}/hive';
-  var result = await manager.init('@alice', directory);
+main() async {
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+  var manager = secondaryPersistenceStore.getHivePersistenceManager();
+  var result = await manager.init('@test_user_1', 'test/hive');
+  await manager.openVault('@test_user_1');
   manager.scheduleKeyExpireTask(1);
   print(result);
 
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  var commitKeyStore = CommitLogKeyStore.getInstance();
-  await manager.openVault('@alice');
-  await commitKeyStore.init('commitLog', directory);
-  keyStoreManager.init();
-
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var commitLogKeyStore = CommitLogKeyStore('@test_user_1');
+  await commitLogKeyStore.init('test/hive/commit');
+  keyStore.commitLog = AtCommitLog(commitLogKeyStore);
+  keyStoreManager.keyStore = keyStore;
   var atData = AtData();
   atData.data = 'abc';
   await keyStoreManager
@@ -28,7 +27,7 @@ void main() async {
   print(at_data?.data);
   assert(at_data?.data == 'abc');
   var expiredKey =
-      await Future.delayed(Duration(minutes: 2), () => getKey(keyStoreManager));
+  await Future.delayed(Duration(minutes: 2), () => getKey(keyStoreManager));
   assert(expiredKey == null);
   print(expiredKey);
   exit(0);

@@ -1,34 +1,53 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_manager_impl.dart';
+import 'package:crypto/crypto.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  setUp(() async => await setUpFunc(storageDir));
+  var keyStoreManager;
+  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
   test('test for adding data to blocklist', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     var result = await atConfigInstance.addToBlockList(data);
     expect(result, 'success');
   });
 
   test('test for fetching blocklist', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
     var result = await atConfigInstance.getBlockList();
     expect(result, {'@alice', '@bob'});
-  });
+  }, timeout: Timeout(Duration(minutes: 10)));
 
   test('test for removing blocklist data', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
     var result = await atConfigInstance.removeFromBlockList(data);
@@ -36,10 +55,15 @@ void main() async {
   });
 
   test('test for removing non existing data from blocklist', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     await atConfigInstance.addToBlockList(data);
     var removeData = {'@colin'};
     var result = await atConfigInstance.removeFromBlockList(removeData);
@@ -47,18 +71,28 @@ void main() async {
   });
 
   test('test for removing empty data', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
-    var removeData = <String>{};
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+    Set<String> removeData = {};
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList(removeData),
         throwsA(predicate((e) => e is AssertionError)));
   });
 
   test('test for removing null data', () async {
-    var atConfigInstance = AtConfig.getInstance();
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+    var atConfigInstance = AtConfig(
+        await AtCommitLogManagerImpl.getInstance()
+            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList(null),
         throwsA(predicate((e) => e is AssertionError)));
   });
@@ -70,12 +104,22 @@ void main() async {
   }
 }
 
-void setUpFunc(storageDir) async {
-  await CommitLogKeyStore.getInstance()
-      .init('commit_log_@test_user_2', storageDir);
-  var persistenceManager = HivePersistenceManager.getInstance();
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(_getShaForAtsign('@test_user_1'),
+          commitLogPath: storageDir);
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@test_user_1');
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
+//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  hiveKeyStore.commitLog = commitLogInstance;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  keyStoreManager.keyStore = hiveKeyStore;
+  return keyStoreManager;
 }
 
 void tearDownFunc() async {
@@ -83,4 +127,9 @@ void tearDownFunc() async {
   if (isExists) {
     await Directory('test/hive/').deleteSync(recursive: true);
   }
+}
+
+String _getShaForAtsign(String atsign) {
+  var bytes = utf8.encode(atsign);
+  return sha256.convert(bytes).toString();
 }

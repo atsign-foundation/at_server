@@ -4,6 +4,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -51,6 +52,8 @@ class PolVerbHandler extends AbstractVerbHandler {
     var sessionID = atConnectionMetadata.sessionID;
     var _from = atConnectionMetadata.from;
     logger.info('from : ${_from.toString()}');
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
     if (_from == true) {
@@ -88,7 +91,7 @@ class PolVerbHandler extends AbstractVerbHandler {
         if (isValidChallenge) {
           atConnectionMetadata.isPolAuthenticated = true;
           response.data = 'pol:$fromAtSign@';
-          await AtAccessLog.getInstance().insert(fromAtSign, pol.name());
+          await atAccessLog.insert(fromAtSign, pol.name());
           logger.info('response : $fromAtSign@');
         } else {
           throw UnAuthenticatedException('Pol Authentication Failed');

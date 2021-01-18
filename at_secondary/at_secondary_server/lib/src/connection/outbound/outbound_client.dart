@@ -81,7 +81,7 @@ class OutboundClient {
 
   Future<String> _findSecondary(toAtSign) async {
     var secondaryUrl =
-        await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
+    await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: ${toAtSign}');
@@ -131,7 +131,8 @@ class OutboundClient {
       var proof = cookieParams[3];
       var signedChallenge = SecondaryUtil.signChallenge(
           proof, AtSecondaryServerImpl.getInstance().signingKey);
-      SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge);
+      SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+          AtSecondaryServerImpl.getInstance().currentAtSign);
 
       //4. Create pol request
       await outboundConnection.write(AtRequestFormatter.createPolRequest());

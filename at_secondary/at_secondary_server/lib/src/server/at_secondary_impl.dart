@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'package:crypton/crypton.dart';
-import 'package:uuid/uuid.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -10,9 +8,12 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:crypton/crypton.dart';
+import 'package:uuid/uuid.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_commons/at_commons.dart';
@@ -63,6 +64,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static var _serverSocket;
   bool _isRunning = false;
   var currentAtSign;
+  var _commitLog;
+  var _accessLog;
   var signingKey;
   AtSecondaryContext serverContext;
   VerbExecutor executor;
@@ -122,6 +125,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     currentAtSign = AtUtils.formatAtSign(serverContext.currentAtSign);
+    logger.info('currentAtSign : $currentAtSign');
 
     await _initializeHiveInstances();
 
@@ -137,7 +141,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         commitLogCompactionPercentage,
         commitLogCompactionFrequencyMins);
     await commitLogCompactionJobInstance.scheduleCompactionJob(
-        atCommitLogCompactionConfig, AtCommitLog.getInstance());
+        atCommitLogCompactionConfig, _commitLog);
 
     //Access Log Compaction
     var accessLogCompactionJobInstance = AtCompactionJob.getInstance();
@@ -147,10 +151,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionPercentage,
         accessLogCompactionFrequencyMins);
     await accessLogCompactionJobInstance.scheduleCompactionJob(
-        atAccessLogCompactionConfig, AtAccessLog.getInstance());
+        atAccessLogCompactionConfig, _accessLog);
 
     // Refresh Cached Keys
-    var atRefreshJob = AtRefreshJob.getInstance();
+    var atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     //Certificate reload
@@ -233,7 +237,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext.securityContext.trustedCertificatePath());
         certsAvailable = true;
-      } on FileSystemException {
+      } on FileSystemException catch (e) {
         retryCount++;
         logger.info('certs unavailable. Retry count ${retryCount}');
       }
@@ -285,7 +289,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
+    print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
+    print('stream id:${streamId}');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId].getSocket().add(data);
     }
@@ -301,10 +307,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       if (result) {
         //close server socket
         _serverSocket.close();
-        AtCommitLog.getInstance().close();
-        AtAccessLog.getInstance().close();
+        AtCommitLogManagerImpl.getInstance().close();
+        AtAccessLogManagerImpl.getInstance().close();
         AtNotificationLog.getInstance().close();
-        HivePersistenceManager.getInstance().close();
+        SecondaryPersistenceStoreFactory.getInstance().close();
         _isRunning = false;
       }
     } on Exception catch (e) {
@@ -323,20 +329,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
   void _initializeHiveInstances() async {
     // Initialize commit log
-//    var commitLogInstance = AtCommitLog.getInstance();
-//    await commitLogInstance.init(
-//        'commit_log_' + serverContext.currentAtSign, commitLogPath);
-    var commitLogKeyStore = CommitLogKeyStore.getInstance();
-    await commitLogKeyStore.init(
-        'commit_log_' + AtUtils.getShaForAtSign(serverContext.currentAtSign),
-        commitLogPath);
+    var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
+        serverContext.currentAtSign,
+        commitLogPath: commitLogPath);
+    LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
 
     // Initialize access log
-    //var accessLogInstance = AtAccessLog.getInstance();
-    var accessLogKeyStore = AccessLogKeyStore.getInstance();
-    await accessLogKeyStore.init(
-        'access_log_' + AtUtils.getShaForAtSign(serverContext.currentAtSign),
-        accessLogPath);
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
+        serverContext.currentAtSign,
+        accessLogPath: accessLogPath);
+    _accessLog = atAccessLog;
 
     // Initialize notification storage
     var notificationInstance = AtNotificationLog.getInstance();
@@ -346,16 +348,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         maxNotificationEntries);
 
     // Initialize Secondary Storage
-    var manager = HivePersistenceManager.getInstance();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(serverContext.currentAtSign);
+    var manager = secondaryPersistenceStore.getHivePersistenceManager();
     await manager.init(serverContext.currentAtSign, storagePath);
     await manager.openVault(serverContext.currentAtSign);
     manager.scheduleKeyExpireTask(expiringRunFreqMins);
 
     var atData = AtData();
     atData.data = serverContext.sharedSecret;
-    var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-    keyStoreManager.init();
-    serverContext.isKeyStoreInitialized = true;
+    var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(serverContext.currentAtSign)
+        .getSecondaryKeyStoreManager();
+    var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(serverContext.currentAtSign)
+        .getSecondaryKeyStore();
+    hiveKeyStore.commitLog = atCommitLog;
+    _commitLog = atCommitLog;
+    keyStoreManager.keyStore = hiveKeyStore;
+    serverContext.isKeyStoreInitialized =
+        true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
     var cramData = await keyStore.get(AT_CRAM_SECRET_DELETED);
     var isCramDeleted = cramData?.data;

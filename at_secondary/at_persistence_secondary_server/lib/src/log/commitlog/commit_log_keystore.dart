@@ -3,36 +3,35 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:at_utils/at_logger.dart';
 
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
-  static final CommitLogKeyStore _singleton = CommitLogKeyStore._internal();
-
-  CommitLogKeyStore._internal();
-
-  factory CommitLogKeyStore.getInstance() {
-    return _singleton;
-  }
-
   var logger = AtSignLogger('CommitLogKeyStore');
-  bool _registerAdapters = false;
   bool enableCommitId = true;
   Box box;
   String storagePath;
+  final _currentAtSign;
 
-  void init(String boxName, String storagePath) async {
+  CommitLogKeyStore(this._currentAtSign);
+
+  void init(String storagePath) async {
+    var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
-    if (!_registerAdapters) {
+
+    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
       Hive.registerAdapter(CommitEntryAdapter());
-      Hive.registerAdapter(CommitOpAdapter());
-      _registerAdapters = true;
     }
+    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
+      Hive.registerAdapter(CommitOpAdapter());
+    }
+
     this.storagePath = storagePath;
     box = await Hive.openBox(boxName,
         compactionStrategy: (entries, deletedEntries) {
-          return deletedEntries > 1;
-        });
+      return deletedEntries > 1;
+    });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: ${lastCommittedSequenceNum}');
   }
@@ -110,10 +109,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// Returns the latest committed sequence number with regex
   int lastCommittedSequenceNumberWithRegex(String regex) {
     var lastCommittedEntry = box.values.lastWhere(
-            (entry) => (_isRegexMatches(entry.atKey, regex)),
+        (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
-    (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
     return lastCommittedSequenceNum;
   }
 
@@ -121,8 +120,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     var lastSyncedEntry;
     if (regex != null) {
       lastSyncedEntry = box.values.lastWhere(
-              (entry) =>
-          (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
+          (entry) =>
+              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
           orElse: () => null);
     } else {
       lastSyncedEntry = box.values
@@ -198,7 +197,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     var tempSet = <String>{};
     var expiredKeys = [];
     sortedKeys.forEach(
-            (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
+        (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
     return expiredKeys;
   }
 

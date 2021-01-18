@@ -17,3 +17,4 @@ export 'package:at_server_spec/src/verb/notify.dart';
 export 'package:at_server_spec/src/verb/stream.dart';
 export 'package:at_server_spec/src/verb/notify_list.dart';
 export 'package:at_server_spec/src/verb/update_meta.dart';
+export 'package:at_server_spec/src/verb/batch.dart';

@@ -52,7 +52,11 @@ class OutBoundMetricImpl implements MetricProvider {
 
 class LastCommitIDMetricImpl implements MetricProvider {
   static LastCommitIDMetricImpl _singleton = LastCommitIDMetricImpl._internal();
-  var atCommitLog = AtCommitLog.getInstance();
+  var _atCommitLog;
+
+  set atCommitLog(value) {
+    _atCommitLog = value;
+  }
 
   LastCommitIDMetricImpl._internal();
 
@@ -66,10 +70,10 @@ class LastCommitIDMetricImpl implements MetricProvider {
     var lastCommitID;
     if (regex != null) {
       lastCommitID =
-          atCommitLog.lastCommittedSequenceNumberWithRegex(regex).toString();
+          _atCommitLog.lastCommittedSequenceNumberWithRegex(regex).toString();
       return lastCommitID;
     }
-    lastCommitID = atCommitLog.lastCommittedSequenceNumber().toString();
+    lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
     return lastCommitID;
   }
 
@@ -81,7 +85,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 
 class SecondaryStorageMetricImpl implements MetricProvider {
   static SecondaryStorageMetricImpl _singleton =
-  SecondaryStorageMetricImpl._internal();
+      SecondaryStorageMetricImpl._internal();
   var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath);
 
   SecondaryStorageMetricImpl._internal();
@@ -113,7 +117,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
 
 class MostVisitedAtSignMetricImpl implements MetricProvider {
   static MostVisitedAtSignMetricImpl _singleton =
-  MostVisitedAtSignMetricImpl._internal();
+      MostVisitedAtSignMetricImpl._internal();
 
   MostVisitedAtSignMetricImpl._internal();
 
@@ -122,9 +126,11 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 
   @override
-  Map getMetrics({String regex}) {
+  Future<Map> getMetrics({String regex}) async {
     final length = AtSecondaryConfig.stats_top_visits;
-    return AtAccessLog.getInstance().mostVisitedAtSigns(length);
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    return atAccessLog.mostVisitedAtSigns(length);
   }
 
   @override
@@ -135,7 +141,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
 
 class MostVisitedAtKeyMetricImpl implements MetricProvider {
   static MostVisitedAtKeyMetricImpl _singleton =
-  MostVisitedAtKeyMetricImpl._internal();
+      MostVisitedAtKeyMetricImpl._internal();
 
   MostVisitedAtKeyMetricImpl._internal();
 
@@ -144,9 +150,11 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 
   @override
-  Map getMetrics({String regex}) {
+  Future<Map> getMetrics({String regex}) async {
     final length = AtSecondaryConfig.stats_top_keys;
-    return AtAccessLog.getInstance().mostVisitedKeys(length);
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    return atAccessLog.mostVisitedKeys(length);
   }
 
   @override
