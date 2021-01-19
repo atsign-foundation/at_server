@@ -181,20 +181,6 @@ void main() {
       expect(() => handler.parse(command),
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
-
-    test('test notify verb ccd without ttr', () {
-      var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = InboundConnectionImpl(null, '123');
-      var notifyResponse = Response();
-      var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('ccd', () => 'true');
-      expect(
-          () => notifyVerb.processVerb(
-              notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) =>
-              e is InvalidSyntaxException &&
-              e.message == 'TTR cannot be null on cascade delete')));
-    });
   });
 
   group('A group of notify verb handler test', () {

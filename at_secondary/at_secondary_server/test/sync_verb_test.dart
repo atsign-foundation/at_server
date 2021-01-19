@@ -14,7 +14,7 @@ import 'dart:convert';
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
   var keyStoreManager;
-  setUp(() async => await setUpFunc(storageDir));
+
   group('A group of sync verb regex test', () {
     test('test sync correct syntax', () {
       var verb = Sync();
@@ -83,6 +83,7 @@ void main() async {
   });
 
   group('A group of sync verb handler tests', () {
+    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('test sync verb handler one change since last commit', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var atData_1 = AtData();
@@ -186,8 +187,8 @@ void main() async {
     //   expect(responseJSON[0]['atKey'], 'location.me@alice');
     //   expect(responseJSON[0]['operation'], '+');
     // });
+    tearDown(() async => await tearDownFunc());
   });
-  tearDown(() async => await tearDownFunc());
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
@@ -202,6 +203,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@alice', storageDir);
+  await persistenceManager.openVault('@alice');
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
@@ -216,9 +218,5 @@ void tearDownFunc() async {
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
+  AtCommitLogManagerImpl.getInstance().clear();
 }
