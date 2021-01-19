@@ -10,6 +10,7 @@ import 'dart:io';
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
   var keyStoreManager;
+
   group('A group of commit log test', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('test single insert', () async {
@@ -122,6 +123,7 @@ void main() async {
       expect(() async => await commitLogInstance.getEntry(key_2),
           throwsA(predicate((e) => e is DataStoreException)));
     });
+
     tearDown(() async => await tearDownFunc());
   });
 }
@@ -145,6 +147,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 void tearDownFunc() async {
   var isExists = await Directory('test/hive/').exists();
+  AtCommitLogManagerImpl.getInstance().clear();
   if (isExists) {
     await Directory('test/hive/').deleteSync(recursive: true);
   }

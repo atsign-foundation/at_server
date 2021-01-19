@@ -34,4 +34,8 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
       value.close();
     });
   }
+
+  void clear(){
+    _commitLogMap.clear();
+  }
 }
