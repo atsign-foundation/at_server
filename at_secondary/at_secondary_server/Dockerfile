@@ -1,5 +1,5 @@
 FROM ubuntu:latest
-# Create new linux group and user to own apps
+## Create new linux group and user to own apps
 ENV APP_BINARY=/usr/local/at
 COPY secondary $APP_BINARY/
 ENV HOME=/atsign
