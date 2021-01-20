@@ -149,8 +149,12 @@ void main() async {
   group('A group of from verb handler with configuration test', () {
     test('test from verb handler to allow fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+      await AtConfig(commitLogInstance,
+              AtSecondaryServerImpl.getInstance().currentAtSign)
+          .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -165,8 +169,12 @@ void main() async {
 
     test('test from verb handler to block fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      await AtConfig(
+              await AtCommitLogManagerImpl.getInstance().getCommitLog(
+                  AtSecondaryServerImpl.getInstance().currentAtSign),
+              AtSecondaryServerImpl.getInstance().currentAtSign)
+          .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -234,16 +242,26 @@ void main() async {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  await CommitLogKeyStore.getInstance()
-      .init('commit_log_' + _getShaForAtsign('@alice'), storageDir);
-  var persistenceManager = HivePersistenceManager.getInstance();
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@alice');
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@alice', commitLogPath: storageDir);
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@alice', storageDir);
   await persistenceManager.openVault('@alice');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  keyStoreManager.init();
-  await AccessLogKeyStore.getInstance()
-      .init('access_log_' + _getShaForAtsign('@alice'), storageDir);
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  hiveKeyStore.commitLog = commitLogInstance;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  keyStoreManager.keyStore = hiveKeyStore;
+  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  await AtConfig(
+      AtCommitLogManagerImpl.getInstance()
+          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
+      AtSecondaryServerImpl.getInstance().currentAtSign);
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog('@alice', accessLogPath: storageDir);
   return keyStoreManager;
 }
 

@@ -3,31 +3,30 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:at_utils/at_logger.dart';
 
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
-  static final CommitLogKeyStore _singleton = CommitLogKeyStore._internal();
-
-  CommitLogKeyStore._internal();
-
-  factory CommitLogKeyStore.getInstance() {
-    return _singleton;
-  }
-
   var logger = AtSignLogger('CommitLogKeyStore');
-  bool _registerAdapters = false;
   bool enableCommitId = true;
   Box box;
   String storagePath;
+  final _currentAtSign;
 
-  void init(String boxName, String storagePath) async {
+  CommitLogKeyStore(this._currentAtSign);
+
+  void init(String storagePath) async {
+    var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
-    if (!_registerAdapters) {
+
+    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
       Hive.registerAdapter(CommitEntryAdapter());
-      Hive.registerAdapter(CommitOpAdapter());
-      _registerAdapters = true;
     }
+    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
+      Hive.registerAdapter(CommitOpAdapter());
+    }
+
     this.storagePath = storagePath;
     box = await Hive.openBox(boxName,
         compactionStrategy: (entries, deletedEntries) {

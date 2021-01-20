@@ -181,20 +181,6 @@ void main() {
       expect(() => handler.parse(command),
           throwsA(predicate((e) => e is InvalidSyntaxException)));
     });
-
-    test('test notify verb ccd without ttr', () {
-      var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = InboundConnectionImpl(null, '123');
-      var notifyResponse = Response();
-      var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('ccd', () => 'true');
-      expect(
-          () => notifyVerb.processVerb(
-              notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) =>
-              e is InvalidSyntaxException &&
-              e.message == 'TTR cannot be null on cascade delete')));
-    });
   });
 
   group('A group of notify verb handler test', () {
@@ -357,16 +343,23 @@ void main() {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var persistenceManager = HivePersistenceManager.getInstance();
+  AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign);
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  keyStoreManager.init();
-  await CommitLogKeyStore.getInstance()
-      .init('commit_log_' + _getShaForAtsign('@test_user_1'), storageDir);
-  await AccessLogKeyStore.getInstance()
-      .init('access_log_' + _getShaForAtsign('@test_user_1'), storageDir);
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  hiveKeyStore.commitLog = commitLogInstance;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  keyStoreManager.keyStore = hiveKeyStore;
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog('@test_user_1', accessLogPath: storageDir);
   await AtNotificationLog.getInstance()
       .init('notifications_' + _getShaForAtsign('@test_user_1'), storageDir, 5);
   return keyStoreManager;

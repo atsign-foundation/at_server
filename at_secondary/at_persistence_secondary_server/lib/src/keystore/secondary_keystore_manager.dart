@@ -1,26 +1,21 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class SecondaryKeyStoreManager implements KeystoreManager<String, AtData> {
-  static final SecondaryKeyStoreManager _singleton =
-      SecondaryKeyStoreManager._internal();
+  String _atSign;
 
-  SecondaryKeyStoreManager._internal();
+  SecondaryKeyStore _keyStore;
 
-  factory SecondaryKeyStoreManager.getInstance() {
-    return _singleton;
-  }
+  SecondaryKeyStoreManager(this._atSign);
 
-  SecondaryKeyStore _hiveKeystore;
-
-  void init() {
-    _hiveKeystore ??= HiveKeystore();
+  set keyStore(SecondaryKeyStore value) {
+    _keyStore = value;
   }
 
   @override
   SecondaryKeyStore<String, AtData, AtMetaData> getKeyStore() {
-    return _hiveKeystore;
+    return _keyStore;
   }
 
   @override

@@ -14,13 +14,15 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: master
+      ref: dev_env
+      version: ^1.0.1+1
 
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: master
+      ref: dev_env
+      version: ^1.0.1+2
 
 #dependency_overrides:
 #  at_persistence_spec:

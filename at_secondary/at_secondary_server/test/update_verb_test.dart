@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -361,7 +360,13 @@ void main() {
       var command = 'UpDaTe:ttl:00:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      handler.keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(
+                  AtSecondaryServerImpl.getInstance().currentAtSign);
+      handler.keyStore =
+          secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -377,7 +382,13 @@ void main() {
       var command = 'UpDaTe:ttb:00:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      handler.keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(
+                  AtSecondaryServerImpl.getInstance().currentAtSign);
+      handler.keyStore =
+          secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -472,7 +483,13 @@ void main() {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      handler.keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(
+                  AtSecondaryServerImpl.getInstance().currentAtSign);
+      handler.keyStore =
+          secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -494,21 +511,6 @@ void main() {
               e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
-    });
-
-    test('ccd without ttr', () {
-      var command = 'UpDaTe:ccd:true:@bob:location@alice Hyderabad,TG';
-      command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
-      handler.keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
-      var response = Response();
-      var verbParams = handler.parse(command);
-      var atConnection = DummyInboundBoundConnection.getInstance();
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
-          throwsA(predicate((e) =>
-              e is InvalidSyntaxException &&
-              e.message == 'TTR cannot be null on cascade delete')));
     });
   });
 
@@ -628,16 +630,23 @@ void main() {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  await CommitLogKeyStore.getInstance()
-      .init('commit_log_' + _getShaForAtsign('@alice'), storageDir);
-  var persistenceManager = HivePersistenceManager.getInstance();
+  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign);
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@alice', commitLogPath: storageDir);
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@alice', storageDir);
   await persistenceManager.openVault('@alice');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  keyStoreManager.init();
-  await AccessLogKeyStore.getInstance()
-      .init('access_log_' + _getShaForAtsign('@alice'), storageDir);
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  hiveKeyStore.commitLog = commitLogInstance;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  keyStoreManager.keyStore = hiveKeyStore;
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog('@alice', accessLogPath: storageDir);
   return keyStoreManager;
 }
 
@@ -646,9 +655,4 @@ void tearDownFunc() async {
   if (isExists) {
     await Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }

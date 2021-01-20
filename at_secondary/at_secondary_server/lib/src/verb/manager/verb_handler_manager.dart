@@ -1,3 +1,6 @@
+import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -17,7 +20,6 @@ import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
@@ -49,7 +51,12 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   }
 
   static List<VerbHandler> _loadVerbHandlers() {
-    var keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(
+                AtSecondaryServerImpl.getInstance().currentAtSign);
+    var keyStore =
+        secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
@@ -69,7 +76,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(StreamVerbHandler(keyStore));
     _verbHandlers.add(NotifyVerbHandler(keyStore));
     _verbHandlers.add(NotifyListVerbHandler(keyStore));
-
+    _verbHandlers.add(BatchVerbHandler((keyStore)));
     return _verbHandlers;
   }
 }

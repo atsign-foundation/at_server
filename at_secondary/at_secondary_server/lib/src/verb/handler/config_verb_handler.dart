@@ -5,7 +5,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/response.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -31,7 +30,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
   ConfigVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
-  var atConfigInstance = AtConfig.getInstance();
+  var atConfigInstance;
 
   @override
   bool accept(String command) =>
@@ -49,6 +48,10 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      atConfigInstance = AtConfig(
+          await AtCommitLogManagerImpl.getInstance()
+              .getCommitLog(currentAtSign),
+          currentAtSign);
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
@@ -62,10 +65,10 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'add':
           var nonCurrentAtSignList =
-              _retainNonCurrentAtsign(currentAtSign, atsigns);
+          _retainNonCurrentAtsign(currentAtSign, atsigns);
           if (nonCurrentAtSignList.isNotEmpty) {
             result =
-                await atConfigInstance.addToBlockList(nonCurrentAtSignList);
+            await atConfigInstance.addToBlockList(nonCurrentAtSignList);
           }
 
           ///if list contains only currentAtSign

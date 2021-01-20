@@ -5,6 +5,7 @@ import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_commons/at_commons.dart';
 
 abstract class BaseResponseHandler implements ResponseHandler {
   var logger;
