@@ -31,7 +31,8 @@ void main() async {
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');;
+      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
+      ;
       var keyStore = keyStoreManager.getKeyStore();
       var atData = AtData();
       atData.data = 'india';

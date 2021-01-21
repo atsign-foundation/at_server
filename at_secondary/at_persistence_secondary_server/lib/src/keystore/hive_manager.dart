@@ -73,8 +73,8 @@ class HivePersistenceManager {
       // ignore: omit_local_variable_types
       var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
           compactionStrategy: (entries, deletedEntries) {
-            return deletedEntries > 50;
-          });
+        return deletedEntries > 50;
+      });
       _box = hiveBox;
       if (_debug) {
         logger.finer(

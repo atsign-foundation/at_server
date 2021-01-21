@@ -152,8 +152,7 @@ Future<void> tearDownFunc(String storagePath) async {
   await Hive.deleteBoxFromDisk('test_notify');
   var isExists = await Directory('test/notifications').exists();
 
-  if(isExists){
+  if (isExists) {
     await Directory(storagePath).deleteSync(recursive: true);
   }
-
 }

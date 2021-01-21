@@ -40,7 +40,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var atAccessLog =
-    await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
+        await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
