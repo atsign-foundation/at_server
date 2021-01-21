@@ -63,7 +63,10 @@ class AtSecondaryConfig {
 
   //version
   static final String _secondaryServerVersion =
-      ConfigUtil.getPubspecConfig()['version'];
+      (ConfigUtil.getPubspecConfig() != null &&
+              ConfigUtil.getPubspecConfig()['version'] != null)
+          ? ConfigUtil.getPubspecConfig()['version']
+          : null;
 
   static final Map<String, String> _envVars = Platform.environment;
 
