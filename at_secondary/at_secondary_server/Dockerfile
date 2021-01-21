@@ -4,6 +4,7 @@ ENV APP_BINARY=/usr/local/at
 COPY secondary $APP_BINARY/
 ENV HOME=/atsign
 RUN mkdir -p $HOME
+RUN mkdir -p /archive
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 RUN addgroup --gid $GROUP_ID atsign

@@ -11,3 +11,6 @@
 - Public data Signing
   Sync with regex
   at_persistence_spec changes
+## 1.0.1+4
+- Added Support for multiple AtSigns
+  Introduced batch verb for sync

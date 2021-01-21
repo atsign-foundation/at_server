@@ -7,17 +7,13 @@ import 'package:utf7/utf7.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
 class AtCommitLog implements AtLogType {
-  static final AtCommitLog _singleton = AtCommitLog._internal();
-
-  AtCommitLog._internal();
-
   var logger = AtSignLogger('AtCommitLog');
 
-  factory AtCommitLog.getInstance() {
-    return _singleton;
-  }
+  var _commitLogKeyStore;
 
-  var commitLogKeyStore = CommitLogKeyStore.getInstance();
+  AtCommitLog(CommitLogKeyStore keyStore) {
+    _commitLogKeyStore = keyStore;
+  }
 
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
   /// returns the sequence number corresponding to the new commit
@@ -31,7 +27,7 @@ class AtCommitLog implements AtLogType {
     key = Utf7.decode(key);
     var entry = CommitEntry(key, operation, DateTime.now().toUtc());
     try {
-      result = await commitLogKeyStore.add(entry);
+      result = await _commitLogKeyStore.add(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -46,7 +42,7 @@ class AtCommitLog implements AtLogType {
   /// throws [DataStoreException] if there is an exception getting the commit entry
   Future<CommitEntry> getEntry(int sequenceNumber) async {
     try {
-      var commitEntry = await commitLogKeyStore.get(sequenceNumber);
+      var commitEntry = await _commitLogKeyStore.get(sequenceNumber);
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting entry:${e.toString()}');
@@ -61,7 +57,7 @@ class AtCommitLog implements AtLogType {
   List<CommitEntry> getChanges(int sequenceNumber, String regex) {
     var changes = <CommitEntry>[];
     try {
-      changes = commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -73,7 +69,7 @@ class AtCommitLog implements AtLogType {
 
   Future<void> update(CommitEntry commitEntry, int commitId) async {
     try {
-      await commitLogKeyStore.update(commitId, commitEntry);
+      await _commitLogKeyStore.update(commitId, commitEntry);
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -84,37 +80,37 @@ class AtCommitLog implements AtLogType {
 
   @override
   List<dynamic> getExpired(int expiryInDays) {
-    return commitLogKeyStore.getExpired(expiryInDays);
+    return _commitLogKeyStore.getExpired(expiryInDays);
   }
 
   /// Returns the latest committed sequence number
   int lastCommittedSequenceNumber() {
-    return commitLogKeyStore.lastCommittedSequenceNumber();
+    return _commitLogKeyStore.lastCommittedSequenceNumber();
   }
 
   /// Returns the latest committed sequence number with regex
   int lastCommittedSequenceNumberWithRegex(String regex) {
-    return commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+    return _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
   CommitEntry lastSyncedEntry() {
-    return commitLogKeyStore.lastSyncedEntry();
+    return _commitLogKeyStore.lastSyncedEntry();
   }
 
   CommitEntry lastSyncedEntryWithRegex(String regex) {
-    return commitLogKeyStore.lastSyncedEntry(regex: regex);
+    return _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
   int firstCommittedSequenceNumber() {
-    return commitLogKeyStore.firstCommittedSequenceNumber();
+    return _commitLogKeyStore.firstCommittedSequenceNumber();
   }
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
   int entriesCount() {
-    return commitLogKeyStore.entriesCount();
+    return _commitLogKeyStore.entriesCount();
   }
 
   /// Gets the first 'N' keys from the logs
@@ -124,7 +120,7 @@ class AtCommitLog implements AtLogType {
   List getFirstNEntries(int N) {
     var entries = [];
     try {
-      entries = commitLogKeyStore.getDuplicateEntries();
+      entries = _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -139,16 +135,16 @@ class AtCommitLog implements AtLogType {
   /// @param - expiredKeys : The expired keys to remove
   @override
   void delete(dynamic expiredKeys) {
-    commitLogKeyStore.delete(expiredKeys);
+    _commitLogKeyStore.delete(expiredKeys);
   }
 
   @override
   int getSize() {
-    return commitLogKeyStore.getSize();
+    return _commitLogKeyStore.getSize();
   }
 
   /// Closes the [CommitLogKeyStore] instance.
   void close() {
-    commitLogKeyStore.close();
+    _commitLogKeyStore.close();
   }
 }

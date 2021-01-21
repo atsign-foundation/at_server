@@ -8,19 +8,10 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
+import 'secondary_persistence_store_factory.dart';
+
 class HivePersistenceManager {
-  static final HivePersistenceManager _singleton =
-      HivePersistenceManager._internal();
-
   final bool _debug = false;
-
-  bool _registerAdapters = false;
-
-  HivePersistenceManager._internal();
-
-  factory HivePersistenceManager.getInstance() {
-    return _singleton;
-  }
 
   final logger = AtSignLogger('HivePersistenceManager');
 
@@ -33,6 +24,8 @@ class HivePersistenceManager {
   String _boxName;
   var _secret;
 
+  HivePersistenceManager(this._atsign);
+
   Future<bool> init(String atSign, String storagePath) async {
     var success = false;
     try {
@@ -41,10 +34,11 @@ class HivePersistenceManager {
         logger.finer('AtPersistence.init received storagePath: ' + storagePath);
       }
       Hive.init(storagePath);
-      if (!_registerAdapters) {
+      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
         Hive.registerAdapter(AtDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
-        _registerAdapters = true;
       }
 
       var secret = await _getHiveSecretFromFile(atSign, storagePath);
@@ -138,10 +132,14 @@ class HivePersistenceManager {
     return secretAsUint8List;
   }
 
+  //TODO change into to Duration and construct cron string dynamically
   void scheduleKeyExpireTask(int runFrequencyMins) {
+    logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
     cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
-      var hiveKeyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
+      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(this._atsign)
+          .getSecondaryKeyStore();
       hiveKeyStore.deleteExpiredKeys();
     });
   }

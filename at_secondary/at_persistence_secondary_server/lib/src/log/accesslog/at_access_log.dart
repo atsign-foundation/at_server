@@ -6,17 +6,13 @@ import 'package:at_utils/at_logger.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
 class AtAccessLog implements AtLogType {
-  static final AtAccessLog _singleton = AtAccessLog._internal();
-
-  AtAccessLog._internal();
-
   var logger = AtSignLogger('AtAccessLog');
 
-  factory AtAccessLog.getInstance() {
-    return _singleton;
-  }
+  var _accessLogKeyStore;
 
-  var accessLogKeyStore = AccessLogKeyStore.getInstance();
+  AtAccessLog(AccessLogKeyStore keyStore) {
+    _accessLogKeyStore = keyStore;
+  }
 
   ///Creates a new entry with fromAtSign, verbName and optional parameter lookupKey for lookup and plookup verbs.
   ///@param fromAtSign : The another user atsign
@@ -27,7 +23,7 @@ class AtAccessLog implements AtLogType {
     var result;
     var entry = AccessLogEntry(fromAtSign, DateTime.now(), verbName, lookupKey);
     try {
-      result = await accessLogKeyStore.add(entry);
+      result = await _accessLogKeyStore.add(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
@@ -42,7 +38,7 @@ class AtAccessLog implements AtLogType {
   ///@param - length : The maximum number of atsign's to return
   ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
   Map mostVisitedAtSigns(int length) {
-    return accessLogKeyStore.mostVisitedAtSigns(length);
+    return _accessLogKeyStore.mostVisitedAtSigns(length);
   }
 
   ///The functions returns the top [length] visited atKey's.
@@ -50,7 +46,7 @@ class AtAccessLog implements AtLogType {
   ///@return Map : Returns a key value pair. Key is the atsign key looked up and
   ///value is number of times the key is looked up.
   Map mostVisitedKeys(int length) {
-    return accessLogKeyStore.mostVisitedKeys(length);
+    return _accessLogKeyStore.mostVisitedKeys(length);
   }
 
   /// Returns the list of expired keys.
@@ -58,31 +54,31 @@ class AtAccessLog implements AtLogType {
   /// @return List<dynamic> - The list of expired keys.
   @override
   List<dynamic> getExpired(int expiryInDays) {
-    return accessLogKeyStore.getExpired(expiryInDays);
+    return _accessLogKeyStore.getExpired(expiryInDays);
   }
 
   @override
   void delete(expiredKeys) {
-    accessLogKeyStore.delete(expiredKeys);
+    _accessLogKeyStore.delete(expiredKeys);
   }
 
   @override
   int entriesCount() {
-    return accessLogKeyStore.entriesCount();
+    return _accessLogKeyStore.entriesCount();
   }
 
   @override
   List getFirstNEntries(int N) {
-    return accessLogKeyStore.getFirstNEntries(N);
+    return _accessLogKeyStore.getFirstNEntries(N);
   }
 
   @override
   int getSize() {
-    return accessLogKeyStore.getSize();
+    return _accessLogKeyStore.getSize();
   }
 
   ///Closes the [accessLogKeyStore] instance.
   void close() {
-    accessLogKeyStore.close();
+    _accessLogKeyStore.close();
   }
 }

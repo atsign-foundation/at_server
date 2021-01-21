@@ -29,12 +29,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
-    var response = await _processInternal(command, atConnection);
+    var response = await processInternal(command, atConnection);
     var handler = responseManager.getResponseHandler(getVerb());
     await handler.process(atConnection, response);
   }
 
-  Future<Response> _processInternal(
+  Future<Response> processInternal(
       String command, InboundConnection atConnection) async {
     var response = Response();
     var atConnectionMetadata = atConnection.getMetaData();

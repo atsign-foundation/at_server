@@ -7,15 +7,16 @@ import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
 class AtRefreshJob {
-  static final AtRefreshJob _singleton = AtRefreshJob._internal();
+  String _atSign;
+  var keyStore;
 
-  AtRefreshJob._internal();
-
-  factory AtRefreshJob.getInstance() {
-    return _singleton;
+  AtRefreshJob(this._atSign) {
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(_atSign);
+    keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
   }
 
-  var keyStore = SecondaryKeyStoreManager.getInstance().getKeyStore();
   final logger = AtSignLogger('AtRefreshJob');
 
   /// Returns the list of cached keys

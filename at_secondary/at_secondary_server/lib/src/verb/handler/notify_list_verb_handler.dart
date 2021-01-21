@@ -6,7 +6,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/response.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_server_spec/src/verb/notify_list.dart';
 import '../verb_enum.dart';

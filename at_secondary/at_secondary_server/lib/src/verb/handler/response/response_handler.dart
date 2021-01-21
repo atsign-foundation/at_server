@@ -1,4 +1,4 @@
-import 'package:at_server_spec/src/verb/response.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 abstract class ResponseHandler {

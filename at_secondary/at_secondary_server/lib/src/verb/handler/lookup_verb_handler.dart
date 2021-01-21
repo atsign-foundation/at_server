@@ -39,6 +39,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var atAccessLog =
+        await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
@@ -63,8 +65,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
           response.data = await resolveValueReference(
               response.data.toString(), currentAtSign);
         }
-        await AtAccessLog.getInstance()
-            .insert(atSign, lookup.name(), lookupKey: key);
+        await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
       } else {
         var cachedKey = '$CACHED:$currentAtSign:$key';
         //Get cached value.
@@ -108,8 +109,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       }
       //Omit all keys starting with '_' to record in access log
       if (!key.startsWith('_')) {
-        await AtAccessLog.getInstance()
-            .insert(atSign, lookup.name(), lookupKey: key);
+        await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
       }
       return;
     } else {

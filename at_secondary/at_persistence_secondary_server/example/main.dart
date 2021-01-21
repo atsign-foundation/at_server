@@ -2,8 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 
 Future<void> main(List<String> arguments) async {
   // keystore
-  var keyStoreManager = SecondaryKeyStoreManager.getInstance();
-  keyStoreManager.init();
+  var keyStoreManager = SecondaryKeyStoreManager('@alice');
   var keyStore = keyStoreManager.getKeyStore();
   var atData = AtData();
   atData.data = '123';
@@ -11,7 +10,8 @@ Future<void> main(List<String> arguments) async {
   print(result);
 
   //commitLog keystore
-  var commitLogInstance = AtCommitLog.getInstance();
+  var commitLogInstance =
+      await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
   var hiveKey =
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
   var committedEntry = await commitLogInstance.getEntry(hiveKey);

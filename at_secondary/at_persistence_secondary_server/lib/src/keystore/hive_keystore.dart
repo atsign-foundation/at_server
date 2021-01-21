@@ -1,6 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
@@ -14,9 +13,16 @@ import 'package:at_commons/at_commons.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('HiveKeystore');
+  var _atSign;
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  var persistenceManager = HivePersistenceManager.getInstance();
-  var commitLog = AtCommitLog.getInstance();
+  var persistenceManager;
+  var _commitLog;
+
+  HiveKeystore(this._atSign);
+
+  set commitLog(value) {
+    _commitLog = value;
+  }
 
   @override
   Future<AtData> get(String key) async {
@@ -90,7 +96,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         logger.finest('hive key:${hive_key}');
         logger.finest('hive value:${hive_value}');
         await persistenceManager.box?.put(hive_key, hive_value);
-        result = await commitLog.commit(hive_key, commitOp);
+        result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
       rethrow;
@@ -151,7 +157,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
 
     try {
       await persistenceManager.box?.put(hive_key, hive_data);
-      result = await commitLog.commit(hive_key, commitOp);
+      result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore create exception: $exception');
@@ -168,7 +174,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     try {
       assert(key != null);
       await persistenceManager.box?.delete(Utf7.encode(key));
-      result = await commitLog.commit(key, CommitOp.DELETE);
+      result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
@@ -274,7 +280,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     // Updating the version of the metadata.
     (metadata.version != null) ? metadata.version += 1 : metadata.version = 0;
     await persistenceManager.box?.put(hive_key, value);
-    result = await commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
+    result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
     return result;
   }
 
@@ -291,7 +297,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         ? newData.metaData.version += 1
         : newData.metaData.version = 0;
     await persistenceManager.box?.put(hive_key, newData);
-    var result = await commitLog.commit(hive_key, CommitOp.UPDATE_META);
+    var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
     return result;
   }
 }
