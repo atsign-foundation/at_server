@@ -61,7 +61,13 @@ class AtSecondaryConfig {
   //force restart
   static final bool _isForceRestart = false;
 
+  //version
+  static final String _secondaryServerVersion =
+      ConfigUtil.getPubspecConfig()['version'];
+
   static final Map<String, String> _envVars = Platform.environment;
+
+  static String get secondaryServerVersion => _secondaryServerVersion;
 
   static bool get useSSL {
     var result = _getBoolEnvVar('useSSL');
