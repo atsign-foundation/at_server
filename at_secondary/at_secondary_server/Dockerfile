@@ -15,6 +15,7 @@ USER atsign
 RUN mkdir $HOME/storage
 RUN mkdir $HOME/config
 COPY config/* $HOME/config/
+COPY pubspec.yaml $HOME/
 RUN chown -R atsign:atsign $HOME/storage
 #RUN ls -la $HOME/config
 RUN ls -la $HOME/
