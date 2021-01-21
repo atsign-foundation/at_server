@@ -95,30 +95,30 @@ class StatsVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
-    //try {
-    var statID = verbParams[AT_STAT_ID];
-    _regex = verbParams[AT_REGEX];
-    logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
-    Set stats_list;
-    if (statID != null) {
-      //If user provides stats ID's create set out of it
-      stats_list = getStatsIDSet(statID);
-    } else {
-      // if user send only stats verb get list of all the stat ID's
-      stats_list = stats_map.keys.toSet();
+    try {
+      var statID = verbParams[AT_STAT_ID];
+      _regex = verbParams[AT_REGEX];
+      logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
+      Set stats_list;
+      if (statID != null) {
+        //If user provides stats ID's create set out of it
+        stats_list = getStatsIDSet(statID);
+      } else {
+        // if user send only stats verb get list of all the stat ID's
+        stats_list = stats_map.keys.toSet();
+      }
+      var result = [];
+      //Iterate through stats_id_list
+      await Future.forEach(
+          stats_list, (element) => addStatToResult(element, result));
+      // Create response json
+      var response_json = result.toString();
+      response.data = response_json;
+    } catch (exception) {
+      response.isError = true;
+      response.errorMessage = exception.toString();
+      return;
     }
-    var result = [];
-    //Iterate through stats_id_list
-    await Future.forEach(
-        stats_list, (element) => addStatToResult(element, result));
-    // Create response json
-    var response_json = result.toString();
-    response.data = response_json;
-    // } catch (exception) {
-    //   response.isError = true;
-    //   response.errorMessage = exception.toString();
-    //   return;
-    // }
   }
 
   // get Metric based on ID
