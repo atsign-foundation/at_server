@@ -353,9 +353,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext.currentAtSign);
-    var manager = secondaryPersistenceStore.getHivePersistenceManager();
-    await manager.init(serverContext.currentAtSign, storagePath);
-    await manager.openVault(serverContext.currentAtSign);
+    var manager = secondaryPersistenceStore.getRedisPersistenceManager();
+    await manager.init();
+    // await manager.init(serverContext.currentAtSig);
+    // await manager.openVault(serverContext.currentAtSign);
     manager.scheduleKeyExpireTask(expiringRunFreqMins);
 
     var atData = AtData();
@@ -363,16 +364,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext.currentAtSign)
         .getSecondaryKeyStoreManager();
-    var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+    var redisKeyStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext.currentAtSign)
         .getSecondaryKeyStore();
-    hiveKeyStore.commitLog = atCommitLog;
+    redisKeyStore.commitLog = atCommitLog;
     _commitLog = atCommitLog;
-    keyStoreManager.keyStore = hiveKeyStore;
+    keyStoreManager.keyStore = redisKeyStore;
     serverContext.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
     var cramData = await keyStore.get(AT_CRAM_SECRET_DELETED);
+    logger.info('cramData : $cramData');
     var isCramDeleted = cramData?.data;
     if (isCramDeleted == null) {
       await keyStore.put(AT_CRAM_SECRET, atData);
