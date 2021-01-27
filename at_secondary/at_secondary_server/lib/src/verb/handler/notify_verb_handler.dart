@@ -1,13 +1,18 @@
 import 'dart:collection';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
+import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/notification_util.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 enum Type { sent, received }
@@ -20,7 +25,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.contains('list');
+          !command.contains('list') &&
+          !command.contains('status') &&
+          !command.contains('notify:all');
 
   @override
   Verb getVerb() {
@@ -47,7 +54,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var atValue = verbParams[AT_VALUE];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
-    key = '${key}${atSign}';
+    var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
+    var strategy = verbParams[STRATEGY];
+    strategy ??= 'all';
+    if (messageType == MessageType.key) {
+      key = '${key}${atSign}';
+    }
     if (forAtSign != null) {
       forAtSign = AtUtils.formatAtSign(forAtSign);
       key = '${forAtSign}:${key}';
@@ -56,7 +68,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var opType;
     if (operation != null) {
       opType =
-          (operation == 'update') ? OperationType.update : OperationType.delete;
+      (operation == 'update') ? OperationType.update : OperationType.delete;
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -77,16 +89,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.finer(
           'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
       if (currentAtSign == forAtSign) {
-        await NotificationUtil.storeNotification(atConnection, fromAtSign,
-            forAtSign, key, NotificationType.received, opType,
-            ttl_ms: ttl_ms);
-        response.data = 'data:success';
+        var notificationId = await NotificationUtil.storeNotification(
+            forAtSign, atSign, key, NotificationType.received, opType);
+        response.data = notificationId;
         return;
       }
-      await NotificationUtil.storeNotification(atConnection, fromAtSign,
-          forAtSign, key, NotificationType.sent, opType,
-          ttl_ms: ttl_ms);
-      if (ttr_ms != null) {
+
+      if (ttr_ms != null && atValue != null) {
         key = '$AT_TTR:$ttr_ms:$CCD:$isCascade:$key:$atValue';
       }
       if (ttb_ms != null) {
@@ -95,16 +104,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (ttl_ms != null) {
         key = '$AT_TTL:$ttl_ms:$key';
       }
-      if (operation != null) {
-        key = '${operation}:${key}';
-      }
-      await NotificationUtil.sendNotification(forAtSign, atConnection, key);
-      response.data = 'data:success';
+      var atNotification = (AtNotificationBuilder()
+        ..fromAtSign = atSign
+        ..toAtSign = forAtSign
+        ..notification = key
+        ..opType = opType
+        ..priority =
+        SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+        ..atValue = atValue
+        ..notifier = verbParams[NOTIFIER]
+        ..strategy = strategy
+        ..depth = _getIntParam(verbParams[LATEST_N])
+        ..messageType = messageType
+        ..notificationStatus = NotificationStatus.queued
+        ..type = NotificationType.sent).build();
+      var notificationId =
+      await NotificationManager.getInstance().notify(atNotification);
+      response.data = notificationId;
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
-      await NotificationUtil.storeNotification(atConnection, fromAtSign,
-          forAtSign, key, NotificationType.received, opType,
+      await NotificationUtil.storeNotification(
+          fromAtSign,forAtSign,key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
 
       var notifyKey = '$CACHED:$key';
@@ -121,13 +142,19 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
-        await _storeCachedKeys(key, metadata, atValue: atValue);
+        if (operation == 'append') {
+          await _appendToCachedKeys(key, metadata, atValue);
+        } else if (operation == 'remove') {
+          await _removeFromCachedKeys(key, metadata, atValue);
+        } else {
+          await _storeCachedKeys(key, metadata, atValue: atValue);
+        }
         response.data = 'data:success';
         return;
       }
@@ -135,16 +162,17 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // Update metadata only if key is cached.
       if (isKeyPresent != null) {
         var atMetaData = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
         await _updateMetadata(notifyKey, atMetaData);
         response.data = 'data:success';
         return;
       }
+      response.data = 'data:success';
     }
   }
 
@@ -172,5 +200,41 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (metadata != null && metadata.isCascade) {
       await keyStore.remove(key);
     }
+  }
+
+  Future<void> _appendToCachedKeys(
+      String key, AtMetaData atMetaData, String atValue) async {
+    var notifyKey = '$CACHED:$key';
+    var result = await keyStore.get(notifyKey);
+    if (result != null) {
+      var atData = AtData();
+      var resultList = json.decode(result.data);
+      resultList.addAll(json.decode(atValue));
+      atData.data = json.encode(resultList);
+      atData.metaData = result.metaData;
+      await keyStore.put(notifyKey, atData);
+    }
+  }
+
+  Future<void> _removeFromCachedKeys(
+      String key, AtMetaData metadata, String atValue) async {
+    var notifyKey = '$CACHED:$key';
+    var result = await keyStore.get(notifyKey);
+    if (result != null) {
+      var atData = AtData();
+      List resultList = json.decode(result.data);
+      List list = json.decode(atValue);
+      resultList.removeWhere((item) => list.contains(item));
+      atData.data = json.encode(resultList);
+      atData.metaData = result.metaData;
+      await keyStore.put(notifyKey, atData);
+    }
+  }
+
+  int _getIntParam(String arg) {
+    if (arg == null) {
+      return null;
+    }
+    return int.parse(arg);
   }
 }

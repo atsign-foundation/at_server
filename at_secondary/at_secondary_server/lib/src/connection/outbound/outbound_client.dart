@@ -1,17 +1,18 @@
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
-import 'package:at_lookup/at_lookup.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 // Connects to an secondary and performs required handshake to be ready to run rest of the commands
 /// Handshake involves running "from", "pol" verbs on the secondary
@@ -261,8 +262,8 @@ class OutboundClient {
     return notifyResult;
   }
 
-  Future<List<dynamic>> notifyList(String atSign,
-      {bool handshake = true}) async {
+  List<dynamic> notifyList(String atSign,
+      {bool handshake = true}) {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -270,7 +271,12 @@ class OutboundClient {
     }
     try {
       var notificationKeyStore = AtNotificationKeystore.getInstance();
-      notifyResult = await notificationKeyStore.get(atSign);
+      notifyResult = notificationKeyStore.getValues();
+      if (notifyResult != null) {
+        notifyResult.retainWhere((element) =>
+        element.type == NotificationType.sent &&
+            atSign == element.toAtSign);
+      }
     } on AtIOException catch (e) {
       outboundConnection.close();
       throw LookupException(

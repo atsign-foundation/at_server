@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
@@ -31,8 +32,11 @@ class AtSecondaryConfig {
   static int _accessLogSizeInKB = 2;
 
   //Notification
+  static int _maxNotificationRetries = 5;
   static int _maxNotificationEntries = 5;
   static bool _autoNotify = true;
+  static int _notificationQuarantineDuration = 10;
+  static int _notificationJobFrequency = 5;
 
   //Refresh Job
   static int _runRefreshJobHour = 3;
@@ -518,6 +522,42 @@ class AtSecondaryConfig {
       return ConfigUtil.getYaml()['certificate_expiry']['force_restart'];
     }
     return _isForceRestart;
+  }
+
+  static int get maxNotificationRetries {
+    var result = _getIntEnvVar('maxNotificationRetries');
+    if (result != null) {
+      return _getIntEnvVar('maxNotificationRetries');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['max_retries'] != null) {
+      return ConfigUtil.getYaml()['notification']['max_retries'];
+    }
+    return _maxNotificationRetries;
+  }
+
+  static int get notificationQuarantineDuration {
+    var result = _getIntEnvVar('notificationQuarantineDuration');
+    if (result != null) {
+      return _getIntEnvVar('notificationQuarantineDuration');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['quarantineDuration'] != null) {
+      return ConfigUtil.getYaml()['notification']['quarantineDuration'];
+    }
+    return _notificationQuarantineDuration;
+  }
+
+  static int get notificationJobFrequency {
+    var result = _getIntEnvVar('notificationJobFrequency');
+    if (result != null) {
+      return _getIntEnvVar('notificationJobFrequency');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['jobFrequency'] != null) {
+      return ConfigUtil.getYaml()['notification']['jobFrequency'];
+    }
+    return _notificationJobFrequency;
   }
 
   static int _getIntEnvVar(String envVar) {

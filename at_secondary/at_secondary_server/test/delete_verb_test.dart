@@ -1,9 +1,9 @@
+import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   group('A group of delete verb tests', () {
@@ -12,7 +12,9 @@ void main() {
       var command = 'delete:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], '@bob:email@colin');
+      expect(paramsMap[AT_KEY], 'email');
+      expect(paramsMap[FOR_AT_SIGN], 'bob');
+      expect(paramsMap[AT_SIGN], 'colin');
     });
 
     test('test delete getVerb', () {
@@ -43,9 +45,9 @@ void main() {
       var command = 'delet';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test delete key-with emoji', () {
@@ -53,7 +55,9 @@ void main() {
       var command = 'delete:@🦄:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], '@🦄:phone@🎠');
+      expect(paramsMap[AT_KEY], 'phone');
+      expect(paramsMap[FOR_AT_SIGN], '🦄');
+      expect(paramsMap[AT_SIGN], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -61,7 +65,8 @@ void main() {
       var command = 'delete:public:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'public:phone@🎠');
+      expect(paramsMap[AT_KEY], 'phone');
+      expect(paramsMap[AT_SIGN], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -69,7 +74,8 @@ void main() {
       var command = 'delete:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone@🎠');
+      expect(paramsMap[AT_KEY], 'phone');
+      expect(paramsMap[AT_SIGN], '🎠');
     });
   });
 }

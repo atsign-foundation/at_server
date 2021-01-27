@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
@@ -8,23 +9,25 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
 void main() async {
+  var outboundClient;
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = 2000;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+    outboundClient = OutboundClientPool();
   });
   tearDown(() {
-    OutboundClientPool().clearAllClients();
+    outboundClient.clearAllClients();
   });
   group('A group of outbound client pool test', () {
     test('test outbound client pool init', () {
-      OutboundClientPool().init((5));
-      expect(OutboundClientPool().getCapacity(), 5);
-      expect(OutboundClientPool().getCurrentSize(), 0);
+      outboundClient.init((5));
+      expect(outboundClient.getCapacity(), 5);
+      expect(outboundClient.getCurrentSize(), 0);
     });
 
     test('test connection pool add clients', () {
-      var poolInstance = OutboundClientPool();
+      var poolInstance = outboundClient;
       poolInstance.init(5);
       var dummySocket_1, dummySocket_2;
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
@@ -41,7 +44,7 @@ void main() async {
       expect(poolInstance.getCurrentSize(), 2);
     });
     test('test client pool - invalid clients', () {
-      var poolInstance = OutboundClientPool();
+      var poolInstance = outboundClient;
       poolInstance.init(5);
       var dummySocket_1, dummySocket_2, dummySocket_3;
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
@@ -67,7 +70,7 @@ void main() async {
     });
 
     test('test connection pool remove all clients', () {
-      var poolInstance = OutboundClientPool();
+      var poolInstance = outboundClient;
       poolInstance.init(5);
       var dummySocket_1, dummySocket_2;
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
