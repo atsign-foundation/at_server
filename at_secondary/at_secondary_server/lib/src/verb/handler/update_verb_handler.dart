@@ -29,7 +29,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-          !command.startsWith('update:meta');
+      !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override
@@ -102,6 +102,15 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = 'cached:$key';
       }
 
+      var atMetadata = AtMetaData()
+        ..ttl = ttl_ms
+        ..ttb = ttb_ms
+        ..ttr = ttr_ms
+        ..isCascade = ccd
+        ..isBinary = isBinary
+        ..isEncrypted = isEncrypted
+        ..dataSignature = dataSignature;
+
       // update the key in data store
       var result = await keyStore.put(key, atData,
           time_to_live: ttl_ms,
@@ -119,8 +128,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
             verbParams[AT_KEY],
             value,
             SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
-            ttl_ms,
-            ttr_ms);
+            atMetadata);
       }
     } on InvalidSyntaxException {
       rethrow;
@@ -132,29 +140,27 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   }
 
   void _notify(String atSign, String forAtSign, String key, String value,
-      NotificationPriority priority, int ttl, int ttr) {
+      NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return;
     }
     key = '${forAtSign}:${key}${atSign}';
     var expiresAt;
     var atValue;
-    if (ttl != null) {
-      expiresAt = DateTime.now().add(Duration(seconds: ttl));
+    if (atMetaData.ttl != null) {
+      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl));
     }
 
-    if (ttr != null) {
-      atValue = value;
-    }
     var atNotification = (AtNotificationBuilder()
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..type = NotificationType.sent
-      ..priority = priority
-      ..opType = OperationType.update
-      ..expiresAt = expiresAt
-      ..atValue = atValue)
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..type = NotificationType.sent
+          ..priority = priority
+          ..opType = OperationType.update
+          ..expiresAt = expiresAt
+          ..atValue = atValue
+          ..atMetaData = atMetaData)
         .build();
 
     NotificationManager.getInstance().notify(atNotification);

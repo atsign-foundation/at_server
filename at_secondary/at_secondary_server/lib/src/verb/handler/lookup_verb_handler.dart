@@ -1,15 +1,16 @@
 import 'dart:collection';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 class LookupVerbHandler extends AbstractVerbHandler {
@@ -40,7 +41,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var atAccessLog =
-    await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
+        await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
@@ -152,17 +153,22 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// Return value to which the specified key is mapped, or null if the key does not have value.
   Future<AtData> _getCachedValue(String key) async {
     var atData = await keyStore.get(key);
-    if (atData != null) {
-      if (atData.metaData.ttr != null && atData.metaData.ttr == -1) {
+    if (atData == null) {
+      return null;
+    }
+    var isActive = SecondaryUtil.isActiveKey(atData);
+    if (!isActive) {
+      return null;
+    }
+    if (atData.metaData.ttr != null && atData.metaData.ttr == -1) {
+      return atData;
+    }
+    var refreshAt = atData.toJson()['metaData']['refreshAt'];
+    if (refreshAt != null) {
+      refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
+      var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      if (now <= refreshAt) {
         return atData;
-      }
-      var refreshAt = atData.toJson()['metaData']['refreshAt'];
-      if (refreshAt != null) {
-        refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
-        var now = DateTime.now().toUtc().millisecondsSinceEpoch;
-        if (now <= refreshAt) {
-          return atData;
-        }
       }
     }
   }

@@ -25,9 +25,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-          !command.contains('list') &&
-          !command.contains('status') &&
-          !command.contains('notify:all');
+      !command.contains('list') &&
+      !command.contains('status') &&
+      !command.contains('notify:all');
 
   @override
   Verb getVerb() {
@@ -68,7 +68,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var opType;
     if (operation != null) {
       opType =
-      (operation == 'update') ? OperationType.update : OperationType.delete;
+          (operation == 'update') ? OperationType.update : OperationType.delete;
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -95,37 +95,41 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         return;
       }
 
+      var atMetadata = AtMetaData();
       if (ttr_ms != null && atValue != null) {
-        key = '$AT_TTR:$ttr_ms:$CCD:$isCascade:$key:$atValue';
+        atMetadata.ttr = ttr_ms;
+        atMetadata.isCascade = isCascade;
       }
       if (ttb_ms != null) {
-        key = '$AT_TTB:$ttb_ms:$key';
+        atMetadata.ttb = ttb_ms;
       }
       if (ttl_ms != null) {
-        key = '$AT_TTL:$ttl_ms:$key';
+        atMetadata.ttl = ttl_ms;
       }
       var atNotification = (AtNotificationBuilder()
-        ..fromAtSign = atSign
-        ..toAtSign = forAtSign
-        ..notification = key
-        ..opType = opType
-        ..priority =
-        SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
-        ..atValue = atValue
-        ..notifier = verbParams[NOTIFIER]
-        ..strategy = strategy
-        ..depth = _getIntParam(verbParams[LATEST_N])
-        ..messageType = messageType
-        ..notificationStatus = NotificationStatus.queued
-        ..type = NotificationType.sent).build();
+            ..fromAtSign = atSign
+            ..toAtSign = forAtSign
+            ..notification = key
+            ..opType = opType
+            ..priority =
+                SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+            ..atValue = atValue
+            ..notifier = verbParams[NOTIFIER]
+            ..strategy = strategy
+            ..depth = _getIntParam(verbParams[LATEST_N])
+            ..messageType = messageType
+            ..notificationStatus = NotificationStatus.queued
+            ..atMetaData = atMetadata
+            ..type = NotificationType.sent)
+          .build();
       var notificationId =
-      await NotificationManager.getInstance().notify(atNotification);
+          await NotificationManager.getInstance().notify(atNotification);
       response.data = notificationId;
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
       await NotificationUtil.storeNotification(
-          fromAtSign,forAtSign,key, NotificationType.received, opType,
+          fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
 
       var notifyKey = '$CACHED:$key';
@@ -142,11 +146,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
-            newAtMetaData: atMetadata,
-            ttl: ttl_ms,
-            ttb: ttb_ms,
-            ttr: ttr_ms,
-            ccd: isCascade)
+                newAtMetaData: atMetadata,
+                ttl: ttl_ms,
+                ttb: ttb_ms,
+                ttr: ttr_ms,
+                ccd: isCascade)
             .build();
         if (operation == 'append') {
           await _appendToCachedKeys(key, metadata, atValue);
@@ -162,11 +166,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // Update metadata only if key is cached.
       if (isKeyPresent != null) {
         var atMetaData = AtMetadataBuilder(
-            newAtMetaData: atMetadata,
-            ttl: ttl_ms,
-            ttb: ttb_ms,
-            ttr: ttr_ms,
-            ccd: isCascade)
+                newAtMetaData: atMetadata,
+                ttl: ttl_ms,
+                ttb: ttb_ms,
+                ttr: ttr_ms,
+                ccd: isCascade)
             .build();
         await _updateMetadata(notifyKey, atMetaData);
         response.data = 'data:success';

@@ -25,7 +25,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.update) + ':') &&
-          command.startsWith('update:meta:');
+      command.startsWith('update:meta:');
 
   @override
   Verb getVerb() => updateMeta;
@@ -81,13 +81,13 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
     var atMetaData = AtMetadataBuilder(
-        newAtMetaData: metadata,
-        ttl: ttl_ms,
-        ttb: ttb_ms,
-        ttr: ttr_ms,
-        ccd: ccd,
-        isBinary: isBinary,
-        isEncrypted: isEncrypted)
+            newAtMetaData: metadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: ccd,
+            isBinary: isBinary,
+            isEncrypted: isEncrypted)
         .build();
     var result = await keyStore.putMeta(key, atMetaData);
     response.data = result?.toString();
@@ -96,8 +96,12 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (AUTO_NOTIFY && (atSign != forAtSign)) {
-      _notify(forAtSign, atSign, verbParams[AT_KEY],
-          SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
+      _notify(
+          forAtSign,
+          atSign,
+          verbParams[AT_KEY],
+          SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
+          atMetaData);
     }
   }
 
@@ -109,16 +113,17 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     return key;
   }
 
-  void _notify(forAtSign, atSign, key, priority) {
+  void _notify(forAtSign, atSign, key, priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return;
     }
     var atNotification = (AtNotificationBuilder()
-      ..type = NotificationType.sent
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..priority = priority)
+          ..type = NotificationType.sent
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..priority = priority
+          ..atMetaData = atMetaData)
         .build();
     NotificationManager.getInstance().notify(atNotification);
   }
