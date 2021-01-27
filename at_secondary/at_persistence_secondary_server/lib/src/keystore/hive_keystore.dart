@@ -186,10 +186,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
-      var expiredKeys = getExpiredKeys();
+      var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         expiredKeys.forEach((element) {
           remove(element);
@@ -206,7 +206,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  List<String> getExpiredKeys() {
+  Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
     try {
       var now = DateTime.now().toUtc();

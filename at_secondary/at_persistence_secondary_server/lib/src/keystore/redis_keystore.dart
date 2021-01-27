@@ -79,10 +79,10 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
-      var expiredKeys = getExpiredKeys();
+      var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         expiredKeys.forEach((element) {
           remove(element);
@@ -115,22 +115,24 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  List<String> getExpiredKeys() {
+  Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
-    // try {
-    //   var now = DateTime.now().toUtc();
-    //   if (persistenceManager.redis_commands != null) {
-    //     var expired = persistenceManager.redis_commands.values
-    //         .where((data) =>
-    //     data.metaData?.expiresAt != null &&
-    //         data.metaData.expiresAt.isBefore(now))
-    //         .toList();
-    //     expired?.forEach((entry) => expiredKeys.add(Utf7.encode(entry.key)));
-    //   }
-    // } on Exception catch (e) {
-    //   logger.severe('exception in hive get expired keys:${e.toString()}');
-    //   throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
-    // }
+    try {
+      var now = DateTime.now().toUtc();
+      if (persistenceManager.redis_commands != null) {
+        var keys = persistenceManager.redis_commands.keys('*');
+        for(var key in keys) {
+            var data = await get(key);
+            if(data.metaData?.expiresAt != null &&
+                data.metaData.expiresAt.isBefore(now)) {
+              expiredKeys.add(key);
+            }
+        }
+      }
+    } on Exception catch (e) {
+      logger.severe('exception in hive get expired keys:${e.toString()}');
+      throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
+    }
     return expiredKeys;
   }
 
@@ -273,10 +275,12 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future<AtMetaData> getMeta(String key) async {
     try {
+      var result;
       var redis_key = keyStoreHelper.prepareKey(key);
       var value = await persistenceManager.redis_commands?.get(redis_key);
       if (value != null) {
-        return value.metaData;
+        result = result.fromJson(json.decode(value));
+        return result.metaData;
       }
     } on Exception catch (exception) {
       logger.severe('RedisKeystore getMeta exception: $exception');

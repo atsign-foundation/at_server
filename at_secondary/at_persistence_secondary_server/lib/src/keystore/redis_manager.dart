@@ -24,6 +24,7 @@ class RedisPersistenceManager {
       redis_commands = redis_client.asCommands<String, String>();
       await redis_commands.auth('mypassword');
 
+
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: ' + e.toString());
       throw DataStoreException(

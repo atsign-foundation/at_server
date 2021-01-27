@@ -45,7 +45,7 @@ class AtNotificationKeystore
 
   /// Returning null as there is no concept of expired keys on the notification
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     return null;
   }
 
@@ -67,7 +67,7 @@ class AtNotificationKeystore
 
   /// Returning null as there is no concept of expired keys on the notification
   @override
-  List<String> getExpiredKeys() {
+  Future<List<String>> getExpiredKeys() {
     return null;
   }
 
