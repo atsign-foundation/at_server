@@ -72,7 +72,7 @@ class AtNotificationKeystore
   }
 
   @override
-  List<String> getKeys({String regex}) {
+  Future<List<String>> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
     var atNotificationLogInstance = AtNotificationLog.getInstance();

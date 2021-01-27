@@ -29,7 +29,7 @@ class AtConfig {
   AtConfig(this._commitLog, this._atSign) {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)
-        .getHivePersistenceManager();
+        .getRedisPersistenceManager();
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.
@@ -103,7 +103,7 @@ class AtConfig {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.box?.get(hive_key);
+      value = await persistenceManager.redis_commands?.get(hive_key);
       return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');

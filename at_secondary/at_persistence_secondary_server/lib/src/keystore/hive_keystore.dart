@@ -229,7 +229,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String regex}) {
+  Future<List<String>> getKeys({String regex}) async{
     var keys = <String>[];
     var encodedKeys;
 

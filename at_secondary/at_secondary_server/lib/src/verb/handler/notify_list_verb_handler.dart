@@ -75,7 +75,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   Future<List> _getReceivedNotification(List responseList) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     //NotificationEntry notificationEntry;
-    var keyList = notificationKeyStore.getKeys();
+    var keyList = await notificationKeyStore.getKeys();
     await Future.forEach(
         keyList,
         (element) => _fetchNotificationEntries(
