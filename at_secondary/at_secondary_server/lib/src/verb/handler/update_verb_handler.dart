@@ -1,16 +1,19 @@
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
 
 // UpdateVerbHandler is used to process update verb
 // update can be used to update the public/private keys
@@ -99,6 +102,15 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = 'cached:$key';
       }
 
+      var atMetadata = AtMetaData()
+        ..ttl = ttl_ms
+        ..ttb = ttb_ms
+        ..ttr = ttr_ms
+        ..isCascade = ccd
+        ..isBinary = isBinary
+        ..isEncrypted = isEncrypted
+        ..dataSignature = dataSignature;
+
       // update the key in data store
       var result = await keyStore.put(key, atData,
           time_to_live: ttl_ms,
@@ -109,8 +121,15 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           isEncrypted: isEncrypted,
           dataSignature: dataSignature);
       response.data = result?.toString();
-      _notify(atConnection, atSign, forAtSign, key, value, ttl_ms, ttr_ms,
-          ttb_ms, ccd, metadata);
+      if (AUTO_NOTIFY) {
+        _notify(
+            atSign,
+            forAtSign,
+            verbParams[AT_KEY],
+            value,
+            SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
+            atMetadata);
+      }
     } on InvalidSyntaxException {
       rethrow;
     } catch (exception) {
@@ -120,41 +139,31 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void _notify(atConnection, atSign, forAtSign, key, value, ttl_ms, ttr_ms,
-      ttb_ms, isCascade, metadata) async {
-    // store notification entry
-    await NotificationUtil.storeNotification(atConnection, atSign, forAtSign,
-        key, NotificationType.sent, OperationType.update,
-        ttl_ms: ttl_ms);
+  void _notify(String atSign, String forAtSign, String key, String value,
+      NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return;
     }
-    // send notification to other secondary if AUTO_NOTIFY is enabled
-    atSign = AtUtils.formatAtSign(atSign);
-    if (AUTO_NOTIFY && (atSign != forAtSign)) {
-      forAtSign = AtUtils.formatAtSign(forAtSign);
-      //if ttr is set, notify with value.
-      if (ttr_ms == null && metadata != null) {
-        ttr_ms = metadata.ttr;
-        isCascade = metadata.isCascade;
-      }
-      if (ttr_ms != null) {
-        key = '$AT_TTR:$ttr_ms:$CCD:$isCascade:$key:$value';
-      }
-      if (ttb_ms != null) {
-        key = '$AT_TTB:$ttb_ms:$key';
-      }
-      if (ttl_ms != null) {
-        key = '$AT_TTL:$ttl_ms:$key';
-      }
-      key = 'update:$key';
-      try {
-        await NotificationUtil.sendNotification(forAtSign, atConnection, key);
-      } catch (exception) {
-        logger.severe(
-            'Exception while sending notification ${exception.toString()}');
-      }
+    key = '${forAtSign}:${key}${atSign}';
+    var expiresAt;
+    var atValue;
+    if (atMetaData.ttl != null) {
+      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl));
     }
+
+    var atNotification = (AtNotificationBuilder()
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..type = NotificationType.sent
+          ..priority = priority
+          ..opType = OperationType.update
+          ..expiresAt = expiresAt
+          ..atValue = atValue
+          ..atMetaData = atMetaData)
+        .build();
+
+    NotificationManager.getInstance().notify(atNotification);
   }
 
   UpdateParams _getUpdateParams(HashMap<String, String> verbParams) {

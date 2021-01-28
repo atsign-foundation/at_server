@@ -90,6 +90,12 @@ stats:
 notification:
   autoNotify: true
   max_entries: 5
+  # The maximum number of retries for a notification.
+  max_retries: 5
+  # The quarantine duration of an atsign.
+  quarantineDuration: 10
+  # The job frequency
+  jobFrequency: 5
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
