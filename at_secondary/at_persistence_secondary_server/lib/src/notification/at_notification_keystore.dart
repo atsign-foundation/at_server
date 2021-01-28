@@ -28,6 +28,9 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       Hive.registerAdapter(NotificationStatusAdapter());
       Hive.registerAdapter(NotificationPriorityAdapter());
       Hive.registerAdapter(MessageTypeAdapter());
+      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
+        Hive.registerAdapter(AtMetaDataAdapter());
+      }
       _register = true;
     }
     _box = await Hive.openBox(boxName);
