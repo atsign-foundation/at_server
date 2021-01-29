@@ -37,14 +37,15 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     deleteKey = '${verbParams[AT_KEY]}${atSign}';
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey =
-      '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
+          '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
     }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
     if (deleteKey == AT_CRAM_SECRET) {
       await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
-    var result = await keyStore.remove(deleteKey);
+    var result = {};
+    result['commitId'] = await keyStore.remove(deleteKey);
     response.data = result?.toString();
     logger.finer('delete success. delete key: $deleteKey');
     try {
@@ -60,7 +61,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
       // send notification to other secondary is AUTO_NOTIFY is enabled
       if (AUTO_NOTIFY && (forAtSign != atSign)) {
         try {
-          _notify(forAtSign, atSign, key,
+          result['notificationId'] = _notify(forAtSign, atSign, key,
               SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
         } catch (exception) {
           logger.severe(
@@ -73,19 +74,20 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void _notify(forAtSign, atSign, key, priority) {
+  String _notify(forAtSign, atSign, key, priority) {
     if (forAtSign == null) {
-      return;
+      return null;
     }
     key = '${forAtSign}:${key}${atSign}';
     var atNotification = (AtNotificationBuilder()
-      ..type = NotificationType.sent
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..priority = priority
-      ..opType = OperationType.delete)
+          ..type = NotificationType.sent
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..priority = priority
+          ..opType = OperationType.delete)
         .build();
     NotificationManager.getInstance().notify(atNotification);
+    return atNotification.id;
   }
 }

@@ -84,6 +84,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..notification = updated_key
               ..opType = operation
               ..messageType = messageType
+              ..atMetaData = atMetadata
               ..atValue = value)
             .build();
 
