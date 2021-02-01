@@ -121,7 +121,7 @@ class OutboundClient {
       //2. Receive proof
       var fromResult = await messageListener.read();
       logger.info('fromResult : $fromResult');
-      if (fromResult == null) {
+      if (fromResult == null || fromResult == "") {
         throw HandShakeException(
             'no response received for From:${toAtSign} command');
       }
@@ -150,7 +150,7 @@ class OutboundClient {
         result = true;
       }
     } on ConnectionInvalidException {
-      throw OutBoundConnectionInvalidException('Outbound connectin invalid');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } on Exception catch (e) {
       outboundConnection.close();
       throw HandShakeException(e.toString());
