@@ -148,7 +148,6 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     }
     key = '${forAtSign}:${key}${atSign}';
     var expiresAt;
-    var atValue;
     if (atMetaData.ttl != null) {
       expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl));
     }
@@ -161,7 +160,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           ..priority = priority
           ..opType = OperationType.update
           ..expiresAt = expiresAt
-          ..atValue = atValue
+          ..atValue = value
           ..atMetaData = atMetaData)
         .build();
 

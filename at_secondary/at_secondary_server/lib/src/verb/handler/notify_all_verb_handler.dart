@@ -36,9 +36,6 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
-    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var fromAtSign = atConnectionMetadata.fromAtSign;
     var ttl_ms;
     var ttb_ms;
     var ttr_ms;
@@ -70,7 +67,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       var forAtSigns = forAtSignList.split(',');
       var forAtSignsSet = forAtSigns.toSet();
       for (var forAtSign in forAtSignsSet) {
-        var updated_key = '${forAtSign}:${key}';
+        var updated_key = '${forAtSign}:${key}${atSign}';
         var atMetadata = AtMetaData()
           ..ttl = ttl_ms
           ..ttb = ttb_ms
@@ -84,8 +81,8 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..notification = updated_key
               ..opType = operation
               ..messageType = messageType
-              ..atMetaData = atMetadata
-              ..atValue = value)
+              ..atValue = value
+              ..atMetaData = atMetadata)
             .build();
 
         var notificationID =
