@@ -40,8 +40,13 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     return _box.isEmpty;
   }
 
+  /// Returns a list of atNotification sorted on notification date time.
   List<dynamic> getValues() {
-    return _box.values.toList();
+    var returnList = [];
+    returnList = _box.values.toList();
+    returnList.sort(
+        (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
+    return returnList;
   }
 
   @override
