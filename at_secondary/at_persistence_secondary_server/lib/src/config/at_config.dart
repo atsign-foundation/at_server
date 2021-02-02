@@ -29,7 +29,7 @@ class AtConfig {
   AtConfig(this._commitLog, this._atSign) {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)
-        .getRedisPersistenceManager();
+        .getPersistenceManager();
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.

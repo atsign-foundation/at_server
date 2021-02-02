@@ -1,10 +1,11 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 import 'package:dartis/dartis.dart' as redis;
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
-class RedisPersistenceManager {
+class RedisPersistenceManager implements PersistenceManager{
   final bool _debug = false;
 
   var _atSign;
@@ -15,7 +16,8 @@ class RedisPersistenceManager {
   var redis_client;
   var redis_commands;
 
-  Future<bool> init() async {
+  @override
+  Future<bool> init({String atSign, String storagePath}) async {
     var success = false;
     try {
       // Connects.

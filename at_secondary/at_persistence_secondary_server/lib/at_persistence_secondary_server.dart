@@ -20,5 +20,5 @@ export 'package:at_persistence_secondary_server/src/model/at_metadata_builder.da
 export 'package:at_persistence_secondary_server/src/utils/at_metadata_adapter.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_manager_impl.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log_manager_impl.dart';
-export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
+export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_hive_store.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';

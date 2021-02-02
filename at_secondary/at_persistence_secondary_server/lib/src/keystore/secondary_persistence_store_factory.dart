@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_redis_store.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_hive_store.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -18,7 +19,7 @@ class SecondaryPersistenceStoreFactory {
 
   Map<String, SecondaryPersistenceRedisStore> _secondaryPersistenceStoreMap = {};
 
-  SecondaryPersistenceRedisStore getSecondaryPersistenceStore(String atSign) {
+  SecondaryPersistenceStore getSecondaryPersistenceStore(String atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
       var secondaryPersistenceStore = SecondaryPersistenceRedisStore(atSign);
       _secondaryPersistenceStoreMap[atSign] = secondaryPersistenceStore;
@@ -28,7 +29,7 @@ class SecondaryPersistenceStoreFactory {
 
   void close() {
     _secondaryPersistenceStoreMap.forEach((key, value) {
-      value.getRedisPersistenceManager().close();
+      value.getPersistenceManager().close();
     });
   }
 }
