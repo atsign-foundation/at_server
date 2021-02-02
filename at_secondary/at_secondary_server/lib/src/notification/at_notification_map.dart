@@ -90,8 +90,12 @@ class AtNotificationMap {
   }
 
   /// Removes the entry from _waitTimeMap.
-  void removeEntry(String atsign) {
+  void removeWaitTimeEntry(String atsign) {
     _waitTimeMap.remove(atsign);
+  }
+
+  void removeQuarantineEntry(String atSign) {
+    _quarantineMap.remove(atSign);
   }
 
   ///Clears the map instances.
