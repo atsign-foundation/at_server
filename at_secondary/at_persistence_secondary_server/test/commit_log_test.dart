@@ -133,9 +133,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getCommitLog(_getShaForAtsign('@alice'), commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice');
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
-  await persistenceManager.init('@alice', storageDir);
+  var persistenceManager = secondaryPersistenceStore.getPersistenceManager();
+  await persistenceManager.init('@alice', storagePath: storageDir);
   await persistenceManager.openVault('@alice');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();

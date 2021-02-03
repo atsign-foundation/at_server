@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
@@ -229,7 +229,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  Future<List<String>> getKeys({String regex}) async{
+  Future<List<String>> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
 

@@ -1,11 +1,10 @@
 import 'dart:convert';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/keystore/redis_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore_helper.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
+import 'package:dartis/dartis.dart';
 import 'package:utf7/utf7.dart';
 
 class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
@@ -14,7 +13,6 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-
 
   RedisKeyStore(this._atSign);
 
@@ -25,12 +23,12 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future create(String key, AtData value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     var result;
     var commitOp;
     var redis_key = keyStoreHelper.prepareKey(key);
@@ -68,7 +66,8 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     }
 
     try {
-      var value = (redis_data != null) ? json.encode(redis_data.toJson()) : null;
+      var value =
+          (redis_data != null) ? json.encode(redis_data.toJson()) : null;
       await persistenceManager.redis_commands.set(redis_key, value);
       result = await _commitLog.commit(redis_key, commitOp);
       return result;
@@ -82,7 +81,9 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
-      var expiredKeys = await getExpiredKeys();
+      var expiredKeys = <String>[];
+      ;
+      logger.info('type : ${expiredKeys.runtimeType}');
       if (expiredKeys.isNotEmpty) {
         expiredKeys.forEach((element) {
           remove(element);
@@ -104,7 +105,7 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     try {
       var redis_key = keyStoreHelper.prepareKey(key);
       var result = await persistenceManager.redis_commands.get(redis_key);
-      if(result != null) {
+      if (result != null) {
         value = value.fromJson(json.decode(result));
       }
     } on Exception catch (exception) {
@@ -116,24 +117,26 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
 
   @override
   Future<List<String>> getExpiredKeys() async {
-    var expiredKeys = <String>[];
+    var keys = <String>[];
     try {
+      var expiredKeys = <String>[];
       var now = DateTime.now().toUtc();
       if (persistenceManager.redis_commands != null) {
-        var keys = persistenceManager.redis_commands.keys('*');
-        for(var key in keys) {
-            var data = await get(key);
-            if(data.metaData?.expiresAt != null &&
-                data.metaData.expiresAt.isBefore(now)) {
-              expiredKeys.add(key);
-            }
+        var keys = await persistenceManager.redis_commands.keys('*');
+        logger.info('type : ${keys.runtimeType}');
+        for (var key in keys) {
+          var data = await get(key);
+          if (data.metaData?.expiresAt != null &&
+              data.metaData.expiresAt.isBefore(now)) {
+            expiredKeys.add(key);
+          }
         }
       }
     } on Exception catch (e) {
       logger.severe('exception in hive get expired keys:${e.toString()}');
       throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
     }
-    return expiredKeys;
+    return keys;
   }
 
   @override
@@ -165,12 +168,12 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future<int> put(String key, AtData value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
@@ -216,8 +219,10 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         logger.finest('redis value:${redis_value}');
         // await persistenceManager.box?.put(redis_key, redis_value);
         // result = await _commitLog.commit(redis_key, commitOp);
-        var redis_value_json = (redis_value != null) ? json.encode(redis_value.toJson()) : null;
-        await persistenceManager.redis_commands.set(redis_key, redis_value_json);
+        var redis_value_json =
+            (redis_value != null) ? json.encode(redis_value.toJson()) : null;
+        await persistenceManager.redis_commands
+            .set(redis_key, redis_value_json);
         result = await _commitLog.commit(redis_key, commitOp);
       }
     } on DataStoreException {
@@ -261,7 +266,7 @@ class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     var existingData = await get(key);
     var newData = existingData ?? AtData();
     newData.metaData = AtMetadataBuilder(
-        newAtMetaData: metadata, existingMetaData: newData.metaData)
+            newAtMetaData: metadata, existingMetaData: newData.metaData)
         .build();
     // Updating the version of the metadata.
     (newData.metaData.version != null)

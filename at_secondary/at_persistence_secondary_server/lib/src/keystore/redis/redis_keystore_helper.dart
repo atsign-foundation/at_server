@@ -10,5 +10,4 @@ class RedisKeyStoreHelper {
   }
 
   final logger = AtSignLogger('RedisKeyStoreHelper');
-
 }

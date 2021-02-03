@@ -12,8 +12,8 @@ class AtRefreshJob {
 
   AtRefreshJob(this._atSign) {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(_atSign);
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(_atSign);
     keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
   }
 

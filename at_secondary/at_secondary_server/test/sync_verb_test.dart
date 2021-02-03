@@ -200,9 +200,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
-  await persistenceManager.init('@alice', storageDir);
+  var persistenceManager = secondaryPersistenceStore.getPersistenceManager();
+  await persistenceManager.init('@alice', storagePath: storageDir);
   await persistenceManager.openVault('@alice');
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);

@@ -1,27 +1,27 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/redis/redis_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/redis/redis_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 
-class SecondaryPersistenceHiveStore implements SecondaryPersistenceStore {
-  HiveKeystore _hiveKeystore;
-  HivePersistenceManager _hivePersistenceManager;
+class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
+  RedisKeyStore _redisKeystore;
+  RedisPersistenceManager _redisPersistenceManager;
   SecondaryKeyStoreManager _secondaryKeyStoreManager;
   String _atSign;
 
-  SecondaryPersistenceHiveStore(String atSign) {
+  SecondaryPersistenceRedisStore(String atSign) {
     _atSign = atSign;
     _init();
   }
 
-  SecondaryKeyStore getSecondaryKeyStore() {
-    return this._hiveKeystore;
+  RedisKeyStore getSecondaryKeyStore() {
+    return this._redisKeystore;
   }
 
   PersistenceManager getPersistenceManager() {
-    return this._hivePersistenceManager;
+    return this._redisPersistenceManager;
   }
 
   SecondaryKeyStoreManager getSecondaryKeyStoreManager() {
@@ -29,10 +29,10 @@ class SecondaryPersistenceHiveStore implements SecondaryPersistenceStore {
   }
 
   void _init() {
-    _hiveKeystore = HiveKeystore(this._atSign);
-    _hivePersistenceManager = HivePersistenceManager(this._atSign);
-    _hiveKeystore.persistenceManager = _hivePersistenceManager;
+    _redisKeystore = RedisKeyStore(this._atSign);
+    _redisPersistenceManager = RedisPersistenceManager(this._atSign);
+    _redisKeystore.persistenceManager = _redisPersistenceManager;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager(this._atSign);
-    _secondaryKeyStoreManager.keyStore = _hiveKeystore;
+    _secondaryKeyStoreManager.keyStore = _redisKeystore;
   }
 }

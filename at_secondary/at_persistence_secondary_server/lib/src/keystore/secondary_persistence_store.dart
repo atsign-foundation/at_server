@@ -3,11 +3,9 @@ import 'package:at_persistence_secondary_server/src/keystore/secondary_persisten
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 abstract class SecondaryPersistenceStore {
-
-  SecondaryKeyStore getSecondaryKeyStore();
+  dynamic getSecondaryKeyStore();
 
   PersistenceManager getPersistenceManager();
 
   SecondaryKeyStoreManager getSecondaryKeyStoreManager();
-
 }

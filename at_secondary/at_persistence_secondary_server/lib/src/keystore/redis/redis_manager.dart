@@ -5,7 +5,7 @@ import 'package:cron/cron.dart';
 import 'package:dartis/dartis.dart' as redis;
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
-class RedisPersistenceManager implements PersistenceManager{
+class RedisPersistenceManager implements PersistenceManager {
   final bool _debug = false;
 
   var _atSign;
@@ -17,7 +17,7 @@ class RedisPersistenceManager implements PersistenceManager{
   var redis_commands;
 
   @override
-  Future<bool> init({String atSign, String storagePath}) async {
+  Future<bool> init(String atSign, {String storagePath}) async {
     var success = false;
     try {
       // Connects.
@@ -25,8 +25,6 @@ class RedisPersistenceManager implements PersistenceManager{
       // Runs some commands.
       redis_commands = redis_client.asCommands<String, String>();
       await redis_commands.auth('mypassword');
-
-
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: ' + e.toString());
       throw DataStoreException(
@@ -40,10 +38,10 @@ class RedisPersistenceManager implements PersistenceManager{
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
     cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+      var redisKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(this._atSign)
           .getSecondaryKeyStore();
-      hiveKeyStore.deleteExpiredKeys();
+      await redisKeyStore.deleteExpiredKeys();
     });
   }
 
@@ -52,4 +50,9 @@ class RedisPersistenceManager implements PersistenceManager{
     redis_commands.disconnect();
   }
 
+  @override
+  Future openVault(String atsign, {List<int> hiveSecret}) {
+    // Not applicable
+    return null;
+  }
 }

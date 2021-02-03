@@ -64,9 +64,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
-  await persistenceManager.init('@alice', storageDir);
+  var persistenceManager = secondaryPersistenceStore.getPersistenceManager();
+  await persistenceManager.init('@alice', storagePath: storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
   //keyStoreManager.init();

@@ -353,8 +353,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext.currentAtSign);
-    var manager = secondaryPersistenceStore.getRedisPersistenceManager();
-    await manager.init();
+    var manager = secondaryPersistenceStore.getPersistenceManager();
+    await manager.init(serverContext.currentAtSign, storagePath: storagePath);
     // await manager.init(serverContext.currentAtSig);
     // await manager.openVault(serverContext.currentAtSign);
     manager.scheduleKeyExpireTask(expiringRunFreqMins);
@@ -392,7 +392,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var signingPrivateKey = await keyStore
         .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
     signingKey = signingPrivateKey?.data;
-    keyStore.deleteExpiredKeys();
+    await keyStore.deleteExpiredKeys();
   }
 
   @override

@@ -9,8 +9,6 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
-import 'secondary_persistence_store_factory.dart';
-
 class HivePersistenceManager implements PersistenceManager {
   final bool _debug = false;
 
@@ -28,7 +26,7 @@ class HivePersistenceManager implements PersistenceManager {
   HivePersistenceManager(this._atsign);
 
   @override
-  Future<bool> init({String atSign, String storagePath}) async {
+  Future<bool> init(String atSign, {String storagePath}) async {
     var success = false;
     try {
       assert(storagePath != null && storagePath != '');
@@ -45,6 +43,7 @@ class HivePersistenceManager implements PersistenceManager {
 
       var secret = await _getHiveSecretFromFile(atSign, storagePath);
       _secret = secret;
+      await openVault(atSign);
       success = true;
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: ' + e.toString());
@@ -75,8 +74,8 @@ class HivePersistenceManager implements PersistenceManager {
       // ignore: omit_local_variable_types
       var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
           compactionStrategy: (entries, deletedEntries) {
-            return deletedEntries > 50;
-          });
+        return deletedEntries > 50;
+      });
       _box = hiveBox;
       if (_debug) {
         logger.finer(

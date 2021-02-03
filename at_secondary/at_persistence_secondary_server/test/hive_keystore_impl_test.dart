@@ -31,7 +31,8 @@ void main() async {
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');;
+      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
+      ;
       var keyStore = keyStoreManager.getKeyStore();
       var atData = AtData();
       atData.data = 'india';
@@ -73,7 +74,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys();
+      var keys = await keyStore.getKeys();
       expect(keys.length, 2);
     });
 
@@ -84,10 +85,10 @@ void main() async {
           throwsA(predicate((e) => e is AssertionError)));
     });
 
-    test('test get expired keys - no data', () {
+    test('test get expired keys - no data', () async {
       var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
       var keyStore = keyStoreManager.getKeyStore();
-      List<String> expiredKeys = keyStore.getExpiredKeys();
+      List<String> expiredKeys = await keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
@@ -129,7 +130,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys(regex: '^first');
+      var keys = await keyStore.getKeys(regex: '^first');
       expect(keys.length, 1);
     });
 // tests commented for coverage. runs fine with pub run test or in IDE
