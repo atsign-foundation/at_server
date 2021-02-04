@@ -68,33 +68,26 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   @override
   Future<List<String>> getExpiredKeys() {
-    return null;
+    throw UnimplementedError();
   }
 
   @override
   Future<List<String>> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
-    var atNotificationLogInstance = AtNotificationLog.getInstance();
-    try {
-      if (atNotificationLogInstance.box != null) {
-        // If regular expression is not null or not empty, filter keys on regular expression.
-        if (regex != null && regex.isNotEmpty) {
-          encodedKeys = atNotificationLogInstance.box.keys.where((element) =>
-              Utf7.decode(element).toString().contains(RegExp(regex)));
-        } else {
-          encodedKeys = atNotificationLogInstance.box.keys.toList();
-        }
-        encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
-      }
-    } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
-      throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
-    } on Exception catch (exception) {
-      logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
-      throw DataStoreException('exception in getKeys: ${exception.toString()}');
+
+    if (_box.keys.isEmpty) {
+      return null;
     }
-    return keys;
+    // If regular expression is not null or not empty, filter keys on regular expression.
+    if (regex != null && regex.isNotEmpty) {
+      encodedKeys = _box.keys.where(
+          (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
+    } else {
+      encodedKeys = _box.keys.toList();
+    }
+    encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
+    return encodedKeys;
   }
 
   Future create(key, value,
@@ -112,31 +105,6 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   @override
   Future<bool> deleteExpiredKeys() async {
     throw UnimplementedError();
-  }
-
-  @override
-  List getExpiredKeys() {
-    // TODO: implement getExpiredKeys
-    throw UnimplementedError();
-  }
-
-  @override
-  List getKeys({String regex}) {
-    var keys = <String>[];
-    var encodedKeys;
-
-    if (_box.keys.isEmpty) {
-      return null;
-    }
-    // If regular expression is not null or not empty, filter keys on regular expression.
-    if (regex != null && regex.isNotEmpty) {
-      encodedKeys = _box.keys.where(
-          (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
-    } else {
-      encodedKeys = _box.keys.toList();
-    }
-    encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
-    return encodedKeys;
   }
 
   @override
