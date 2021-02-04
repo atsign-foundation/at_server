@@ -1,10 +1,13 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -14,8 +17,6 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
@@ -284,6 +285,34 @@ void main() {
               e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+    });
+
+    test('test from incorrect atkey with #', () async {
+      var verb = Update();
+      var command = 'update:phone#@alice 9848022338';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      var handler = UpdateVerbHandler(null);
+      expect(
+          () => handler.formatVerbParams(paramsMap),
+          throwsA(predicate((e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'Invalid atKey : Cannot contain \!\*\'`\(\)\;\:\@\&\=\+\$\,\/\?\#\[\]\{\} characters')));
+    });
+
+    test('test from incorrect atkey with *', () async {
+      var verb = Update();
+      var command = 'update:phone*contact@alice 9848022338';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      var handler = UpdateVerbHandler(null);
+      expect(
+          () => handler.formatVerbParams(paramsMap),
+          throwsA(predicate((e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'Invalid atKey : Cannot contain \!\*\'`\(\)\;\:\@\&\=\+\$\,\/\?\#\[\]\{\} characters')));
     });
   });
 

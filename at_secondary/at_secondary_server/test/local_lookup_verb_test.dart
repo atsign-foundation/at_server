@@ -128,6 +128,20 @@ void main() {
           throwsA(predicate((e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
+
+    test('test from incorrect atkey with #', () async {
+      var verb = LocalLookup();
+      var command = 'llookup:phone#@alice';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      var handler = LocalLookupVerbHandler(null);
+      expect(
+          () => handler.formatVerbParams(paramsMap),
+          throwsA(predicate((e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'Invalid atKey : Cannot contain \!\*\'`\(\)\;\:\@\&\=\+\$\,\/\?\#\[\]\{\} characters')));
+    });
   });
 
   group('A group of hive related unit test', () {

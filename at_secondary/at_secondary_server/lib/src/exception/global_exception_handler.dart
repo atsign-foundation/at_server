@@ -9,7 +9,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
   static final GlobalExceptionHandler _singleton =
-  GlobalExceptionHandler._internal();
+      GlobalExceptionHandler._internal();
 
   GlobalExceptionHandler._internal();
 
@@ -25,8 +25,9 @@ class GlobalExceptionHandler {
         exception is InvalidAtSignException ||
         exception is BlockedConnectionException ||
         exception is UnAuthenticatedException ||
-        exception is BufferOverFlowException||
-        exception is IllegalArgumentException) {
+        exception is BufferOverFlowException ||
+        exception is IllegalArgumentException ||
+        exception is InvalidAtKeyException) {
       // If we get InvalidSyntaxException, InvalidAtSignException, InboundConnectionLimitException
       // send error code
       // Close all the related inbound/outbound connections

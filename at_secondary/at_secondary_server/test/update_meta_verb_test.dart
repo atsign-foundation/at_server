@@ -1,20 +1,21 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
@@ -52,6 +53,20 @@ void main() {
           () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+    });
+
+    test('test from incorrect atkey with #', () async {
+      var verb = UpdateMeta();
+      var command = 'update:meta:phone#@alice:ttl:2000';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      var handler = UpdateVerbHandler(null);
+      expect(
+          () => handler.formatVerbParams(paramsMap),
+          throwsA(predicate((e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'Invalid atKey : Cannot contain \!\*\'`\(\)\;\:\@\&\=\+\$\,\/\?\#\[\]\{\} characters')));
     });
   });
 

@@ -1,11 +1,13 @@
 import 'dart:collection';
-import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_utils/at_logger.dart';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
+import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_utils/at_logger.dart';
+import 'package:at_utils/src/atsign_util.dart';
 
 abstract class AbstractVerbHandler implements VerbHandler {
   SecondaryKeyStore keyStore;
@@ -44,6 +46,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       // Parse the command
       var verbParams = parse(command);
+      verbParams = formatVerbParams(verbParams);
       // Syntax is valid. Process the verb now.
       await processVerb(response, verbParams, atConnection);
       logger.finer(
@@ -52,6 +55,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on Exception {
       rethrow;
     }
+  }
+
+  /// Verifies for invalid characters in the verb params.
+  HashMap<String, String> formatVerbParams(HashMap<String, String> verbParams) {
+    if (verbParams[AT_KEY] != null) {
+      verbParams[AT_KEY] = AtUtils.validateAtKey(verbParams[AT_KEY]);
+    }
+    return verbParams;
   }
 
   /// Return the instance of the current verb
