@@ -1,23 +1,26 @@
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:uuid/uuid.dart';
-import 'package:at_utils/at_logger.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
@@ -160,6 +163,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Certificate reload
     var certificateReload = AtCertificateValidationJob.getInstance();
     await certificateReload.runCertificateExpiryCheckJob();
+
+    // Notification job
+    var resourceManager = ResourceManager.getInstance();
+    resourceManager.schedule();
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext.inboundConnectionLimit);
@@ -311,7 +318,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         _serverSocket.close();
         AtCommitLogManagerImpl.getInstance().close();
         AtAccessLogManagerImpl.getInstance().close();
-        AtNotificationLog.getInstance().close();
         SecondaryPersistenceStoreFactory.getInstance().close();
         _isRunning = false;
       }
@@ -343,11 +349,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _accessLog = atAccessLog;
 
     // Initialize notification storage
-    var notificationInstance = AtNotificationLog.getInstance();
+    var notificationInstance = AtNotificationKeystore.getInstance();
     await notificationInstance.init(
-        'notifications_' + AtUtils.getShaForAtSign(serverContext.currentAtSign),
         notificationStoragePath,
-        maxNotificationEntries);
+        'notifications_' +
+            AtUtils.getShaForAtSign(serverContext.currentAtSign));
+    // Loads the notifications into Map.
+    NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =

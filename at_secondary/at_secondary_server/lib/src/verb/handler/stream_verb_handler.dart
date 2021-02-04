@@ -1,15 +1,17 @@
 import 'dart:collection';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
-import 'package:at_secondary/src/connection/stream_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
-import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'package:at_secondary/src/connection/stream_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_server_spec/src/connection/inbound_connection.dart';
+import 'package:at_server_spec/src/verb/verb.dart';
 
 class StreamVerbHandler extends AbstractVerbHandler {
   static StreamVerb stream = StreamVerb();
@@ -79,21 +81,28 @@ class StreamVerbHandler extends AbstractVerbHandler {
         fileName = fileName.trim();
         logger.info('fileName:${fileName}');
         logger.info('fileLength:${fileLength}');
-        await NotificationUtil.storeNotification(
-            atConnection,
-            AtSecondaryServerImpl.getInstance().currentAtSign,
-            receiver,
-            'stream_id',
-            NotificationType.sent,
-            null);
+
         var notificationKey =
             '@${receiver}:stream_id ${currentAtSign}:${streamId}:${fileName}:${fileLength}';
-
-        await NotificationUtil.sendNotification(
-            receiver, atConnection, notificationKey);
+        _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
+            notificationKey);
         StreamManager.senderSocketMap[streamId] = atConnection;
         break;
     }
     response.isStream = true;
+  }
+
+  void _notify(forAtSign, atSign, key) {
+    if (forAtSign == null) {
+      return;
+    }
+    var atNotification = (AtNotificationBuilder()
+      ..type = NotificationType.sent
+      ..fromAtSign = atSign
+      ..toAtSign = forAtSign
+      ..notification = key
+      ..opType = OperationType.update)
+        .build();
+    NotificationManager.getInstance().notify(atNotification);
   }
 }

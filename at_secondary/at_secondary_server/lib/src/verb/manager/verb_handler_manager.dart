@@ -1,6 +1,6 @@
-import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -8,7 +8,9 @@ import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
@@ -77,6 +79,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(NotifyVerbHandler(keyStore));
     _verbHandlers.add(NotifyListVerbHandler(keyStore));
     _verbHandlers.add(BatchVerbHandler((keyStore)));
+    _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
+    _verbHandlers.add(NotifyAllVerbHandler(keyStore));
     return _verbHandlers;
   }
 }

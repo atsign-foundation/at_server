@@ -1,16 +1,17 @@
 import 'dart:io';
+
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
-class DummyInboundBoundConnection implements InboundConnection {
-  static final DummyInboundBoundConnection _singleton =
-      DummyInboundBoundConnection._internal();
+class DummyInboundConnection implements InboundConnection {
+  static final DummyInboundConnection _singleton =
+      DummyInboundConnection._internal();
 
-  factory DummyInboundBoundConnection.getInstance() {
+  factory DummyInboundConnection.getInstance() {
     return _singleton;
   }
 
-  DummyInboundBoundConnection._internal();
+  DummyInboundConnection._internal();
 
   @override
   void acceptRequests(Function(String p1, InboundConnection p2) callback,

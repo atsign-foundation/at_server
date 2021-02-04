@@ -1,15 +1,11 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification_entry.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification_log.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:hive/hive.dart';
 import 'package:utf7/utf7.dart';
 
-class AtNotificationKeystore
-    implements
-        SecondaryKeyStore<String, NotificationEntry, NotificationEntryMeta> {
+/// Class to initialize, put and get entries into [AtNotificationKeystore]
+class AtNotificationKeystore implements SecondaryKeyStore {
   static final AtNotificationKeystore _singleton =
       AtNotificationKeystore._internal();
 
@@ -19,53 +15,57 @@ class AtNotificationKeystore
     return _singleton;
   }
 
-  final logger = AtSignLogger('AtNotificationKeystore');
+  Box _box;
 
-  var atNotificationLogInstance = AtNotificationLog.getInstance();
+  bool _register = false;
+
+  void init(storagePath, boxName) async {
+    Hive.init(storagePath);
+    if (!_register) {
+      Hive.registerAdapter(AtNotificationAdapter());
+      Hive.registerAdapter(OperationTypeAdapter());
+      Hive.registerAdapter(NotificationTypeAdapter());
+      Hive.registerAdapter(NotificationStatusAdapter());
+      Hive.registerAdapter(NotificationPriorityAdapter());
+      Hive.registerAdapter(MessageTypeAdapter());
+      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
+        Hive.registerAdapter(AtMetaDataAdapter());
+      }
+      _register = true;
+    }
+    _box = await Hive.openBox(boxName);
+  }
+
+  bool isEmpty() {
+    return _box.isEmpty;
+  }
+
+  /// Returns a list of atNotification sorted on notification date time.
+  List<dynamic> getValues() {
+    var returnList = [];
+    returnList = _box.values.toList();
+    returnList.sort(
+        (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
+    return returnList;
+  }
+
+  Future<AtNotification> get(key) async {
+    return await _box.get(key);
+  }
 
   @override
-  Future create(String key, NotificationEntry notificationEntry,
+  Future put(key, value,
       {int time_to_live,
       int time_to_born,
       int time_to_refresh,
       bool isCascade,
       bool isBinary,
-      bool isEncrypted}) async {
-    try {
-      await atNotificationLogInstance.box
-          ?.put(Utf7.encode(key), notificationEntry);
-    } on Exception catch (exception) {
-      logger.severe('AtNotificationKeystore create exception: $exception');
-      throw DataStoreException('exception in create: ${exception.toString()}');
-    } on HiveError catch (error) {
-      logger.severe('AtNotificationKeystore error: $error');
-      throw DataStoreException(error.message);
-    }
+      bool isEncrypted,
+      String dataSignature}) async {
+    await _box.put(key, value);
+    AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
-  /// Returning null as there is no concept of expired keys on the notification
-  @override
-  Future<bool> deleteExpiredKeys() async {
-    return null;
-  }
-
-  @override
-  Future<NotificationEntry> get(String key) async {
-    var value;
-    try {
-      value = await atNotificationLogInstance.box?.get(Utf7.encode(key));
-      logger.finer('value : $value');
-      return value;
-    } on Exception catch (exception) {
-      logger.severe('AtNotificationKeystore get exception: $exception');
-      throw DataStoreException('exception in get: ${exception.toString()}');
-    } on HiveError catch (error) {
-      logger.severe('AtNotificationKeystore get error: ${error}');
-      throw DataStoreException(error.message);
-    }
-  }
-
-  /// Returning null as there is no concept of expired keys on the notification
   @override
   Future<List<String>> getExpiredKeys() {
     return null;
@@ -97,8 +97,7 @@ class AtNotificationKeystore
     return keys;
   }
 
-  @override
-  Future<void> put(String key, NotificationEntry notificationEntry,
+  Future create(key, value,
       {int time_to_live,
       int time_to_born,
       int time_to_refresh,
@@ -106,56 +105,61 @@ class AtNotificationKeystore
       bool isBinary,
       bool isEncrypted,
       String dataSignature}) async {
-    var atNotificationLogInstance = AtNotificationLog.getInstance();
-    try {
-      assert(key != null);
-      var existingData = await get(key);
-      logger.finer('existingData : $existingData');
-      var newData =
-          (existingData == null) ? NotificationEntry([], []) : existingData;
-      newData = atNotificationLogInstance.prepareNotificationEntry(
-          existingData, notificationEntry);
-      await create(key, newData);
-      atNotificationLogInstance.invokeCallbacks(notificationEntry);
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'Exception adding to notification log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to notification log:${e.toString()}');
-    }
+    // TODO: implement deleteExpiredKeys
+    throw UnimplementedError();
   }
 
   @override
-  Future<void> remove(String key) async {
-    try {
-      assert(key != null);
-      await atNotificationLogInstance.box?.delete(key);
-    } on Exception catch (exception) {
-      logger.severe('AtNotificationKeystore delete exception: $exception');
-      throw DataStoreException('exception in remove: ${exception.toString()}');
-    } on HiveError catch (error) {
-      logger.severe('AtNotificationKeystore delete error: $error');
-      throw DataStoreException(error.message);
-    }
+  Future<bool> deleteExpiredKeys() async {
+    throw UnimplementedError();
   }
 
   @override
-  Future<NotificationEntryMeta> getMeta(String key) {
+  List getExpiredKeys() {
+    // TODO: implement getExpiredKeys
+    throw UnimplementedError();
+  }
+
+  @override
+  List getKeys({String regex}) {
+    var keys = <String>[];
+    var encodedKeys;
+
+    if (_box.keys.isEmpty) {
+      return null;
+    }
+    // If regular expression is not null or not empty, filter keys on regular expression.
+    if (regex != null && regex.isNotEmpty) {
+      encodedKeys = _box.keys.where(
+          (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
+    } else {
+      encodedKeys = _box.keys.toList();
+    }
+    encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
+    return encodedKeys;
+  }
+
+  @override
+  Future getMeta(key) {
     // TODO: implement getMeta
-    return null;
+    throw UnimplementedError();
   }
 
   @override
-  Future putAll(
-      String key, NotificationEntry value, NotificationEntryMeta metadata) {
+  Future putAll(key, value, metadata) {
     // TODO: implement putAll
-    return null;
+    throw UnimplementedError();
   }
 
   @override
-  Future putMeta(String key, NotificationEntryMeta metadata) {
+  Future putMeta(key, metadata) {
     // TODO: implement putMeta
-    return null;
+    throw UnimplementedError();
+  }
+
+  @override
+  Future remove(key) async {
+    assert(key != null);
+    await _box.delete(key);
   }
 }

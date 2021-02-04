@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'package:at_utils/at_logger.dart';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 
 class SecondaryUtil {
@@ -108,5 +109,50 @@ class SecondaryUtil {
     }
     logger.finer('result : $result');
     return result;
+  }
+
+
+  NotificationPriority getNotificationPriority(String arg1) {
+    if (arg1 == null) {
+      return NotificationPriority.low;
+    }
+    switch (arg1.toLowerCase()) {
+      case 'low':
+        return NotificationPriority.low;
+      case 'medium':
+        return NotificationPriority.medium;
+      case 'high':
+        return NotificationPriority.high;
+      default:
+        return NotificationPriority.low;
+    }
+  }
+
+  MessageType getMessageType(String arg1) {
+    if (arg1 == null) {
+      return MessageType.key;
+    }
+    switch (arg1.toLowerCase()) {
+      case 'key':
+        return MessageType.key;
+      case 'text':
+        return MessageType.text;
+      default:
+        return MessageType.key;
+    }
+  }
+
+  OperationType getOperationType(String type) {
+    if (type == null) {
+      return OperationType.update;
+    }
+    switch (type.toLowerCase()) {
+      case 'update':
+        return OperationType.update;
+      case 'delete':
+        return OperationType.delete;
+      default:
+        return OperationType.update;
+    }
   }
 }
