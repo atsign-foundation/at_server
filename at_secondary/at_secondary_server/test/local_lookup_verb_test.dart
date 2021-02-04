@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -241,10 +240,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
           AtSecondaryServerImpl.getInstance().currentAtSign);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+  var persistenceManager = secondaryPersistenceStore.getPersistenceManager();
   await persistenceManager.init(
-      AtSecondaryServerImpl.getInstance().currentAtSign, storageDir);
+      AtSecondaryServerImpl.getInstance().currentAtSign,
+      storagePath: storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();

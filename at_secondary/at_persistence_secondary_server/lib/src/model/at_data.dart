@@ -5,7 +5,7 @@ import 'package:utf7/utf7.dart';
 import 'at_meta_data.dart';
 
 @HiveType()
-class AtData extends HiveObject {
+class AtData {
   @HiveField(0)
   String data;
 
@@ -20,7 +20,7 @@ class AtData extends HiveObject {
   Map toJson() {
     // ignore: omit_local_variable_types
     Map map = {};
-    map['key'] = Utf7.decode(key);
+    //map['key'] = Utf7.decode(key);
     map['data'] = data;
     map['metaData'] = metaData.toJson();
     return map;

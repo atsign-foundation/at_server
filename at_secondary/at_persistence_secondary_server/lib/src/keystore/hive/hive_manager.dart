@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
@@ -8,9 +9,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
-import 'secondary_persistence_store_factory.dart';
-
-class HivePersistenceManager {
+class HivePersistenceManager implements PersistenceManager {
   final bool _debug = false;
 
   final logger = AtSignLogger('HivePersistenceManager');
@@ -26,7 +25,8 @@ class HivePersistenceManager {
 
   HivePersistenceManager(this._atsign);
 
-  Future<bool> init(String atSign, String storagePath) async {
+  @override
+  Future<bool> init(String atSign, {String storagePath}) async {
     var success = false;
     try {
       assert(storagePath != null && storagePath != '');
@@ -43,6 +43,7 @@ class HivePersistenceManager {
 
       var secret = await _getHiveSecretFromFile(atSign, storagePath);
       _secret = secret;
+      await openVault(atSign);
       success = true;
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: ' + e.toString());
@@ -73,8 +74,8 @@ class HivePersistenceManager {
       // ignore: omit_local_variable_types
       var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
           compactionStrategy: (entries, deletedEntries) {
-            return deletedEntries > 50;
-          });
+        return deletedEntries > 50;
+      });
       _box = hiveBox;
       if (_debug) {
         logger.finer(

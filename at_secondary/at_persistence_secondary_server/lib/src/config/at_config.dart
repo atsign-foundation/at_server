@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore_helper.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 
 /// Class to configure blocklist for atconnections.
@@ -29,7 +29,7 @@ class AtConfig {
   AtConfig(this._commitLog, this._atSign) {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)
-        .getHivePersistenceManager();
+        .getPersistenceManager();
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.
@@ -103,7 +103,7 @@ class AtConfig {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.box?.get(hive_key);
+      value = await persistenceManager.redis_commands?.get(hive_key);
       return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');

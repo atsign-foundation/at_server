@@ -74,7 +74,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys();
+      var keys = await keyStore.getKeys();
       expect(keys.length, 2);
     });
 
@@ -85,10 +85,10 @@ void main() async {
           throwsA(predicate((e) => e is AssertionError)));
     });
 
-    test('test get expired keys - no data', () {
+    test('test get expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      List<String> expiredKeys = keyStore.getExpiredKeys();
+      List<String> expiredKeys = await keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
@@ -130,7 +130,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys(regex: '^first');
+      var keys = await keyStore.getKeys(regex: '^first');
       expect(keys.length, 1);
     });
 // tests commented for coverage. runs fine with pub run test or in IDE
@@ -181,8 +181,8 @@ void tearDownFunc() async {
 void setUpFunc(storageDir) async {
  var commitLogInstance = await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1', commitLogPath: storageDir);
  var persistenceManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
- await persistenceManager.getHivePersistenceManager().init('@test_user_1', storageDir);
- await persistenceManager.getHivePersistenceManager().openVault('@test_user_1');
+ await persistenceManager.getPersistenceManager().init('@test_user_1', storagePath: storageDir);
+ await persistenceManager.getPersistenceManager().openVault('@test_user_1');
  persistenceManager.getSecondaryKeyStore().commitLog = commitLogInstance;
 }
 

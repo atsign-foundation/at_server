@@ -9,7 +9,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
   static final GlobalExceptionHandler _singleton =
-  GlobalExceptionHandler._internal();
+      GlobalExceptionHandler._internal();
 
   GlobalExceptionHandler._internal();
 

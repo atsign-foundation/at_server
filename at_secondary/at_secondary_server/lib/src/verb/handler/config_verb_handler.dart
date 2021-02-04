@@ -65,10 +65,10 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'add':
           var nonCurrentAtSignList =
-          _retainNonCurrentAtsign(currentAtSign, atsigns);
+              _retainNonCurrentAtsign(currentAtSign, atsigns);
           if (nonCurrentAtSignList.isNotEmpty) {
             result =
-            await atConfigInstance.addToBlockList(nonCurrentAtSignList);
+                await atConfigInstance.addToBlockList(nonCurrentAtSignList);
           }
 
           ///if list contains only currentAtSign

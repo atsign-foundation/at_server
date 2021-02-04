@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
@@ -81,7 +80,9 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param Future<List> : Returns a list of received notifications of the current atsign.
   Future<List> _getReceivedNotification(List responseList) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var keyList = notificationKeyStore.getValues();
+
+    //NotificationEntry notificationEntry;
+    var keyList = await notificationKeyStore.getKeys();
     await Future.forEach(
         keyList,
             (element) => _fetchNotificationEntries(
