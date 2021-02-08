@@ -7,7 +7,7 @@ import 'package:utf7/utf7.dart';
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore implements SecondaryKeyStore {
   static final AtNotificationKeystore _singleton =
-  AtNotificationKeystore._internal();
+      AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
 
@@ -57,12 +57,12 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   @override
   Future put(key, value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     await _box.put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
@@ -70,12 +70,12 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   @override
   Future create(key, value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     // TODO: implement deleteExpiredKeys
     throw UnimplementedError();
   }
@@ -102,7 +102,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {
       encodedKeys = _box.keys.where(
-              (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
+          (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
     } else {
       encodedKeys = _box.keys.toList();
     }
