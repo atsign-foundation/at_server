@@ -2,19 +2,19 @@ import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart
 import 'package:hive/hive.dart';
 
 /// Represents an access entry with fromAtSign, requestDateTime, verbName and key lookup(if any).
-@HiveType()
+//@HiveType()
 class AccessLogEntry extends HiveObject {
   @HiveField(0)
-  final String _fromAtSign;
+  String _fromAtSign;
 
   @HiveField(1)
-  final DateTime _requestDateTime;
+  DateTime _requestDateTime;
 
   @HiveField(2)
-  final String _verbName;
+  String _verbName;
 
   @HiveField(3)
-  final String _lookupKey;
+  String _lookupKey;
 
   AccessLogEntry(
       this._fromAtSign, this._requestDateTime, this._verbName, this._lookupKey);
@@ -29,10 +29,17 @@ class AccessLogEntry extends HiveObject {
 
   Map toJson() => {
         'fromAtSign': _fromAtSign,
-        'requestDateTime': _requestDateTime,
+        'requestDateTime': _requestDateTime.toIso8601String(),
         'verbName': _verbName,
         'lookupKey': _lookupKey
       };
+
+  AccessLogEntry.fromJson(Map<String, dynamic> json) {
+    _fromAtSign = json['fromAtSign'];
+    _requestDateTime = DateTime.parse(json['requestDateTime'] as String);
+    _verbName = json['verbName'];
+    _lookupKey = json['lookupKey'];
+  }
 
   @override
   String toString() {

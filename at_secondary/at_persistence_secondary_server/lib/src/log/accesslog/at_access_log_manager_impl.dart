@@ -1,4 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/conf/at_persistence_secondary_config.dart';
+import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_redis_keystore.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -20,9 +22,15 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
   Future<AtAccessLog> getAccessLog(String atSign,
       {String accessLogPath}) async {
     if (!_accessLogMap.containsKey(atSign)) {
-      var accessLogKeyStore = AccessLogKeyStore(atSign);
-      await accessLogKeyStore.init(accessLogPath);
-      _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
+      if (AtPersistenceSecondaryConfig.keyStore == 'redis') {
+        var accessLogKeyStore = AccessLogRedisKeyStore(atSign);
+        await accessLogKeyStore.init(accessLogPath);
+        _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
+      } else {
+        var accessLogKeyStore = AccessLogKeyStore(atSign);
+        await accessLogKeyStore.init(accessLogPath);
+        _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
+      }
     }
     return _accessLogMap[atSign];
   }

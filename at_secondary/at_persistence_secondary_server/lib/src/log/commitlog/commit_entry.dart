@@ -2,10 +2,10 @@ import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart
 import 'package:hive/hive.dart';
 
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
-@HiveType()
+
 class CommitEntry extends HiveObject {
   @HiveField(0)
-  final String _atKey;
+  String _atKey;
 
   @HiveField(1)
   CommitOp _operation;
@@ -15,7 +15,7 @@ class CommitEntry extends HiveObject {
   }
 
   @HiveField(2)
-  final DateTime _opTime;
+  DateTime _opTime;
 
   @HiveField(3)
   int commitId;
@@ -31,9 +31,17 @@ class CommitEntry extends HiveObject {
   Map toJson() => {
         'atKey': _atKey,
         'operation': _operation.name,
-        'opTime': _opTime.toString(),
+        'opTime': _opTime.toIso8601String(),
         'commitId': commitId
       };
+
+  CommitEntry.fromJson(Map<String, dynamic> json) {
+    _atKey = json['atKey'];
+    _operation = CommitOp.values
+        .firstWhere((element) => element.toString() == json['operation']);
+    _opTime == DateTime.parse(json['opTime'] as String);
+    commitId = json['commitId'] as int;
+  }
 
   @override
   String toString() {

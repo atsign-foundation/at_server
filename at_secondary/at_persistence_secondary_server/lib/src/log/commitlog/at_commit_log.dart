@@ -11,7 +11,7 @@ class AtCommitLog implements AtLogType {
 
   var _commitLogKeyStore;
 
-  AtCommitLog(CommitLogKeyStore keyStore) {
+  AtCommitLog(LogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
   }
 

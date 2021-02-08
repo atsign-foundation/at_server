@@ -10,7 +10,7 @@ class AtAccessLog implements AtLogType {
 
   var _accessLogKeyStore;
 
-  AtAccessLog(AccessLogKeyStore keyStore) {
+  AtAccessLog(LogKeyStore keyStore) {
     _accessLogKeyStore = keyStore;
   }
 
