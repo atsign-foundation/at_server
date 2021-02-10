@@ -34,7 +34,11 @@ class DeleteVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    deleteKey = '${verbParams[AT_KEY]}${atSign}';
+    deleteKey = verbParams[AT_KEY];
+    // If key is cram secret do not append atsign.
+    if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
+      deleteKey = '$deleteKey${atSign}';
+    }
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey =
           '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
