@@ -67,8 +67,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var operation = verbParams[AT_OPERATION];
     var opType;
     if (operation != null) {
-      opType =
-          (operation == 'update') ? OperationType.update : OperationType.delete;
+      opType = SecondaryUtil().getOperationType(operation);
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -188,7 +187,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       {String atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
-    atData.data = atValue;
+    atData.data = jsonEncode(atValue);
     atData.metaData = atMetaData;
     await keyStore.put(notifyKey, atData);
   }
