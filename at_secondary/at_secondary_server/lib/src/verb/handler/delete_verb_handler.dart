@@ -48,8 +48,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     if (deleteKey == AT_CRAM_SECRET) {
       await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
-    var result = {};
-    result['commitId'] = await keyStore.remove(deleteKey);
+    var result = await keyStore.remove(deleteKey);
     response.data = result?.toString();
     logger.finer('delete success. delete key: $deleteKey');
     try {
@@ -65,7 +64,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
       // send notification to other secondary is AUTO_NOTIFY is enabled
       if (AUTO_NOTIFY && (forAtSign != atSign)) {
         try {
-          result['notificationId'] = _notify(forAtSign, atSign, key,
+          _notify(forAtSign, atSign, key,
               SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
         } catch (exception) {
           logger.severe(
@@ -78,7 +77,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  String _notify(forAtSign, atSign, key, priority) {
+  void _notify(forAtSign, atSign, key, priority) {
     if (forAtSign == null) {
       return null;
     }
@@ -92,6 +91,5 @@ class DeleteVerbHandler extends AbstractVerbHandler {
           ..opType = OperationType.delete)
         .build();
     NotificationManager.getInstance().notify(atNotification);
-    return atNotification.id;
   }
 }
