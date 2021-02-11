@@ -112,8 +112,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         ..dataSignature = dataSignature;
 
       // update the key in data store
-      var result = {};
-      result['commitId'] = await keyStore.put(key, atData,
+      var result = await keyStore.put(key, atData,
           time_to_live: ttl_ms,
           time_to_born: ttb_ms,
           time_to_refresh: ttr_ms,
@@ -121,9 +120,9 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           isBinary: isBinary,
           isEncrypted: isEncrypted,
           dataSignature: dataSignature);
-
+      response.data = result?.toString();
       if (AUTO_NOTIFY) {
-        result['notificationId'] = _notify(
+        _notify(
             atSign,
             forAtSign,
             verbParams[AT_KEY],
@@ -131,7 +130,6 @@ class UpdateVerbHandler extends AbstractVerbHandler {
             SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
             atMetadata);
       }
-      response.data = jsonEncode(result);
     } on InvalidSyntaxException {
       rethrow;
     } catch (exception) {
@@ -141,7 +139,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  String _notify(String atSign, String forAtSign, String key, String value,
+  void _notify(String atSign, String forAtSign, String key, String value,
       NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return null;
@@ -165,7 +163,6 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         .build();
 
     NotificationManager.getInstance().notify(atNotification);
-    return atNotification.id;
   }
 
   UpdateParams _getUpdateParams(HashMap<String, String> verbParams) {
