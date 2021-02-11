@@ -187,7 +187,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       {String atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
-    atData.data = jsonEncode(atValue);
+    atData.data = atValue;
     atData.metaData = atMetaData;
     await keyStore.put(notifyKey, atData);
   }
