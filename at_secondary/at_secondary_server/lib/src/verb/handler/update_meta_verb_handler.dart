@@ -99,7 +99,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       _notify(
           forAtSign,
           atSign,
-          verbParams[AT_KEY],
+          key,
           SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
           atMetaData);
     }
