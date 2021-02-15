@@ -151,7 +151,7 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..isBinary = fields[13] as bool
       ..isEncrypted = fields[14]
       ..dataSignature = fields[15]
-      ..isEncoded = fields[16];
+      ..isEncoded = fields[16] as bool;
   }
 
   @override
