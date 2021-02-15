@@ -20,6 +20,7 @@ class AtMetadataBuilder {
         bool ccd,
         bool isBinary,
         bool isEncrypted,
+        bool isEncoded,
         String dataSignature}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
@@ -46,6 +47,7 @@ class AtMetadataBuilder {
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
+    isEncoded ??=  newAtMetaData.isEncoded;
 
     if (ttl != null && ttl > 0) {
       setTTL(ttl, ttb: ttb);
@@ -63,6 +65,7 @@ class AtMetadataBuilder {
     setIsBinary(isBinary);
     setIsEncrypted(isEncrypted);
     setDataSignature(dataSignature);
+    setIsEncoded(isEncoded);
   }
 
   void setTTL(int ttl, {int ttb}) {
@@ -109,6 +112,12 @@ class AtMetadataBuilder {
   void setDataSignature(String dataSignature) {
     if (dataSignature != null) {
       atMetaData.dataSignature = dataSignature;
+    }
+  }
+
+  void setIsEncoded(bool isEncoded) {
+    if (isEncoded != null) {
+      atMetaData.isEncoded = isEncoded;
     }
   }
 

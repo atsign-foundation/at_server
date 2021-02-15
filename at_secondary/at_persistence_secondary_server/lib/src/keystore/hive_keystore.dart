@@ -51,6 +51,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       bool isCascade,
       bool isBinary,
       bool isEncrypted,
+        bool isEncoded,
       String dataSignature}) async {
     var result;
     // Default the commit op to just the value update
@@ -81,6 +82,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isCascade: isCascade,
             isBinary: isBinary,
             isEncrypted: isEncrypted,
+            isEncoded: isEncoded,
             dataSignature: dataSignature);
       } else {
         var hive_key = keyStoreHelper.prepareKey(key);
@@ -92,6 +94,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isCascade: isCascade,
             isBinary: isBinary,
             isEncrypted: isEncrypted,
+            isEncoded: isEncoded,
             dataSignature: dataSignature);
         logger.finest('hive key:${hive_key}');
         logger.finest('hive value:${hive_value}');
@@ -118,6 +121,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       bool isCascade,
       bool isBinary,
       bool isEncrypted,
+        bool isEncoded,
       String dataSignature}) async {
     var result;
     var commitOp;
@@ -129,6 +133,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         isCascade: isCascade,
         isBinary: isBinary,
         isEncrypted: isEncrypted,
+        isEncoded: isEncoded,
         dataSignature: dataSignature);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
@@ -141,6 +146,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       isCascade ??= value.metaData.isCascade;
       isBinary ??= value.metaData.isBinary;
       isEncrypted ??= value.metaData.isEncrypted;
+      isEncoded ??= value.metaData.isEncoded;
       dataSignature ??= value.metaData.dataSignature;
     }
 
