@@ -248,10 +248,6 @@ class OperationTypeAdapter extends TypeAdapter<OperationType> {
         return OperationType.update;
       case 1:
         return OperationType.delete;
-      case 2:
-        return OperationType.append;
-      case 3:
-        return OperationType.remove;
       default:
         return null;
     }
@@ -265,12 +261,6 @@ class OperationTypeAdapter extends TypeAdapter<OperationType> {
         break;
       case OperationType.delete:
         writer.writeByte(1);
-        break;
-      case OperationType.append:
-        writer.writeByte(2);
-        break;
-      case OperationType.remove:
-        writer.writeByte(3);
         break;
     }
   }
