@@ -150,10 +150,6 @@ class SecondaryUtil {
         return OperationType.update;
       case 'delete':
         return OperationType.delete;
-      case 'append':
-        return OperationType.append;
-      case 'remove':
-        return OperationType.remove;
       default:
         return OperationType.update;
     }
