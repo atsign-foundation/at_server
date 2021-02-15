@@ -1,19 +1,20 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   group('A group of local_lookup verb tests', () {
@@ -252,8 +253,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
-  await AtNotificationLog.getInstance()
-      .init('notifications_' + _getShaForAtsign('@test_user_1'), storageDir, 5);
+  await AtNotificationKeystore.getInstance()
+      .init(storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
   return keyStoreManager;
 }
 

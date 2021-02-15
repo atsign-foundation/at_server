@@ -1,14 +1,15 @@
 import 'dart:io';
+
 import 'package:args/args.dart';
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_commons/at_commons.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
   static final GlobalExceptionHandler _singleton =
-  GlobalExceptionHandler._internal();
+      GlobalExceptionHandler._internal();
 
   GlobalExceptionHandler._internal();
 
@@ -24,7 +25,8 @@ class GlobalExceptionHandler {
         exception is InvalidAtSignException ||
         exception is BlockedConnectionException ||
         exception is UnAuthenticatedException ||
-        exception is BufferOverFlowException) {
+        exception is BufferOverFlowException ||
+        exception is IllegalArgumentException) {
       // If we get InvalidSyntaxException, InvalidAtSignException, InboundConnectionLimitException
       // send error code
       // Close all the related inbound/outbound connections
@@ -87,7 +89,8 @@ class GlobalExceptionHandler {
       if (!atConnection.isInValid()) {
         var prompt = _getPrompt(atConnection);
         var error_code = getErrorCode(exception);
-        var error_description = getErrorDescription(error_code);
+        var error_description =
+            '${getErrorDescription(error_code)} : ${exception.message}';
         await _writeToSocket(
             atConnection, prompt, error_code, error_description);
       }
