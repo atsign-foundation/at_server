@@ -154,7 +154,7 @@ enum NotificationStatus { delivered, errored, queued }
 
 enum NotificationType { sent, received }
 
-enum OperationType { update, delete, append, remove }
+enum OperationType { update, delete }
 
 enum NotificationPriority { dummy, low, medium, high }
 

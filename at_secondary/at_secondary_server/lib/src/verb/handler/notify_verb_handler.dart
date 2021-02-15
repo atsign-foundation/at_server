@@ -151,13 +151,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttr: ttr_ms,
                 ccd: isCascade)
             .build();
-        if (operation == 'append') {
-          await _appendToCachedKeys(key, metadata, atValue);
-        } else if (operation == 'remove') {
-          await _removeFromCachedKeys(key, metadata, atValue);
-        } else {
-          await _storeCachedKeys(key, metadata, atValue: atValue);
-        }
+        await _storeCachedKeys(key, metadata, atValue: atValue);
         response.data = 'data:success';
         return;
       }
@@ -202,35 +196,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var metadata = await keyStore.getMeta(key);
     if (metadata != null && metadata.isCascade) {
       await keyStore.remove(key);
-    }
-  }
-
-  Future<void> _appendToCachedKeys(
-      String key, AtMetaData atMetaData, String atValue) async {
-    var notifyKey = '$CACHED:$key';
-    var result = await keyStore.get(notifyKey);
-    if (result != null) {
-      var atData = AtData();
-      var resultList = json.decode(result.data);
-      resultList.addAll(json.decode(atValue));
-      atData.data = json.encode(resultList);
-      atData.metaData = result.metaData;
-      await keyStore.put(notifyKey, atData);
-    }
-  }
-
-  Future<void> _removeFromCachedKeys(
-      String key, AtMetaData metadata, String atValue) async {
-    var notifyKey = '$CACHED:$key';
-    var result = await keyStore.get(notifyKey);
-    if (result != null) {
-      var atData = AtData();
-      List resultList = json.decode(result.data);
-      List list = json.decode(atValue);
-      resultList.removeWhere((item) => list.contains(item));
-      atData.data = json.encode(resultList);
-      atData.metaData = result.metaData;
-      await keyStore.put(notifyKey, atData);
     }
   }
 
