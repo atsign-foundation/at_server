@@ -72,6 +72,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       var isEncrypted = updateParams.metadata.isEncrypted;
       var dataSignature = updateParams.metadata.dataSignature;
       var ccd = updateParams.metadata.ccd;
+      var isEncoded = updateParams.metadata.isEncoded;
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -109,7 +110,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         ..isCascade = ccd
         ..isBinary = isBinary
         ..isEncrypted = isEncrypted
-        ..dataSignature = dataSignature;
+        ..dataSignature = dataSignature
+        ..isEncoded = isEncoded;
 
       // update the key in data store
       var result = {};
@@ -191,6 +193,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     metadata.isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
     metadata.isEncrypted =
         AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+    metadata.isEncoded =
+        AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCODED]);
     metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
     updateParams.metadata = metadata;
     return updateParams;

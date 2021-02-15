@@ -53,7 +53,7 @@ class AtMetaData extends HiveObject {
   String dataSignature;
 
   @HiveField(16)
-  String isEncoded;
+  bool isEncoded;
 
   @override
   String toString() {
