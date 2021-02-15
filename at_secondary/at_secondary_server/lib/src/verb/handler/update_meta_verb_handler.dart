@@ -89,18 +89,17 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             isBinary: isBinary,
             isEncrypted: isEncrypted)
         .build();
-    var result = {};
-    result['commitId'] = await keyStore.putMeta(key, atMetaData);
+    var result = await keyStore.putMeta(key, atMetaData);
     response.data = result?.toString();
     // If forAtSign is null, do not auto notify
     if (forAtSign == null) {
       return;
     }
     if (AUTO_NOTIFY && (atSign != forAtSign)) {
-      result['notificationId'] = _notify(
+      _notify(
           forAtSign,
           atSign,
-          verbParams[AT_KEY],
+          key,
           SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
           atMetaData);
     }
@@ -114,7 +113,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     return key;
   }
 
-  String _notify(forAtSign, atSign, key, priority, AtMetaData atMetaData) {
+  void _notify(forAtSign, atSign, key, priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return null;
     }
@@ -127,6 +126,5 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
           ..atMetaData = atMetaData)
         .build();
     NotificationManager.getInstance().notify(atNotification);
-    return atNotification.id;
   }
 }

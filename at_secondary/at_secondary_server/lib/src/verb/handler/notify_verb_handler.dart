@@ -67,8 +67,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var operation = verbParams[AT_OPERATION];
     var opType;
     if (operation != null) {
-      opType =
-          (operation == 'update') ? OperationType.update : OperationType.delete;
+      opType = SecondaryUtil().getOperationType(operation);
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
