@@ -45,9 +45,9 @@ void main() {
       var command = 'delet';
       var regex = verb.syntax();
       expect(
-              () => getVerbParam(regex, command),
+          () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test delete key-with emoji', () {
@@ -76,6 +76,14 @@ void main() {
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AT_KEY], 'phone');
       expect(paramsMap[AT_SIGN], '🎠');
+    });
+
+    test('test delete-key with no atsign', () {
+      var verb = Delete();
+      var command = 'delete:privatekey:at_secret';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      expect(paramsMap[AT_KEY], 'privatekey:at_secret');
     });
   });
 }

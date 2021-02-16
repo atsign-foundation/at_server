@@ -142,7 +142,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   void _notify(String atSign, String forAtSign, String key, String value,
       NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
-      return;
+      return null;
     }
     key = '${forAtSign}:${key}${atSign}';
     var expiresAt;

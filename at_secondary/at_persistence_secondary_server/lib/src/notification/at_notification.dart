@@ -110,24 +110,24 @@ class AtNotification {
   AtMetaData get atMetadata => _atMetadata;
 
   Map toJson() => {
-    'id': _id,
-    'fromAtSign': _fromAtSign,
-    'notificationDateTime': _notificationDateTime,
-    'toAtSign': _toAtSign,
-    'notification': _notification,
-    'type': _type,
-    'opType': _opType,
-    'messageType': _messageType,
-    'priority': _priority,
-    'notificationStatus': _notificationStatus,
-    'retryCount': _retryCount,
-    'strategy': _strategy,
-    'depth': _depth,
-    'notifier': _notifier,
-    'expiresAt': _expiresAt,
-    'atValue': _atValue,
-    'atMetadata': _atMetadata
-  };
+        'id': _id,
+        'fromAtSign': _fromAtSign,
+        'notificationDateTime': _notificationDateTime,
+        'toAtSign': _toAtSign,
+        'notification': _notification,
+        'type': _type,
+        'opType': _opType,
+        'messageType': _messageType,
+        'priority': _priority,
+        'notificationStatus': _notificationStatus,
+        'retryCount': _retryCount,
+        'strategy': _strategy,
+        'depth': _depth,
+        'notifier': _notifier,
+        'expiresAt': _expiresAt,
+        'atValue': _atValue,
+        'atMetadata': _atMetadata
+      };
 
   @override
   String toString() {
@@ -173,23 +173,23 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
     };
 
     final atNotification = (AtNotificationBuilder()
-      ..id = fields[0] as String
-      ..fromAtSign = fields[1] as String
-      ..notificationDateTime = fields[2] as DateTime
-      ..toAtSign = fields[3] as String
-      ..notification = fields[4] as String
-      ..type = fields[5] as NotificationType
-      ..opType = fields[6] as OperationType
-      ..messageType = fields[7] as MessageType
-      ..expiresAt = fields[8] as DateTime
-      ..priority = fields[9] as NotificationPriority
-      ..notificationStatus = fields[10] as NotificationStatus
-      ..retryCount = fields[11] as int
-      ..strategy = fields[12] as String
-      ..notifier = fields[13] as String
-      ..depth = fields[14] as int
-      ..atValue = fields[15] as String
-      ..atMetaData = fields[16] as AtMetaData)
+          ..id = fields[0] as String
+          ..fromAtSign = fields[1] as String
+          ..notificationDateTime = fields[2] as DateTime
+          ..toAtSign = fields[3] as String
+          ..notification = fields[4] as String
+          ..type = fields[5] as NotificationType
+          ..opType = fields[6] as OperationType
+          ..messageType = fields[7] as MessageType
+          ..expiresAt = fields[8] as DateTime
+          ..priority = fields[9] as NotificationPriority
+          ..notificationStatus = fields[10] as NotificationStatus
+          ..retryCount = fields[11] as int
+          ..strategy = fields[12] as String
+          ..notifier = fields[13] as String
+          ..depth = fields[14] as int
+          ..atValue = fields[15] as String
+          ..atMetaData = fields[16] as AtMetaData)
         .build();
 
     return atNotification;

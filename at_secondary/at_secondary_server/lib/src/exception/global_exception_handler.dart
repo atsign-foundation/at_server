@@ -90,7 +90,8 @@ class GlobalExceptionHandler {
       if (!atConnection.isInValid()) {
         var prompt = _getPrompt(atConnection);
         var error_code = getErrorCode(exception);
-        var error_description = getErrorDescription(error_code);
+        var error_description =
+            '${getErrorDescription(error_code)} : ${exception.message}';
         await _writeToSocket(
             atConnection, prompt, error_code, error_description);
       }

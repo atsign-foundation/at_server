@@ -99,7 +99,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       _notify(
           forAtSign,
           atSign,
-          verbParams[AT_KEY],
+          key,
           SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
           atMetaData);
     }
@@ -115,7 +115,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
 
   void _notify(forAtSign, atSign, key, priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
-      return;
+      return null;
     }
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent

@@ -11,7 +11,7 @@ class LatestNotifications implements NotificationStrategy {
   void add(AtNotification atNotification) {
     if (!_latestNotificationsMap.containsKey(atNotification.notifier)) {
       _latestNotificationsMap.putIfAbsent(atNotification.notifier,
-              () => AtNotificationPriorityQueue(comparison: _comparePriorityDates));
+          () => AtNotificationPriorityQueue(comparison: _comparePriorityDates));
     }
     var list = _latestNotificationsMap[atNotification.notifier];
     if (atNotification.depth <= list.size()) {
@@ -29,7 +29,7 @@ class LatestNotifications implements NotificationStrategy {
   List<AtNotification> toList() {
     var tempList = <AtNotification>[];
     _latestNotificationsMap.keys.forEach((element) {
-      tempList = _latestNotificationsMap[element].toList();
+      tempList.addAll(_latestNotificationsMap[element].toList());
     });
     return tempList;
   }
