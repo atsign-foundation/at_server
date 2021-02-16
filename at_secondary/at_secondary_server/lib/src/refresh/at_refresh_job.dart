@@ -126,8 +126,7 @@ class AtRefreshJob {
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/1 * * * *'), () async {
-      //cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+      cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');
