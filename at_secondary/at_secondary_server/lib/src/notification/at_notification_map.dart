@@ -25,12 +25,8 @@ class AtNotificationMap {
 
   /// Adds the notifications to map where key is [AtNotification.toAtSign] and value is classes implementing [NotificationStrategy]
   void add(AtNotification atNotification) {
-    if (!_notificationMap.containsKey(atNotification.toAtSign)) {
-      _notificationMap.putIfAbsent(atNotification.toAtSign,
-              () => {'all': AllNotifications(), 'latest': LatestNotifications()});
-      _waitTimeMap.putIfAbsent(
-          atNotification.toAtSign, () => NotificationWaitTime());
-    }
+    _notificationMap.putIfAbsent(atNotification.toAtSign,
+        () => {'all': AllNotifications(), 'latest': LatestNotifications()});
     var notificationsMap = _notificationMap[atNotification.toAtSign];
     notificationsMap[atNotification.strategy].add(atNotification);
     _computeWaitTime(atNotification);
@@ -59,9 +55,9 @@ class AtNotificationMap {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var list = _sortWaitTimeMap(N);
     list.removeWhere((atsign) =>
-    _quarantineMap.containsKey(atsign) &&
-        _quarantineMap[atsign].millisecondsSinceEpoch >
-            DateTime.now().millisecondsSinceEpoch ||
+        _quarantineMap.containsKey(atsign) &&
+            _quarantineMap[atsign].millisecondsSinceEpoch >
+                DateTime.now().millisecondsSinceEpoch ||
         atsign == currentAtSign);
     return list.iterator;
   }
@@ -79,6 +75,8 @@ class AtNotificationMap {
 
   /// Computes the wait for the notification.
   void _computeWaitTime(AtNotification atNotification) {
+    _waitTimeMap.putIfAbsent(
+        atNotification.toAtSign, () => NotificationWaitTime());
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign];
     notificationWaitTime.prioritiesSum = atNotification.priority.index;
     notificationWaitTime.totalPriorities = 1;
