@@ -100,13 +100,19 @@ class AtRefreshJob {
     while (itr.moveNext()) {
       var element = itr.current;
       lookupKey = element;
-      lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
-      var newValue = await _lookupValue(lookupKey);
+      var newValue;
+      if (lookupKey.startsWith('cached:public:')) {
+        lookupKey = lookupKey.replaceAll('cached:public:', '');
+        newValue = await _lookupValue(lookupKey, isHandShake: false);
+      } else {
+        lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
+        newValue = await _lookupValue(lookupKey);
+      }
       // Nothing to do. Just return
       if (newValue == null) {
         return;
       }
-      await logger.finest('lookup value of $lookupKey is $newValue');
+      logger.finest('lookup value of $lookupKey is $newValue');
       var oldValue = await keyStore.get(element);
       await _updateCachedValue(newValue, oldValue, element);
       //Update the refreshAt date for the next interval.
@@ -119,7 +125,8 @@ class AtRefreshJob {
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+    cron.schedule(Schedule.parse('*/1 * * * *'), () async {
+      //cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');

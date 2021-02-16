@@ -1,12 +1,15 @@
 import 'dart:collection';
+import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 // Class which will process plookup (proxy lookup) verb
 class ProxyLookupVerbHandler extends AbstractVerbHandler {
@@ -42,19 +45,37 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     if (operation != null) {
       query = '${operation}:${query}';
     }
-    logger.finer('query : $query');
+    response.data = result;
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    await atAccessLog.insert(atSign, pLookup.name(), lookupKey: key);
+    return;
+  }
+
+  /// Returns the cached value of the key.
+  Future<String> _getCachedValue(String operation, String key) async {
+    key = 'cached:public:$key';
+    var atData = await keyStore.get(key);
+    return SecondaryUtil.prepareResponseData(operation, atData);
+  }
+
+  /// Performs the remote lookup and returns the value of the key.
+  Future<String> _getRemoteValue(
+      String query, String atSign, InboundConnection atConnection) async {
     var outBoundClient =
         OutboundClientManager.getInstance().getClient(atSign, atConnection);
     if (!outBoundClient.isConnectionCreated) {
       logger.finer('creating outbound connection ${atSign}');
       await outBoundClient.connect(handshake: false);
     }
-    // call lookup with the query
-    var result = await outBoundClient.lookUp(query, handshake: false);
-    response.data = result;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    await atAccessLog.insert(atSign, pLookup.name(), lookupKey: key);
-    return;
+    // call lookup with the query. Added operation as all to get key's value and metadata for caching
+    return await outBoundClient.lookUp('all:$query', handshake: false);
+  }
+
+  /// Caches the key.
+  void _storeCachedKey(String key, AtData atData) async {
+    key = 'cached:public:$key';
+    atData.metaData.ttr ??= -1;
+    await keyStore.put(key, atData);
   }
 }
