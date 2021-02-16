@@ -34,7 +34,8 @@ class AtRefreshJob {
     while (itr.moveNext()) {
       var key = itr.current;
       var metadata = await keyStore.getMeta(key);
-      if (metadata.refreshAt.millisecondsSinceEpoch > nowInEpoch) {
+      if (metadata.refreshAt != null &&
+          metadata.refreshAt.millisecondsSinceEpoch > nowInEpoch) {
         continue;
       }
       // If metadata.availableAt is greater is lastRefreshedAtInEpoch, key's TTB is not met.
@@ -55,7 +56,7 @@ class AtRefreshJob {
   /// Returns of the value of the key from the another secondary server.
   /// Key to lookup on the another secondary server.
   /// Future<String> value of the key.
-  Future<String> _lookupValue(String key) async {
+  Future<String> _lookupValue(String key, {bool isHandShake = true}) async {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
     var lookupResult;
@@ -67,7 +68,7 @@ class AtRefreshJob {
         var connectResult = await outBoundClient.connect();
         logger.finer('connect result: ${connectResult}');
       }
-      lookupResult = await outBoundClient.lookUp(key);
+      lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
     } catch (exception) {
       logger.severe(
           'Exception while refreshing cached key ${exception.toString()}');

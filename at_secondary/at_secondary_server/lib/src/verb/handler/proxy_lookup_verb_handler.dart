@@ -41,9 +41,22 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     var operation = verbParams[OPERATION];
     // Generate query using key, atSign from verbParams
-    var query = '${key}@${atSign}';
-    if (operation != null) {
-      query = '${operation}:${query}';
+    key = '${key}@${atSign}';
+    //If key is cached, return cached value.
+    var result = await _getCachedValue(operation, key);
+    // If cached key value is null, perform a remote plookup.
+    if (result == null) {
+      result = await _getRemoteValue(key, atSign, atConnection);
+      result = result.replaceAll('data:', '');
+      if (result == 'null') {
+        await _removeCachedKey(key);
+        return;
+      }
+      var atData = AtData();
+      atData = atData.fromJson(jsonDecode(result));
+      result = SecondaryUtil.prepareResponseData(operation, atData);
+      // Cache the value.
+      await _storeCachedKey(key, atData);
     }
     response.data = result;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
@@ -77,5 +90,10 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     key = 'cached:public:$key';
     atData.metaData.ttr ??= -1;
     await keyStore.put(key, atData);
+  }
+
+  /// Remove cached key.
+  void _removeCachedKey(String key) async {
+    await keyStore.remove(key);
   }
 }
