@@ -1,8 +1,9 @@
+import 'package:hive/hive.dart';
+import 'package:utf7/utf7.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
-import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
+import 'package:at_commons/at_commons.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore implements SecondaryKeyStore {
@@ -55,27 +56,13 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  Future put(key, value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future put(key, value, {Metadata metadata}) async {
     await _box.put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
   @override
-  Future create(key, value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future create(key, value, {Metadata metadata}) async {
     // TODO: implement deleteExpiredKeys
     throw UnimplementedError();
   }

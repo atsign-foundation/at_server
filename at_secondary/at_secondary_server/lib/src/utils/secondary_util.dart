@@ -1,9 +1,9 @@
 import 'dart:convert';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
+import 'package:at_commons/at_commons.dart';
 
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
@@ -16,12 +16,14 @@ class SecondaryUtil {
     atData.data = value;
 
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atSign);
-    var keystoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(atSign);
+    var keystoreManager =
+        secondaryPersistenceStore.getSecondaryKeyStoreManager();
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
-    keyStore.put('public:$key', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+    var metadata = Metadata();
+    metadata.ttl = 60 * 1000; //expire in 1 min
+    keyStore.put('public:$key', atData, metadata: metadata);
   }
 
   static List<String> getSecondaryInfo(String url) {
@@ -109,7 +111,6 @@ class SecondaryUtil {
     logger.finer('result : $result');
     return result;
   }
-
 
   NotificationPriority getNotificationPriority(String arg1) {
     if (arg1 == null) {

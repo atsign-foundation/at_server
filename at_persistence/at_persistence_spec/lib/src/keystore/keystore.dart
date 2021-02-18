@@ -1,3 +1,5 @@
+import 'package:at_commons/at_commons.dart';
+
 /// Keystore represents a data store like a database which can store mapping between keys and values.
 abstract class Keystore<K, V> {
   /// Retrieves a Future value for the key passed from the key store.
@@ -18,14 +20,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param time_to_born - Duration in milliseconds after which the key will become active.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> put(K key, V value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature});
+  Future<dynamic> put(K key, V value, {Metadata metadata});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -35,13 +30,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param time_to_born - Duration in milliseconds after which the key will become active.
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> create(K key, V value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted});
+  Future<dynamic> create(K key, V value, {Metadata metadata});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
