@@ -112,7 +112,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     if (CN == null) {
       logger.finer(
           'CN is null.stream flag ${atConnection.getMetaData().isStream}');
-      return true;
+      return atConnection.getMetaData().isStream;
     }
 
     if (clientCertificateRequired) {

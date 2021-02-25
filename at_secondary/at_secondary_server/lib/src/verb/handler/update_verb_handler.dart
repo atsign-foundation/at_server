@@ -102,26 +102,25 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = 'cached:$key';
       }
 
-      //#TODO assign only if incoming param is populated
-      metadata.ttl = ttl_ms;
-      metadata.ttb = ttb_ms;
-      metadata.ttr = ttr_ms;
-      metadata.ccd = ccd;
-      metadata.isBinary = isBinary;
-      metadata.isEncrypted = isEncrypted;
-      metadata.dataSignature = dataSignature;
-
       // update the key in data store
-      var result = await keyStore.put(key, atData, metadata: metadata);
+      var result = await keyStore.put(key, atData, metadata: updateParams.metadata);
       response.data = result?.toString();
       if (AUTO_NOTIFY) {
+        var atMetadata = AtMetaData()
+          ..ttl = ttl_ms
+          ..ttb = ttb_ms
+          ..ttr = ttr_ms
+          ..isCascade = ccd
+          ..isBinary = isBinary
+          ..isEncrypted = isEncrypted
+          ..dataSignature = dataSignature;
         _notify(
             atSign,
             forAtSign,
             verbParams[AT_KEY],
             value,
             SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
-            AtMetadataAdapter(metadata));
+            atMetadata);
       }
     } on InvalidSyntaxException {
       rethrow;
