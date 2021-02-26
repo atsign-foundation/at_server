@@ -82,7 +82,7 @@ class OutboundClient {
 
   Future<String> _findSecondary(toAtSign) async {
     var secondaryUrl =
-    await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
+        await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: ${toAtSign}');
@@ -262,8 +262,7 @@ class OutboundClient {
     return notifyResult;
   }
 
-  List<dynamic> notifyList(String atSign,
-      {bool handshake = true}) {
+  List<dynamic> notifyList(String atSign, {bool handshake = true}) {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -274,7 +273,7 @@ class OutboundClient {
       notifyResult = notificationKeyStore.getValues();
       if (notifyResult != null) {
         notifyResult.retainWhere((element) =>
-        element.type == NotificationType.sent &&
+            element.type == NotificationType.sent &&
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {

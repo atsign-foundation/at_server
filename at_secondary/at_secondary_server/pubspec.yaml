@@ -13,6 +13,7 @@ dependencies:
   convert: ^2.1.1
   crypto: ^2.1.4
   crypton: ^1.1.0
+<<<<<<< HEAD
   collection: ^1.14.13
   at_persistence_secondary_server:
     git:
@@ -28,11 +29,15 @@ dependencies:
       ref: dev_env
       version: ^1.0.0+4
 
+=======
+  at_persistence_secondary_server: ^1.0.1+4
+  at_lookup: ^1.0.0+4
+>>>>>>> 75eae2837040bf77bfee1cec5a441d90d946c362
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: dev_env
+      ref: master
       version: ^1.0.0
 
 #dependency_overrides:

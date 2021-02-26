@@ -5,7 +5,8 @@ import 'package:at_persistence_secondary_server/src/keystore/secondary_persisten
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 
 main() async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@test_user_1');
   var manager = secondaryPersistenceStore.getHivePersistenceManager();
   var result = await manager.init('@test_user_1', 'test/hive');
   await manager.openVault('@test_user_1');
@@ -28,7 +29,7 @@ main() async {
   print(at_data?.data);
   assert(at_data?.data == 'abc');
   var expiredKey =
-  await Future.delayed(Duration(minutes: 1), () => getKey(keyStoreManager));
+      await Future.delayed(Duration(minutes: 2), () => getKey(keyStoreManager));
   assert(expiredKey == null);
   print(expiredKey);
   exit(0);

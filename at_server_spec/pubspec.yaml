@@ -9,12 +9,16 @@ environment:
   sdk: '>=2.7.0 <3.0.0'
 
 dependencies:
+<<<<<<< HEAD
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: dev_env
       version: ^1.0.1+4
+=======
+  at_commons: ^1.0.1+4
+>>>>>>> 75eae2837040bf77bfee1cec5a441d90d946c362
 
 #dependency_overrides:
 #  at_commons:
