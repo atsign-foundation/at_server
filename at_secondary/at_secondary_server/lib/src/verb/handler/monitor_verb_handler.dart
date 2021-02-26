@@ -109,12 +109,12 @@ class Notification {
   }
 
   Map toJson() => {
-    ID: id,
-    FROM: fromAtSign,
-    TO: toAtSign,
-    KEY: notification,
-    VALUE: value,
-    OPERATION: operation,
-    EPOCH_MILLIS: dateTime
-  };
+        ID: id,
+        FROM: fromAtSign,
+        TO: toAtSign,
+        KEY: notification,
+        VALUE: value,
+        OPERATION: operation,
+        EPOCH_MILLIS: dateTime
+      };
 }

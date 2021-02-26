@@ -7,7 +7,7 @@ class AtNotificationPriorityQueue {
 
   AtNotificationPriorityQueue({priorityQueue, comparison})
       : _priorityQueue =
-  PriorityQueue<AtNotification>(comparison ??= _comparePriority);
+            PriorityQueue<AtNotification>(comparison ??= _comparePriority);
 
   /// Adds [AtNotification] to the priority queue.
   /// Accepts [AtNotification] as input param.
