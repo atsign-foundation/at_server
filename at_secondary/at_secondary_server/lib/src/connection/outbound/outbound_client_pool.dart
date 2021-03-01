@@ -3,12 +3,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// Pool to hold [OutboundClient]
 class OutboundClientPool {
-  static final OutboundClientPool _singleton = OutboundClientPool._internal();
   int _size;
-  factory OutboundClientPool() {
-    return _singleton;
-  }
-  OutboundClientPool._internal();
 
   List<OutboundClient> _clients;
 

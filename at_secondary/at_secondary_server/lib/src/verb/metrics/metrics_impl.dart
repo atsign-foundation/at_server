@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -126,11 +127,11 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<Map> getMetrics({String regex}) async {
+  Future<String> getMetrics({String regex}) async {
     final length = AtSecondaryConfig.stats_top_visits;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return atAccessLog.mostVisitedAtSigns(length);
+    return jsonEncode(atAccessLog.mostVisitedAtSigns(length));
   }
 
   @override
@@ -150,15 +151,36 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<Map> getMetrics({String regex}) async {
+  Future<String> getMetrics({String regex}) async {
     final length = AtSecondaryConfig.stats_top_keys;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return atAccessLog.mostVisitedKeys(length);
+    return jsonEncode(atAccessLog.mostVisitedKeys(length));
   }
 
   @override
   String getName() {
     return 'topKeys';
+  }
+}
+
+class SecondaryServerVersion implements MetricProvider {
+  static final SecondaryServerVersion _singleton =
+      SecondaryServerVersion._internal();
+
+  SecondaryServerVersion._internal();
+
+  factory SecondaryServerVersion.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  String getMetrics({String regex}) {
+    return AtSecondaryConfig.secondaryServerVersion;
+  }
+
+  @override
+  String getName() {
+    return 'secondaryServerVersion';
   }
 }

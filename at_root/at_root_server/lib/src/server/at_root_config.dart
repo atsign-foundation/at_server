@@ -8,8 +8,14 @@ class AtRootConfig {
   static bool _useSSL = true;
   static String _certificateChainLocation = 'certs/fullchain.pem';
   static String _privateKeyLocation = 'certs/privkey.pem';
+  static String _root_server_version = (ConfigUtil.getPubspecConfig() != null &&
+          ConfigUtil.getPubspecConfig()['version'] != null)
+      ? ConfigUtil.getPubspecConfig()['version']
+      : null;
 
   static final Map<String, String> _envVars = Platform.environment;
+
+  static String get root_server_version => _root_server_version;
 
   static int get rootServerPort {
     if (_envVars.containsKey('rootServerPort')) {

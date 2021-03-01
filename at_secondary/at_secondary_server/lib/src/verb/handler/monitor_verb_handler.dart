@@ -1,13 +1,14 @@
 import 'dart:collection';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
@@ -38,9 +39,10 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
-      var atNotificationLog = AtNotificationLog.getInstance();
 
-      atNotificationLog.registerNotificationCallback(
+      var atNotificationCallback = AtNotificationCallback.getInstance();
+
+      atNotificationCallback.registerNotificationCallback(
           NotificationType.received, processReceiveNotification);
     }
     atConnection.isMonitor = true;
@@ -49,8 +51,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   void processReceiveNotification(AtNotification atNotification) {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
-      var atNotificationLog = AtNotificationLog.getInstance();
-      atNotificationLog.unregisterNotificationCallback(
+      var atNotificationCallback = AtNotificationCallback.getInstance();
+      atNotificationCallback.unregisterNotificationCallback(
           NotificationType.received, processReceiveNotification);
     } else {
       var notification = Notification(atNotification);

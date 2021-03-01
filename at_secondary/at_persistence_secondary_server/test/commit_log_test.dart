@@ -1,11 +1,12 @@
 import 'dart:convert';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
-import 'package:crypto/crypto.dart';
+import 'dart:io';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
-import 'dart:io';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
@@ -95,7 +96,7 @@ void main() async {
     test('test commit - box not available', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice'));
-      await Hive.close();
+      await commitLogInstance.close();
       expect(
           () async =>
               await commitLogInstance.commit('location@alice', CommitOp.UPDATE),
@@ -107,7 +108,7 @@ void main() async {
           .getCommitLog(_getShaForAtsign('@alice'));
       var key_1 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
-      await Hive.close();
+      await commitLogInstance.close();
       expect(() async => await commitLogInstance.getEntry(key_1),
           throwsA(predicate((e) => e is DataStoreException)));
     });
@@ -120,6 +121,7 @@ void main() async {
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await Hive.close();
+      await AtCommitLogManagerImpl.getInstance().close();
       expect(() async => await commitLogInstance.getEntry(key_2),
           throwsA(predicate((e) => e is DataStoreException)));
     });
@@ -147,10 +149,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 void tearDownFunc() async {
   var isExists = await Directory('test/hive/').exists();
-  AtCommitLogManagerImpl.getInstance().clear();
   if (isExists) {
     await Directory('test/hive/').deleteSync(recursive: true);
   }
+  AtCommitLogManagerImpl.getInstance().clear();
 }
 
 String _getShaForAtsign(String atsign) {

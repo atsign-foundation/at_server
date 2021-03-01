@@ -19,6 +19,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
 
   void init(String storagePath) async {
     var boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    await Hive.init(storagePath);
     if (!_registerAdapters) {
       Hive.registerAdapter(AccessLogEntryAdapter());
       _registerAdapters = true;

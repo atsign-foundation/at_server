@@ -1,7 +1,8 @@
 import 'dart:io';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
+import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 
 main() async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
