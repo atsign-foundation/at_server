@@ -92,10 +92,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
     var keyPrefix = '';
     if (!(atConnectionMetadata.isAuthenticated)) {
-      keyPrefix = (fromAtSign == null || fromAtSign == '')
+      keyPrefix = (fromAtSign == null || fromAtSign.isEmpty)
           ? 'public:'
           : fromAtSign + ':';
     }
+
     // Form the look up key
     var lookup_key = keyPrefix + key;
     logger.finer('lookup_key in lookupVerbHandler : ' + lookup_key);
@@ -103,6 +104,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var lookup_data = await keyStore.get(lookup_key);
     var isActive = SecondaryUtil.isActiveKey(lookup_data);
     if (isActive) {
+      // update looked up status in metadata
+      if (atConnectionMetadata.isPolAuthenticated) {
+        if (fromAtSign != null && fromAtSign.isNotEmpty) {
+          logger.finer('key looked up:$lookup_key');
+          lookup_data.metaData.sharedKeyStatus =
+              SharedKeyStatus.SHARED_WITH_LOOKED_UP.toString();
+          await keyStore.putMeta(key, lookup_data.metaData);
+        }
+      }
       response.data = SecondaryUtil.prepareResponseData(operation, lookup_data);
       //Resolving value references to correct values
       if (response.data != null && response.data.contains(AT_VALUE_REFERENCE)) {

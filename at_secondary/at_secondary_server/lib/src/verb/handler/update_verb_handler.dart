@@ -58,8 +58,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
 
     try {
       // Get the key and update the value
-      var forAtSign = updateParams.sharedBy;
-      var atSign = updateParams.sharedWith;
+      var sharedWithAtSign = updateParams.sharedWith;
+      var atSign = updateParams.sharedBy;
       var key = updateParams.atKey;
       var value = updateParams.value;
       var atData = AtData();
@@ -73,9 +73,9 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       var dataSignature = updateParams.metadata.dataSignature;
       var ccd = updateParams.metadata.ccd;
       // Get the key using verbParams (forAtSign, key, atSign)
-      if (forAtSign != null) {
-        forAtSign = AtUtils.formatAtSign(forAtSign);
-        key = '${forAtSign}:${key}';
+      if (sharedWithAtSign != null) {
+        sharedWithAtSign = AtUtils.formatAtSign(sharedWithAtSign);
+        key = '${sharedWithAtSign}:${key}';
       }
       if (atSign != null) {
         atSign = AtUtils.formatAtSign(atSign);
@@ -102,6 +102,11 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = 'cached:$key';
       }
 
+      //update status for shared keys
+      if(sharedWithAtSign != null) {
+        updateParams.metadata.sharedKeyStatus = SharedKeyStatus.LOCAL_UPDATED.toString();
+      }
+
       // update the key in data store
       var result = await keyStore.put(key, atData, metadata: updateParams.metadata);
       response.data = result?.toString();
@@ -116,7 +121,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           ..dataSignature = dataSignature;
         _notify(
             atSign,
-            forAtSign,
+            sharedWithAtSign,
             verbParams[AT_KEY],
             value,
             SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
@@ -165,8 +170,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       return UpdateParams.fromJson(jsonMap);
     }
     var updateParams = UpdateParams();
-    updateParams.sharedBy = verbParams[FOR_AT_SIGN];
-    updateParams.sharedWith = verbParams[AT_SIGN];
+    updateParams.sharedBy = verbParams[AT_SIGN];
+    updateParams.sharedWith = verbParams[FOR_AT_SIGN];
     updateParams.atKey = verbParams[AT_KEY];
     updateParams.value = verbParams[AT_VALUE];
     var metadata = Metadata();
