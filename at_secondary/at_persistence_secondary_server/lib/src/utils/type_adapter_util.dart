@@ -5,8 +5,10 @@ const Map typeAdapterMap = {
   'CommitEntryAdapter': 2,
   'CommitOpAdapter': 3,
   'AccessLogEntryAdapter': 4,
-  'NotificationEntryAdapter': 5,
+  'NotificationStatusAdapter': 5,
   'AtNotificationAdapter': 6,
   'NotificationTypeAdapter': 7,
-  'OperationTypeAdapter': 8
+  'OperationTypeAdapter': 8,
+  'NotificationPriorityAdapter': 9,
+  'MessageTypeAdapter': 10
 };

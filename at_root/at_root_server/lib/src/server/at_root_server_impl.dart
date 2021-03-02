@@ -146,6 +146,8 @@ class RootServerImpl implements AtRootServer {
       if (certsAvailable) {
         SecureServerSocket.bind(InternetAddress.anyIPv4, port, secCon)
             .then((SecureServerSocket socket) {
+          logger.info(
+              'root server started on version : ${AtRootConfig.root_server_version}');
           logger.info('Secure Socket open!');
           _serverSocket = socket;
           _listen(_serverSocket);

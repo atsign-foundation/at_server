@@ -1,11 +1,12 @@
+import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/from_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/monitor_response_handler.dart';
+import 'package:at_secondary/src/verb/handler/response/notify_all_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/pol_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/stats_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/stream_response_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
 
 abstract class ResponseHandlerManager {
   /// Returns the response handler for a given verb
@@ -21,6 +22,7 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
   static final _statsHandler = StatsResponseHandler();
   static final _monitorHandler = MonitorResponseHandler();
   static final _streamHandler = StreamResponseHandler();
+  static final _notifyAllHandler = NotifyAllResponseHandler();
 
   @override
   ResponseHandler getResponseHandler(Verb verb) {
@@ -34,6 +36,8 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
       return _monitorHandler;
     } else if (verb is StreamVerb) {
       return _streamHandler;
+    } else if (verb is NotifyAll) {
+      return _notifyAllHandler;
     }
     return _defaultHandler;
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
@@ -15,7 +16,7 @@ class AtSecondaryConfig {
   static String _storagePath = 'storage/hive';
   static String _commitLogPath = 'storage/commitLog';
   static String _accessLogPath = 'storage/accessLog';
-  static String _notificationStoragePath = 'storage/notificationLog';
+  static String _notificationStoragePath = 'storage/notificationLog.v1';
   static int _expiringRunFreqMins = 10;
 
   //Commit Log
@@ -31,8 +32,11 @@ class AtSecondaryConfig {
   static int _accessLogSizeInKB = 2;
 
   //Notification
+  static int _maxNotificationRetries = 5;
   static int _maxNotificationEntries = 5;
   static bool _autoNotify = true;
+  static int _notificationQuarantineDuration = 10;
+  static int _notificationJobFrequency = 5;
 
   //Refresh Job
   static int _runRefreshJobHour = 3;
@@ -61,7 +65,16 @@ class AtSecondaryConfig {
   //force restart
   static final bool _isForceRestart = false;
 
+  //version
+  static final String _secondaryServerVersion =
+      (ConfigUtil.getPubspecConfig() != null &&
+              ConfigUtil.getPubspecConfig()['version'] != null)
+          ? ConfigUtil.getPubspecConfig()['version']
+          : null;
+
   static final Map<String, String> _envVars = Platform.environment;
+
+  static String get secondaryServerVersion => _secondaryServerVersion;
 
   static bool get useSSL {
     var result = _getBoolEnvVar('useSSL');
@@ -509,6 +522,42 @@ class AtSecondaryConfig {
       return ConfigUtil.getYaml()['certificate_expiry']['force_restart'];
     }
     return _isForceRestart;
+  }
+
+  static int get maxNotificationRetries {
+    var result = _getIntEnvVar('maxNotificationRetries');
+    if (result != null) {
+      return _getIntEnvVar('maxNotificationRetries');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['max_retries'] != null) {
+      return ConfigUtil.getYaml()['notification']['max_retries'];
+    }
+    return _maxNotificationRetries;
+  }
+
+  static int get notificationQuarantineDuration {
+    var result = _getIntEnvVar('notificationQuarantineDuration');
+    if (result != null) {
+      return _getIntEnvVar('notificationQuarantineDuration');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['quarantineDuration'] != null) {
+      return ConfigUtil.getYaml()['notification']['quarantineDuration'];
+    }
+    return _notificationQuarantineDuration;
+  }
+
+  static int get notificationJobFrequency {
+    var result = _getIntEnvVar('notificationJobFrequency');
+    if (result != null) {
+      return _getIntEnvVar('notificationJobFrequency');
+    }
+    if (ConfigUtil.getYaml()['notification'] != null &&
+        ConfigUtil.getYaml()['notification']['jobFrequency'] != null) {
+      return ConfigUtil.getYaml()['notification']['jobFrequency'];
+    }
+    return _notificationJobFrequency;
   }
 
   static int _getIntEnvVar(String envVar) {

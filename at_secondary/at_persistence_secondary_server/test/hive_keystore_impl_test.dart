@@ -1,8 +1,9 @@
-import 'dart:io';
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'dart:io';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
@@ -12,8 +13,9 @@ void main() async {
   setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
     test('test update', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.create('phone', atData);
@@ -21,19 +23,20 @@ void main() async {
     });
 
     test('test create and get', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = '123';
       await keyStore.create('phone', atData);
-      AtData dataFromHive = await keyStore.get('phone');
+      var dataFromHive = await keyStore.get('phone');
       expect(dataFromHive.data, '123');
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      ;
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = 'india';
       await keyStore.create('location', atData);
@@ -45,8 +48,9 @@ void main() async {
     });
 
     test('test update and get', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var updateData = AtData();
       updateData.data = 'alice';
       var result = await keyStore.put('last_name', updateData);
@@ -55,8 +59,9 @@ void main() async {
     });
 
     test('test update and remove', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var updateData = AtData();
       updateData.data = 'alice';
       var result = await keyStore.put('last_name', updateData);
@@ -66,8 +71,9 @@ void main() async {
     });
 
     test('get keys', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var data_1 = AtData();
       data_1.data = 'alice';
       await keyStore.put('last_name', data_1);
@@ -79,23 +85,26 @@ void main() async {
     });
 
     test('test get null key', () {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       expect(() async => await keyStore.get(null),
           throwsA(predicate((e) => e is AssertionError)));
     });
 
     test('test get expired keys - no data', () {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       List<String> expiredKeys = keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
     test('test hive files deleted - get - box not available', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
-      var keyStore = keyStoreManager.getKeyStore();
       expect(
           () async => await keyStore.get('abc'),
           throwsA(predicate((e) =>
@@ -104,9 +113,10 @@ void main() async {
     });
 
     test('test hive files deleted - put - box not available', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
-      var keyStore = keyStoreManager.getKeyStore();
       expect(
           () async => await keyStore.put('abc', null),
           throwsA(predicate((e) =>
@@ -115,15 +125,17 @@ void main() async {
     });
 
     test('test delete expired keys - no data', () {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var result = keyStore.deleteExpiredKeys();
       expect(result, true);
     });
 
     test('get keys by regex', () async {
-      var keyStoreManager = SecondaryKeyStoreManager('@test_user_1');
-      var keyStore = keyStoreManager.getKeyStore();
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var data_1 = AtData();
       data_1.data = 'alice';
       await keyStore.put('last_name', data_1);
@@ -179,12 +191,17 @@ void tearDownFunc() async {
 }
 
 void setUpFunc(storageDir) async {
-  //#TODO fix this
-//  await CommitLogKeyStore.getInstance()
-//      .init('commit_log_@test_user_1', storageDir);
-//  var persistenceManager = HivePersistenceManager.getInstance();
-//  await persistenceManager.init('@test_user_1', storageDir);
-//  await persistenceManager.openVault('@test_user_1');
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+  var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@test_user_1');
+  await persistenceManager
+      .getHivePersistenceManager()
+      .init('@test_user_1', storageDir);
+  await persistenceManager
+      .getHivePersistenceManager()
+      .openVault('@test_user_1');
+  persistenceManager.getSecondaryKeyStore().commitLog = commitLogInstance;
 }
 
 String _getShaForAtsign(String atsign) {

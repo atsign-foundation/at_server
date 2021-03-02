@@ -7,7 +7,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
 class AtRefreshJob {
-  String _atSign;
+  var _atSign;
   var keyStore;
 
   AtRefreshJob(this._atSign) {
@@ -28,7 +28,7 @@ class AtRefreshJob {
     }
 
     var cachedKeys = [];
-    var now = DateTime.now();
+    var now = DateTime.now().toUtc();
     var nowInEpoch = now.millisecondsSinceEpoch;
     var itr = keysList.iterator;
     while (itr.moveNext()) {
@@ -60,7 +60,7 @@ class AtRefreshJob {
     var atSign = key.substring(index);
     var lookupResult;
     var outBoundClient = OutboundClientManager.getInstance()
-        .getClient(atSign, DummyInboundBoundConnection.getInstance());
+        .getClient(atSign, DummyInboundConnection.getInstance());
     // Need not connect again if the client's handshake is already done
     try {
       if (!outBoundClient.isHandShakeDone) {
@@ -109,6 +109,9 @@ class AtRefreshJob {
       await logger.finest('lookup value of $lookupKey is $newValue');
       var oldValue = await keyStore.get(element);
       await _updateCachedValue(newValue, oldValue, element);
+      //Update the refreshAt date for the next interval.
+      var atMetadata = AtMetadataBuilder(ttr: oldValue.metaData.ttr).build();
+      await keyStore.putMeta(element, atMetadata);
     }
   }
 

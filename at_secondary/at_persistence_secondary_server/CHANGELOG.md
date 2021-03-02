@@ -14,3 +14,5 @@
 ## 1.0.1+4
 - Added Support for multiple AtSigns
   Introduced batch verb for sync
+## 1.0.1+5
+- Notification sub system changes

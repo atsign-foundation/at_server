@@ -1,8 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
-import 'package:hive/hive.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:hive/hive.dart';
 import 'package:utf7/utf7.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
@@ -144,7 +144,7 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Closes the [CommitLogKeyStore] instance.
-  void close() {
-    _commitLogKeyStore.close();
+  void close() async {
+    await _commitLogKeyStore.close();
   }
 }
