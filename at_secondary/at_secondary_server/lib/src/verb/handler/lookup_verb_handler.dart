@@ -66,7 +66,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
           response.data = await resolveValueReference(
               response.data.toString(), currentAtSign);
         }
-        await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
+        try {
+          await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
+        } on DataStoreException catch (e) {
+          logger.severe('Hive error adding to access log:${e.toString()}');
+        }
       } else {
         var cachedKey = '$CACHED:$currentAtSign:$key';
         //Get cached value.
@@ -110,7 +114,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
       }
       //Omit all keys starting with '_' to record in access log
       if (!key.startsWith('_')) {
-        await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
+        try {
+          await atAccessLog.insert(atSign, lookup.name(), lookupKey: key);
+        } on DataStoreException catch (e) {
+          logger.severe('Hive error adding to access log:${e.toString()}');
+        }
       }
       return;
     } else {

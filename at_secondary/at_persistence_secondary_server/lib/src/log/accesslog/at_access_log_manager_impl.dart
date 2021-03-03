@@ -27,9 +27,10 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
     return _accessLogMap[atSign];
   }
 
-  void close() {
-    _accessLogMap.forEach((key, value) {
-      value.close();
+  void close() async {
+    await _accessLogMap.forEach((key, value) async {
+      await value.close();
     });
+    _accessLogMap.clear();
   }
 }
