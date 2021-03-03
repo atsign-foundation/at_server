@@ -1,12 +1,13 @@
 import 'dart:collection';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 // Class which will process plookup (proxy lookup) verb
 class ProxyLookupVerbHandler extends AbstractVerbHandler {
@@ -54,7 +55,11 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     response.data = result;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    await atAccessLog.insert(atSign, pLookup.name(), lookupKey: key);
+    try {
+      await atAccessLog.insert(atSign, pLookup.name(), lookupKey: key);
+    } on DataStoreException catch (e) {
+      logger.severe('Hive error adding to access log:${e.toString()}');
+    }
     return;
   }
 }

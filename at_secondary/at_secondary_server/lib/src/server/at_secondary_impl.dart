@@ -309,16 +309,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
   @override
-  void stop() {
+  void stop() async {
     pause();
     try {
       var result = inboundConnectionFactory.removeAllConnections();
       if (result) {
         //close server socket
         _serverSocket.close();
-        AtCommitLogManagerImpl.getInstance().close();
-        AtAccessLogManagerImpl.getInstance().close();
-        SecondaryPersistenceStoreFactory.getInstance().close();
+        await AtCommitLogManagerImpl.getInstance().close();
+        await AtAccessLogManagerImpl.getInstance().close();
+        await SecondaryPersistenceStoreFactory.getInstance().close();
         _isRunning = false;
       }
     } on Exception catch (e) {
