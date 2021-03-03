@@ -91,7 +91,6 @@ class AtRefreshJob {
 
   /// The refresh job
   void _refreshJob(int runFrequencyHours) async {
-    logger.finer('Test multiple times');
     var keysToRefresh = await _getCachedKeys();
     if (keysToRefresh == null) {
       return;

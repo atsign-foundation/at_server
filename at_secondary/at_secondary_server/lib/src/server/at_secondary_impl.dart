@@ -324,7 +324,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         await AtCommitLogManagerImpl.getInstance().close();
         await AtAccessLogManagerImpl.getInstance().close();
         await SecondaryPersistenceStoreFactory.getInstance().close();
-        //atRefreshJob.close();
+        atRefreshJob.close();
         commitLogCompactionJobInstance.close();
         accessLogCompactionJobInstance.close();
         _isRunning = false;
