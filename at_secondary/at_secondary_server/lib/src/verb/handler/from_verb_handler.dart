@@ -1,19 +1,20 @@
 import 'dart:collection';
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:at_utils/at_utils.dart';
-import 'package:uuid/uuid.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:basic_utils/basic_utils.dart';
+import 'package:uuid/uuid.dart';
 
 class FromVerbHandler extends AbstractVerbHandler {
   static From from = From();
@@ -87,7 +88,11 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    await atAccessLog.insert(fromAtSign, from.name());
+    try {
+      await atAccessLog.insert(fromAtSign, from.name());
+    } on DataStoreException catch (e) {
+      logger.severe('Hive error adding to access log:${e.toString()}');
+    }
   }
 
   Future<bool> _verifyFromAtSign(
