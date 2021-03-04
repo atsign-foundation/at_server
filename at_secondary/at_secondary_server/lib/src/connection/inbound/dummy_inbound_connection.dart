@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
@@ -31,7 +30,7 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   AtConnectionMetaData getMetaData() {
-    return InboundConnectionMetadata()..fromAtSign = null;
+    return null;
   }
 
   @override
