@@ -1,16 +1,16 @@
-export 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
+export 'package:at_persistence_spec/at_persistence_spec.dart';
+
 class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   var logger = AtSignLogger('AccessLogKeyStore');
-  bool _registerAdapters = false;
   Box box;
   String storagePath;
   final _currentAtSign;
@@ -20,9 +20,8 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   void init(String storagePath) async {
     var boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     await Hive.init(storagePath);
-    if (!_registerAdapters) {
+    if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
-      _registerAdapters = true;
     }
     box = await Hive.openBox(boxName);
     this.storagePath = storagePath;
@@ -200,7 +199,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   ///Closes the [accessLogKeyStore] instance.
-  void close() {
-    box.close();
+  void close() async {
+    await box.close();
   }
 }
