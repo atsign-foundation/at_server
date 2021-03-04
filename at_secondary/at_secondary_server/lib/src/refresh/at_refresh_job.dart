@@ -9,6 +9,7 @@ import 'package:cron/cron.dart';
 class AtRefreshJob {
   var _atSign;
   var keyStore;
+  var _cron;
 
   AtRefreshJob(this._atSign) {
     var secondaryPersistenceStore =
@@ -127,11 +128,15 @@ class AtRefreshJob {
   /// The Cron Job which runs at a frequent time interval.
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask starting cron job.');
-    var cron = Cron();
-    cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+    _cron = Cron();
+    _cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');
     });
+  }
+
+  void close() {
+    _cron.close();
   }
 }

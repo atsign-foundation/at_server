@@ -28,6 +28,15 @@ class DeleteVerbHandler extends AbstractVerbHandler {
   }
 
   @override
+  HashMap<String, String> parse(String command) {
+    var verbParams = super.parse(command);
+    if (command.contains('public:')) {
+      verbParams.putIfAbsent('isPublic', () => 'true');
+    }
+    return verbParams;
+  }
+
+  @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String> verbParams,
@@ -42,6 +51,9 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey =
           '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
+    }
+    if (verbParams['isPublic'] == 'true') {
+      deleteKey = 'public:$deleteKey';
     }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');

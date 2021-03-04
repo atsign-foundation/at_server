@@ -73,6 +73,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtSecondaryContext serverContext;
   VerbExecutor executor;
   VerbHandlerManager verbManager;
+  AtRefreshJob atRefreshJob;
+  var commitLogCompactionJobInstance;
+  var accessLogCompactionJobInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -137,27 +140,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     //Commit Log Compaction
-    var commitLogCompactionJobInstance = AtCompactionJob.getInstance();
+    commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB,
         commitLogExpiryInDays,
         commitLogCompactionPercentage,
         commitLogCompactionFrequencyMins);
-    await commitLogCompactionJobInstance.scheduleCompactionJob(
-        atCommitLogCompactionConfig, _commitLog);
+    await commitLogCompactionJobInstance
+        .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
-    var accessLogCompactionJobInstance = AtCompactionJob.getInstance();
+    accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
     var atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB,
         accessLogExpiryInDays,
         accessLogCompactionPercentage,
         accessLogCompactionFrequencyMins);
-    await accessLogCompactionJobInstance.scheduleCompactionJob(
-        atAccessLogCompactionConfig, _accessLog);
+    await accessLogCompactionJobInstance
+        .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Refresh Cached Keys
-    var atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
+    atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     //Certificate reload
@@ -166,7 +169,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification job
     var resourceManager = ResourceManager.getInstance();
-    resourceManager.schedule();
+    if (!resourceManager.isRunning) {
+      resourceManager.schedule();
+    }
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext.inboundConnectionLimit);
@@ -309,16 +314,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
   @override
-  void stop() {
+  void stop() async {
     pause();
     try {
       var result = inboundConnectionFactory.removeAllConnections();
       if (result) {
         //close server socket
         _serverSocket.close();
-        AtCommitLogManagerImpl.getInstance().close();
-        AtAccessLogManagerImpl.getInstance().close();
-        SecondaryPersistenceStoreFactory.getInstance().close();
+        await AtCommitLogManagerImpl.getInstance().close();
+        await AtAccessLogManagerImpl.getInstance().close();
+        await SecondaryPersistenceStoreFactory.getInstance().close();
+        atRefreshJob.close();
+        commitLogCompactionJobInstance.close();
+        accessLogCompactionJobInstance.close();
         _isRunning = false;
       }
     } on Exception catch (e) {

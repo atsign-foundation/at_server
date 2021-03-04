@@ -11,6 +11,9 @@ import 'package:at_utils/at_logger.dart';
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
   static final ResourceManager _singleton = ResourceManager._internal();
+  bool _isRunning = false;
+
+  bool get isRunning => _isRunning;
 
   ResourceManager._internal();
 
@@ -24,6 +27,7 @@ class ResourceManager {
 
   ///Runs for every configured number of seconds(5).
   void schedule() async {
+    _isRunning = true;
     String atSign;
     Iterator notificationIterator;
     try {
