@@ -60,12 +60,14 @@ class AtRefreshJob {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
     var lookupResult;
-    var outBoundClient = OutboundClientManager.getInstance()
-        .getClient(atSign, DummyInboundConnection.getInstance());
+    var outBoundClient = OutboundClientManager.getInstance().getClient(
+        atSign, DummyInboundConnection.getInstance(),
+        isHandShake: isHandShake);
     // Need not connect again if the client's handshake is already done
     try {
       if (!outBoundClient.isHandShakeDone) {
-        var connectResult = await outBoundClient.connect();
+        var connectResult =
+            await outBoundClient.connect(handshake: isHandShake);
         logger.finer('connect result: ${connectResult}');
       }
       lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
@@ -126,7 +128,7 @@ class AtRefreshJob {
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask starting cron job.');
     var cron = Cron();
-      cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+    cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');
