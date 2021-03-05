@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -55,7 +56,9 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       }
       var atData = AtData();
       atData = atData.fromJson(jsonDecode(result));
-      result = SecondaryUtil.prepareResponseData(operation, atData);
+      if (operation != 'all') {
+        result = SecondaryUtil.prepareResponseData(operation, atData);
+      }
       // Cache the value.
       await _storeCachedKey(key, atData);
     }
