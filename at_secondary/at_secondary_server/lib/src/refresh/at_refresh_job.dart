@@ -7,7 +7,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
 class AtRefreshJob {
-  String _atSign;
+  var _atSign;
   var keyStore;
   var _cron;
 
@@ -29,13 +29,14 @@ class AtRefreshJob {
     }
 
     var cachedKeys = [];
-    var now = DateTime.now();
+    var now = DateTime.now().toUtc();
     var nowInEpoch = now.millisecondsSinceEpoch;
     var itr = keysList.iterator;
     while (itr.moveNext()) {
       var key = itr.current;
       var metadata = await keyStore.getMeta(key);
-      if (metadata.refreshAt.millisecondsSinceEpoch > nowInEpoch) {
+      if (metadata.refreshAt != null &&
+          metadata.refreshAt.millisecondsSinceEpoch > nowInEpoch) {
         continue;
       }
       // If metadata.availableAt is greater is lastRefreshedAtInEpoch, key's TTB is not met.
@@ -56,19 +57,21 @@ class AtRefreshJob {
   /// Returns of the value of the key from the another secondary server.
   /// Key to lookup on the another secondary server.
   /// Future<String> value of the key.
-  Future<String> _lookupValue(String key) async {
+  Future<String> _lookupValue(String key, {bool isHandShake = true}) async {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
     var lookupResult;
-    var outBoundClient = OutboundClientManager.getInstance()
-        .getClient(atSign, DummyInboundConnection.getInstance());
+    var outBoundClient = OutboundClientManager.getInstance().getClient(
+        atSign, DummyInboundConnection.getInstance(),
+        isHandShake: isHandShake);
     // Need not connect again if the client's handshake is already done
     try {
       if (!outBoundClient.isHandShakeDone) {
-        var connectResult = await outBoundClient.connect();
+        var connectResult =
+            await outBoundClient.connect(handshake: isHandShake);
         logger.finer('connect result: ${connectResult}');
       }
-      lookupResult = await outBoundClient.lookUp(key);
+      lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
     } catch (exception) {
       logger.severe(
           'Exception while refreshing cached key ${exception.toString()}');
@@ -101,15 +104,24 @@ class AtRefreshJob {
     while (itr.moveNext()) {
       var element = itr.current;
       lookupKey = element;
-      lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
-      var newValue = await _lookupValue(lookupKey);
+      var newValue;
+      if (lookupKey.startsWith('cached:public:')) {
+        lookupKey = lookupKey.replaceAll('cached:public:', '');
+        newValue = await _lookupValue(lookupKey, isHandShake: false);
+      } else {
+        lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
+        newValue = await _lookupValue(lookupKey);
+      }
       // Nothing to do. Just return
       if (newValue == null) {
         return;
       }
-      await logger.finest('lookup value of $lookupKey is $newValue');
+      logger.finest('lookup value of $lookupKey is $newValue');
       var oldValue = await keyStore.get(element);
       await _updateCachedValue(newValue, oldValue, element);
+      //Update the refreshAt date for the next interval.
+      var atMetadata = AtMetadataBuilder(ttr: oldValue.metaData.ttr).build();
+      await keyStore.putMeta(element, atMetadata);
     }
   }
 

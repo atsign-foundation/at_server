@@ -22,7 +22,10 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   bool equals(InboundConnection connection) {
-    return true;
+    if (connection is DummyInboundConnection) {
+      return true;
+    }
+    return false;
   }
 
   @override
