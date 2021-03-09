@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -139,18 +138,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
 
       var isKeyPresent = await keyStore.get(notifyKey);
-      var atMetadata;
-      if (isKeyPresent != null) {
-        atMetadata = await keyStore.getMeta(notifyKey);
-      }
       if (atValue != null && ttr_ms != null) {
-        var metadata = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
-            .build();
+        var metadata = Metadata()
+          ..ttl = ttl_ms
+          ..ttb = ttb_ms
+          ..ttr = ttr_ms
+          ..ccd = isCascade;
+
         await _storeCachedKeys(key, metadata, atValue: atValue);
         response.data = 'data:success';
         return;
@@ -158,14 +152,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
       // Update metadata only if key is cached.
       if (isKeyPresent != null) {
-        var atMetaData = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
-            .build();
-        await _updateMetadata(notifyKey, atMetaData);
+        var metadata = Metadata()
+          ..ttl = ttl_ms
+          ..ttb = ttb_ms
+          ..ttr = ttr_ms
+          ..ccd = isCascade;
+        await _updateMetadata(notifyKey, metadata);
         response.data = 'data:success';
         return;
       }
@@ -177,17 +169,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  void _storeCachedKeys(String key, AtMetaData atMetaData,
-      {String atValue}) async {
+  void _storeCachedKeys(String key, Metadata metadata, {String atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
     atData.data = atValue;
-    atData.metaData = atMetaData;
-    await keyStore.put(notifyKey, atData);
+    await keyStore.put(notifyKey, atData, metadata: metadata);
   }
 
-  void _updateMetadata(String notifyKey, AtMetaData atMetaData) async {
-    await keyStore.putMeta(notifyKey, atMetaData);
+  void _updateMetadata(String notifyKey, Metadata metadata) async {
+    await keyStore.putMeta(notifyKey, AtMetadataAdapter(metadata));
   }
 
   ///Removes the cached key from the keystore.

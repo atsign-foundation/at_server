@@ -6,6 +6,7 @@ import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class that is responsible for sending the notifications.
@@ -81,7 +82,8 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(OutboundClient outBoundClient, Iterator iterator) async {
+  void _sendNotifications(
+      OutboundClient outBoundClient, Iterator iterator) async {
     var notifyResponse;
     var atNotification;
     var errorList = [];
@@ -111,12 +113,20 @@ class ResourceManager {
 
   /// If the notification response is success, marks the status as [NotificationStatus.delivered]
   /// Else, marks the notification status as [NotificationStatus.queued] and reduce the priority and add back to queue.
-  void _notifyResponseProcessor(String response, AtNotification atNotification, List errorList) async {
+  void _notifyResponseProcessor(
+      String response, AtNotification atNotification, List errorList) async {
     if (response == 'data:success') {
       var notificationKeyStore = await AtNotificationKeystore.getInstance();
       var notifyEle = await notificationKeyStore.get(atNotification.id);
       atNotification.notificationStatus = NotificationStatus.delivered;
       await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
+      var metadata = Metadata()
+        ..sharedKeyStatus = SharedKeyStatus.SHARED_WITH_NOTIFIED.toString();
+      await SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+              AtSecondaryServerImpl.getInstance().currentAtSign)
+          .getSecondaryKeyStore()
+          .putMeta(atNotification.notification, AtMetadataAdapter(metadata));
     } else {
       errorList.add(atNotification);
     }
