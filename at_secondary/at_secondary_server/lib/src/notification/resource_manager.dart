@@ -121,7 +121,7 @@ class ResourceManager {
       atNotification.notificationStatus = NotificationStatus.delivered;
       await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
       var metadata = Metadata()
-        ..sharedKeyStatus = SharedKeyStatus.SHARED_WITH_NOTIFIED.toString();
+        ..sharedKeyStatus = getSharedKeyName(SharedKeyStatus.SHARED_WITH_NOTIFIED);
       await SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
               AtSecondaryServerImpl.getInstance().currentAtSign)

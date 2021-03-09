@@ -104,7 +104,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
 
       //update status for shared keys
       if(sharedWithAtSign != null) {
-        updateParams.metadata.sharedKeyStatus = SharedKeyStatus.LOCAL_UPDATED.toString();
+        logger.finer('updating shared key status. shared with : $sharedWithAtSign');
+        updateParams.metadata.sharedKeyStatus = getSharedKeyName(SharedKeyStatus.LOCAL_UPDATED);
       }
 
       // update the key in data store

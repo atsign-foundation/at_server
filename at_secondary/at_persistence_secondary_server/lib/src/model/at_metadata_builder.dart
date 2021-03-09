@@ -12,15 +12,16 @@ class AtMetadataBuilder {
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
   AtMetadataBuilder(
       {String atSign,
-        AtMetaData newAtMetaData,
-        AtMetaData existingMetaData,
-        int ttl,
-        int ttb,
-        int ttr,
-        bool ccd,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) {
+      AtMetaData newAtMetaData,
+      AtMetaData existingMetaData,
+      int ttl,
+      int ttb,
+      int ttr,
+      bool ccd,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature,
+      String sharedKeyStatus}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -46,6 +47,7 @@ class AtMetadataBuilder {
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
+    sharedKeyStatus ??= newAtMetaData.sharedKeyStatus;
 
     if (ttl != null && ttl > 0) {
       setTTL(ttl, ttb: ttb);
@@ -63,6 +65,7 @@ class AtMetadataBuilder {
     setIsBinary(isBinary);
     setIsEncrypted(isEncrypted);
     setDataSignature(dataSignature);
+    setSharedKeyStatus(sharedKeyStatus);
   }
 
   void setTTL(int ttl, {int ttb}) {
@@ -109,6 +112,12 @@ class AtMetadataBuilder {
   void setDataSignature(String dataSignature) {
     if (dataSignature != null) {
       atMetaData.dataSignature = dataSignature;
+    }
+  }
+
+  void setSharedKeyStatus(String sharedKeyStatus) {
+    if (sharedKeyStatus != null) {
+      atMetaData.sharedKeyStatus = sharedKeyStatus;
     }
   }
 

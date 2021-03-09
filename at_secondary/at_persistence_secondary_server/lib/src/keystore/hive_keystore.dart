@@ -49,13 +49,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
     // Verifies if any of the args are not null
-    var isMetadataNotNull = (metadata != null)  && ObjectsUtil.isAnyNotNull(
-        a1: metadata.ttl,
-        a2: metadata.ttb,
-        a3: metadata.ttr,
-        a4: metadata.ccd,
-        a5: metadata.isBinary,
-        a6: metadata.isEncrypted);
+    var isMetadataNotNull = (metadata != null) &&
+        ObjectsUtil.isAnyNotNull(
+            a1: metadata.ttl,
+            a2: metadata.ttb,
+            a3: metadata.ttr,
+            a4: metadata.ccd,
+            a5: metadata.isBinary,
+            a6: metadata.isEncrypted,
+            a7: metadata.sharedKeyStatus);
     if (isMetadataNotNull) {
       // Set commit op to UPDATE_META
       commitOp = CommitOp.UPDATE_META;
@@ -108,7 +110,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         isCascade: metadata?.isCached,
         isBinary: metadata?.isBinary,
         isEncrypted: metadata?.isEncrypted,
-        dataSignature: metadata?.dataSignature);
+        dataSignature: metadata?.dataSignature,
+        sharedKeyStatus: metadata?.sharedKeyStatus);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -121,16 +124,19 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       metadata.isBinary ??= value.metaData.isBinary;
       metadata.isEncrypted ??= value.metaData.isEncrypted;
       metadata.dataSignature ??= value.metaData.dataSignature;
+      metadata.sharedKeyStatus ??= value.metaData.sharedKeyStatus;
     }
 
     // If metadata is set, set commitOp to Update all
-    if (metadata != null && ObjectsUtil.isAnyNotNull(
-        a1: metadata.ttl,
-        a2: metadata.ttb,
-        a3: metadata.ttr,
-        a4: metadata.ccd,
-        a5: metadata.isBinary,
-        a6: metadata.isEncrypted)) {
+    if (metadata != null &&
+        ObjectsUtil.isAnyNotNull(
+            a1: metadata.ttl,
+            a2: metadata.ttb,
+            a3: metadata.ttr,
+            a4: metadata.ccd,
+            a5: metadata.isBinary,
+            a6: metadata.isEncrypted,
+        a7: metadata.sharedKeyStatus)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 

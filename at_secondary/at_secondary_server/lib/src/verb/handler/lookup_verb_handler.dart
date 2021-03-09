@@ -109,7 +109,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (fromAtSign != null && fromAtSign.isNotEmpty) {
           logger.finer('key looked up:$lookup_key');
           lookup_data.metaData.sharedKeyStatus =
-              SharedKeyStatus.SHARED_WITH_LOOKED_UP.toString();
+              getSharedKeyName(SharedKeyStatus.SHARED_WITH_LOOKED_UP);
           await keyStore.putMeta(key, lookup_data.metaData);
         }
       }

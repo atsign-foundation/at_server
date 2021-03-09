@@ -113,10 +113,17 @@ class SyncVerbHandler extends AbstractVerbHandler {
       }
 
       if (metaData.createdAt != null) {
-        metaDataMap.putIfAbsent(CREATED_AT, () => metaData.createdAt.toString());
+        metaDataMap.putIfAbsent(
+            CREATED_AT, () => metaData.createdAt.toString());
       }
       if (metaData.updatedAt != null) {
-        metaDataMap.putIfAbsent(UPDATED_AT, () => metaData.updatedAt.toString());
+        metaDataMap.putIfAbsent(
+            UPDATED_AT, () => metaData.updatedAt.toString());
+      }
+
+      if (metaData.sharedKeyStatus != null) {
+        metaDataMap.putIfAbsent(
+            SHARED_KEY_STATUS, () => metaData.sharedKeyStatus);
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
