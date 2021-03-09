@@ -138,10 +138,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
 
       var isKeyPresent = await keyStore.get(notifyKey);
-      // // var atMetadata;
-      // if (isKeyPresent != null) {
-      //   atMetadata = await keyStore.getMeta(notifyKey);
-      // }
       if (atValue != null && ttr_ms != null) {
         var metadata = Metadata()
           ..ttl = ttl_ms
