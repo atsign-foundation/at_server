@@ -18,12 +18,14 @@ class OutboundClientPool {
 
   void add(OutboundClient outBoundClient) => _clients.add(outBoundClient);
 
-  OutboundClient get(String toAtSign, InboundConnection inboundConnection) {
+  OutboundClient get(String toAtSign, InboundConnection inboundConnection,
+      {bool isHandShake = true}) {
     //TODO should clearInvalid moved to a cron ?
     // e.g. 10 outbound clients are created. There are no calls to get(..) for a long time. these
     // clients will remain in the pool
     for (var client in _clients) {
       if (client.toAtSign == toAtSign &&
+          client.isHandShakeDone == isHandShake &&
           client.inboundConnection.equals(inboundConnection)) {
         return client;
       }
