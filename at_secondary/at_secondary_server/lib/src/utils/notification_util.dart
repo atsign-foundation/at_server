@@ -49,16 +49,18 @@ class NotificationUtil {
   }
 
   /// Load the notification into the map to notify on server start-up.
-  static void loadNotificationMap() {
+  static void loadNotificationMap() async {
     var _notificationLog = AtNotificationKeystore.getInstance();
     var notificationMap = AtNotificationMap.getInstance();
     if (_notificationLog.isEmpty()) {
       return;
     }
-    _notificationLog.getValues().forEach((element) {
+    var values = await _notificationLog.getValues();
+    values.forEach((element) {
+      //_notificationLog.getValues().forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent &&
-          element.notificationStatus != NotificationStatus.delivered) {
+          element.notificationStatus == NotificationStatus.queued) {
         notificationMap.add(element);
       }
     });

@@ -1,5 +1,5 @@
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class TimeBasedCompaction implements AtCompactionStrategy {
   int timeInDays;
@@ -11,8 +11,8 @@ class TimeBasedCompaction implements AtCompactionStrategy {
   }
 
   @override
-  void performCompaction(AtLogType atLogType) {
-    var expiredKeys = atLogType.getExpired(timeInDays);
+  Future<void> performCompaction(AtLogType atLogType) async {
+    var expiredKeys = await atLogType.getExpired(timeInDays);
     if (expiredKeys == null) {
       return;
     }

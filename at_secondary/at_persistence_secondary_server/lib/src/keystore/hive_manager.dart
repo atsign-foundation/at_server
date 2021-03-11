@@ -16,9 +16,9 @@ class HivePersistenceManager {
 
   final logger = AtSignLogger('HivePersistenceManager');
 
-  Box _box;
+  LazyBox _box;
 
-  Box get box => _box;
+  LazyBox get box => _box;
   String _atsign;
 
   String get atsign => _atsign;
@@ -56,7 +56,7 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<Box> openVault(String atsign, {List<int> hiveSecret}) async {
+  Future<LazyBox> openVault(String atsign, {List<int> hiveSecret}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
@@ -72,7 +72,7 @@ class HivePersistenceManager {
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
       // ignore: omit_local_variable_types
-      var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
+      var hiveBox = await Hive.openLazyBox(_boxName, encryptionKey: hiveSecret,
           compactionStrategy: (entries, deletedEntries) {
         return deletedEntries > 50;
       });

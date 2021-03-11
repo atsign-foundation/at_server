@@ -11,13 +11,13 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   }
 
   @override
-  void performCompaction(AtLogType atLogType) {
+  Future<void> performCompaction(AtLogType atLogType) async {
     var isRequired = _isCompactionRequired(atLogType);
     if (isRequired) {
       var totalKeys = atLogType.entriesCount();
       if (totalKeys > 0) {
         var N = (totalKeys * (compactionPercentage / 100)).toInt();
-        var keysToDelete = atLogType.getFirstNEntries(N);
+        var keysToDelete = await atLogType.getFirstNEntries(N);
         atLogType.delete(keysToDelete);
       }
     }

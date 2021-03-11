@@ -1,15 +1,15 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:utf7/utf7.dart';
-import 'package:at_commons/at_commons.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('HiveKeystore');
@@ -208,14 +208,17 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   List<String> getExpiredKeys() {
     var expiredKeys = <String>[];
+    var expired = [];
     try {
       var now = DateTime.now().toUtc();
       if (persistenceManager.box != null) {
-        var expired = persistenceManager.box.values
-            .where((data) =>
-                data.metaData?.expiresAt != null &&
-                data.metaData.expiresAt.isBefore(now))
-            .toList();
+        persistenceManager.box.keys.forEach((element) async {
+          var value = await persistenceManager.box.get(element);
+          if (value.metaData?.expiresAt != null &&
+              value.metaData.expiresAt.isBefore(now)) {
+            expired.add(element);
+          }
+        });
         expired?.forEach((entry) => expiredKeys.add(Utf7.encode(entry.key)));
       }
     } on Exception catch (e) {

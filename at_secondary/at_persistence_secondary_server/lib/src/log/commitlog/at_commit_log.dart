@@ -54,10 +54,11 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber, String regex) {
+  Future<List<CommitEntry>> getChanges(int sequenceNumber, String regex) async {
     var changes = <CommitEntry>[];
     try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes =
+          await _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -79,7 +80,7 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
-  List<dynamic> getExpired(int expiryInDays) {
+  Future<List> getExpired(int expiryInDays) {
     return _commitLogKeyStore.getExpired(expiryInDays);
   }
 
@@ -89,16 +90,16 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Returns the latest committed sequence number with regex
-  int lastCommittedSequenceNumberWithRegex(String regex) {
-    return _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  Future<int> lastCommittedSequenceNumberWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
-  CommitEntry lastSyncedEntry() {
-    return _commitLogKeyStore.lastSyncedEntry();
+  Future<CommitEntry> lastSyncedEntry() async {
+    return await _commitLogKeyStore.lastSyncedEntry();
   }
 
-  CommitEntry lastSyncedEntryWithRegex(String regex) {
-    return _commitLogKeyStore.lastSyncedEntry(regex: regex);
+  Future<CommitEntry> lastSyncedEntryWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
@@ -117,10 +118,10 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries = _commitLogKeyStore.getDuplicateEntries();
+      entries = await _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');

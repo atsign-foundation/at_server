@@ -15,7 +15,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     return _singleton;
   }
 
-  Box _box;
+  LazyBox _box;
 
   bool _register = false;
 
@@ -33,7 +33,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       }
       _register = true;
     }
-    _box = await Hive.openBox(boxName);
+    _box = await Hive.openLazyBox(boxName);
   }
 
   bool isEmpty() {
@@ -41,9 +41,12 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   /// Returns a list of atNotification sorted on notification date time.
-  List<dynamic> getValues() {
+  Future<List> getValues() async {
     var returnList = [];
-    returnList = _box.values.toList();
+    await _box.keys.forEach((element) async {
+      var value = await _box.get(element);
+      returnList.add(value);
+    });
     returnList.sort(
         (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
     return returnList;

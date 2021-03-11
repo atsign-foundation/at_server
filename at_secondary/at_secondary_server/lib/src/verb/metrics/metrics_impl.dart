@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 class InboundMetricImpl implements MetricProvider {
   static InboundMetricImpl _singleton = InboundMetricImpl._internal();
@@ -66,12 +67,13 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  Future<String> getMetrics({String regex}) async {
     logger.finer('In commitID getMetrics...regex : ${regex}');
     var lastCommitID;
     if (regex != null) {
-      lastCommitID =
-          _atCommitLog.lastCommittedSequenceNumberWithRegex(regex).toString();
+      lastCommitID = await _atCommitLog
+          .lastCommittedSequenceNumberWithRegex(regex)
+          .toString();
       return lastCommitID;
     }
     lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
@@ -131,7 +133,8 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_visits;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedAtSigns(length));
+    var mostVisitedAtsigns = await atAccessLog.mostVisitedAtSigns(length);
+    return jsonEncode(mostVisitedAtsigns);
   }
 
   @override
@@ -155,7 +158,8 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_keys;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedKeys(length));
+    var mostVisitedKeys = await atAccessLog.mostVisitedKeys(length);
+    return jsonEncode(mostVisitedKeys);
   }
 
   @override
