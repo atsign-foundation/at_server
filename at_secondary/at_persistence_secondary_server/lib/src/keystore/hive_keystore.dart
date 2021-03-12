@@ -208,7 +208,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
-    var expired = [];
     try {
       var now = DateTime.now().toUtc();
       if (persistenceManager.box != null) {
@@ -217,10 +216,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
           var value = await persistenceManager.box.get(key);
           if (value.metaData?.expiresAt != null &&
               value.metaData.expiresAt.isBefore(now)) {
-            expired.add(key);
+            expiredKeys.add(key);
           }
         });
-        expired?.forEach((entry) => expiredKeys.add(Utf7.encode(entry.key)));
       }
     } on Exception catch (e) {
       logger.severe('exception in hive get expired keys:${e.toString()}');
