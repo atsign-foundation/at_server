@@ -92,11 +92,11 @@ void main() async {
           throwsA(predicate((e) => e is AssertionError)));
     });
 
-    test('test get expired keys - no data', () {
+    test('test get expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      List<String> expiredKeys = keyStore.getExpiredKeys();
+      var expiredKeys = await keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
@@ -124,11 +124,11 @@ void main() async {
               e.message == 'Box has already been closed.')));
     });
 
-    test('test delete expired keys - no data', () {
+    test('test delete expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var result = keyStore.deleteExpiredKeys();
+      var result = await keyStore.deleteExpiredKeys();
       expect(result, true);
     });
 

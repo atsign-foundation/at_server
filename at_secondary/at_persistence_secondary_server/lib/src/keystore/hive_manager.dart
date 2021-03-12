@@ -141,7 +141,7 @@ class HivePersistenceManager {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(this._atsign)
           .getSecondaryKeyStore();
-      hiveKeyStore.deleteExpiredKeys();
+      await hiveKeyStore.deleteExpiredKeys();
     });
   }
 

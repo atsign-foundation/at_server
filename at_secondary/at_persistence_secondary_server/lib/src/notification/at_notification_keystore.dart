@@ -84,12 +84,12 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() {
     throw UnimplementedError();
   }
 
   @override
-  List getExpiredKeys() {
+  Future<List> getExpiredKeys() {
     // TODO: implement getExpiredKeys
     throw UnimplementedError();
   }
