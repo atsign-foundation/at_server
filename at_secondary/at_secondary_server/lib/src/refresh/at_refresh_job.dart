@@ -127,7 +127,7 @@ class AtRefreshJob {
 
   /// The Cron Job which runs at a frequent time interval.
   void scheduleRefreshJob(int runJobHour) {
-    logger.finest('scheduleKeyRefreshTask starting cron job.');
+    logger.finest('scheduleKeyRefreshTask runs at $runJobHour hours');
     _cron = Cron();
     _cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
