@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -51,7 +52,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final int maxNotificationEntries =
       AtSecondaryConfig.maxNotificationEntries;
-  static final int runRefreshJobHour = AtSecondaryConfig.runRefreshJobHour;
   static final bool clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   bool _isPaused;
@@ -160,6 +160,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Refresh Cached Keys
+    var random = Random();
+    var runRefreshJobHour = random.nextInt(23);
     atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
