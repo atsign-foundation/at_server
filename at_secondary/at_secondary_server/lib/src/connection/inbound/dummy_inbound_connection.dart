@@ -40,7 +40,7 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   bool isInValid() {
-    return false;
+    return true;
   }
 
   @override

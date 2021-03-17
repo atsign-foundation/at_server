@@ -20,9 +20,9 @@ class NotificationUtil {
       NotificationType notificationType,
       OperationType operationType,
       {MessageType messageType = MessageType.key,
-        int ttl_ms,
-        String value,
-        NotificationStatus notificationStatus}) async {
+      int ttl_ms,
+      String value,
+      NotificationStatus notificationStatus}) async {
     try {
       if (forAtSign == null) {
         return null;
@@ -30,14 +30,14 @@ class NotificationUtil {
       forAtSign = AtUtils.formatAtSign(forAtSign);
       fromAtSign = AtUtils.formatAtSign(fromAtSign);
       var atNotification = (AtNotificationBuilder()
-        ..fromAtSign = fromAtSign
-        ..toAtSign = forAtSign
-        ..notification = key
-        ..type = notificationType
-        ..opType = operationType
-        ..messageType = messageType
-        ..atValue = value
-        ..notificationStatus = notificationStatus)
+            ..fromAtSign = fromAtSign
+            ..toAtSign = forAtSign
+            ..notification = key
+            ..type = notificationType
+            ..opType = operationType
+            ..messageType = messageType
+            ..atValue = value
+            ..notificationStatus = notificationStatus)
           .build();
       var notificationKeyStore = AtNotificationKeystore.getInstance();
       await notificationKeyStore.put(atNotification.id, atNotification);
@@ -58,7 +58,7 @@ class NotificationUtil {
     _notificationLog.getValues().forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent &&
-          element.notificationStatus != NotificationStatus.delivered) {
+          element.notificationStatus == NotificationStatus.queued) {
         notificationMap.add(element);
       }
     });
