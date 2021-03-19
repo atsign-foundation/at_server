@@ -33,6 +33,9 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     if (command.contains('public:')) {
       verbParams.putIfAbsent('isPublic', () => 'true');
     }
+    if (command.contains('cached:')) {
+      verbParams.putIfAbsent('isCached', () => 'true');
+    }
     return verbParams;
   }
 
@@ -54,6 +57,9 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
+    }
+    if (verbParams['isCached'] == 'true') {
+      deleteKey = 'cached:$deleteKey';
     }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
