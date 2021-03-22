@@ -42,10 +42,8 @@ class OutboundMessageListener {
         _buffer.append(data);
       } else if (data.length > 1 && data.first == 64 && data.last == 64) {
         // pol responses do not end with '\n'. Add \n for buffer completion
-        var tempList = List<int>.from(data);
-        tempList.add(10);
-        var newList = Uint8List.fromList(tempList);
-        _buffer.append(newList);
+        _buffer.append(data);
+        _buffer.addByte(10);
       } else {
         _buffer.append(data);
       }
