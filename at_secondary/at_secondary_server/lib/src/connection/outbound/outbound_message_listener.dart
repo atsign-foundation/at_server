@@ -1,9 +1,11 @@
 import 'dart:collection';
-import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:at_utils/at_logger.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 ///Listener class for messages received by [OutboundClient]
 class OutboundMessageListener {
@@ -40,8 +42,10 @@ class OutboundMessageListener {
         _buffer.append(data);
       } else if (data.length > 1 && data.first == 64 && data.last == 64) {
         // pol responses do not end with '\n'. Add \n for buffer completion
-        _buffer.append(data);
-        _buffer.getData().add(10);
+        var tempList = List<int>.from(data);
+        tempList.add(10);
+        var newList = Uint8List.fromList(tempList);
+        _buffer.append(newList);
       } else {
         _buffer.append(data);
       }
@@ -50,7 +54,7 @@ class OutboundMessageListener {
       throw BufferOverFlowException('Buffer overflow on outbound connection');
     }
     if (_buffer.isEnd()) {
-      result = utf8.decode(_buffer.message);
+      result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
       _queue.addFirst(result);
