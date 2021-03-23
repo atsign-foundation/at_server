@@ -85,7 +85,8 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(OutboundClient outBoundClient, Iterator iterator) async {
+  void _sendNotifications(
+      OutboundClient outBoundClient, Iterator iterator) async {
     var notifyResponse;
     var atNotification;
     var errorList = [];

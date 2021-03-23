@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 /// Class for AtNotification callback method implementations
 class AtNotificationCallback {
   static final AtNotificationCallback _singleton =
-  AtNotificationCallback._internal();
+      AtNotificationCallback._internal();
 
   AtNotificationCallback._internal();
 
