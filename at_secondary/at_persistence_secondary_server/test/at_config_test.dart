@@ -13,8 +13,8 @@ void main() async {
 
   test('test for adding data to blocklist', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
@@ -27,8 +27,8 @@ void main() async {
 
   test('test for fetching blocklist', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
@@ -42,8 +42,8 @@ void main() async {
 
   test('test for removing blocklist data', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
@@ -57,8 +57,8 @@ void main() async {
 
   test('test for removing non existing data from blocklist', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
@@ -73,8 +73,8 @@ void main() async {
 
   test('test for removing empty data', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     Set<String> removeData = {};
     var atConfigInstance = AtConfig(
@@ -87,8 +87,8 @@ void main() async {
 
   test('test for removing null data', () async {
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore('@test_user_1');
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
     keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
@@ -108,11 +108,11 @@ void main() async {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(_getShaForAtsign('@test_user_1'),
-      commitLogPath: storageDir);
+          commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1');
   var persistenceManager =
-  secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager();
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test

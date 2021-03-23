@@ -103,11 +103,11 @@ class StreamVerbHandler extends AbstractVerbHandler {
       return;
     }
     var atNotification = (AtNotificationBuilder()
-      ..type = NotificationType.sent
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..opType = OperationType.update)
+          ..type = NotificationType.sent
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..opType = OperationType.update)
         .build();
     NotificationManager.getInstance().notify(atNotification);
   }

@@ -41,7 +41,7 @@ class AtNotificationCallback {
   /// Method to invoke registered callbacks
   void invokeCallbacks(AtNotification atNotification) async {
     try {
-      if(atNotification == null){
+      if (atNotification == null) {
         return;
       }
       //Based on notification Entry type get callback function and invoke
