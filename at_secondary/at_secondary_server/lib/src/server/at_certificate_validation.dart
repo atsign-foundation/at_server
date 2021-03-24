@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -72,7 +73,7 @@ class AtCertificateValidationJob {
   /// Restarts the secondary server.
   void _restartServer() async {
     var secondary = AtSecondaryServerImpl.getInstance();
-    secondary.stop();
+    await secondary.stop();
     await secondary.start();
   }
 

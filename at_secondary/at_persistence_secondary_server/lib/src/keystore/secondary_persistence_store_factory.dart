@@ -25,9 +25,9 @@ class SecondaryPersistenceStoreFactory {
     return _secondaryPersistenceStoreMap[atSign];
   }
 
-  void close() {
-    _secondaryPersistenceStoreMap.forEach((key, value) {
-      value.getHivePersistenceManager().close();
+  void close() async {
+    await _secondaryPersistenceStoreMap.forEach((key, value) async {
+      await value.getHivePersistenceManager().close();
     });
   }
 }
