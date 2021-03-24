@@ -35,15 +35,16 @@ class OutboundClientManager {
   /// Otherwise clears idle clients and creates a new outbound client if the pool has capacity. Returns null if pool does not have capacity.
   ///  If the pool is not initialized, initializes the pool with [default_pool_size] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
-  OutboundClient getClient(
-      String toAtSign, InboundConnection inboundConnection) {
+  OutboundClient getClient(String toAtSign, InboundConnection inboundConnection,
+      {bool isHandShake = true}) {
     // Initialize the pool if not already done
     if (!isInitialised) {
       init(default_pool_size);
     }
     _pool.clearInvalidClients();
     // Get OutboundClient for a given atSign and InboundConnection
-    var client = _pool.get(toAtSign, inboundConnection);
+    var client =
+        _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
 
     if (client != null) {
       logger.finer('retrieved outbound client from pool to ${toAtSign}');
