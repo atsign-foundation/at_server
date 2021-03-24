@@ -1,24 +1,26 @@
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:cron/cron.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
+import 'package:at_utils/at_logger.dart';
+import 'package:cron/cron.dart';
 
 class AtCompactionJob {
-  static final AtCompactionJob _singleton = AtCompactionJob._internal();
+  Cron _cron;
+  AtLogType atLogType;
 
-  AtCompactionJob._internal();
+  AtCompactionJob(this.atLogType);
 
-  factory AtCompactionJob.getInstance() {
-    return _singleton;
-  }
-
-  void scheduleCompactionJob(
-      AtCompactionConfig atCompactionConfig, AtLogType atLogType) {
+  void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    _cron = Cron();
+    _cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+      AtSignLogger(runtimeType.toString()).severe('$atLogType starting');
       var compactionService = AtCompactionService.getInstance();
       await compactionService.executeCompaction(atCompactionConfig, atLogType);
     });
+  }
+
+  void close() {
+    _cron.close();
   }
 }

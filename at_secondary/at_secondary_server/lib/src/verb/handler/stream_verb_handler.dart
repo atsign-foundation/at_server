@@ -39,6 +39,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
     var streamId = verbParams['streamId'];
     var fileName = verbParams['fileName'];
     var fileLength = verbParams['length'];
+    var namespace = verbParams['namespace'];
     streamId = streamId.trim();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     switch (operation) {
@@ -81,9 +82,14 @@ class StreamVerbHandler extends AbstractVerbHandler {
         fileName = fileName.trim();
         logger.info('fileName:${fileName}');
         logger.info('fileLength:${fileLength}');
+        var streamKey = 'stream_id';
+        if (namespace != null && namespace.isNotEmpty && namespace != 'null') {
+          streamKey = '$streamKey.$namespace';
+        }
 
         var notificationKey =
-            '@${receiver}:stream_id ${currentAtSign}:${streamId}:${fileName}:${fileLength}';
+            '@${receiver}:$streamKey ${currentAtSign}:${streamId}:${fileName}:${fileLength}';
+
         _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
             notificationKey);
         StreamManager.senderSocketMap[streamId] = atConnection;
