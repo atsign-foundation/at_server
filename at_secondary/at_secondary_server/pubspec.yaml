@@ -15,7 +15,7 @@ dependencies:
   crypton: ^1.1.0
   collection: ^1.14.13
   at_persistence_secondary_server: ^1.0.1+6
-  at_lookup: ^1.0.0+5
+  at_lookup: ^1.0.0+6
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
