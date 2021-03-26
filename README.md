@@ -1,4 +1,5 @@
-![image alt <](./.github/@developersmall.png) 
+![image alt <](./.github/@developersmall.png) [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fatsign-foundation%2Fat_server.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fatsign-foundation%2Fat_server?ref=badge_shield)
+
 ### Now for a little internet optimism
 
 # at_server
@@ -19,3 +20,7 @@ secondary server that contains data and permissions.
 data and their permissions and terms under which they wish to share with others. The 
 server is written in Dart / Flutter and is incredibly efficient. The ability to securely
 sync data with other instances in the cloud or on other devices.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fatsign-foundation%2Fat_server.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fatsign-foundation%2Fat_server?ref=badge_large)
