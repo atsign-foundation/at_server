@@ -6,6 +6,7 @@ import 'package:at_secondary/src/verb/handler/response/pol_response_handler.dart
 import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/stats_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/stream_response_handler.dart';
+import 'package:at_secondary/src/verb/handler/response/sync_response_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
 abstract class ResponseHandlerManager {
@@ -23,6 +24,7 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
   static final _monitorHandler = MonitorResponseHandler();
   static final _streamHandler = StreamResponseHandler();
   static final _notifyAllHandler = NotifyAllResponseHandler();
+  static final _syncHandler = SyncResponseHandler();
 
   @override
   ResponseHandler getResponseHandler(Verb verb) {
@@ -38,6 +40,8 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
       return _streamHandler;
     }else if (verb is NotifyAll) {
       return _notifyAllHandler;
+    } else if (verb is Sync) {
+      return _syncHandler;
     }
     return _defaultHandler;
   }
