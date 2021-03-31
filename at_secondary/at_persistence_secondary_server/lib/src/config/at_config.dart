@@ -10,10 +10,6 @@ import 'package:hive/hive.dart';
 
 /// Class to configure blocklist for atconnections.
 class AtConfig {
-  // static final AtConfig _singleton = AtConfig._internal();
-  //
-  // AtConfig._internal();
-
   var logger = AtSignLogger('AtConfig');
 
   ///stores 'Configuration' type under [configkey] in secondary.

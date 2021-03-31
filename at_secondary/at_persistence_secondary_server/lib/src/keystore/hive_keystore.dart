@@ -14,7 +14,6 @@ import 'package:utf7/utf7.dart';
 class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('HiveKeystore');
 
-  //final _atSign;
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
@@ -47,12 +46,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future<int> put(String key, AtData value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
@@ -114,12 +113,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   @override
   Future<int> create(String key, AtData value,
       {int time_to_live,
-        int time_to_born,
-        int time_to_refresh,
-        bool isCascade,
-        bool isBinary,
-        bool isEncrypted,
-        String dataSignature}) async {
+      int time_to_born,
+      int time_to_refresh,
+      bool isCascade,
+      bool isBinary,
+      bool isEncrypted,
+      String dataSignature}) async {
     var result;
     var commitOp;
     var hive_key = keyStoreHelper.prepareKey(key);
@@ -214,8 +213,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       if (persistenceManager.box != null) {
         var expired = persistenceManager.box.values
             .where((data) =>
-        data.metaData?.expiresAt != null &&
-            data.metaData.expiresAt.isBefore(now))
+                data.metaData?.expiresAt != null &&
+                data.metaData.expiresAt.isBefore(now))
             .toList();
         expired?.forEach((entry) => expiredKeys.add(Utf7.encode(entry.key)));
       }
@@ -291,7 +290,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     var existingData = await get(key);
     var newData = existingData ?? AtData();
     newData.metaData = AtMetadataBuilder(
-        newAtMetaData: metadata, existingMetaData: newData.metaData)
+            newAtMetaData: metadata, existingMetaData: newData.metaData)
         .build();
     // Updating the version of the metadata.
     (newData.metaData.version != null)
