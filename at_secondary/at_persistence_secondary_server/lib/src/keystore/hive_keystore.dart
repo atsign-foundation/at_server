@@ -1,15 +1,17 @@
+import 'dart:async';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:utf7/utf7.dart';
-import 'package:at_commons/at_commons.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('HiveKeystore');
@@ -17,6 +19,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
+  StreamController streamController;
 
   HiveKeystore(this._atSign);
 
@@ -299,5 +302,18 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     await persistenceManager.box?.put(hive_key, newData);
     var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
     return result;
+  }
+
+  @override
+  Stream watch({dynamic key}) {
+    streamController = StreamController();
+    Stream stream = persistenceManager.box?.watch();
+
+    stream.listen((event) {
+      if (event.key.toString().contains(RegExp(key))) {
+        streamController.add(event);
+      }
+    });
+    return streamController.stream;
   }
 }

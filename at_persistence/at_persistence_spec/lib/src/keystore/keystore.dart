@@ -5,6 +5,9 @@ abstract class Keystore<K, V> {
   /// @param key Key associated with a value.
   /// @return Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key or if key is not null.
   Future<V> get(K key);
+
+  /// Returns a broadcast stream of change events.
+  Stream watch({dynamic key});
 }
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
