@@ -121,7 +121,7 @@ class OutboundClient {
       //2. Receive proof
       var fromResult = await messageListener.read();
       logger.info('fromResult : $fromResult');
-      if (fromResult == null || fromResult == "") {
+      if (fromResult == null || fromResult == '') {
         throw HandShakeException(
             'no response received for From:${toAtSign} command');
       }

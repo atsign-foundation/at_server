@@ -82,6 +82,7 @@ class ResourceManager {
       logger.finer('connect result: ${e}');
       throw ConnectionInvalidException('Connection failed');
     }
+    return null;
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
