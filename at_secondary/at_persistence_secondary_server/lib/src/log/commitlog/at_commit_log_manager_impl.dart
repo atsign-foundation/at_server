@@ -14,7 +14,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
 
   var logger = AtSignLogger('AtCommitLogManagerImpl');
 
-  Map<String, AtCommitLog> _commitLogMap = {};
+  final Map<String, AtCommitLog> _commitLogMap = {};
 
   @override
   Future<AtCommitLog> getCommitLog(String atSign,

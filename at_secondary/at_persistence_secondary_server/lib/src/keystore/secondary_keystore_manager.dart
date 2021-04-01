@@ -1,13 +1,11 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class SecondaryKeyStoreManager implements KeystoreManager<String, AtData> {
-  String _atSign;
 
   SecondaryKeyStore _keyStore;
 
-  SecondaryKeyStoreManager(this._atSign);
+  SecondaryKeyStoreManager();
 
   set keyStore(SecondaryKeyStore value) {
     _keyStore = value;

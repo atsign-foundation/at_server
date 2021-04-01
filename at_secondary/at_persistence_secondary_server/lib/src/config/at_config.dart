@@ -1,24 +1,21 @@
 import 'dart:convert';
-import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:at_utils/at_logger.dart';
+import 'package:hive/hive.dart';
 
 /// Class to configure blocklist for atconnections.
 class AtConfig {
-  static final AtConfig _singleton = AtConfig._internal();
-
-  AtConfig._internal();
-
   var logger = AtSignLogger('AtConfig');
 
   ///stores 'Configuration' type under [configkey] in secondary.
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  String _atSign;
+  final _atSign;
   var _commitLog;
   var persistenceManager;
 

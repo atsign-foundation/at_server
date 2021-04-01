@@ -14,22 +14,22 @@ class SecondaryPersistenceStore {
   }
 
   HiveKeystore getSecondaryKeyStore() {
-    return this._hiveKeystore;
+    return _hiveKeystore;
   }
 
   HivePersistenceManager getHivePersistenceManager() {
-    return this._hivePersistenceManager;
+    return _hivePersistenceManager;
   }
 
   SecondaryKeyStoreManager getSecondaryKeyStoreManager() {
-    return this._secondaryKeyStoreManager;
+    return _secondaryKeyStoreManager;
   }
 
   void _init() {
-    _hiveKeystore = HiveKeystore(this._atSign);
-    _hivePersistenceManager = HivePersistenceManager(this._atSign);
+    _hiveKeystore = HiveKeystore();
+    _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
-    _secondaryKeyStoreManager = SecondaryKeyStoreManager(this._atSign);
+    _secondaryKeyStoreManager = SecondaryKeyStoreManager();
     _secondaryKeyStoreManager.keyStore = _hiveKeystore;
   }
 }

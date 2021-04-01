@@ -52,7 +52,6 @@ class DummyInboundConnection implements InboundConnection {
   @override
   String initiatedBy;
 
-  @override
   bool isStream = false;
 
   @override

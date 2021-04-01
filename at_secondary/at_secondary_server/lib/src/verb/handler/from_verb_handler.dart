@@ -145,5 +145,6 @@ class FromVerbHandler extends AbstractVerbHandler {
     if (commonName.contains(host)) {
       return true;
     }
+    return false;
   }
 }

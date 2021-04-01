@@ -251,7 +251,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext.securityContext.trustedCertificatePath());
         certsAvailable = true;
-      } on FileSystemException catch (e) {
+      } on FileSystemException {
         retryCount++;
         logger.info('certs unavailable. Retry count ${retryCount}');
       }

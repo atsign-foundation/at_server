@@ -24,6 +24,7 @@ class NotificationManager implements NotificationManagerSpec {
       await _storeNotificationInQueue(atNotification);
       return notificationId;
     }
+    return null;
   }
 
   ///Stores the AtNotification Object to Queue.

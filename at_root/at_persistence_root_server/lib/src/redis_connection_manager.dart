@@ -26,7 +26,7 @@ class RedisConnectionManager {
       //ensures init pool is not called multiple times
       pool = RedisConnectionPool();
       result = await pool.init(_atRedisConfig);
-      logger.info('connection pool init result ${result}');
+      logger.info('connection pool init result $result');
     }
     return result;
   }
