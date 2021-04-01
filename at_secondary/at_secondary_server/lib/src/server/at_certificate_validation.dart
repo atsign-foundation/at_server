@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:pedantic/pedantic.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -104,8 +105,8 @@ class AtCertificateValidationJob {
     if (!stopWaiting) {
       // Calls _initializeRestartProcess method for every 10 seconds until totalConnections are 0 or
       //totalConnections equals total monitor connections.
-      Future.delayed(Duration(seconds: 10), () {})
-          .then(_initializeRestartProcess);
+      unawaited(Future.delayed(Duration(seconds: 10), () {})
+          .then(_initializeRestartProcess));
     }
   }
 

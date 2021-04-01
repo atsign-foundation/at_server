@@ -159,6 +159,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// Gets the cached key value.
   /// key to query for value.
   /// Return value to which the specified key is mapped, or null if the key does not have value.
+  // ignore: missing_return
   Future<AtData> _getCachedValue(String key) async {
     var atData = await keyStore.get(key);
     if (atData == null) {
