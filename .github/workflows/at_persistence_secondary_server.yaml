@@ -5,7 +5,13 @@
 
 name: at_persistence_secondary_server
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches: 
+      - master
+      - prod_staging
+      - dev_env
+      - dev_env_staging
 
 defaults:
   run:
