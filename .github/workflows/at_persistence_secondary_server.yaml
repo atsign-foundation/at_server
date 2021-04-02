@@ -3,13 +3,13 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: at_secondary_server
+name: at_persistence_secondary_server
 
 on: [push, pull_request]
 
 defaults:
   run:
-    working-directory: at_secondary/at_secondary_server
+    working-directory: at_secondary/at_persistence_secondary_server
 
 jobs:
   build:
