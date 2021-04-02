@@ -253,7 +253,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         certsAvailable = true;
       } on FileSystemException {
         retryCount++;
-        logger.info('certs unavailable. Retry count ${retryCount}');
+        logger.info('certs unavailable. Retry count $retryCount');
       }
       sleep(Duration(seconds: 10));
     }
@@ -290,16 +290,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer('inside _executeVerbCallBack: ${command}');
+    logger.finer('inside _executeVerbCallBack: $command');
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor.execute(command, connection, verbManager);
     } on Exception catch (e) {
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance().handle(e, atConnection: connection);
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection);
     } on Error catch (e) {
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance()
+      await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }
   }
@@ -307,7 +308,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _streamCallBack(List<int> data, InboundConnection sender) {
     print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:${streamId}');
+    print('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId].getSocket().add(data);
     }
@@ -316,7 +317,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
   @override
-  void stop() async {
+  Future<void> stop() async {
     pause();
     try {
       var result = inboundConnectionFactory.removeAllConnections();
@@ -345,7 +346,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
-  void _initializeHiveInstances() async {
+  Future<void> _initializeHiveInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext.currentAtSign,

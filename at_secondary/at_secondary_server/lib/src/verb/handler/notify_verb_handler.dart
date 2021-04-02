@@ -57,11 +57,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var strategy = verbParams[STRATEGY];
     strategy ??= 'all';
     if (messageType == MessageType.key) {
-      key = '${key}${atSign}';
+      key = '$key$atSign';
     }
     if (forAtSign != null) {
       forAtSign = AtUtils.formatAtSign(forAtSign);
-      key = '${forAtSign}:${key}';
+      key = '$forAtSign:$key';
     }
     var operation = verbParams[AT_OPERATION];
     var opType;
@@ -177,7 +177,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  void _storeCachedKeys(String key, AtMetaData atMetaData,
+  Future<void> _storeCachedKeys(String key, AtMetaData atMetaData,
       {String atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
@@ -186,13 +186,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     await keyStore.put(notifyKey, atData);
   }
 
-  void _updateMetadata(String notifyKey, AtMetaData atMetaData) async {
+  Future<void> _updateMetadata(String notifyKey, AtMetaData atMetaData) async {
     await keyStore.putMeta(notifyKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   ///key Key to delete.
-  void _removeCachedKey(String key) async {
+  Future<void> _removeCachedKey(String key) async {
     var metadata = await keyStore.getMeta(key);
     if (metadata != null && metadata.isCascade) {
       await keyStore.remove(key);

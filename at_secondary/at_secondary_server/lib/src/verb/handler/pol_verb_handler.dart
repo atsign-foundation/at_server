@@ -1,16 +1,17 @@
 import 'dart:collection';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_lookup/at_lookup.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypton/crypton.dart';
 
 // PolVerbHandler class is used to process Pol verb
@@ -71,13 +72,13 @@ class PolVerbHandler extends AbstractVerbHandler {
           throw AtConnectException('max outbound limit reached');
         }
         if (!outBoundClient.isConnectionCreated) {
-          logger.finer('creating outbound connection ${fromAtSign}');
+          logger.finer('creating outbound connection $fromAtSign');
           await outBoundClient.connect(handshake: false);
         }
         var signedChallenge =
             await outBoundClient.lookUp(lookUpKey, handshake: false);
         signedChallenge = signedChallenge.replaceFirst('data:', '');
-        var plookupCommand = 'signing_publickey${fromAtSign}';
+        var plookupCommand = 'signing_publickey$fromAtSign';
         var fromPublicKey = await outBoundClient.plookUp(plookupCommand);
         fromPublicKey = fromPublicKey.replaceFirst('data:', '');
         // Getting stored secret from this secondary server
@@ -100,7 +101,7 @@ class PolVerbHandler extends AbstractVerbHandler {
         return;
       } else {
         throw SecondaryNotFoundException(
-            'secondary server not found for ${fromAtSign}');
+            'secondary server not found for $fromAtSign');
       }
     } else {
       response.isError = true;

@@ -69,7 +69,7 @@ class AtRefreshJob {
       if (!outBoundClient.isHandShakeDone) {
         var connectResult =
             await outBoundClient.connect(handshake: isHandShake);
-        logger.finer('connect result: ${connectResult}');
+        logger.finer('connect result: $connectResult');
       }
       lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
     } catch (exception) {
@@ -80,7 +80,8 @@ class AtRefreshJob {
   }
 
   /// Updates the cached key with the new value.
-  void _updateCachedValue(var newValue, var oldValue, var element) async {
+  Future<void> _updateCachedValue(
+      var newValue, var oldValue, var element) async {
     newValue = newValue.replaceAll('data:', '');
     // When the value of the lookup key is 'data:null', on trimming 'data:',
     // If new value is 'null' or not equal to old value, update the old value with new value.
@@ -93,7 +94,7 @@ class AtRefreshJob {
   }
 
   /// The refresh job
-  void _refreshJob(int runFrequencyHours) async {
+  Future<void> _refreshJob(int runFrequencyHours) async {
     var keysToRefresh = await _getCachedKeys();
     if (keysToRefresh == null) {
       return;
@@ -129,7 +130,7 @@ class AtRefreshJob {
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask runs at $runJobHour hours');
     _cron = Cron();
-    _cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+    _cron.schedule(Schedule.parse('0 $runJobHour * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');

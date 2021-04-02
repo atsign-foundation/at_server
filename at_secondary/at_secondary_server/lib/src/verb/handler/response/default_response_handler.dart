@@ -5,9 +5,9 @@ class DefaultResponseHandler extends BaseResponseHandler {
   String getResponseMessage(String verbResult, String promptKey) {
     var responseMessage;
     if (verbResult != null && verbResult.startsWith('data:')) {
-      responseMessage = '${verbResult}\n' + promptKey;
+      responseMessage = '$verbResult\n' + promptKey;
     } else {
-      responseMessage = 'data:${verbResult}\n' + promptKey;
+      responseMessage = 'data:$verbResult\n' + promptKey;
     }
     return responseMessage;
   }

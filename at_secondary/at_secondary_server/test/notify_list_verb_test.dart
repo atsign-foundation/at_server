@@ -116,7 +116,7 @@ void main() {
       await AtNotificationKeystore.getInstance().put('125', notification2);
       var verb = NotifyList();
       var date = DateTime.now().toString().split(' ')[0];
-      var command = 'notify:list:${date}';
+      var command = 'notify:list:$date';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
@@ -249,11 +249,11 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   AtNotificationMap.getInstance().clear();
   if (isExists) {
-    await Directory('test/hive').deleteSync(recursive: true);
+    Directory('test/hive').deleteSync(recursive: true);
   }
 }
 

@@ -32,7 +32,7 @@ class AtCertificateValidationJob {
   }
 
   /// Spawns an isolate job to verify for the expiry of certificates.
-  void runCertificateExpiryCheckJob() async {
+  Future<void> runCertificateExpiryCheckJob() async {
     filePath = filePath.replaceAll('fullchain.pem', '');
     var mainIsolateReceivePort = ReceivePort();
     SendPort childIsolateSendPort;
@@ -59,7 +59,7 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    await childIsolateReceivePort.listen((message) async {
+    childIsolateReceivePort.listen((message) {
       var filePath = message;
       var directory = Directory(filePath);
       var fileSystemEvent = directory.watch(events: FileSystemEvent.create);
@@ -72,7 +72,7 @@ class AtCertificateValidationJob {
   }
 
   /// Restarts the secondary server.
-  void _restartServer() async {
+  Future<void> _restartServer() async {
     var secondary = AtSecondaryServerImpl.getInstance();
     await secondary.stop();
     await secondary.start();
