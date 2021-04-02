@@ -27,7 +27,7 @@ jobs:
       - uses: dart-lang/setup-dart@9a04e6d73cca37bd455e0608d7e5092f881fd603
 
       - name: Install dependencies in at_persistence_root_server
-        working_directory: at_root/at_persistence_root_server
+        working-directory: at_root/at_persistence_root_server
         run: dart pub get
 
       # Uncomment this step to verify the use of 'dart format' on each commit.
@@ -36,28 +36,28 @@ jobs:
 
       # Consider passing '--fatal-infos' for slightly stricter analysis.
       - name: Analyze project source in at_persistence_root_server
-        working_directory: at_root/at_persistence_root_server
+        working-directory: at_root/at_persistence_root_server
         run: dart analyze
 
       # Your project will need to have tests in test/ and a dependency on
       # package:test for this step to succeed. Note that Flutter projects will
       # want to change this to 'flutter test'.
       - name: Run tests in at_persistence_root_server
-        working_directory: at_root/at_persistence_root_server
+        working-directory: at_root/at_persistence_root_server
         run: dart test --concurrency=1
 
       - name: Install dependencies in at_root_server
-        working_directory: at_root/at_root_server
+        working-directory: at_root/at_root_server
         run: dart pub get
 
       # Consider passing '--fatal-infos' for slightly stricter analysis.
       - name: Analyze project source in at_root_server
-        working_directory: at_root/at_root_server
+        working-directory: at_root/at_root_server
         run: dart analyze
 
       # Your project will need to have tests in test/ and a dependency on
       # package:test for this step to succeed. Note that Flutter projects will
       # want to change this to 'flutter test'.
       - name: Run tests in at_root_server
-        working_directory: at_root/at_root_server
+        working-directory: at_root/at_root_server
         run: dart test --concurrency=1
