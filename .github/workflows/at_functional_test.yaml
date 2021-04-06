@@ -39,11 +39,11 @@ jobs:
       - name: Generate root server binary
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
-        run: dart2native bin/main.dart -o ../../at_functional_test/lib/root
+        run: pub run && dart2native bin/main.dart -o ../../at_functional_test/lib/root
 
       - name: Generate root server binary
         working-directory: at_secondary/at_secondary_server
-        run: dart2native bin/main.dart -o ../../at_functional_test/lib/secondary
+        run: pub run && dart2native bin/main.dart -o ../../at_functional_test/lib/secondary
 
       - name: Build docker image
         uses: docker/build-push-action@v2
