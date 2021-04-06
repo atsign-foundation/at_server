@@ -27,7 +27,7 @@ dependencies:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: dev_env_staging
-      version: ^1.0.0+4
+      version: ^1.0.0+6
 
   at_server_spec:
     git:

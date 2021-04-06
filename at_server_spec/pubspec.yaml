@@ -15,7 +15,7 @@ dependencies:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: dev_env_staging
-      version: ^1.0.1+4
+      version: ^1.0.1+6
 
 
 dev_dependencies:
