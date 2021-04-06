@@ -21,9 +21,9 @@ void main() {
     socket_listener(_socket);
     var response;
     while (response == null || response == 'data:null\n') {
-      await socket_writer(_socket, 'lookup:publickey$atsign');
+      await socket_writer(_socket, 'lookup:signing_publickey$atsign');
       response = await read();
-      print('waiting for lookup public key response : $response');
+      print('waiting for signing public key response : $response');
       await Future.delayed(Duration(seconds: 5));
     }
     await _socket.close();
