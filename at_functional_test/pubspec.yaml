@@ -9,12 +9,12 @@ environment:
 dependencies:
   at_demo_data:
     git:
-      url: git@github.com:atsign-company/at_demos.git
+      url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
   at_lookup:
     git:
-      url: git@github.com:atsign-company/atsign_foundation.git
+      url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: dev_env_staging
       version: ^1.0.0+6
