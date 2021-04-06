@@ -19,7 +19,7 @@ class GlobalExceptionHandler {
 
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
-  void handle(Exception exception,
+  Future<void> handle(Exception exception,
       {AtConnection atConnection, Socket clientSocket}) async {
     if (exception is InvalidSyntaxException ||
         exception is InvalidAtSignException ||
@@ -31,12 +31,12 @@ class GlobalExceptionHandler {
       // send error code
       // Close all the related inbound/outbound connections
       await _sendResponse(exception, atConnection);
-      await _closeConnection(atConnection);
+      _closeConnection(atConnection);
     } else if (exception is DataStoreException ||
         exception is ConnectionInvalidException) {
       // In case of DataStoreException
       // Retry for n number of times and Close connection.
-      await _closeConnection(atConnection);
+      _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
       await _handleInboundLimit(exception, clientSocket);
     } else if (exception is OutboundConnectionLimitException ||
@@ -58,11 +58,12 @@ class GlobalExceptionHandler {
     } else {
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
-      await _closeConnection(atConnection);
+      _closeConnection(atConnection);
     }
   }
 
-  void _handleInboundLimit(AtException exception, Socket clientSocket) async {
+  Future<void> _handleInboundLimit(
+      AtException exception, Socket clientSocket) async {
     var error_code = getErrorCode(exception);
     var error_description = getErrorDescription(error_code);
     clientSocket.write('error:$error_code-$error_description\n');
@@ -72,8 +73,8 @@ class GlobalExceptionHandler {
   /// Method to close connection.
   /// params: AtConnection
   /// This will close the connection and remove it from pool
-  void _closeConnection(AtConnection atConnection) async {
-    await atConnection?.close();
+  void _closeConnection(AtConnection atConnection) {
+    atConnection?.close();
   }
 
   Future<void> _handleInternalException(
@@ -84,7 +85,8 @@ class GlobalExceptionHandler {
   /// Method to write response to client
   /// Params: AtException, AtConnection
   /// We'll get error code based on the exception and write error:<error_code> to the client socket
-  void _sendResponse(AtException exception, AtConnection atConnection) async {
+  Future<void> _sendResponse(
+      AtException exception, AtConnection atConnection) async {
     if (atConnection != null) {
       if (!atConnection.isInValid()) {
         var prompt = _getPrompt(atConnection);
@@ -119,6 +121,6 @@ class GlobalExceptionHandler {
 
   Future<void> _writeToSocket(AtConnection atConnection, String prompt,
       String error_code, String error_description) async {
-    await atConnection.write('error:$error_code-$error_description\n${prompt}');
+    atConnection.write('error:$error_code-$error_description\n$prompt');
   }
 }

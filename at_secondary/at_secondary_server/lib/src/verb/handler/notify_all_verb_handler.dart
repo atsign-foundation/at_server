@@ -66,7 +66,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       var forAtSigns = forAtSignList.split(',');
       var forAtSignsSet = forAtSigns.toSet();
       for (var forAtSign in forAtSignsSet) {
-        var updated_key = '${forAtSign}:${key}${atSign}';
+        var updated_key = '$forAtSign:$key$atSign';
         var atMetadata = AtMetaData()
           ..ttl = ttl_ms
           ..ttb = ttb_ms

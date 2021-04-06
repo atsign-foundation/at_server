@@ -56,7 +56,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         senderConnection.receiverSocket =
             StreamManager.receiverSocketMap[streamId].getSocket();
         logger.info('writing stream ack');
-        senderConnection.getSocket().write('stream:ack ${streamId}\n');
+        senderConnection.getSocket().write('stream:ack $streamId\n');
         break;
       case 'done':
         var senderConnection = StreamManager.senderSocketMap[streamId];
@@ -65,9 +65,9 @@ class StreamVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException('Invalid stream id');
         }
         StreamManager.senderSocketMap[streamId]
-            .write('stream:done ${streamId}\n');
-        await StreamManager.receiverSocketMap[streamId].getSocket().destroy();
-        await StreamManager.senderSocketMap[streamId].getSocket().destroy();
+            .write('stream:done $streamId\n');
+        StreamManager.receiverSocketMap[streamId].getSocket().destroy();
+        StreamManager.senderSocketMap[streamId].getSocket().destroy();
         StreamManager.receiverSocketMap.remove(streamId);
         StreamManager.senderSocketMap.remove(streamId);
         break;
@@ -77,18 +77,18 @@ class StreamVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException(
               'Stream init requires either pol or auth');
         }
-        logger.info('forAtSign:${receiver}');
-        logger.info('streamid:${streamId}');
+        logger.info('forAtSign:$receiver');
+        logger.info('streamid:$streamId');
         fileName = fileName.trim();
-        logger.info('fileName:${fileName}');
-        logger.info('fileLength:${fileLength}');
+        logger.info('fileName:$fileName');
+        logger.info('fileLength:$fileLength');
         var streamKey = 'stream_id';
         if (namespace != null && namespace.isNotEmpty && namespace != 'null') {
           streamKey = '$streamKey.$namespace';
         }
 
         var notificationKey =
-            '@${receiver}:$streamKey ${currentAtSign}:${streamId}:${fileName}:${fileLength}';
+            '@$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
 
         _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
             notificationKey);
@@ -103,11 +103,11 @@ class StreamVerbHandler extends AbstractVerbHandler {
       return;
     }
     var atNotification = (AtNotificationBuilder()
-      ..type = NotificationType.sent
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..opType = OperationType.update)
+          ..type = NotificationType.sent
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..opType = OperationType.update)
         .build();
     NotificationManager.getInstance().notify(atNotification);
   }

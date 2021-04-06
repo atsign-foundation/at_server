@@ -49,11 +49,10 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     deleteKey = verbParams[AT_KEY];
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
-      deleteKey = '$deleteKey${atSign}';
+      deleteKey = '$deleteKey$atSign';
     }
     if (verbParams[FOR_AT_SIGN] != null) {
-      deleteKey =
-          '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
+      deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
@@ -99,7 +98,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null) {
       return null;
     }
-    key = '${forAtSign}:${key}${atSign}';
+    key = '$forAtSign:$key$atSign';
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign

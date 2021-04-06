@@ -16,9 +16,10 @@ class SecondaryUtil {
     atData.data = value;
 
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atSign);
-    var keystoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(atSign);
+    var keystoreManager =
+        secondaryPersistenceStore.getSecondaryKeyStoreManager();
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
     keyStore.put('public:$key', atData,
         time_to_live: 60 * 1000); //expire in 1 min
@@ -109,7 +110,6 @@ class SecondaryUtil {
     logger.finer('result : $result');
     return result;
   }
-
 
   NotificationPriority getNotificationPriority(String arg1) {
     if (arg1 == null) {

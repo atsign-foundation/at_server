@@ -4,6 +4,7 @@ version: 1.0.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_root_server/index.html
+publish_to: none
 
 environment:
   sdk: '>=2.7.0 <3.0.0'
@@ -23,12 +24,6 @@ dependencies:
       path: at_utils
       ref: dev_env_staging
       version: ^1.0.1+4
-
-#dependency_overrides:
-#  at_persistence_spec:
-#    path: ../../../at_server/at_persistence/at_persistence_spec
-#  at_utils:
-#    path: ../../../at_tools/at_utils
 
 dev_dependencies:
   pedantic: ^1.8.0

@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -19,7 +20,7 @@ abstract class BaseConnection extends AtConnection {
   }
 
   @override
-  void close() async {
+  Future<void> close() async {
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;

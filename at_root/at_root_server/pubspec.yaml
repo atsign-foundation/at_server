@@ -1,8 +1,9 @@
 name: at_root_server
 description: Root server implementation.
-version: 1.0.0+1.DEV
+version: 1.0.0+1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
+publish_to: none
 
 environment:
   sdk: ">=2.7.0 <3.0.0"
@@ -16,23 +17,15 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: dev_env_staging
+      ref: master
       version: ^1.0.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: dev_env_staging
+      ref: master
       version: ^1.0.0
-
-#dependency_overrides:
-#  at_server_spec:
-#    path: ../../../at_server/at_server_spec
-#  at_persistence_root_server:
-#    path: ../../../at_server/at_root/at_persistence_root_server
-#  at_commons:
-#    path: ../../../at_tools/at_commons
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.

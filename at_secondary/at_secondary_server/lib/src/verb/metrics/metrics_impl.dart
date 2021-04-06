@@ -69,7 +69,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 
   @override
   String getMetrics({String regex}) {
-    logger.finer('In commitID getMetrics...regex : ${regex}');
+    logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
       lastCommitID =

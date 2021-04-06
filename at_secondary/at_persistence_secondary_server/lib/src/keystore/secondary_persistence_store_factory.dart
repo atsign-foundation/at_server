@@ -24,7 +24,7 @@ class SecondaryPersistenceStoreFactory {
     return _secondaryPersistenceStoreMap[atSign];
   }
 
-  void close() async {
+  Future<void> close() async {
     await _secondaryPersistenceStoreMap.forEach((key, value) async {
       await value.getHivePersistenceManager().close();
     });

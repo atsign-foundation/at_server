@@ -47,7 +47,7 @@ class OutboundClientManager {
         _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to ${toAtSign}');
+      logger.finer('retrieved outbound client from pool to $toAtSign');
       return client;
     }
 

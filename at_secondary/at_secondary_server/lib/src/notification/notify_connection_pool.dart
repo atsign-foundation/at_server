@@ -7,7 +7,7 @@ import 'package:at_utils/at_logger.dart';
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
   static final NotifyConnectionsPool _singleton =
-  NotifyConnectionsPool._internal();
+      NotifyConnectionsPool._internal();
 
   NotifyConnectionsPool._internal();
 
@@ -47,7 +47,7 @@ class NotifyConnectionsPool {
     var client = _pool.get(toAtSign, inboundConnection);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to ${toAtSign}');
+      logger.finer('retrieved outbound client from pool to $toAtSign');
       return client;
     }
 
