@@ -38,6 +38,9 @@ jobs:
         working-directory: at_functional_test
         run: dart analyze
 
+      - name: Add entry to hosts file
+        run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
+
       - name: Generate root server binary
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
