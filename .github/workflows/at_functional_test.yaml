@@ -73,7 +73,7 @@ jobs:
         run: pub run test
 
       - name: Stop docker container
-        run: docker container stop at_virtual_env:test
+        run: docker container stop at_virtual_env_cont
 
       - name: Remove docker image
         run: docker rmi at_virtual_env:test
