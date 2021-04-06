@@ -15,6 +15,8 @@ on:
 
 jobs:
   build:
+    env:
+      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -39,17 +41,20 @@ jobs:
       - name: Generate root server binary
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
-        run: dart pub get && dart2native bin/main.dart -o ../../at_functional_test/lib/root
+        run: dart pub get && dart2native bin/main.dart -o root
 
-      - name: Generate root server binary
+      - name: Generate secondary server binary
         working-directory: at_secondary/at_secondary_server
-        run: dart pub get && dart2native bin/main.dart -o ../../at_functional_test/lib/secondary
+        run: dart pub get && dart2native bin/main.dart -o secondary
+
+      - name: copy binaries to at_functional_test
+        run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
 
       - name: Build docker image
         uses: docker/build-push-action@v2
         with:
-          file: lib/Dockerfile
-          context: lib/
+          file: at_functional_test/lib/Dockerfile
+          context: at_functional_test/lib/
           tags: at_virtual_env:test
 
       - name: Run docker container
