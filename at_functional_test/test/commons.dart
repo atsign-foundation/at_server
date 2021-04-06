@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,8 +6,9 @@ import 'package:test/test.dart';
 
 import 'pkam_utils.dart';
 
-var response;
-var from_key;
+var _queue = Queue();
+var maxRetryCount = 10;
+var retryCount = 1;
 
 ///Socket Connection
 Future<Socket> socket_connection(host, port) async {
@@ -15,42 +17,83 @@ Future<Socket> socket_connection(host, port) async {
 
 ///Secure Socket Connection
 Future<SecureSocket> secure_socket_connection(host, port) async {
-  var socket = await SecureSocket.connect(host, port);
+  var socket;
+  while (true) {
+    try {
+      socket = await SecureSocket.connect(host, port);
+      if (socket != null || retryCount > maxRetryCount) {
+        break;
+      }
+    } on Exception {
+      print('retrying for connection.. $retryCount');
+      await Future.delayed(Duration(seconds: 5));
+      retryCount++;
+    }
+  }
   return socket;
 }
 
 /// Socket Listener
 void socket_listener(Socket socket) {
-  socket.listen((data) async {
-    // Setting response to null to clear the result of previous execution
-    response = null;
-    response = utf8.decode(data);
-    if (response.contains('data:')) {
-      var from_resp = response.split('data:');
-      from_key = from_resp[1].substring(0, from_resp[1].length - 2);
-    }
-  });
+  socket.listen(_messageHandler);
 }
 
 /// Socket write
 Future<void> socket_writer(Socket socket, String msg) async {
   socket.write(msg + '\n');
-  await Future.delayed(Duration(seconds: 2));
 }
 
 ///The prepare function takes a socket and atsign as input params and runs a from verb and pkam verb on the atsign param.
 Future<void> prepare(Socket socket, String atsign) async {
   // FROM VERB
   await socket_writer(socket, 'from:$atsign');
+  var response = await read();
   print('From verb response $response');
-  expect(response, contains(from_key));
   response = response.replaceAll('data:', '');
-  response = response.substring(0, response.length - 2).trim();
   var pkam_digest = generatePKAMDigest(atsign, response);
 
   // PKAM VERB
   await socket_writer(socket, 'pkam:$pkam_digest');
-  await Future.delayed(Duration(seconds: 5));
+  response = await read();
   print('pkam verb response $response');
-  expect(response, 'data:success\n$atsign@');
+  expect(response, 'data:success\n');
+}
+
+void _messageHandler(data) {
+  if (data.length == 1 && data.first == 64) {
+    return;
+  }
+  //ignore prompt(@ or @<atSign>@) after '\n'. byte code for \n is 10
+  if (data.last == 64 && data.contains(10)) {
+    data = data.sublist(0, data.lastIndexOf(10) + 1);
+    _queue.add(utf8.decode(data));
+  } else if (data.length > 1 && data.first == 64 && data.last == 64) {
+    // pol responses do not end with '\n'. Add \n for buffer completion
+    _queue.add(utf8.decode(data));
+  } else {
+    _queue.add(utf8.decode(data));
+  }
+}
+
+Future<String> read({int maxWaitMilliSeconds = 5000}) async {
+  var result;
+  //wait maxWaitMilliSeconds seconds for response from remote socket
+  var loopCount = (maxWaitMilliSeconds / 50).round();
+  for (var i = 0; i < loopCount; i++) {
+    await Future.delayed(Duration(milliseconds: 100));
+    var queueLength = _queue.length;
+    if (queueLength > 0) {
+      result = _queue.removeFirst();
+      // result from another secondary is either data or a @<atSign>@ denoting complete
+      // of the handshake
+      if (result.startsWith('data:') ||
+          (result.startsWith('@') && result.endsWith('@'))) {
+        return result;
+      } else {
+        //log any other response and ignore
+        result = '';
+      }
+    }
+  }
+  return result;
 }

@@ -21,13 +21,13 @@ void main() {
     ///UPDATE VERB
     await socket_writer(
         _socket_first_atsign, 'update:public:location$first_atsign California');
-    print('update verb response : $response');
+    var response = await read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
     await socket_writer(_socket_first_atsign, 'scan');
-    await Future.delayed(Duration(seconds: 5));
+    response = await read();
     print('scan verb response : $response');
     expect(response, contains('"public:location$first_atsign"'));
   });
