@@ -1,0 +1,62 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: at_functional_test
+
+on:
+  pull_request:
+    branches:
+      - master
+      - prod_staging
+      - dev_env
+      - dev_env_staging
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # Note: This workflow uses the latest stable version of the Dart SDK.
+      # You can specify other versions if desired, see documentation here:
+      # https://github.com/dart-lang/setup-dart/blob/main/README.md
+      # - uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run dart analyzer
+        run: dart analyze
+
+      - name: Generate root server binary
+        working-directory: at_root/at_root_server
+        # -o : path to copy the root binary
+        run: dart2native bin/main.dart -o ../../at_functional_test/lib/root
+
+      - name: Generate root server binary
+        working-directory: at_secondary/at_secondary_server
+        run: dart2native bin/main.dart -o ../../at_functional_test/lib/secondary
+
+      - name: Build docker image
+        uses: docker/build-push-action@v2
+        with:
+          file: lib/Dockerfile
+          context: lib/
+          tags: at_virtual_env:test
+
+      - name: Run docker container
+        # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
+        run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:test
+
+      - name: Run tests
+        run: pub run test
+
+      - name: Stop docker container
+        run: docker container stop at_virtual_env:test
+
+      - name: Remove docker image
+        run: docker rmi at_virtual_env:test
