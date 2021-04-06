@@ -40,7 +40,9 @@ void socket_listener(Socket socket) {
 
 /// Socket write
 Future<void> socket_writer(Socket socket, String msg) async {
-  socket.write(msg + '\n');
+  msg = msg + '\n';
+  print('command sent: $msg');
+  socket.write(msg);
 }
 
 ///The prepare function takes a socket and atsign as input params and runs a from verb and pkam verb on the atsign param.
