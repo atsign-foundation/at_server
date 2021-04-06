@@ -21,8 +21,10 @@ void main() {
     socket_listener(_socket);
     var response;
     while (response == null || response == 'data:null\n') {
+      print('waiting for lookup public key response');
       await socket_writer(_socket, 'lookup:publickey$atsign');
       response = await read();
+      await Future.delayed(Duration(seconds: 5));
     }
     print('$atsign pkam public key $response');
     await _socket.close();
