@@ -19,7 +19,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
-      ref: add-github-actions
+      ref: dev_env_staging
       version: ^1.0.1+6
 
   at_lookup:
@@ -33,7 +33,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: add-github-actions
+      ref: dev_env_staging
       version: ^1.0.0
 
 #dependency_overrides:
