@@ -20,7 +20,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: add-github-actions
+      ref: dev_env_staging
       version: ^1.0.1+3
 
   at_utils:
@@ -28,7 +28,7 @@ dependencies:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
       ref: dev_env_staging
-      version: ^1.0.1+4
+      version: ^1.0.1+6
 
 #dependency_overrides:
 #  at_persistence_spec:

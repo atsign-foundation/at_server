@@ -1,0 +1,79 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: at_functional_test
+
+on:
+  pull_request:
+    branches:
+      - master
+      - prod_staging
+      - dev_env
+      - dev_env_staging
+
+jobs:
+  build:
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # Note: This workflow uses the latest stable version of the Dart SDK.
+      # You can specify other versions if desired, see documentation here:
+      # https://github.com/dart-lang/setup-dart/blob/main/README.md
+      # - uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: at_functional_test
+        run: dart pub get
+
+      - name: Run dart analyzer
+        working-directory: at_functional_test
+        run: dart analyze
+
+      - name: Add entry to hosts file
+        run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
+
+      - name: Generate root server binary
+        working-directory: at_root/at_root_server
+        # -o : path to copy the root binary
+        run: dart pub get && dart2native bin/main.dart -o root
+
+      - name: Generate secondary server binary
+        working-directory: at_secondary/at_secondary_server
+        run: dart pub get && dart2native bin/main.dart -o secondary
+
+      - name: copy binaries to at_functional_test
+        run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
+
+      - name: Build docker image
+        uses: docker/build-push-action@v2
+        with:
+          file: at_functional_test/lib/Dockerfile
+          context: at_functional_test/lib/
+          tags: at_virtual_env:test
+
+      - name: Run docker container
+        # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
+        run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:test
+
+      - name: Check test environment readiness
+        working-directory: at_functional_test
+        run: dart run test/check_test_env.dart
+
+      - name: Run tests
+        working-directory: at_functional_test
+        run: pub run test
+
+      - name: Stop docker container
+        run: docker container stop at_virtual_env_cont
+
+      - name: Remove docker image
+        run: docker rmi at_virtual_env:test
