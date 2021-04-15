@@ -89,13 +89,13 @@ Future<String> read({int maxWaitMilliSeconds = 5000}) async {
   //wait maxWaitMilliSeconds seconds for response from remote socket
   var loopCount = (maxWaitMilliSeconds / 50).round();
   for (var i = 0; i < loopCount; i++) {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(Duration(milliseconds: 1000));
     var queueLength = _queue.length;
     if (queueLength > 0) {
       result = _queue.removeFirst();
       // result from another secondary is either data or a @<atSign>@ denoting complete
       // of the handshake
-      if (result.startsWith('data:') ||
+      if (result.startsWith('data:') || (result.startsWith('error:')) ||
           (result.startsWith('@') && result.endsWith('@'))) {
         return result;
       } else {
