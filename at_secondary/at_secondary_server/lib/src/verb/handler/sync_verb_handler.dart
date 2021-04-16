@@ -59,16 +59,17 @@ class SyncVerbHandler extends AbstractVerbHandler {
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     var result;
 
-    syncResultList.forEach((element) {
-      result = jsonEncode(element);
-      atConnection.write('${result.length}#$result\$');
-    });
-
-    // if (syncResultList.isNotEmpty) {
-    //   result = jsonEncode(syncResultList);
-    // }
-    //
-    // response.data = result;
+    if (syncResultList.isNotEmpty) {
+      if (syncResultList.length < 5) {
+        result = jsonEncode(syncResultList);
+        response.data = result;
+        return;
+      }
+      syncResultList.forEach((element) {
+        result = jsonEncode(element);
+        atConnection.write('${result.length}#$result\$');
+      });
+    }
     return;
   }
 
@@ -119,10 +120,12 @@ class SyncVerbHandler extends AbstractVerbHandler {
       }
 
       if (metaData.createdAt != null) {
-        metaDataMap.putIfAbsent(CREATED_AT, () => metaData.createdAt.toString());
+        metaDataMap.putIfAbsent(
+            CREATED_AT, () => metaData.createdAt.toString());
       }
       if (metaData.updatedAt != null) {
-        metaDataMap.putIfAbsent(UPDATED_AT, () => metaData.updatedAt.toString());
+        metaDataMap.putIfAbsent(
+            UPDATED_AT, () => metaData.updatedAt.toString());
       }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
