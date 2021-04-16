@@ -9,7 +9,11 @@ class ConfigUtil {
       ApplicationConfiguration('pubspec.yaml');
 
   static YamlMap getYaml() {
-    return appConfig.getYaml();
+    var yamlMap = YamlMap();
+    if (appConfig.getYaml() != null) {
+      yamlMap = appConfig.getYaml();
+    }
+    return yamlMap;
   }
 
   static YamlMap getPubspecConfig() {
