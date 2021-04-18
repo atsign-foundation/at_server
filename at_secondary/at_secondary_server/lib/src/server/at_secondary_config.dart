@@ -81,10 +81,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['useSSL'] != null) {
-      return _useSSL = ConfigUtil.getYaml()['security']['useSSL'];
+    var args = ['security', 'useSSL'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _useSSL;
   }
@@ -94,11 +94,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['clientCertificateRequired'] != null) {
-      return _clientCertificateRequired =
-          ConfigUtil.getYaml()['security']['clientCertificateRequired'];
+    var args = ['security', 'clientCertificateRequired'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _clientCertificateRequired;
   }
@@ -108,11 +107,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['refreshJob'] != null &&
-        ConfigUtil.getYaml()['refreshJob']['runJobHour'] != null) {
-      return _runRefreshJobHour =
-          ConfigUtil.getYaml()['refreshJob']['runJobHour'];
+    var args = ['refreshJob', 'runJobHour'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _runRefreshJobHour;
   }
@@ -122,11 +120,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['max_entries'] != null) {
-      return _maxNotificationEntries =
-          ConfigUtil.getYaml()['notification']['max_entries'];
+    var args = ['notification', 'max_entries'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _maxNotificationEntries;
   }
@@ -136,11 +133,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['sizeInKB'] != null) {
-      return _accessLogSizeInKB =
-          ConfigUtil.getYaml()['access_log_compaction']['sizeInKB'];
+    var args = ['access_log_compaction', 'sizeInKB'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _accessLogSizeInKB;
   }
@@ -150,11 +146,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['expiryInDays'] != null) {
-      return _accessLogExpiryInDays =
-          ConfigUtil.getYaml()['access_log_compaction']['expiryInDays'];
+    var args = ['access_log_compaction', 'expiryInDays'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _accessLogExpiryInDays;
   }
@@ -164,12 +159,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['compactionPercentage'] !=
-            null) {
-      return _accessLogCompactionPercentage =
-          ConfigUtil.getYaml()['access_log_compaction']['compactionPercentage'];
+    var args = ['access_log_compaction', 'compactionPercentage'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _accessLogCompactionPercentage;
   }
@@ -179,14 +172,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']
-                ['compactionFrequencyMins'] !=
-            null) {
-      return _accessLogCompactionFrequencyMins =
-          ConfigUtil.getYaml()['access_log_compaction']
-              ['compactionFrequencyMins'];
+    var args = ['access_log_compaction', 'compactionFrequencyMins'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _accessLogCompactionFrequencyMins;
   }
@@ -196,11 +185,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['sizeInKB'] != null) {
-      return _commitLogSizeInKB =
-          ConfigUtil.getYaml()['commit_log_compaction']['sizeInKB'];
+    var args = ['commit_log_compaction', 'sizeInKB'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _commitLogSizeInKB;
   }
@@ -210,11 +198,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['expiryInDays'] != null) {
-      return _commitLogExpiryInDays =
-          ConfigUtil.getYaml()['commit_log_compaction']['expiryInDays'];
+    var args = ['commit_log_compaction', 'expiryInDays'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _commitLogExpiryInDays;
   }
@@ -224,12 +211,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['compactionPercentage'] !=
-            null) {
-      return _commitLogCompactionPercentage =
-          ConfigUtil.getYaml()['commit_log_compaction']['compactionPercentage'];
+    var args = ['commit_log_compaction', 'compactionPercentage'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _commitLogCompactionPercentage;
   }
@@ -239,14 +224,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']
-                ['compactionFrequencyMins'] !=
-            null) {
-      return _commitLogCompactionFrequencyMins =
-          ConfigUtil.getYaml()['commit_log_compaction']
-              ['compactionFrequencyMins'];
+    var args = ['commit_log_compaction', 'compactionFrequencyMins'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _commitLogCompactionFrequencyMins;
   }
@@ -256,11 +237,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['expiringRunFrequencyMins'] != null) {
-      return _expiringRunFreqMins =
-          ConfigUtil.getYaml()['hive']['expiringRunFrequencyMins'];
+    var args = ['hive', 'expiringRunFrequencyMins'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _expiringRunFreqMins;
   }
@@ -269,11 +249,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('notificationStoragePath')) {
       return _envVars['notificationStoragePath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['notificationStoragePath'] != null) {
-      return _notificationStoragePath =
-          ConfigUtil.getYaml()['hive']['notificationStoragePath'];
+    var args = ['hive', 'notificationStoragePath'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _notificationStoragePath;
   }
@@ -282,10 +261,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('accessLogPath')) {
       return _envVars['accessLogPath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['accessLogPath'] != null) {
-      return _accessLogPath = ConfigUtil.getYaml()['hive']['accessLogPath'];
+    var args = ['hive', 'accessLogPath'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _accessLogPath;
   }
@@ -294,10 +273,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('commitLogPath')) {
       return _envVars['commitLogPath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['commitLogPath'] != null) {
-      return _commitLogPath = ConfigUtil.getYaml()['hive']['commitLogPath'];
+    var args = ['hive', 'commitLogPath'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _commitLogPath;
   }
@@ -306,10 +285,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('secondaryStoragePath')) {
       return _envVars['secondaryStoragePath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['storagePath'] != null) {
-      return _storagePath = ConfigUtil.getYaml()['hive']['storagePath'];
+    var args = ['hive', 'storagePath'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _storagePath;
   }
@@ -319,12 +298,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['outbound_idle_time_millis'] !=
-            null) {
-      return _outbound_idletime_millis =
-          ConfigUtil.getYaml()['connection']['outbound_idle_time_millis'];
+    var args = ['connection', 'outbound_idle_time_millis'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _outbound_idletime_millis;
   }
@@ -334,12 +311,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['inbound_idle_time_millis'] !=
-            null) {
-      return _inbound_idletime_millis =
-          ConfigUtil.getYaml()['connection']['inbound_idle_time_millis'];
+    var args = ['connection', 'inbound_idle_time_millis'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _inbound_idletime_millis;
   }
@@ -349,11 +324,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['outbound_max_limit'] != null) {
-      return _outbound_max_limit =
-          ConfigUtil.getYaml()['connection']['outbound_max_limit'];
+    var args = ['connection', 'outbound_max_limit'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _outbound_max_limit;
   }
@@ -363,11 +337,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['inbound_max_limit'] != null) {
-      return _inbound_max_limit =
-          ConfigUtil.getYaml()['connection']['inbound_max_limit'];
+    var args = ['connection', 'inbound_max_limit'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _inbound_max_limit;
   }
@@ -377,11 +350,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['lookup'] != null &&
-        ConfigUtil.getYaml()['lookup']['depth_of_resolution'] != null) {
-      return _lookup_depth_of_resolution =
-          ConfigUtil.getYaml()['lookup']['depth_of_resolution'];
+    var args = ['lookup', 'depth_of_resolution'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _lookup_depth_of_resolution;
   }
@@ -391,10 +363,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['stats'] != null &&
-        ConfigUtil.getYaml()['stats']['top_visits'] != null) {
-      return _stats_top_visits = ConfigUtil.getYaml()['stats']['top_visits'];
+    var args = ['stats', 'top_visits'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _stats_top_visits;
   }
@@ -404,10 +376,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['stats'] != null &&
-        ConfigUtil.getYaml()['stats']['top_keys'] != null) {
-      return _stats_top_keys = ConfigUtil.getYaml()['stats']['top_keys'];
+    var args = ['stats', 'top_keys'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _stats_top_keys;
   }
@@ -417,10 +389,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['autoNotify'] != null) {
-      return _autoNotify = ConfigUtil.getYaml()['notification']['autoNotify'];
+    var args = ['notification', 'autoNotify'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _autoNotify;
   }
@@ -429,11 +401,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('securityTrustedCertificateLocation')) {
       return _envVars['securityTrustedCertificateLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['trustedCertificateLocation'] !=
-            null) {
-      return ConfigUtil.getYaml()['security']['trustedCertificateLocation'];
+    var args = ['security', 'trustedCertificateLocation'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _trustedCertificateLocation;
   }
@@ -442,10 +413,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('securityPrivateKeyLocation')) {
       return _envVars['securityPrivateKeyLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['privateKeyLocation'] != null) {
-      return ConfigUtil.getYaml()['security']['privateKeyLocation'];
+    var args = ['security', 'privateKeyLocation'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _privateKeyLocation;
   }
@@ -454,10 +425,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('securityCertificateChainLocation')) {
       return _envVars['securityCertificateChainLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['certificateChainLocation'] != null) {
-      return ConfigUtil.getYaml()['security']['certificateChainLocation'];
+    var args = ['security', 'certificateChainLocation'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _certificateChainLocation;
   }
@@ -467,9 +438,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml()['log'] != null &&
-        ConfigUtil.getYaml()['log']['trace'] != null) {
-      return ConfigUtil.getYaml()['log']['trace'];
+    var args = ['log', 'trace'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _traceLog;
   }
@@ -479,10 +451,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['log'] != null &&
-        ConfigUtil.getYaml()['log']['debug'] != null) {
-      return ConfigUtil.getYaml()['log']['debug'];
+    var args = ['log', 'debug'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _debugLog;
   }
@@ -492,12 +464,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['root_server'] != null &&
-        ConfigUtil.getYaml()['root_server']['port'] != null) {
-      return ConfigUtil.getYaml()['root_server']['port'];
+    var args = ['root_server', 'port'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
-
     return _rootServerPort;
   }
 
@@ -505,9 +476,10 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('rootServerUrl')) {
       return _envVars['rootServerUrl'];
     }
-    if (ConfigUtil.getYaml()['root_server'] != null &&
-        ConfigUtil.getYaml()['root_server']['url'] != null) {
-      return ConfigUtil.getYaml()['root_server']['url'];
+    var args = ['root_server', 'url'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _rootServerUrl;
   }
@@ -517,9 +489,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getBoolEnvVar('forceRestart');
     }
-    if (ConfigUtil.getYaml()['certificate_expiry'] != null &&
-        ConfigUtil.getYaml()['certificate_expiry']['force_restart'] != null) {
-      return ConfigUtil.getYaml()['certificate_expiry']['force_restart'];
+    var args = ['certificate_expiry', 'force_restart'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _isForceRestart;
   }
@@ -529,9 +502,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('maxNotificationRetries');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['max_retries'] != null) {
-      return ConfigUtil.getYaml()['notification']['max_retries'];
+    var args = ['notification', 'max_retries'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _maxNotificationRetries;
   }
@@ -541,9 +515,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationQuarantineDuration');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['quarantineDuration'] != null) {
-      return ConfigUtil.getYaml()['notification']['quarantineDuration'];
+    var args = ['notification', 'quarantineDuration'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _notificationQuarantineDuration;
   }
@@ -553,9 +528,10 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationJobFrequency');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['jobFrequency'] != null) {
-      return ConfigUtil.getYaml()['notification']['jobFrequency'];
+    var args = ['notification', 'jobFrequency'];
+    var value = getValue(args);
+    if (value != null) {
+      return value;
     }
     return _notificationJobFrequency;
   }
@@ -573,4 +549,22 @@ class AtSecondaryConfig {
     }
     return null;
   }
+}
+
+dynamic getValue(List<String> args) {
+  var yamlMap = ConfigUtil.getYaml();
+  var value;
+  if (yamlMap != null) {
+    for (int i = 0; i < args.length; i++) {
+      if (i == 0) {
+        value = yamlMap[args[i]];
+      } else {
+        if (value != null) {
+          value = value[args[i]];
+        }
+      }
+    }
+    value = (value == Null) ? null : value;
+  }
+  return value;
 }
