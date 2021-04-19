@@ -5,10 +5,4 @@ class MyKeyStore implements Keystore {
   Future get(key) {
     return null;
   }
-
-  @override
-  Stream watch({dynamic key}) {
-    // TODO: implement watch
-    throw UnimplementedError();
-  }
 }
