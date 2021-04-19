@@ -133,9 +133,4 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     assert(key != null);
     await _box.delete(key);
   }
-
-  @override
-  Stream watch({dynamic key}) {
-    return null;
-  }
 }
