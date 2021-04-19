@@ -9,8 +9,8 @@ void main() {
   var first_atsign = '@alice🛠';
   var first_atsign_port = 25000;
 
-  var second_atsign = '@emoji🦄🛠';
-  var second_atsign_port = 25009;
+  var second_atsign = '@bob🛠';
+  var second_atsign_port = 25003;
 
   Socket _socket_first_atsign;
   Socket _socket_second_atsign;
@@ -41,7 +41,7 @@ void main() {
     response = await read();
     print('plookup verb response $response');
     expect(response, contains('data:9982212143'));
-  },timeout: Timeout(Duration(seconds: 60)));
+  },timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup verb with private key - negative case', () async {
     /// UPDATE VERB
@@ -55,7 +55,7 @@ void main() {
     response = await read();
     print('plookup verb response $response');
     expect(response, contains('Invalid syntax'));
-  },timeout: Timeout(Duration(seconds: 60)));
+  },timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup verb on non existent key - negative case', () async {
     ///PLOOKUP VERB
@@ -63,7 +63,7 @@ void main() {
     var response = await read();
     print('plookup verb response $response');
     expect(response,contains('data:null'));
-  },timeout: Timeout(Duration(seconds: 60)));
+  },timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup for an emoji key', () async {
     ///UPDATE VERB
@@ -77,7 +77,7 @@ void main() {
     response = await read();
     print('plookup verb response $response');
     expect(response,contains('data:2-unicorn-emojis'));
-  },timeout: Timeout(Duration(seconds: 60)));
+  },timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup with an extra symbols after the atsign', () async {
     ///UPDATE VERB
@@ -91,7 +91,7 @@ void main() {
     response = await read();
     print('plookup verb response $response');
     expect(response,contains('Invalid syntax'));
-  },timeout: Timeout(Duration(seconds: 60)));
+  },timeout: Timeout(Duration(seconds: 120)));
 
   test('cached key creation when we do a lookup for a public key', () async {
     ///UPDATE VERB
@@ -111,7 +111,7 @@ void main() {
     response = await read();
     print('scan verb response $response');
     assert(response.contains('cached:public:key-1$first_atsign'));
-  });
+  },timeout: Timeout(Duration(seconds: 120)));
 
   tearDown(() {
     //Closing the client socket connection
