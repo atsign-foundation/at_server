@@ -128,7 +128,7 @@ class DummySocket implements Socket {
 
   @override
   InternetAddress get remoteAddress =>
-      InternetAddress('192.168.1.${clientCounter}');
+      InternetAddress('192.168.1.$clientCounter');
 
   @override
   int get remotePort => 6460 + clientCounter;

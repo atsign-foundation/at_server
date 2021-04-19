@@ -1,5 +1,5 @@
-import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/src/verb/verb.dart';
 
 /// The “notify:list” allows the notify user.
 /// The @sign should be authenticated using the cram/pkam verb prior to use the notify verb.
@@ -13,6 +13,7 @@ class NotifyList extends Verb {
   @override
   String syntax() => VerbSyntax.notifyList;
 
+  @override
   Verb dependsOn() {
     return null;
   }

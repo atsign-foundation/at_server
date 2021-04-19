@@ -65,7 +65,7 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  void _errorHandler(error) async {
+  Future<void> _errorHandler(error) async {
     logger.severe(error.toString());
     await _closeConnection();
   }
@@ -75,9 +75,9 @@ class InboundMessageListener {
     await _closeConnection();
   }
 
-  void _closeConnection() async {
+  Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
-      await connection.close();
+      connection.close();
     }
   }
 }

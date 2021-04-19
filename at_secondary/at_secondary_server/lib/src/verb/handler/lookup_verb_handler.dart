@@ -46,7 +46,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
-    key = '${key}${atSign}';
+    key = '$key$atSign';
     var operation = verbParams[OPERATION];
 
     logger.finer(
@@ -84,9 +84,9 @@ class LookupVerbHandler extends AbstractVerbHandler {
           // Need not connect again if the client's handshake is already done
           if (!outBoundClient.isHandShakeDone) {
             var connectResult = await outBoundClient.connect();
-            logger.finer('connect result: ${connectResult}');
+            logger.finer('connect result: $connectResult');
           }
-          key = (operation != null) ? '${operation}:${key}' : key;
+          key = (operation != null) ? '$operation:$key' : key;
           var lookupResult = await outBoundClient.lookUp(key);
           response.data = lookupResult;
         }
@@ -159,6 +159,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// Gets the cached key value.
   /// key to query for value.
   /// Return value to which the specified key is mapped, or null if the key does not have value.
+  // ignore: missing_return
   Future<AtData> _getCachedValue(String key) async {
     var atData = await keyStore.get(key);
     if (atData == null) {

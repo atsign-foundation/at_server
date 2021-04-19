@@ -9,11 +9,11 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
   setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
     test('test update', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = '123';
@@ -22,7 +22,8 @@ void main() async {
     });
 
     test('test create and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = '123';
@@ -32,7 +33,8 @@ void main() async {
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var atData = AtData();
       atData.data = 'india';
@@ -45,28 +47,31 @@ void main() async {
     });
 
     test('test update and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var updateData = AtData();
       updateData.data = 'alice';
-      var result = await keyStore.put('last_name', updateData);
+      await keyStore.put('last_name', updateData);
       var dataFromHive = await keyStore.get('last_name');
       expect(dataFromHive.data, 'alice');
     });
 
     test('test update and remove', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var updateData = AtData();
       updateData.data = 'alice';
-      var result = await keyStore.put('last_name', updateData);
+      await keyStore.put('last_name', updateData);
       await keyStore.remove('last_name');
       var dataFromHive = await keyStore.get('last_name');
       expect(dataFromHive, isNull);
     });
 
     test('get keys', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var data_1 = AtData();
       data_1.data = 'alice';
@@ -79,21 +84,24 @@ void main() async {
     });
 
     test('test get null key', () {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       expect(() async => await keyStore.get(null),
           throwsA(predicate((e) => e is AssertionError)));
     });
 
     test('test get expired keys - no data', () {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      List<String> expiredKeys = keyStore.getExpiredKeys();
+      var expiredKeys = keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
     test('test hive files deleted - get - box not available', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
       expect(
@@ -104,7 +112,8 @@ void main() async {
     });
 
     test('test hive files deleted - put - box not available', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
       expect(
@@ -115,14 +124,16 @@ void main() async {
     });
 
     test('test delete expired keys - no data', () {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var result = keyStore.deleteExpiredKeys();
       expect(result, true);
     });
 
     test('get keys by regex', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
       var data_1 = AtData();
       data_1.data = 'alice';
@@ -179,11 +190,17 @@ void tearDownFunc() async {
 }
 
 void setUpFunc(storageDir) async {
- var commitLogInstance = await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1', commitLogPath: storageDir);
- var persistenceManager = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1');
- await persistenceManager.getHivePersistenceManager().init('@test_user_1', storageDir);
- await persistenceManager.getHivePersistenceManager().openVault('@test_user_1');
- persistenceManager.getSecondaryKeyStore().commitLog = commitLogInstance;
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+  var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@test_user_1');
+  await persistenceManager
+      .getHivePersistenceManager()
+      .init('@test_user_1', storageDir);
+  await persistenceManager
+      .getHivePersistenceManager()
+      .openVault('@test_user_1');
+  persistenceManager.getSecondaryKeyStore().commitLog = commitLogInstance;
 }
 
 String _getShaForAtsign(String atsign) {

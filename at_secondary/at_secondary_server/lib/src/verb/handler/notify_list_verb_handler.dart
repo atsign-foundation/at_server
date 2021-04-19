@@ -43,12 +43,11 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
           : null;
       toDateInEpoch = (verbParams['toDate'] != null)
           ? DateTime.parse('${verbParams['toDate']} 23:59:99Z')
-          .millisecondsSinceEpoch
+              .millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch;
       if (fromDateInEpoch != null && toDateInEpoch < fromDateInEpoch) {
         logger.severe('ToDate cannot be less than FromDate');
-        throw IllegalArgumentException(
-            'ToDate cannot be less than FromDate');
+        throw IllegalArgumentException('ToDate cannot be less than FromDate');
       }
     } on FormatException catch (e) {
       logger.severe('Invalid date format ${e.toString()}');
@@ -65,7 +64,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
       responseList =
-      await _getSentNotifications(responseList, fromAtSign, atConnection);
+          await _getSentNotifications(responseList, fromAtSign, atConnection);
     }
     responseList =
         _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
@@ -84,7 +83,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     var keyList = notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
-            (element) => _fetchNotificationEntries(
+        (element) => _fetchNotificationEntries(
             element, responseList, notificationKeyStore));
     return responseList;
   }
@@ -107,13 +106,13 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
     var outBoundClient =
-    OutboundClientManager.getInstance().getClient(fromAtSign, atConnection);
+        OutboundClientManager.getInstance().getClient(fromAtSign, atConnection);
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();
-      logger.finer('connect result: ${connectResult}');
+      logger.finer('connect result: $connectResult');
     }
-    var sentNotifications = await outBoundClient.notifyList(fromAtSign);
+    var sentNotifications = outBoundClient.notifyList(fromAtSign);
     sentNotifications.forEach((element) {
       responseList.add(Notification(element));
     });

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
@@ -15,13 +13,12 @@ import 'package:utf7/utf7.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('HiveKeystore');
-  var _atSign;
+
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-  StreamController streamController;
 
-  HiveKeystore(this._atSign);
+  HiveKeystore();
 
   set commitLog(value) {
     _commitLog = value;
@@ -302,18 +299,5 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     await persistenceManager.box?.put(hive_key, newData);
     var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
     return result;
-  }
-
-  @override
-  Stream watch({dynamic key}) {
-    streamController = StreamController();
-    Stream stream = persistenceManager.box?.watch();
-
-    stream.listen((event) {
-      if (event.key.toString().contains(RegExp(key))) {
-        streamController.add(event);
-      }
-    });
-    return streamController.stream;
   }
 }

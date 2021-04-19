@@ -38,7 +38,7 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
       return _monitorHandler;
     } else if (verb is StreamVerb) {
       return _streamHandler;
-    }else if (verb is NotifyAll) {
+    } else if (verb is NotifyAll) {
       return _notifyAllHandler;
     } else if (verb is Sync) {
       return _syncHandler;

@@ -14,7 +14,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
 
   var logger = AtSignLogger('AtCommitLogManagerImpl');
 
-  Map<String, AtCommitLog> _commitLogMap = {};
+  final Map<String, AtCommitLog> _commitLogMap = {};
 
   @override
   Future<AtCommitLog> getCommitLog(String atSign,
@@ -29,7 +29,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
     return _commitLogMap[atSign];
   }
 
-  void close() async {
+  Future<void> close() async {
     await _commitLogMap.forEach((key, value) async {
       await value.close();
     });

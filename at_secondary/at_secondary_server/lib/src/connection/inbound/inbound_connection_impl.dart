@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
@@ -9,6 +10,8 @@ class InboundConnectionImpl extends BaseConnection
     implements InboundConnection {
   @override
   bool isMonitor = false;
+
+  bool isStream;
 
   /// This contains the value of the atsign initiated the connection
   @override
@@ -68,7 +71,4 @@ class InboundConnectionImpl extends BaseConnection
 
   @override
   Socket receiverSocket;
-
-  @override
-  bool isStream;
 }

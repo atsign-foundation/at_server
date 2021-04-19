@@ -3,6 +3,7 @@ description: Implementation of secondary server.
 version: 1.0.0+DEV
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
+publish_to: none
 
 environment:
   sdk: '>=2.7.0 <3.0.0'
@@ -19,14 +20,14 @@ dependencies:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
       ref: dev_env_staging
-      version: ^1.0.1+4
+      version: ^1.0.1+6
 
   at_lookup:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: dev_env_staging
-      version: ^1.0.0+4
+      version: ^1.0.0+6
 
   at_server_spec:
     git:

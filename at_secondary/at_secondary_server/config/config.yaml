@@ -33,7 +33,7 @@ hive:
   # The storage path for access log.
   accessLogPath: 'storage/accessLog'
   # The storage path for notifications
-  notificationStoragePath: 'storage/notificationLog'
+  notificationStoragePath: 'storage/notificationLog.v1'
 
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
   expiringRunFrequencyMins: 10
