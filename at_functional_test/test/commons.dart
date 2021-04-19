@@ -15,8 +15,14 @@ Future<Socket> socket_connection(host, port) async {
   return await Socket.connect(host, port);
 }
 
+void clear() {
+  _queue.clear();
+  print('queue cleared');
+}
+
 ///Secure Socket Connection
-Future<SecureSocket> secure_socket_connection(host, port) async {
+Future<SecureSocket> secure_socket_connection(
+    host, port) async {
   var socket;
   while (true) {
     try {
@@ -95,7 +101,8 @@ Future<String> read({int maxWaitMilliSeconds = 5000}) async {
       result = _queue.removeFirst();
       // result from another secondary is either data or a @<atSign>@ denoting complete
       // of the handshake
-      if (result.startsWith('data:') || (result.startsWith('error:')) ||
+      if (result.startsWith('data:') ||
+          (result.startsWith('error:')) ||
           (result.startsWith('@') && result.endsWith('@'))) {
         return result;
       } else {

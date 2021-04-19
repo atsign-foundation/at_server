@@ -33,7 +33,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:Hyderabad'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update-llookup with private key', () async {
     /// UPDATE VERB
@@ -54,7 +54,7 @@ void main() {
     print(
         'llookup verb response without private key in llookup verb: $response');
     expect(response, contains('data:null'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb with special characters', () async {
     ///UPDATE VERB
@@ -68,7 +68,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response,contains('data:@!ice^&##'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb with unicode characters', () async {
     ///UPDATE VERB
@@ -82,7 +82,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:U+0026'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb with address ', () async {
     ///UPDATE VERB
@@ -98,7 +98,7 @@ void main() {
     print('llookup verb response : $response');
     expect(response,contains(
         'data:"plot no-103,Essar enclave,Hyderabad-500083"'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb without value should throw a error ', () async {
     ///UPDATE VERB
@@ -120,7 +120,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:🦄'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb by passing japanese input as value ', () async {
     ///UPDATE VERB
@@ -134,7 +134,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:"パーニマぱーにま"'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb by passing 2 @ symbols ', () async {
     ///UPDATE VERB
@@ -142,7 +142,7 @@ void main() {
     var response = await read();
     print('update verb response : $response');
     assert(response.contains('Invalid syntax'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update-llookup for private key for an emoji atsign ', () async {
     ///UPDATE VERB
@@ -156,7 +156,7 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:unicorn'));
-  });
+  }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update-llookup for ttl ', () async {
     ///UPDATE VERB
@@ -214,6 +214,7 @@ void main() {
 
   tearDown(() {
     //Closing the client socket connection
+    clear();
     _socket_first_atsign.destroy();
   });
 }

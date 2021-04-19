@@ -35,7 +35,7 @@ void main() {
     response = await read();
     print('scan verb response : $response');
     expect(response, contains('"public:location$first_atsign"'));
-  });
+  },timeout: Timeout(Duration(seconds: 60)));
 
   test('scan verb before authentication', () async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
@@ -48,7 +48,7 @@ void main() {
     var response = await read();
     print('scan verb response : $response');
     expect(response, contains('"location$first_atsign"'));
-  });
+  },timeout: Timeout(Duration(seconds: 60)));
 
   test('Scan verb with only atsign and no value', () async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
@@ -62,7 +62,7 @@ void main() {
     var response = await read();
     print('scan verb response : $response');
     expect(response, contains('Invalid syntax'));
-  });
+  },timeout: Timeout(Duration(seconds: 60)));
 
   test('Scan verb with regex', () async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
@@ -82,7 +82,7 @@ void main() {
     response = await read();
     print('scan verb response : $response');
     expect(response, contains('"public:twitter.me$first_atsign"'));
-  });
+  },timeout: Timeout(Duration(seconds: 60)));
 
   test('scan verb with emoji', () async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
@@ -113,6 +113,7 @@ void main() {
 
   tearDown(() {
     //Closing the client socket connection
+    clear();
     _socket_first_atsign.destroy();
   });
 }

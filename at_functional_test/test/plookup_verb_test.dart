@@ -115,6 +115,7 @@ void main() {
 
   tearDown(() {
     //Closing the client socket connection
+    clear();
     _socket_first_atsign.destroy();
     _socket_second_atsign.destroy();
   });

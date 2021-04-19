@@ -73,4 +73,10 @@ void main() {
     assert((response.contains('Invalid syntax')));
 });
 
+  tearDown(() {
+    //Closing the client socket connection
+    clear();
+    _socket_first_atsign.destroy();
+  });
+
 }

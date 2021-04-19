@@ -96,6 +96,7 @@ void main() async {
 
   tearDown(() {
     //Closing the socket connection
+    clear();
     _socket_first_atsign.destroy();
   });
 }
