@@ -1,6 +1,6 @@
 import 'dart:io';
-
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_secondary/src/utils/regex_util.dart';
 
 class AtSecondaryConfig {
   //Certs
@@ -81,12 +81,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['security', 'useSSL'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['security', 'useSSL']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _useSSL;
     }
-    return _useSSL;
   }
 
   static bool get clientCertificateRequired {
@@ -94,12 +94,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['security', 'clientCertificateRequired'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['security', 'clientCertificateRequired']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _clientCertificateRequired;
     }
-    return _clientCertificateRequired;
   }
 
   static int get runRefreshJobHour {
@@ -107,12 +107,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['refreshJob', 'runJobHour'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['refreshJob', 'runJobHour']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _runRefreshJobHour;
     }
-    return _runRefreshJobHour;
   }
 
   static int get maxNotificationEntries {
@@ -120,12 +120,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['notification', 'max_entries'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['notification', 'max_entries']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _maxNotificationEntries;
     }
-    return _maxNotificationEntries;
   }
 
   static int get accessLogSizeInKB {
@@ -133,12 +133,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['access_log_compaction', 'sizeInKB'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['access_log_compaction', 'sizeInKB']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _accessLogSizeInKB;
     }
-    return _accessLogSizeInKB;
   }
 
   static int get accessLogExpiryInDays {
@@ -146,12 +146,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['access_log_compaction', 'expiryInDays'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['access_log_compaction', 'expiryInDays']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _accessLogExpiryInDays;
     }
-    return _accessLogExpiryInDays;
   }
 
   static int get accessLogCompactionPercentage {
@@ -159,12 +159,13 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['access_log_compaction', 'compactionPercentage'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(
+          ['access_log_compaction', 'compactionPercentage']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _accessLogCompactionPercentage;
     }
-    return _accessLogCompactionPercentage;
   }
 
   static int get accessLogCompactionFrequencyMins {
@@ -172,12 +173,13 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['access_log_compaction', 'compactionFrequencyMins'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(
+          ['access_log_compaction', 'compactionFrequencyMins']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _accessLogCompactionFrequencyMins;
     }
-    return _accessLogCompactionFrequencyMins;
   }
 
   static int get commitLogSizeInKB {
@@ -185,12 +187,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['commit_log_compaction', 'sizeInKB'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['commit_log_compaction', 'sizeInKB']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _commitLogSizeInKB;
     }
-    return _commitLogSizeInKB;
   }
 
   static int get commitLogExpiryInDays {
@@ -198,12 +200,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['commit_log_compaction', 'expiryInDays'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['commit_log_compaction', 'expiryInDays']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _commitLogExpiryInDays;
     }
-    return _commitLogExpiryInDays;
   }
 
   static int get commitLogCompactionPercentage {
@@ -211,12 +213,13 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['commit_log_compaction', 'compactionPercentage'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(
+          ['commit_log_compaction', 'compactionPercentage']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _commitLogCompactionPercentage;
     }
-    return _commitLogCompactionPercentage;
   }
 
   static int get commitLogCompactionFrequencyMins {
@@ -224,12 +227,13 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['commit_log_compaction', 'compactionFrequencyMins'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(
+          ['commit_log_compaction', 'compactionFrequencyMins']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _commitLogCompactionFrequencyMins;
     }
-    return _commitLogCompactionFrequencyMins;
   }
 
   static int get expiringRunFreqMins {
@@ -237,60 +241,60 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['hive', 'expiringRunFrequencyMins'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['hive', 'expiringRunFrequencyMins']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _expiringRunFreqMins;
     }
-    return _expiringRunFreqMins;
   }
 
   static String get notificationStoragePath {
     if (_envVars.containsKey('notificationStoragePath')) {
       return _envVars['notificationStoragePath'];
     }
-    var args = ['hive', 'notificationStoragePath'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['hive', 'notificationStoragePath']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _notificationStoragePath;
     }
-    return _notificationStoragePath;
   }
 
   static String get accessLogPath {
     if (_envVars.containsKey('accessLogPath')) {
       return _envVars['accessLogPath'];
     }
-    var args = ['hive', 'accessLogPath'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['hive', 'accessLogPath']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _accessLogPath;
     }
-    return _accessLogPath;
   }
 
   static String get commitLogPath {
     if (_envVars.containsKey('commitLogPath')) {
       return _envVars['commitLogPath'];
     }
-    var args = ['hive', 'commitLogPath'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['hive', 'commitLogPath']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _commitLogPath;
     }
-    return _commitLogPath;
   }
 
   static String get storagePath {
     if (_envVars.containsKey('secondaryStoragePath')) {
       return _envVars['secondaryStoragePath'];
     }
-    var args = ['hive', 'storagePath'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['hive', 'storagePath']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _storagePath;
     }
-    return _storagePath;
   }
 
   static int get outbound_idletime_millis {
@@ -298,12 +302,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['connection', 'outbound_idle_time_millis'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _outbound_idletime_millis;
     }
-    return _outbound_idletime_millis;
   }
 
   static int get inbound_idletime_millis {
@@ -311,12 +315,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['connection', 'inbound_idle_time_millis'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _inbound_idletime_millis;
     }
-    return _inbound_idletime_millis;
   }
 
   static int get outbound_max_limit {
@@ -324,12 +328,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['connection', 'outbound_max_limit'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['connection', 'outbound_max_limit']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _outbound_max_limit;
     }
-    return _outbound_max_limit;
   }
 
   static int get inbound_max_limit {
@@ -337,12 +341,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['connection', 'inbound_max_limit'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['connection', 'inbound_max_limit']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _inbound_max_limit;
     }
-    return _inbound_max_limit;
   }
 
   static int get lookup_depth_of_resolution {
@@ -350,12 +354,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['lookup', 'depth_of_resolution'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['lookup', 'depth_of_resolution']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _lookup_depth_of_resolution;
     }
-    return _lookup_depth_of_resolution;
   }
 
   static int get stats_top_visits {
@@ -363,12 +367,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['stats', 'top_visits'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['stats', 'top_visits']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _stats_top_visits;
     }
-    return _stats_top_visits;
   }
 
   static int get stats_top_keys {
@@ -376,12 +380,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['stats', 'top_keys'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['stats', 'top_keys']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _stats_top_keys;
     }
-    return _stats_top_keys;
   }
 
   static bool get autoNotify {
@@ -389,48 +393,48 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['notification', 'autoNotify'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['notification', 'autoNotify']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _autoNotify;
     }
-    return _autoNotify;
   }
 
   static String get trustedCertificateLocation {
     if (_envVars.containsKey('securityTrustedCertificateLocation')) {
       return _envVars['securityTrustedCertificateLocation'];
     }
-    var args = ['security', 'trustedCertificateLocation'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['security', 'trustedCertificateLocation']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _trustedCertificateLocation;
     }
-    return _trustedCertificateLocation;
   }
 
   static String get privateKeyLocation {
     if (_envVars.containsKey('securityPrivateKeyLocation')) {
       return _envVars['securityPrivateKeyLocation'];
     }
-    var args = ['security', 'privateKeyLocation'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['security', 'privateKeyLocation']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _privateKeyLocation;
     }
-    return _privateKeyLocation;
   }
 
   static String get certificateChainLocation {
     if (_envVars.containsKey('securityCertificateChainLocation')) {
       return _envVars['securityCertificateChainLocation'];
     }
-    var args = ['security', 'certificateChainLocation'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['security', 'certificateChainLocation']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _certificateChainLocation;
     }
-    return _certificateChainLocation;
   }
 
   static bool get traceLog {
@@ -438,12 +442,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['log', 'trace'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['log', 'trace']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _traceLog;
     }
-    return _traceLog;
   }
 
   static bool get debugLog {
@@ -451,12 +455,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['log', 'debug'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['log', 'debug']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _debugLog;
     }
-    return _debugLog;
   }
 
   static int get rootServerPort {
@@ -464,24 +468,24 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    var args = ['root_server', 'port'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['root_server', 'port']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _rootServerPort;
     }
-    return _rootServerPort;
   }
 
   static String get rootServerUrl {
     if (_envVars.containsKey('rootServerUrl')) {
       return _envVars['rootServerUrl'];
     }
-    var args = ['root_server', 'url'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['root_server', 'url']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _rootServerUrl;
     }
-    return _rootServerUrl;
   }
 
   static bool get isForceRestart {
@@ -489,12 +493,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getBoolEnvVar('forceRestart');
     }
-    var args = ['certificate_expiry', 'force_restart'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['certificate_expiry', 'force_restart']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _isForceRestart;
     }
-    return _isForceRestart;
   }
 
   static int get maxNotificationRetries {
@@ -502,12 +506,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('maxNotificationRetries');
     }
-    var args = ['notification', 'max_retries'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['notification', 'max_retries']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _maxNotificationRetries;
     }
-    return _maxNotificationRetries;
   }
 
   static int get notificationQuarantineDuration {
@@ -515,12 +519,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationQuarantineDuration');
     }
-    var args = ['notification', 'quarantineDuration'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['notification', 'quarantineDuration']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _notificationQuarantineDuration;
     }
-    return _notificationQuarantineDuration;
   }
 
   static int get notificationJobFrequency {
@@ -528,12 +532,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationJobFrequency');
     }
-    var args = ['notification', 'jobFrequency'];
-    var value = getValue(args);
-    if (value != null) {
-      return value;
+    try {
+      return getConfigFromYaml(['notification', 'jobFrequency']);
+    } on Exception catch (e) {
+      logger.severe(e);
+      return _notificationJobFrequency;
     }
-    return _notificationJobFrequency;
   }
 
   static int _getIntEnvVar(String envVar) {
@@ -551,7 +555,7 @@ class AtSecondaryConfig {
   }
 }
 
-dynamic getValue(List<String> args) {
+dynamic getConfigFromYaml(List<String> args) {
   var yamlMap = ConfigUtil.getYaml();
   var value;
   if (yamlMap != null) {
@@ -564,7 +568,10 @@ dynamic getValue(List<String> args) {
         }
       }
     }
-    value = (value == Null) ? null : value;
+  }
+  // If value not found throw exception
+  if (value == Null || value == null) {
+    throw Exception('Value Not Found in yaml');
   }
   return value;
 }
