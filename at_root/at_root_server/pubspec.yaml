@@ -10,20 +10,20 @@ environment:
 dependencies:
   args: ^1.5.0
   redis: ^1.2.0
-  uuid: ^2.0.2
+  uuid: ^3.0.4
   yaml: ^2.2.0
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: dev_env
+      ref: package_upgrade
       version: ^1.0.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: dev_env
+      ref: package_upgrade
       version: ^1.0.0
 
 #dependency_overrides:
