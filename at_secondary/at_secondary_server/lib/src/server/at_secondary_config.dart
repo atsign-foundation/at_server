@@ -1,6 +1,6 @@
 import 'dart:io';
-
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_commons/at_commons.dart';
 
 class AtSecondaryConfig {
   //Certs
@@ -81,12 +81,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['useSSL'] != null) {
-      return _useSSL = ConfigUtil.getYaml()['security']['useSSL'];
+    try {
+      return getConfigFromYaml(['security', 'useSSL']);
+    } on ElementNotFoundException {
+      return _useSSL;
     }
-    return _useSSL;
   }
 
   static bool get clientCertificateRequired {
@@ -94,13 +93,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['clientCertificateRequired'] != null) {
-      return _clientCertificateRequired =
-          ConfigUtil.getYaml()['security']['clientCertificateRequired'];
+    try {
+      return getConfigFromYaml(['security', 'clientCertificateRequired']);
+    } on ElementNotFoundException {
+      return _clientCertificateRequired;
     }
-    return _clientCertificateRequired;
   }
 
   static int get runRefreshJobHour {
@@ -108,13 +105,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['refreshJob'] != null &&
-        ConfigUtil.getYaml()['refreshJob']['runJobHour'] != null) {
-      return _runRefreshJobHour =
-          ConfigUtil.getYaml()['refreshJob']['runJobHour'];
+    try {
+      return getConfigFromYaml(['refreshJob', 'runJobHour']);
+    } on ElementNotFoundException {
+      return _runRefreshJobHour;
     }
-    return _runRefreshJobHour;
   }
 
   static int get maxNotificationEntries {
@@ -122,13 +117,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['max_entries'] != null) {
-      return _maxNotificationEntries =
-          ConfigUtil.getYaml()['notification']['max_entries'];
+    try {
+      return getConfigFromYaml(['notification', 'max_entries']);
+    } on ElementNotFoundException {
+      return _maxNotificationEntries;
     }
-    return _maxNotificationEntries;
   }
 
   static int get accessLogSizeInKB {
@@ -136,13 +129,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['sizeInKB'] != null) {
-      return _accessLogSizeInKB =
-          ConfigUtil.getYaml()['access_log_compaction']['sizeInKB'];
+    try {
+      return getConfigFromYaml(['access_log_compaction', 'sizeInKB']);
+    } on ElementNotFoundException {
+      return _accessLogSizeInKB;
     }
-    return _accessLogSizeInKB;
   }
 
   static int get accessLogExpiryInDays {
@@ -150,13 +141,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['expiryInDays'] != null) {
-      return _accessLogExpiryInDays =
-          ConfigUtil.getYaml()['access_log_compaction']['expiryInDays'];
+    try {
+      return getConfigFromYaml(['access_log_compaction', 'expiryInDays']);
+    } on ElementNotFoundException {
+      return _accessLogExpiryInDays;
     }
-    return _accessLogExpiryInDays;
   }
 
   static int get accessLogCompactionPercentage {
@@ -164,14 +153,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']['compactionPercentage'] !=
-            null) {
-      return _accessLogCompactionPercentage =
-          ConfigUtil.getYaml()['access_log_compaction']['compactionPercentage'];
+    try {
+      return getConfigFromYaml(
+          ['access_log_compaction', 'compactionPercentage']);
+    } on ElementNotFoundException {
+      return _accessLogCompactionPercentage;
     }
-    return _accessLogCompactionPercentage;
   }
 
   static int get accessLogCompactionFrequencyMins {
@@ -179,16 +166,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['access_log_compaction'] != null &&
-        ConfigUtil.getYaml()['access_log_compaction']
-                ['compactionFrequencyMins'] !=
-            null) {
-      return _accessLogCompactionFrequencyMins =
-          ConfigUtil.getYaml()['access_log_compaction']
-              ['compactionFrequencyMins'];
+    try {
+      return getConfigFromYaml(
+          ['access_log_compaction', 'compactionFrequencyMins']);
+    } on ElementNotFoundException {
+      return _accessLogCompactionFrequencyMins;
     }
-    return _accessLogCompactionFrequencyMins;
   }
 
   static int get commitLogSizeInKB {
@@ -196,13 +179,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['sizeInKB'] != null) {
-      return _commitLogSizeInKB =
-          ConfigUtil.getYaml()['commit_log_compaction']['sizeInKB'];
+    try {
+      return getConfigFromYaml(['commit_log_compaction', 'sizeInKB']);
+    } on ElementNotFoundException {
+      return _commitLogSizeInKB;
     }
-    return _commitLogSizeInKB;
   }
 
   static int get commitLogExpiryInDays {
@@ -210,13 +191,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['expiryInDays'] != null) {
-      return _commitLogExpiryInDays =
-          ConfigUtil.getYaml()['commit_log_compaction']['expiryInDays'];
+    try {
+      return getConfigFromYaml(['commit_log_compaction', 'expiryInDays']);
+    } on ElementNotFoundException {
+      return _commitLogExpiryInDays;
     }
-    return _commitLogExpiryInDays;
   }
 
   static int get commitLogCompactionPercentage {
@@ -224,14 +203,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']['compactionPercentage'] !=
-            null) {
-      return _commitLogCompactionPercentage =
-          ConfigUtil.getYaml()['commit_log_compaction']['compactionPercentage'];
+    try {
+      return getConfigFromYaml(
+          ['commit_log_compaction', 'compactionPercentage']);
+    } on ElementNotFoundException {
+      return _commitLogCompactionPercentage;
     }
-    return _commitLogCompactionPercentage;
   }
 
   static int get commitLogCompactionFrequencyMins {
@@ -239,16 +216,12 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['commit_log_compaction'] != null &&
-        ConfigUtil.getYaml()['commit_log_compaction']
-                ['compactionFrequencyMins'] !=
-            null) {
-      return _commitLogCompactionFrequencyMins =
-          ConfigUtil.getYaml()['commit_log_compaction']
-              ['compactionFrequencyMins'];
+    try {
+      return getConfigFromYaml(
+          ['commit_log_compaction', 'compactionFrequencyMins']);
+    } on ElementNotFoundException {
+      return _commitLogCompactionFrequencyMins;
     }
-    return _commitLogCompactionFrequencyMins;
   }
 
   static int get expiringRunFreqMins {
@@ -256,62 +229,55 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['expiringRunFrequencyMins'] != null) {
-      return _expiringRunFreqMins =
-          ConfigUtil.getYaml()['hive']['expiringRunFrequencyMins'];
+    try {
+      return getConfigFromYaml(['hive', 'expiringRunFrequencyMins']);
+    } on ElementNotFoundException {
+      return _expiringRunFreqMins;
     }
-    return _expiringRunFreqMins;
   }
 
   static String get notificationStoragePath {
     if (_envVars.containsKey('notificationStoragePath')) {
       return _envVars['notificationStoragePath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['notificationStoragePath'] != null) {
-      return _notificationStoragePath =
-          ConfigUtil.getYaml()['hive']['notificationStoragePath'];
+    try {
+      return getConfigFromYaml(['hive', 'notificationStoragePath']);
+    } on ElementNotFoundException {
+      return _notificationStoragePath;
     }
-    return _notificationStoragePath;
   }
 
   static String get accessLogPath {
     if (_envVars.containsKey('accessLogPath')) {
       return _envVars['accessLogPath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['accessLogPath'] != null) {
-      return _accessLogPath = ConfigUtil.getYaml()['hive']['accessLogPath'];
+    try {
+      return getConfigFromYaml(['hive', 'accessLogPath']);
+    } on ElementNotFoundException {
+      return _accessLogPath;
     }
-    return _accessLogPath;
   }
 
   static String get commitLogPath {
     if (_envVars.containsKey('commitLogPath')) {
       return _envVars['commitLogPath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['commitLogPath'] != null) {
-      return _commitLogPath = ConfigUtil.getYaml()['hive']['commitLogPath'];
+    try {
+      return getConfigFromYaml(['hive', 'commitLogPath']);
+    } on ElementNotFoundException {
+      return _commitLogPath;
     }
-    return _commitLogPath;
   }
 
   static String get storagePath {
     if (_envVars.containsKey('secondaryStoragePath')) {
       return _envVars['secondaryStoragePath'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['hive'] != null &&
-        ConfigUtil.getYaml()['hive']['storagePath'] != null) {
-      return _storagePath = ConfigUtil.getYaml()['hive']['storagePath'];
+    try {
+      return getConfigFromYaml(['hive', 'storagePath']);
+    } on ElementNotFoundException {
+      return _storagePath;
     }
-    return _storagePath;
   }
 
   static int get outbound_idletime_millis {
@@ -319,14 +285,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['outbound_idle_time_millis'] !=
-            null) {
-      return _outbound_idletime_millis =
-          ConfigUtil.getYaml()['connection']['outbound_idle_time_millis'];
+    try {
+      return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _outbound_idletime_millis;
     }
-    return _outbound_idletime_millis;
   }
 
   static int get inbound_idletime_millis {
@@ -334,14 +297,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['inbound_idle_time_millis'] !=
-            null) {
-      return _inbound_idletime_millis =
-          ConfigUtil.getYaml()['connection']['inbound_idle_time_millis'];
+    try {
+      return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _inbound_idletime_millis;
     }
-    return _inbound_idletime_millis;
   }
 
   static int get outbound_max_limit {
@@ -349,13 +309,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['outbound_max_limit'] != null) {
-      return _outbound_max_limit =
-          ConfigUtil.getYaml()['connection']['outbound_max_limit'];
+    try {
+      return getConfigFromYaml(['connection', 'outbound_max_limit']);
+    } on ElementNotFoundException {
+      return _outbound_max_limit;
     }
-    return _outbound_max_limit;
   }
 
   static int get inbound_max_limit {
@@ -363,13 +321,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['connection'] != null &&
-        ConfigUtil.getYaml()['connection']['inbound_max_limit'] != null) {
-      return _inbound_max_limit =
-          ConfigUtil.getYaml()['connection']['inbound_max_limit'];
+    try {
+      return getConfigFromYaml(['connection', 'inbound_max_limit']);
+    } on ElementNotFoundException {
+      return _inbound_max_limit;
     }
-    return _inbound_max_limit;
   }
 
   static int get lookup_depth_of_resolution {
@@ -377,13 +333,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['lookup'] != null &&
-        ConfigUtil.getYaml()['lookup']['depth_of_resolution'] != null) {
-      return _lookup_depth_of_resolution =
-          ConfigUtil.getYaml()['lookup']['depth_of_resolution'];
+    try {
+      return getConfigFromYaml(['lookup', 'depth_of_resolution']);
+    } on ElementNotFoundException {
+      return _lookup_depth_of_resolution;
     }
-    return _lookup_depth_of_resolution;
   }
 
   static int get stats_top_visits {
@@ -391,12 +345,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['stats'] != null &&
-        ConfigUtil.getYaml()['stats']['top_visits'] != null) {
-      return _stats_top_visits = ConfigUtil.getYaml()['stats']['top_visits'];
+    try {
+      return getConfigFromYaml(['stats', 'top_visits']);
+    } on ElementNotFoundException {
+      return _stats_top_visits;
     }
-    return _stats_top_visits;
   }
 
   static int get stats_top_keys {
@@ -404,12 +357,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['stats'] != null &&
-        ConfigUtil.getYaml()['stats']['top_keys'] != null) {
-      return _stats_top_keys = ConfigUtil.getYaml()['stats']['top_keys'];
+    try {
+      return getConfigFromYaml(['stats', 'top_keys']);
+    } on ElementNotFoundException {
+      return _stats_top_keys;
     }
-    return _stats_top_keys;
   }
 
   static bool get autoNotify {
@@ -417,49 +369,44 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['autoNotify'] != null) {
-      return _autoNotify = ConfigUtil.getYaml()['notification']['autoNotify'];
+    try {
+      return getConfigFromYaml(['notification', 'autoNotify']);
+    } on ElementNotFoundException {
+      return _autoNotify;
     }
-    return _autoNotify;
   }
 
   static String get trustedCertificateLocation {
     if (_envVars.containsKey('securityTrustedCertificateLocation')) {
       return _envVars['securityTrustedCertificateLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['trustedCertificateLocation'] !=
-            null) {
-      return ConfigUtil.getYaml()['security']['trustedCertificateLocation'];
+    try {
+      return getConfigFromYaml(['security', 'trustedCertificateLocation']);
+    } on ElementNotFoundException {
+      return _trustedCertificateLocation;
     }
-    return _trustedCertificateLocation;
   }
 
   static String get privateKeyLocation {
     if (_envVars.containsKey('securityPrivateKeyLocation')) {
       return _envVars['securityPrivateKeyLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['privateKeyLocation'] != null) {
-      return ConfigUtil.getYaml()['security']['privateKeyLocation'];
+    try {
+      return getConfigFromYaml(['security', 'privateKeyLocation']);
+    } on ElementNotFoundException {
+      return _privateKeyLocation;
     }
-    return _privateKeyLocation;
   }
 
   static String get certificateChainLocation {
     if (_envVars.containsKey('securityCertificateChainLocation')) {
       return _envVars['securityCertificateChainLocation'];
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['security'] != null &&
-        ConfigUtil.getYaml()['security']['certificateChainLocation'] != null) {
-      return ConfigUtil.getYaml()['security']['certificateChainLocation'];
+    try {
+      return getConfigFromYaml(['security', 'certificateChainLocation']);
+    } on ElementNotFoundException {
+      return _certificateChainLocation;
     }
-    return _certificateChainLocation;
   }
 
   static bool get traceLog {
@@ -467,11 +414,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml()['log'] != null &&
-        ConfigUtil.getYaml()['log']['trace'] != null) {
-      return ConfigUtil.getYaml()['log']['trace'];
+    try {
+      return getConfigFromYaml(['log', 'trace']);
+    } on ElementNotFoundException {
+      return _traceLog;
     }
-    return _traceLog;
   }
 
   static bool get debugLog {
@@ -479,12 +426,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['log'] != null &&
-        ConfigUtil.getYaml()['log']['debug'] != null) {
-      return ConfigUtil.getYaml()['log']['debug'];
+    try {
+      return getConfigFromYaml(['log', 'debug']);
+    } on ElementNotFoundException {
+      return _debugLog;
     }
-    return _debugLog;
   }
 
   static int get rootServerPort {
@@ -492,24 +438,22 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()['root_server'] != null &&
-        ConfigUtil.getYaml()['root_server']['port'] != null) {
-      return ConfigUtil.getYaml()['root_server']['port'];
+    try {
+      return getConfigFromYaml(['root_server', 'port']);
+    } on ElementNotFoundException {
+      return _rootServerPort;
     }
-
-    return _rootServerPort;
   }
 
   static String get rootServerUrl {
     if (_envVars.containsKey('rootServerUrl')) {
       return _envVars['rootServerUrl'];
     }
-    if (ConfigUtil.getYaml()['root_server'] != null &&
-        ConfigUtil.getYaml()['root_server']['url'] != null) {
-      return ConfigUtil.getYaml()['root_server']['url'];
+    try {
+      return getConfigFromYaml(['root_server', 'url']);
+    } on ElementNotFoundException {
+      return _rootServerUrl;
     }
-    return _rootServerUrl;
   }
 
   static bool get isForceRestart {
@@ -517,11 +461,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getBoolEnvVar('forceRestart');
     }
-    if (ConfigUtil.getYaml()['certificate_expiry'] != null &&
-        ConfigUtil.getYaml()['certificate_expiry']['force_restart'] != null) {
-      return ConfigUtil.getYaml()['certificate_expiry']['force_restart'];
+    try {
+      return getConfigFromYaml(['certificate_expiry', 'force_restart']);
+    } on ElementNotFoundException {
+      return _isForceRestart;
     }
-    return _isForceRestart;
   }
 
   static int get maxNotificationRetries {
@@ -529,11 +473,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('maxNotificationRetries');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['max_retries'] != null) {
-      return ConfigUtil.getYaml()['notification']['max_retries'];
+    try {
+      return getConfigFromYaml(['notification', 'max_retries']);
+    } on ElementNotFoundException {
+      return _maxNotificationRetries;
     }
-    return _maxNotificationRetries;
   }
 
   static int get notificationQuarantineDuration {
@@ -541,11 +485,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationQuarantineDuration');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['quarantineDuration'] != null) {
-      return ConfigUtil.getYaml()['notification']['quarantineDuration'];
+    try {
+      return getConfigFromYaml(['notification', 'quarantineDuration']);
+    } on ElementNotFoundException {
+      return _notificationQuarantineDuration;
     }
-    return _notificationQuarantineDuration;
   }
 
   static int get notificationJobFrequency {
@@ -553,11 +497,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationJobFrequency');
     }
-    if (ConfigUtil.getYaml()['notification'] != null &&
-        ConfigUtil.getYaml()['notification']['jobFrequency'] != null) {
-      return ConfigUtil.getYaml()['notification']['jobFrequency'];
+    try {
+      return getConfigFromYaml(['notification', 'jobFrequency']);
+    } on ElementNotFoundException {
+      return _notificationJobFrequency;
     }
-    return _notificationJobFrequency;
   }
 
   static int _getIntEnvVar(String envVar) {
@@ -573,4 +517,25 @@ class AtSecondaryConfig {
     }
     return null;
   }
+}
+
+dynamic getConfigFromYaml(List<String> args) {
+  var yamlMap = ConfigUtil.getYaml();
+  var value;
+  if (yamlMap != null) {
+    for (int i = 0; i < args.length; i++) {
+      if (i == 0) {
+        value = yamlMap[args[i]];
+      } else {
+        if (value != null) {
+          value = value[args[i]];
+        }
+      }
+    }
+  }
+  // If value not found throw exception
+  if (value == Null || value == null) {
+    throw ElementNotFoundException('Element Not Found in yaml');
+  }
+  return value;
 }
