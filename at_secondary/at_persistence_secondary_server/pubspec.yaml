@@ -15,7 +15,6 @@ dependencies:
   cron: ^0.2.2
   crypto: ^3.0.0
   uuid: ^3.0.4
-  logging: ^0.9.0
   at_persistence_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
