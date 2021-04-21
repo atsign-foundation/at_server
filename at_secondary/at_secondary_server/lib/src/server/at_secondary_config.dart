@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:at_secondary/src/conf/config_util.dart';
-import 'package:at_secondary/src/utils/regex_util.dart';
+import 'package:at_commons/at_commons.dart';
 
 class AtSecondaryConfig {
   //Certs
@@ -83,8 +83,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['security', 'useSSL']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _useSSL;
     }
   }
@@ -96,8 +95,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['security', 'clientCertificateRequired']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _clientCertificateRequired;
     }
   }
@@ -109,8 +107,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['refreshJob', 'runJobHour']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _runRefreshJobHour;
     }
   }
@@ -122,8 +119,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['notification', 'max_entries']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _maxNotificationEntries;
     }
   }
@@ -135,8 +131,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['access_log_compaction', 'sizeInKB']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _accessLogSizeInKB;
     }
   }
@@ -148,8 +143,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['access_log_compaction', 'expiryInDays']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _accessLogExpiryInDays;
     }
   }
@@ -162,8 +156,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(
           ['access_log_compaction', 'compactionPercentage']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _accessLogCompactionPercentage;
     }
   }
@@ -176,8 +169,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(
           ['access_log_compaction', 'compactionFrequencyMins']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _accessLogCompactionFrequencyMins;
     }
   }
@@ -189,8 +181,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['commit_log_compaction', 'sizeInKB']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _commitLogSizeInKB;
     }
   }
@@ -202,8 +193,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['commit_log_compaction', 'expiryInDays']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _commitLogExpiryInDays;
     }
   }
@@ -216,8 +206,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(
           ['commit_log_compaction', 'compactionPercentage']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _commitLogCompactionPercentage;
     }
   }
@@ -230,8 +219,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(
           ['commit_log_compaction', 'compactionFrequencyMins']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _commitLogCompactionFrequencyMins;
     }
   }
@@ -243,8 +231,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['hive', 'expiringRunFrequencyMins']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _expiringRunFreqMins;
     }
   }
@@ -255,8 +242,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['hive', 'notificationStoragePath']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _notificationStoragePath;
     }
   }
@@ -267,8 +253,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['hive', 'accessLogPath']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _accessLogPath;
     }
   }
@@ -279,8 +264,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['hive', 'commitLogPath']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _commitLogPath;
     }
   }
@@ -291,8 +275,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['hive', 'storagePath']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _storagePath;
     }
   }
@@ -304,8 +287,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _outbound_idletime_millis;
     }
   }
@@ -317,8 +299,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _inbound_idletime_millis;
     }
   }
@@ -330,8 +311,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['connection', 'outbound_max_limit']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _outbound_max_limit;
     }
   }
@@ -343,8 +323,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _inbound_max_limit;
     }
   }
@@ -356,8 +335,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['lookup', 'depth_of_resolution']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _lookup_depth_of_resolution;
     }
   }
@@ -369,8 +347,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['stats', 'top_visits']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _stats_top_visits;
     }
   }
@@ -382,8 +359,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['stats', 'top_keys']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _stats_top_keys;
     }
   }
@@ -395,8 +371,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['notification', 'autoNotify']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _autoNotify;
     }
   }
@@ -407,8 +382,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['security', 'trustedCertificateLocation']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _trustedCertificateLocation;
     }
   }
@@ -419,8 +393,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['security', 'privateKeyLocation']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _privateKeyLocation;
     }
   }
@@ -431,8 +404,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _certificateChainLocation;
     }
   }
@@ -444,8 +416,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['log', 'trace']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _traceLog;
     }
   }
@@ -457,8 +428,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['log', 'debug']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _debugLog;
     }
   }
@@ -470,8 +440,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['root_server', 'port']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _rootServerPort;
     }
   }
@@ -482,8 +451,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['root_server', 'url']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _rootServerUrl;
     }
   }
@@ -495,8 +463,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['certificate_expiry', 'force_restart']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _isForceRestart;
     }
   }
@@ -508,8 +475,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['notification', 'max_retries']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _maxNotificationRetries;
     }
   }
@@ -521,8 +487,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['notification', 'quarantineDuration']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _notificationQuarantineDuration;
     }
   }
@@ -534,8 +499,7 @@ class AtSecondaryConfig {
     }
     try {
       return getConfigFromYaml(['notification', 'jobFrequency']);
-    } on Exception catch (e) {
-      logger.severe(e);
+    } on ElementNotFoundException {
       return _notificationJobFrequency;
     }
   }
@@ -571,7 +535,7 @@ dynamic getConfigFromYaml(List<String> args) {
   }
   // If value not found throw exception
   if (value == Null || value == null) {
-    throw Exception('Value Not Found in yaml');
+    throw ElementNotFoundException('Element Not Found in yaml');
   }
   return value;
 }
