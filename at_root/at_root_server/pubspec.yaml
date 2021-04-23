@@ -17,14 +17,14 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: dev_env_staging
+      ref: dev_env
       version: ^1.0.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: dev_env_staging
+      ref: dev_env
       version: ^1.0.0
 
 dev_dependencies:
