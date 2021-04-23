@@ -44,7 +44,7 @@ void main() {
     response = await read();
     print('lookup verb response : $response');
     expect(response, contains('data:developer'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('update-lookup verb on self key - positive case', () async {
     ///update verb on bob atsign
@@ -57,7 +57,7 @@ void main() {
     response = await read();
     print('lookup verb response : $response');
     expect(response, contains('data:null'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('update-lookup verb on public key - Negative case', () async {
     ///Update verb
@@ -72,7 +72,7 @@ void main() {
     response = await read();
     print('lookup verb response from $first_atsign : $response');
     expect(response, contains('data:null'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('update-lookup verb by giving wrong spelling - Negative case', () async {
     ///Update verb
@@ -87,7 +87,7 @@ void main() {
     response = await read();
     print('lookup verb response from $first_atsign : $response');
     expect(response, contains('Invalid syntax'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   tearDown(() {
     //Closing the client socket connection
