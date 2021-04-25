@@ -6,5 +6,5 @@ abstract class AtCommitLogManager {
   ///
   /// @return An instance of the AtCommitLog for the given atSign.
   Future<AtLogType> getCommitLog(String atSign,
-      {String commitLogPath, bool enableCommitId = true});
+      {String? commitLogPath, bool enableCommitId = true});
 }
