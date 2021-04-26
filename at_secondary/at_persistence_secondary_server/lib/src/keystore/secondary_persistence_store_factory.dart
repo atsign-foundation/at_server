@@ -5,8 +5,6 @@ class SecondaryPersistenceStoreFactory {
   static final SecondaryPersistenceStoreFactory _singleton =
       SecondaryPersistenceStoreFactory._internal();
 
-  final bool _debug = false;
-
   SecondaryPersistenceStoreFactory._internal();
 
   factory SecondaryPersistenceStoreFactory.getInstance() {
@@ -15,7 +13,8 @@ class SecondaryPersistenceStoreFactory {
 
   final logger = AtSignLogger('SecondaryPersistenceStoreFactory');
 
-  Map<String, SecondaryPersistenceStore> _secondaryPersistenceStoreMap = {};
+  final Map<String, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
+      {};
 
   SecondaryPersistenceStore getSecondaryPersistenceStore(String atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
@@ -26,8 +25,10 @@ class SecondaryPersistenceStoreFactory {
   }
 
   void close() async {
-    await _secondaryPersistenceStoreMap.forEach((key, value) async {
-      await value.getHivePersistenceManager().close();
-    });
+    await Future.forEach(
+        _secondaryPersistenceStoreMap.values,
+        (secondaryPersistenceStore) =>
+            secondaryPersistenceStore.getHivePersistenceManager().close());
+    _secondaryPersistenceStoreMap.clear();
   }
 }

@@ -133,4 +133,8 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     assert(key != null);
     await _box.delete(key);
   }
+
+  Future<void> close() async {
+    await _box.close();
+  }
 }

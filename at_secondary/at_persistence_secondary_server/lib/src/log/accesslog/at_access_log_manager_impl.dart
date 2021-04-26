@@ -14,7 +14,7 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
 
   var logger = AtSignLogger('AtAccessLogManagerImpl');
 
-  Map<String, AtAccessLog> _accessLogMap = {};
+  final Map<String, AtAccessLog> _accessLogMap = {};
 
   @override
   Future<AtAccessLog> getAccessLog(String atSign,
@@ -27,10 +27,9 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
     return _accessLogMap[atSign];
   }
 
-  void close() async {
-    await _accessLogMap.forEach((key, value) async {
-      await value.close();
-    });
+  Future<void> close() async {
+    await Future.forEach(
+        _accessLogMap.values, (atAccessLog) => atAccessLog.close());
     _accessLogMap.clear();
   }
 }
