@@ -150,7 +150,7 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
-  void close() async {
+  Future<void> close() async {
     await box.close();
   }
 }

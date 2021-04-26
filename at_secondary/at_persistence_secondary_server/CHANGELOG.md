@@ -17,3 +17,5 @@
 - Notification sub system changes
 ## 1.0.1+6
 - Add await on close methods.
+## 1.0.1+7
+- Third party package dependency upgrade

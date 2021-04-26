@@ -9,7 +9,11 @@ environment:
   sdk: '>=2.7.0 <3.0.0'
 
 dependencies:
-  at_commons: ^1.0.1+5
+  at_commons: ^1.0.1+7
+
+#dependency_overrides:
+#  at_commons:
+#    path: ../../at_tools/at_commons
 
 dev_dependencies:
   pedantic: ^1.8.0

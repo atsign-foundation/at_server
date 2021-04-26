@@ -258,7 +258,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -777,11 +777,12 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
+Future<void> tearDownFunc() async {
+  await AtNotificationKeystore.getInstance().close();
   AtNotificationMap.getInstance().clear();
+  var isExists = await Directory('test/hive').exists();
   if (isExists) {
-    await Directory('test/hive').deleteSync(recursive: true);
+    Directory('test/hive').deleteSync(recursive: true);
   }
 }
 
