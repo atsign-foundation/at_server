@@ -16,3 +16,7 @@
   Introduced batch verb for sync
 ## 1.0.1+5
 - Notification sub system changes
+## 1.0.1+6
+- Add await on close methods.
+## 1.0.1+7
+- Third party package dependency upgrade
