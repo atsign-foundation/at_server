@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
-import 'package:at_utils/at_logger.dart';
 
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   var logger = AtSignLogger('CommitLogKeyStore');
@@ -16,7 +16,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   CommitLogKeyStore(this._currentAtSign);
 
-  void init(String storagePath) async {
+  Future<void> init(String storagePath) async {
     var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
@@ -37,7 +37,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Closes the [commitLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await box.close();
   }
 
