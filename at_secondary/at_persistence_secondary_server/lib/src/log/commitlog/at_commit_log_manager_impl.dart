@@ -29,10 +29,9 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
     return _commitLogMap[atSign];
   }
 
-  void close() async {
-    await _commitLogMap.forEach((key, value) async {
-      await value.close();
-    });
+  Future<void> close() async {
+    await Future.forEach(
+        _commitLogMap.values, (atCommitLog) => atCommitLog.close());
     _commitLogMap.clear();
   }
 
