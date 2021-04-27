@@ -14,25 +14,24 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
 
   var logger = AtSignLogger('AtCommitLogManagerImpl');
 
-  Map<String, AtCommitLog> _commitLogMap = {};
+  final Map<String, AtCommitLog> _commitLogMap = {};
 
   @override
-  Future<AtCommitLog> getCommitLog(String atSign,
-      {String commitLogPath, bool enableCommitId = true}) async {
+  Future<AtCommitLog?> getCommitLog(String atSign,
+      {String? commitLogPath, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.
     if (!_commitLogMap.containsKey(atSign)) {
       var commitLogKeyStore = CommitLogKeyStore(atSign);
       commitLogKeyStore.enableCommitId = enableCommitId;
-      await commitLogKeyStore.init(commitLogPath);
+      await commitLogKeyStore.init(commitLogPath!);
       _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
     }
     return _commitLogMap[atSign];
   }
 
-  void close() async {
-    await _commitLogMap.forEach((key, value) async {
-      await value.close();
-    });
+  Future<void> close() async {
+    await Future.forEach(
+        _commitLogMap.values, (AtCommitLog atCommitLog) => atCommitLog.close());
     _commitLogMap.clear();
   }
 

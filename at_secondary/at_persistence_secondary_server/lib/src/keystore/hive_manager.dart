@@ -16,13 +16,13 @@ class HivePersistenceManager {
 
   final logger = AtSignLogger('HivePersistenceManager');
 
-  Box _box;
+  Box? _box;
 
-  Box get box => _box;
-  String _atsign;
+  Box? get box => _box;
+  String? _atsign;
 
-  String get atsign => _atsign;
-  String _boxName;
+  String? get atsign => _atsign;
+  late String _boxName;
   var _secret;
 
   HivePersistenceManager(this._atsign);
@@ -56,7 +56,7 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<Box> openVault(String atsign, {List<int> hiveSecret}) async {
+  Future<Box?> openVault(String atsign, {List<int>? hiveSecret}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
@@ -89,9 +89,9 @@ class HivePersistenceManager {
     return _box;
   }
 
-  Future<List<int>> _getHiveSecretFromFile(
+  Future<List<int>?> _getHiveSecretFromFile(
       String atsign, String storagePath) async {
-    List<int> secretAsUint8List;
+    List<int>? secretAsUint8List;
     try {
       assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase();
@@ -110,8 +110,8 @@ class HivePersistenceManager {
       var exists = File(filePath).existsSync();
       if (exists) {
         if (_debug) print('AtServer.getHiveSecretFromFile file found');
-        hiveSecretString = await File(filePath).readAsStringSync();
-        if (hiveSecretString == null) {
+        hiveSecretString = File(filePath).readAsStringSync();
+        if (hiveSecretString.isEmpty) {
           secretAsUint8List = _generatePersistenceSecret();
           hiveSecretString = String.fromCharCodes(secretAsUint8List);
           File(filePath).writeAsStringSync(hiveSecretString);
@@ -139,8 +139,8 @@ class HivePersistenceManager {
     var cron = Cron();
     cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atsign)
-          .getSecondaryKeyStore();
+          .getSecondaryPersistenceStore(this._atsign)!
+          .getSecondaryKeyStore()!;
       hiveKeyStore.deleteExpiredKeys();
     });
   }
@@ -150,7 +150,7 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
-  void close() async {
-    await box.close();
+  Future<void> close() async {
+    await box!.close();
   }
 }

@@ -2,31 +2,31 @@ import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart
 import 'package:hive/hive.dart';
 
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
-@HiveType()
+@HiveType(typeId: 2)
 class CommitEntry extends HiveObject {
   @HiveField(0)
-  final String _atKey;
+  final String? _atKey;
 
   @HiveField(1)
-  CommitOp _operation;
+  CommitOp? _operation;
 
-  set operation(CommitOp value) {
+  set operation(CommitOp? value) {
     _operation = value;
   }
 
   @HiveField(2)
-  final DateTime _opTime;
+  final DateTime? _opTime;
 
   @HiveField(3)
-  int commitId;
+  int? commitId;
 
   CommitEntry(this._atKey, this._operation, this._opTime);
 
-  String get atKey => _atKey;
+  String? get atKey => _atKey;
 
-  CommitOp get operation => _operation;
+  CommitOp? get operation => _operation;
 
-  DateTime get opTime => _opTime;
+  DateTime? get opTime => _opTime;
 
   Map toJson() => {
         'atKey': _atKey,
@@ -43,8 +43,8 @@ class CommitEntry extends HiveObject {
 
 enum CommitOp { UPDATE, DELETE, UPDATE_META, UPDATE_ALL }
 
-extension CommitOpSymbols on CommitOp {
-  String get name {
+extension CommitOpSymbols on CommitOp? {
+  String? get name {
     switch (this) {
       case CommitOp.UPDATE:
         return '+';
@@ -63,7 +63,7 @@ extension CommitOpSymbols on CommitOp {
 /// Hive type adapter for [CommitEntry]
 class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
   @override
-  final typeId = typeAdapterMap['CommitEntryAdapter'];
+  final int typeId = typeAdapterMap['CommitEntryAdapter'];
 
   @override
   CommitEntry read(BinaryReader reader) {
@@ -72,8 +72,8 @@ class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read()
     };
     var commitEntry = CommitEntry(
-        fields[0] as String, fields[1] as CommitOp, fields[2] as DateTime);
-    commitEntry.commitId = fields[3] as int;
+        fields[0] as String?, fields[1] as CommitOp?, fields[2] as DateTime?);
+    commitEntry.commitId = fields[3] as int?;
     return commitEntry;
   }
 
@@ -92,12 +92,12 @@ class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
   }
 }
 
-class CommitOpAdapter extends TypeAdapter<CommitOp> {
+class CommitOpAdapter extends TypeAdapter<CommitOp?> {
   @override
-  final typeId = typeAdapterMap['CommitOpAdapter'];
+  final int typeId = typeAdapterMap['CommitOpAdapter'];
 
   @override
-  CommitOp read(BinaryReader reader) {
+  CommitOp? read(BinaryReader reader) {
     var numOfFields = reader.readByte();
     var fields = <int, dynamic>{
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read()
@@ -121,7 +121,7 @@ class CommitOpAdapter extends TypeAdapter<CommitOp> {
   }
 
   @override
-  void write(BinaryWriter writer, CommitOp commitOp) {
+  void write(BinaryWriter writer, CommitOp? commitOp) {
     writer
       ..writeByte(1)
       ..writeByte(0)

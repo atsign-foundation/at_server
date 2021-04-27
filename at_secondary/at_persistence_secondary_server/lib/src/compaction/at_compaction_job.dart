@@ -5,7 +5,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
 class AtCompactionJob {
-  Cron _cron;
+  late Cron _cron;
   AtLogType atLogType;
 
   AtCompactionJob(this.atLogType);
