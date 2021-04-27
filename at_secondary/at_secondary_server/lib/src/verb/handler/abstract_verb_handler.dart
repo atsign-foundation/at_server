@@ -1,11 +1,12 @@
 import 'dart:collection';
-import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_utils/at_logger.dart';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
+import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 abstract class AbstractVerbHandler implements VerbHandler {
   SecondaryKeyStore keyStore;
@@ -31,7 +32,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> process(String command, InboundConnection atConnection) async {
     var response = await processInternal(command, atConnection);
     var handler = responseManager.getResponseHandler(getVerb());
-    await handler.process(atConnection, response);
+    handler.process(atConnection, response);
   }
 
   Future<Response> processInternal(

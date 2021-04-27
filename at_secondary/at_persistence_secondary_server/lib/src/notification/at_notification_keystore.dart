@@ -19,7 +19,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   bool _register = false;
 
-  void init(storagePath, boxName) async {
+  Future<void> init(storagePath, boxName) async {
     Hive.init(storagePath);
     if (!_register) {
       Hive.registerAdapter(AtNotificationAdapter());

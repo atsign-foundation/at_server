@@ -66,7 +66,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
         clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
-      logger.finer('_verifyFromAtSign result : ${result}');
+      logger.finer('_verifyFromAtSign result : $result');
       if (!result) {
         throw UnAuthenticatedException('Certificate Verification Failed');
       }
@@ -103,15 +103,15 @@ class FromVerbHandler extends AbstractVerbHandler {
         await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
-          'No secondary url found for atsign: ${fromAtSign}');
+          'No secondary url found for atsign: $fromAtSign');
     }
-    logger.finer('_verifyFromAtSign secondayUrl : ${secondaryUrl}');
+    logger.finer('_verifyFromAtSign secondayUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
     SecureSocket secSocket = atConnection.getSocket();
-    logger.finer('secSocket : ${secSocket}');
+    logger.finer('secSocket : $secSocket');
     var CN = secSocket.peerCertificate;
-    logger.finer('CN : ${CN}');
+    logger.finer('CN : $CN');
     if (CN == null) {
       logger.finer(
           'CN is null.stream flag ${atConnection.getMetaData().isStream}');
@@ -136,14 +136,15 @@ class FromVerbHandler extends AbstractVerbHandler {
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
     var subjectAlternativeName = data.subjectAlternativNames;
-    logger.finer('SAN: ${subjectAlternativeName}');
+    logger.finer('SAN: $subjectAlternativeName');
     if (subjectAlternativeName.contains(host)) {
       return true;
     }
     var commonName = data.subject['2.5.4.3'];
-    logger.finer('CN: ${commonName}');
+    logger.finer('CN: $commonName');
     if (commonName.contains(host)) {
       return true;
     }
+    return false;
   }
 }

@@ -138,6 +138,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
+  @override
   int entriesCount() {
     var totalKeys = 0;
     totalKeys = box?.keys?.length;
@@ -147,6 +148,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// Gets the first 'N' keys from the logs
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
+  @override
   List getFirstNEntries(int N) {
     var entries = [];
     try {
@@ -170,6 +172,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     }
   }
 
+  @override
   int getSize() {
     var logSize = 0;
     var logLocation = Directory(storagePath);
@@ -184,6 +187,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     return logSize ~/ 1024;
   }
 
+  @override
   List getExpired(int expiryInDays) {
     // TODO: implement getExpired
     return null;

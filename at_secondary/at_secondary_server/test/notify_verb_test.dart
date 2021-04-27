@@ -309,7 +309,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -366,7 +366,7 @@ void main() {
             ..retryCount = 0)
           .build();
       var queueManager = QueueManager.getInstance();
-      await queueManager.enqueue(atNotification1);
+      queueManager.enqueue(atNotification1);
       var response = queueManager.dequeue('@alice');
       var atNotification;
       if (response.moveNext()) {

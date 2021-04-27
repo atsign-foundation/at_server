@@ -95,9 +95,9 @@ class OutboundMessageListener {
     await _closeClient();
   }
 
-  void _closeClient() async {
+  Future<void> _closeClient() async {
     if (!client.isInValid()) {
-      await client.close();
+      client.close();
     }
   }
 }

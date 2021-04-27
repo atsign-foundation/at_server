@@ -36,6 +36,7 @@ class NotifyConnectionsPool {
     return _pool.getCapacity() - _pool.getCurrentSize();
   }
 
+  // ignore: missing_return
   OutboundClient get(String toAtSign) {
     // Initialize the pool if not already done
     if (!isInitialised) {
@@ -46,7 +47,7 @@ class NotifyConnectionsPool {
     var client = _pool.get(toAtSign, inboundConnection);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to ${toAtSign}');
+      logger.finer('retrieved outbound client from pool to $toAtSign');
       return client;
     }
 

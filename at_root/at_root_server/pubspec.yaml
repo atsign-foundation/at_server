@@ -1,8 +1,9 @@
 name: at_root_server
 description: Root server implementation.
-version: 1.0.0+1.DEV
+version: 1.0.0+1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
+publish_to: none
 
 environment:
   sdk: ">=2.7.0 <3.0.0"
@@ -16,14 +17,14 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: master
+      ref: dev_env
       version: ^1.0.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: master
+      ref: dev_env
       version: ^1.0.0
 
 dev_dependencies:

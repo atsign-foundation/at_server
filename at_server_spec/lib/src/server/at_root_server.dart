@@ -7,7 +7,7 @@ import 'package:at_server_spec/src/server/at_server.dart';
 abstract class AtRootServer implements AtServer {
   /// Sets the server context
   /// @param context - context for this server to start
-  setServerContext(AtServerContext context);
+  void setServerContext(AtServerContext context);
 }
 
 /// Represent an incoming request
