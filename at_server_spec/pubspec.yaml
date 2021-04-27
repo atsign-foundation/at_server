@@ -14,7 +14,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: dev_env
+      ref: trunk
       version: ^1.0.1+7
 
 #dependency_overrides:
