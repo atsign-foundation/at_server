@@ -68,9 +68,6 @@ jobs:
         working-directory: at_functional_test
         run: dart run test/check_test_env.dart
         
-      - name: Debugging with tmate
-        uses: mxschmitt/action-tmate@v3.5
-
       - name: Run tests
         working-directory: at_functional_test
         run: pub run test
