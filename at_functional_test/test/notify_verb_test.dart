@@ -6,10 +6,10 @@ import 'commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
-  var first_atsign = '@bob🛠';
+  var first_atsign = '@alice🛠';
   var first_atsign_port = 25003;
 
-  var second_atsign = '@alice🛠';
+  var second_atsign = '@bob🛠';
   var second_atsign_port = 25000;
 
   var third_atsign = '@emoji🦄🛠';
@@ -32,36 +32,36 @@ void main() {
 
   test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign,
-        'notify:update:messageType:key:notifier:system:ttr:-1:$second_atsign:email$first_atsign:bob@yahoo.com');
+    await socket_writer(_socket_second_atsign,
+        'notify:update:messageType:key:notifier:system:ttr:-1:$first_atsign:email$second_atsign:alice@yahoo.com');
     var response = await read();
     print('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     var id = response.replaceAll('data:', '');
+    print(id);
 
     // notify status
-    await Future.delayed(Duration(seconds: 15));
     await socket_writer(_socket_first_atsign, 'notify:status:$id');
+    await Future.delayed(Duration(seconds: 6));
     response = await read();
     print('notify status response : $response');
-    expect(response, contains('data:delivered'));
-
+    assert(response.contains('data:delivered'));
+    
     ///notify:list verb
     await socket_writer(_socket_second_atsign, 'notify:list');
-    // await Future.delayed(Duration(seconds: 10));
     response = await read();
     print('notify list verb response : $response');
     expect(
         response,
         contains(
-            '"key":"@alice🛠:email@bob🛠","value":"bob@yahoo.com","operation":"update"'));
+            '"key":"$first_atsign:email$second_atsign","value":"alice@yahoo.com","operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb for notifying a text update to another atsign', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign,
-        'notify:update:messageType:text:notifier:chat:ttr:-1:$second_atsign:Hello!!');
+    await socket_writer(_socket_second_atsign,
+        'notify:update:messageType:text:notifier:chat:ttr:-1:$first_atsign:Hello!!');
     var response = await read();
     print('notify verb response : $response');
     var id = response.replaceAll('data:', '');
@@ -69,7 +69,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     //   // notify status
-    await Future.delayed(Duration(seconds: 6));
+    await Future.delayed(Duration(seconds: 15));
     await socket_writer(_socket_first_atsign, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
@@ -80,7 +80,7 @@ void main() {
     response = await read();
     print('notify list verb response : $response');
     expect(response,
-        contains('"key":"@alice🛠:Hello!!","value":null,"operation":"update"'));
+        contains('"key":"$first_atsign:Hello!!","value":null,"operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb for deleting a key for other atsign', () async {
@@ -94,7 +94,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     //   // notify status
-    await Future.delayed(Duration(seconds: 15));
+    // await Future.delayed(Duration(seconds: 15));
     await socket_writer(_socket_first_atsign, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
@@ -107,7 +107,7 @@ void main() {
     expect(
         response,
         contains(
-            '"key":"@alice🛠:email@bob🛠","value":null,"operation":"delete"'));
+            '"key":"$second_atsign:email$first_atsign","value":null,"operation":"delete"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   // // notify verb- Negative scenario

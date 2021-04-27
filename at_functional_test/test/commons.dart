@@ -11,8 +11,13 @@ var maxRetryCount = 10;
 var retryCount = 1;
 
 ///Socket Connection
-Future<Socket> socket_connection(host, port) async {
-  return await Socket.connect(host, port);
+Future<SecureSocket> socket_connection(host, port) async {
+  var context = SecurityContext();
+  print(Directory.current);
+  context.setTrustedCertificates('lib/secondary/base/certs/cacert.pem');
+  context.usePrivateKey('lib/secondary/base/certs/privkey.pem');
+  context.useCertificateChain('lib/secondary/base/certs/fullchain.pem');
+  return await SecureSocket.connect(host, port , context: context );
 }
 
 void clear() {
