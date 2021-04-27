@@ -28,9 +28,8 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
   }
 
   Future<void> close() async {
-    await _accessLogMap.forEach((key, value) async {
-      await value.close();
-    });
+    await Future.forEach(
+        _accessLogMap.values, (atAccessLog) => atAccessLog.close());
     _accessLogMap.clear();
   }
 }

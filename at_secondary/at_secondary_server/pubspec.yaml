@@ -10,11 +10,12 @@ environment:
 
 dependencies:
   args: ^1.5.0
-  uuid: ^2.0.2
+  uuid: ^3.0.4
   convert: ^2.1.1
-  crypto: ^2.1.4
-  crypton: ^1.1.0
+  crypto: ^3.0.0
+  crypton: ^2.0.1
   collection: ^1.14.13
+  basic_utils: ^3.0.0
   at_persistence_secondary_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
@@ -36,7 +37,9 @@ dependencies:
       ref: dev_env
       version: ^1.0.0
 
-#dependency_overrides:
+dependency_overrides:
+  logging: ^1.0.0
+  json_annotation: ^2.3.0
 #  at_persistence_secondary_server:
 #    path: ../at_persistence_secondary_server
 #  at_server_spec:
@@ -52,6 +55,5 @@ dependencies:
 
 dev_dependencies:
   test: ^1.6.0
-  test_coverage: ^0.4.1
+  test_coverage: ^0.5.0
   mockito: ^4.1.1
-  basic_utils: ^2.2.2

@@ -16,7 +16,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   CommitLogKeyStore(this._currentAtSign);
 
-  void init(String storagePath) async {
+  Future<void> init(String storagePath) async {
     var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
@@ -37,7 +37,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Closes the [commitLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await box.close();
   }
 
