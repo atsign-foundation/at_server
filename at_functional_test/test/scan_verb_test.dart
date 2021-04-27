@@ -91,9 +91,8 @@ void main() {
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
 
-    var root_server1 = ConfigUtil.getYaml()['root_server']['url'];
     _socket_second_atsign =
-        await secure_socket_connection(root_server1, second_atsign_port);
+        await secure_socket_connection(root_server, second_atsign_port);
     socket_listener(_socket_second_atsign);
     await prepare(_socket_second_atsign, second_atsign);
 
