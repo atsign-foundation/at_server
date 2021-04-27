@@ -7,8 +7,9 @@ name: at_persistence_secondary_server
 
 on:
   pull_request:
-    branches: 
+    branches:
       - master
+      - trunk
       - dev_env
 
 defaults:
