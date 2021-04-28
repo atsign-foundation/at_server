@@ -106,7 +106,7 @@ class AtConfig {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: ${error}');
+      logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
   }
@@ -138,8 +138,8 @@ class AtConfig {
     } else {
       newData = keyStoreHelper.prepareDataForUpdate(existingData, newData);
     }
-    logger.finest('hive key:${configKey}');
-    logger.finest('hive value:${newData}');
+    logger.finest('hive key:$configKey');
+    logger.finest('hive value:$newData');
     await persistenceManager.box?.put(configKey, newData);
     await _commitLog.commit(configKey, CommitOp.UPDATE);
     result = 'success';

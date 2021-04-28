@@ -33,13 +33,13 @@ class AtNotification {
   final _expiresAt;
 
   @HiveField(9)
-  NotificationPriority _priority;
+  NotificationPriority priority;
 
   @HiveField(10)
-  NotificationStatus _notificationStatus;
+  NotificationStatus notificationStatus;
 
   @HiveField(11)
-  int _retryCount;
+  int retryCount;
 
   @HiveField(12)
   final _strategy;
@@ -66,9 +66,9 @@ class AtNotification {
         _opType = atNotificationBuilder.opType,
         _messageType = atNotificationBuilder.messageType,
         _expiresAt = atNotificationBuilder.expiresAt,
-        _priority = atNotificationBuilder.priority,
-        _notificationStatus = atNotificationBuilder.notificationStatus,
-        _retryCount = atNotificationBuilder.retryCount,
+        priority = atNotificationBuilder.priority,
+        notificationStatus = atNotificationBuilder.notificationStatus,
+        retryCount = atNotificationBuilder.retryCount,
         _strategy = atNotificationBuilder.strategy,
         _notifier = atNotificationBuilder.notifier,
         _depth = atNotificationBuilder.depth,
@@ -93,11 +93,9 @@ class AtNotification {
 
   String get atValue => _atValue;
 
-  NotificationPriority get priority => _priority;
+  //int get retryCount => _retryCount;
 
-  int get retryCount => _retryCount;
-
-  NotificationStatus get notificationStatus => _notificationStatus;
+  //NotificationStatus get notificationStatus => _notificationStatus;
 
   String get notifier => _notifier;
 
@@ -118,9 +116,9 @@ class AtNotification {
         'type': _type,
         'opType': _opType,
         'messageType': _messageType,
-        'priority': _priority,
-        'notificationStatus': _notificationStatus,
-        'retryCount': _retryCount,
+        'priority': priority,
+        'notificationStatus': notificationStatus,
+        'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
@@ -131,22 +129,10 @@ class AtNotification {
 
   @override
   String toString() {
-    return 'AtNotification{id: ${_id},fromAtSign: ${_fromAtSign}, '
-        'notificationDateTime: ${_notificationDateTime}, '
-        'toAtSign:${_toAtSign}, notification:${_notification}, '
-        'type:${_type}, opType:${_opType}, expiresAt:${_expiresAt} : priority:${_priority} : notificationStatus:${notificationStatus} : atValue:${atValue}';
-  }
-
-  set priority(NotificationPriority notificationPriority) {
-    _priority = notificationPriority;
-  }
-
-  set notificationStatus(NotificationStatus notificationStatusNew) {
-    _notificationStatus = notificationStatusNew;
-  }
-
-  set retryCount(int value) {
-    _retryCount = value;
+    return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
+        'notificationDateTime: $_notificationDateTime, '
+        'toAtSign:$_toAtSign, notification:$_notification, '
+        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
   }
 }
 

@@ -78,8 +78,10 @@ class AtNotificationMap {
     _waitTimeMap.putIfAbsent(
         atNotification.toAtSign, () => NotificationWaitTime());
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign];
-    notificationWaitTime.prioritiesSum = atNotification.priority.index;
-    notificationWaitTime.totalPriorities = 1;
+    notificationWaitTime.prioritiesSum =
+        notificationWaitTime.prioritiesSum + atNotification.priority.index;
+    notificationWaitTime.totalPriorities =
+        notificationWaitTime.totalPriorities + 1;
     var date;
     if (notificationWaitTime.totalPriorities == 1) {
       date = atNotification.notificationDateTime;

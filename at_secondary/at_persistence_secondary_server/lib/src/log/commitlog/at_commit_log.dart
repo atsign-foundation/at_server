@@ -144,7 +144,7 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Closes the [CommitLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await _commitLogKeyStore.close();
   }
 }

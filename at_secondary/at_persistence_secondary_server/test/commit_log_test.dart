@@ -5,7 +5,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:crypto/crypto.dart';
-import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 void main() async {
@@ -109,7 +108,6 @@ void main() async {
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
-      await Hive.close();
       await AtCommitLogManagerImpl.getInstance().close();
       expect(() async => await commitLogInstance.getEntry(key_2),
           throwsA(predicate((e) => e is DataStoreException)));
@@ -136,10 +134,11 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
+  await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
-    await Directory('test/hive/').deleteSync(recursive: true);
+    Directory('test/hive/').deleteSync(recursive: true);
   }
   AtCommitLogManagerImpl.getInstance().clear();
 }
