@@ -101,10 +101,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
+  await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-  AtCommitLogManagerImpl.getInstance().clear();
 }
