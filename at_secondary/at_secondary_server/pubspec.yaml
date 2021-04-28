@@ -28,7 +28,7 @@ dependencies:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: trunk
-      version: ^1.0.0+7
+      version: ^1.0.0+8
 
   at_server_spec:
     git:

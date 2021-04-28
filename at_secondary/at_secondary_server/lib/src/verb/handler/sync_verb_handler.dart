@@ -57,13 +57,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
     //sort the result by commitId ascending
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
-    var result;
 
     if (syncResultList.isNotEmpty) {
-      result = jsonEncode(syncResultList);
+      syncResultList.forEach((element) {
+        atConnection
+            .write('${jsonEncode(element).length}#${jsonEncode(element)}\$');
+      });
     }
-
-    response.data = result;
     return;
   }
 
