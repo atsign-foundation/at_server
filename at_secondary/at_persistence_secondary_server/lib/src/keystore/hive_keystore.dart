@@ -37,7 +37,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: ${error}');
+      logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
     return value;
@@ -93,8 +93,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('hive key:${hive_key}');
-        logger.finest('hive value:${hive_value}');
+        logger.finest('hive key:$hive_key');
+        logger.finest('hive value:$hive_value');
         await persistenceManager.box?.put(hive_key, hive_value);
         result = await _commitLog.commit(hive_key, commitOp);
       }
@@ -245,7 +245,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
+      logger.severe('Invalid regular expression : $regex');
       throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
@@ -266,7 +266,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       logger.severe('HiveKeystore getMeta exception: $exception');
       throw DataStoreException('exception in getMeta: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore getMeta error: ${error}');
+      logger.severe('HiveKeystore getMeta error: $error');
       throw DataStoreException(error.message);
     }
     return null;

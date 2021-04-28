@@ -184,12 +184,12 @@ void main() async {
   }
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
   await Hive.deleteBoxFromDisk('commit_log_@test_user_1');
   await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
 }
 
-void setUpFunc(storageDir) async {
+Future<void> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
