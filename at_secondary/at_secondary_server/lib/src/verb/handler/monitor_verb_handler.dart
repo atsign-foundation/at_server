@@ -65,18 +65,24 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       // If monitor verb contains regular expression, push notifications that matches the notifications.
       // else push all notifications.
       if (regex != null) {
+        logger.finer('regex is not null:$regex');
+        logger.finer('key: $key');
         try {
           // if key matches the regular expression, push notification.
           // else if fromAtSign matches the regular expression, push notification.
           if (key.contains(RegExp(regex))) {
+            logger.finer('key matches regex');
             atConnection.write(
                 'notification: ' + jsonEncode(notification.toJson()) + '\n');
           } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex))) {
+            logger.finer('fromAtSign matches regex');
             atConnection.write(
                 'notification: ' + jsonEncode(notification.toJson()) + '\n');
+          } else {
+            logger.finer('no regex match');
           }
         } on FormatException {
-          logger.severe('Invalid regular expression : ${regex}');
+          logger.severe('Invalid regular expression : $regex');
           throw InvalidSyntaxException('Invalid regular expression syntax');
         }
       } else {
@@ -109,12 +115,12 @@ class Notification {
   }
 
   Map toJson() => {
-    ID: id,
-    FROM: fromAtSign,
-    TO: toAtSign,
-    KEY: notification,
-    VALUE: value,
-    OPERATION: operation,
-    EPOCH_MILLIS: dateTime
-  };
+        ID: id,
+        FROM: fromAtSign,
+        TO: toAtSign,
+        KEY: notification,
+        VALUE: value,
+        OPERATION: operation,
+        EPOCH_MILLIS: dateTime
+      };
 }

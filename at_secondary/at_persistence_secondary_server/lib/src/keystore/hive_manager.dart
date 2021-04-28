@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:at_utils/at_utils.dart';
-import 'package:cron/cron.dart';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_utils/at_utils.dart';
+import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 import 'secondary_persistence_store_factory.dart';
 
@@ -70,11 +71,11 @@ class HivePersistenceManager {
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      // ignore: omit_local_variable_types
-      var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
+      var hiveBox = await Hive.openBox(_boxName,
+          encryptionCipher: HiveAesCipher(hiveSecret),
           compactionStrategy: (entries, deletedEntries) {
-            return deletedEntries > 50;
-          });
+        return deletedEntries > 50;
+      });
       _box = hiveBox;
       if (_debug) {
         logger.finer(
@@ -138,7 +139,7 @@ class HivePersistenceManager {
     var cron = Cron();
     cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atsign)
+          .getSecondaryPersistenceStore(_atsign)
           .getSecondaryKeyStore();
       hiveKeyStore.deleteExpiredKeys();
     });
@@ -149,7 +150,7 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
-  void close() {
-    box.close();
+  Future<void> close() async {
+    await box.close();
   }
 }

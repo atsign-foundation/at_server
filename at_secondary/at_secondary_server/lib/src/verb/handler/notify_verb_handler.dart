@@ -57,11 +57,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var strategy = verbParams[STRATEGY];
     strategy ??= 'all';
     if (messageType == MessageType.key) {
-      key = '${key}${atSign}';
+      key = '$key$atSign';
     }
     if (forAtSign != null) {
       forAtSign = AtUtils.formatAtSign(forAtSign);
-      key = '${forAtSign}:${key}';
+      key = '$forAtSign:$key';
     }
     var operation = verbParams[AT_OPERATION];
     var opType;
@@ -88,7 +88,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
-            forAtSign, atSign, key, NotificationType.received, opType);
+            forAtSign, atSign, key, NotificationType.received, opType,
+            value: atValue);
         response.data = notificationId;
         return;
       }
@@ -182,7 +183,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   ///Removes the cached key from the keystore.
   ///key Key to delete.
-  void _removeCachedKey(String key) async {
+  Future<void> _removeCachedKey(String key) async {
     var metadata = await keyStore.getMeta(key);
     if (metadata != null && metadata.isCascade) {
       await keyStore.remove(key);

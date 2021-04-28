@@ -16,7 +16,7 @@ class AtSecondaryConfig {
   static String _storagePath = 'storage/hive';
   static String _commitLogPath = 'storage/commitLog';
   static String _accessLogPath = 'storage/accessLog';
-  static String _notificationStoragePath = 'storage/notificationLog';
+  static String _notificationStoragePath = 'storage/notificationLog.v1';
   static int _expiringRunFreqMins = 10;
 
   //Commit Log
@@ -32,11 +32,11 @@ class AtSecondaryConfig {
   static int _accessLogSizeInKB = 2;
 
   //Notification
-  static int _maxNotificationRetries = 5;
+  static final int _maxNotificationRetries = 5;
   static int _maxNotificationEntries = 5;
   static bool _autoNotify = true;
-  static int _notificationQuarantineDuration = 10;
-  static int _notificationJobFrequency = 5;
+  static final int _notificationQuarantineDuration = 10;
+  static final int _notificationJobFrequency = 5;
 
   //Refresh Job
   static int _runRefreshJobHour = 3;

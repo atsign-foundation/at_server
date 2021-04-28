@@ -1,14 +1,15 @@
 import 'dart:collection';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 /// ScanVerbHandler class is used to process scan verb
 /// Scan verb will return all the possible keys you can lookup
@@ -73,7 +74,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         var keysArray = (response.data != null && response.data.isNotEmpty)
             ? (response.data?.split(','))
             : [];
-        logger.finer('keysArray : ${keysArray}, ${keysArray.length}');
+        logger.finer('keysArray : $keysArray, ${keysArray.length}');
         response.data = json.encode(keysArray);
       }
     } on Exception catch (e) {

@@ -102,16 +102,24 @@ class AtMetaData extends HiveObject {
       status = json['status'];
       version = (json['version'] is String)
           ? int.parse(json['version'])
-          : (json['version'] == null) ? 0 : json['version'];
+          : (json['version'] == null)
+              ? 0
+              : json['version'];
       ttl = (json[AT_TTL] is String)
           ? int.parse(json[AT_TTL])
-          : (json[AT_TTL] == null) ? 0 : json[AT_TTL];
+          : (json[AT_TTL] == null)
+              ? 0
+              : json[AT_TTL];
       ttb = (json[AT_TTB] is String)
           ? int.parse(json[AT_TTB])
-          : (json[AT_TTB] == null) ? 0 : json[AT_TTB];
+          : (json[AT_TTB] == null)
+              ? 0
+              : json[AT_TTB];
       ttr = (json[AT_TTR] is String)
           ? int.parse(json[AT_TTR])
-          : (json[AT_TTR] == null) ? 0 : json[AT_TTR];
+          : (json[AT_TTR] == null)
+              ? 0
+              : json[AT_TTR];
       isCascade = json[CCD];
       isBinary = json[IS_BINARY];
       isEncrypted = json[IS_ENCRYPTED];

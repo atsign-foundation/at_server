@@ -12,6 +12,9 @@ import 'package:at_utils/at_logger.dart';
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
   static final ResourceManager _singleton = ResourceManager._internal();
+  bool _isRunning = false;
+
+  bool get isRunning => _isRunning;
 
   ResourceManager._internal();
 
@@ -25,6 +28,7 @@ class ResourceManager {
 
   ///Runs for every configured number of seconds(5).
   void schedule() async {
+    _isRunning = true;
     String atSign;
     Iterator notificationIterator;
     try {
@@ -70,15 +74,16 @@ class ResourceManager {
     try {
       if (!outBoundClient.isHandShakeDone) {
         var isConnected = await outBoundClient.connect();
-        logger.finer('connect result: ${isConnected}');
+        logger.finer('connect result: $isConnected');
         if (isConnected) {
           return outBoundClient;
         }
       }
     } on Exception catch (e) {
-      logger.finer('connect result: ${e}');
+      logger.finer('connect result: $e');
       throw ConnectionInvalidException('Connection failed');
     }
+    return null;
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
@@ -113,15 +118,16 @@ class ResourceManager {
 
   /// If the notification response is success, marks the status as [NotificationStatus.delivered]
   /// Else, marks the notification status as [NotificationStatus.queued] and reduce the priority and add back to queue.
-  void _notifyResponseProcessor(
+  Future<void> _notifyResponseProcessor(
       String response, AtNotification atNotification, List errorList) async {
     if (response == 'data:success') {
-      var notificationKeyStore = await AtNotificationKeystore.getInstance();
+      var notificationKeyStore = AtNotificationKeystore.getInstance();
       var notifyEle = await notificationKeyStore.get(atNotification.id);
       atNotification.notificationStatus = NotificationStatus.delivered;
       await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
       var metadata = Metadata()
-        ..sharedKeyStatus = getSharedKeyName(SharedKeyStatus.SHARED_WITH_NOTIFIED);
+        ..sharedKeyStatus =
+            getSharedKeyName(SharedKeyStatus.SHARED_WITH_NOTIFIED);
       await SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
               AtSecondaryServerImpl.getInstance().currentAtSign)
@@ -142,20 +148,20 @@ class ResourceManager {
     if (atMetaData != null) {
       if (atMetaData.ttr != null) {
         key =
-            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:${key}:${atNotification.atValue}';
+            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
       }
       if (atMetaData.ttb != null) {
-        key = 'ttb:${atMetaData.ttb}:${key}';
+        key = 'ttb:${atMetaData.ttb}:$key';
       }
       if (atMetaData.ttl != null) {
-        key = 'ttl:${atMetaData.ttl}:${key}';
+        key = 'ttl:${atMetaData.ttl}:$key';
       }
     }
-    key = 'notifier:${atNotification.notifier}:${key}';
+    key = 'notifier:${atNotification.notifier}:$key';
     key =
-        'messageType:${atNotification.messageType.toString().split('.').last}:${key}';
+        'messageType:${atNotification.messageType.toString().split('.').last}:$key';
     if (atNotification.opType != null) {
-      key = '${atNotification.opType.toString().split('.').last}:${key}';
+      key = '${atNotification.opType.toString().split('.').last}:$key';
     }
     return key;
   }

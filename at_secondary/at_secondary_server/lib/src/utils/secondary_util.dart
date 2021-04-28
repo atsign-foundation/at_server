@@ -27,7 +27,7 @@ class SecondaryUtil {
   }
 
   static List<String> getSecondaryInfo(String url) {
-    List<String> result = [];
+    var result = <String>[];
     if (url.contains(':')) {
       var arr = url.split(':');
       result.add(arr[0]);

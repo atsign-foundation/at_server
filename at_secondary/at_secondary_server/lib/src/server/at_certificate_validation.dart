@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:pedantic/pedantic.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -30,7 +32,7 @@ class AtCertificateValidationJob {
   }
 
   /// Spawns an isolate job to verify for the expiry of certificates.
-  void runCertificateExpiryCheckJob() async {
+  Future<void> runCertificateExpiryCheckJob() async {
     filePath = filePath.replaceAll('fullchain.pem', '');
     var mainIsolateReceivePort = ReceivePort();
     SendPort childIsolateSendPort;
@@ -57,7 +59,7 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    await childIsolateReceivePort.listen((message) async {
+    childIsolateReceivePort.listen((message) {
       var filePath = message;
       var directory = Directory(filePath);
       var fileSystemEvent = directory.watch(events: FileSystemEvent.create);
@@ -70,9 +72,9 @@ class AtCertificateValidationJob {
   }
 
   /// Restarts the secondary server.
-  void _restartServer() async {
+  Future<void> _restartServer() async {
     var secondary = AtSecondaryServerImpl.getInstance();
-    secondary.stop();
+    await secondary.stop();
     await secondary.start();
   }
 
@@ -103,8 +105,8 @@ class AtCertificateValidationJob {
     if (!stopWaiting) {
       // Calls _initializeRestartProcess method for every 10 seconds until totalConnections are 0 or
       //totalConnections equals total monitor connections.
-      Future.delayed(Duration(seconds: 10), () {})
-          .then(_initializeRestartProcess);
+      unawaited(Future.delayed(Duration(seconds: 10), () {})
+          .then(_initializeRestartProcess));
     }
   }
 

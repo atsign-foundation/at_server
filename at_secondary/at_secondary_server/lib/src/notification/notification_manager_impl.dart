@@ -20,10 +20,10 @@ class NotificationManager implements NotificationManagerSpec {
     }
 
     if (isNotificationAccepted()) {
-      var notificationId =
-      await _storeNotificationInQueue(atNotification);
+      var notificationId = await _storeNotificationInQueue(atNotification);
       return notificationId;
     }
+    return null;
   }
 
   ///Stores the AtNotification Object to Queue.

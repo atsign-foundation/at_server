@@ -1,9 +1,10 @@
-import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
-import 'package:at_utils/at_logger.dart';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 ///Listener class for messages received by [InboundConnection]
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
@@ -46,7 +47,7 @@ class InboundMessageListener {
     try {
       if (!bufferOverflow && _buffer.isEnd()) {
         //decode only when end of buffer is reached
-        var command = utf8.decode(_buffer.message);
+        var command = utf8.decode(_buffer.getData());
         command = command.trim();
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
@@ -64,7 +65,7 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  void _errorHandler(error) async {
+  Future<void> _errorHandler(error) async {
     logger.severe(error.toString());
     await _closeConnection();
   }
@@ -74,9 +75,9 @@ class InboundMessageListener {
     await _closeConnection();
   }
 
-  void _closeConnection() async {
+  Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
-      await connection.close();
+      connection.close();
     }
   }
 }

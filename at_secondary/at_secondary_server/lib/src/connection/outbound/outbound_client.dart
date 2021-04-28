@@ -81,11 +81,11 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
-    var secondaryUrl =
-    await at_lookup.AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
+    var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
+        toAtSign, _rootDomain, _rootPort);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
-          'No secondary url found for atsign: ${toAtSign}');
+          'No secondary url found for atsign: $toAtSign');
     }
     return secondaryUrl;
   }
@@ -115,15 +115,15 @@ class OutboundClient {
     }
     try {
       //1. create from request
-      await outboundConnection.write(AtRequestFormatter.createFromRequest(
+      outboundConnection.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof
       var fromResult = await messageListener.read();
       logger.info('fromResult : $fromResult');
-      if (fromResult == null || fromResult == "") {
+      if (fromResult == null || fromResult == '') {
         throw HandShakeException(
-            'no response received for From:${toAtSign} command');
+            'no response received for From:$toAtSign command');
       }
 
       //3. Save cookie
@@ -136,23 +136,23 @@ class OutboundClient {
           AtSecondaryServerImpl.getInstance().currentAtSign);
 
       //4. Create pol request
-      await outboundConnection.write(AtRequestFormatter.createPolRequest());
+      outboundConnection.write(AtRequestFormatter.createPolRequest());
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
       logger.finer('handShakeResult: $handShakeResult');
       if (handShakeResult == null) {
-        outboundConnection.close();
+        await outboundConnection.close();
         throw HandShakeException('no response received for pol command');
       }
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      if (handShakeResult.startsWith('${currentAtSign}@')) {
+      if (handShakeResult.startsWith('$currentAtSign@')) {
         result = true;
       }
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } on Exception catch (e) {
-      outboundConnection.close();
+      await outboundConnection.close();
       throw HandShakeException(e.toString());
     }
     return result;
@@ -173,14 +173,14 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
-      logger.finer('writing to outbound connection: ${lookUpRequest}');
-      await outboundConnection.write(lookUpRequest);
+      logger.finer('writing to outbound connection: $lookUpRequest');
+      outboundConnection.write(lookUpRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
-      throw OutBoundConnectionInvalidException('Outbound connectin invalid');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var lookupResult = await messageListener.read();
     if (lookupResult != null) {
@@ -201,10 +201,10 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
-      logger.finer('writing to outbound connection: ${scanRequest}');
-      await outboundConnection.write(scanRequest);
+      logger.finer('writing to outbound connection: $scanRequest');
+      outboundConnection.write(scanRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
@@ -247,9 +247,9 @@ class OutboundClient {
     try {
       var notificationRequest = 'notify:$key\n';
       logger.info('notificationRequest : $notificationRequest');
-      await outboundConnection.write(notificationRequest);
+      outboundConnection.write(notificationRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
@@ -262,8 +262,7 @@ class OutboundClient {
     return notifyResult;
   }
 
-  List<dynamic> notifyList(String atSign,
-      {bool handshake = true}) {
+  List<dynamic> notifyList(String atSign, {bool handshake = true}) {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -274,7 +273,7 @@ class OutboundClient {
       notifyResult = notificationKeyStore.getValues();
       if (notifyResult != null) {
         notifyResult.retainWhere((element) =>
-        element.type == NotificationType.sent &&
+            element.type == NotificationType.sent &&
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {

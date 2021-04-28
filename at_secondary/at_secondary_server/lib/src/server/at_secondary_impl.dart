@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -51,7 +52,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final int maxNotificationEntries =
       AtSecondaryConfig.maxNotificationEntries;
-  static final int runRefreshJobHour = AtSecondaryConfig.runRefreshJobHour;
   static final bool clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   bool _isPaused;
@@ -73,6 +73,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtSecondaryContext serverContext;
   VerbExecutor executor;
   VerbHandlerManager verbManager;
+  AtRefreshJob atRefreshJob;
+  var commitLogCompactionJobInstance;
+  var accessLogCompactionJobInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -137,27 +140,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     //Commit Log Compaction
-    var commitLogCompactionJobInstance = AtCompactionJob.getInstance();
+    commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB,
         commitLogExpiryInDays,
         commitLogCompactionPercentage,
         commitLogCompactionFrequencyMins);
-    await commitLogCompactionJobInstance.scheduleCompactionJob(
-        atCommitLogCompactionConfig, _commitLog);
+    await commitLogCompactionJobInstance
+        .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
-    var accessLogCompactionJobInstance = AtCompactionJob.getInstance();
+    accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
     var atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB,
         accessLogExpiryInDays,
         accessLogCompactionPercentage,
         accessLogCompactionFrequencyMins);
-    await accessLogCompactionJobInstance.scheduleCompactionJob(
-        atAccessLogCompactionConfig, _accessLog);
+    await accessLogCompactionJobInstance
+        .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Refresh Cached Keys
-    var atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
+    var random = Random();
+    var runRefreshJobHour = random.nextInt(23);
+    atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     //Certificate reload
@@ -166,7 +171,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification job
     var resourceManager = ResourceManager.getInstance();
-    resourceManager.schedule();
+    if (!resourceManager.isRunning) {
+      resourceManager.schedule();
+    }
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext.inboundConnectionLimit);
@@ -244,9 +251,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext.securityContext.trustedCertificatePath());
         certsAvailable = true;
-      } on FileSystemException catch (e) {
+      } on FileSystemException {
         retryCount++;
-        logger.info('certs unavailable. Retry count ${retryCount}');
+        logger.info('certs unavailable. Retry count $retryCount');
       }
       sleep(Duration(seconds: 10));
     }
@@ -283,16 +290,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer('inside _executeVerbCallBack: ${command}');
+    logger.finer('inside _executeVerbCallBack: $command');
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor.execute(command, connection, verbManager);
     } on Exception catch (e) {
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance().handle(e, atConnection: connection);
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection);
     } on Error catch (e) {
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance()
+      await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }
   }
@@ -300,7 +308,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _streamCallBack(List<int> data, InboundConnection sender) {
     print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:${streamId}');
+    print('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId].getSocket().add(data);
     }
@@ -309,16 +317,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
   @override
-  void stop() {
+  Future<void> stop() async {
     pause();
     try {
       var result = inboundConnectionFactory.removeAllConnections();
       if (result) {
         //close server socket
         _serverSocket.close();
-        AtCommitLogManagerImpl.getInstance().close();
-        AtAccessLogManagerImpl.getInstance().close();
-        SecondaryPersistenceStoreFactory.getInstance().close();
+        await AtCommitLogManagerImpl.getInstance().close();
+        await AtAccessLogManagerImpl.getInstance().close();
+        await SecondaryPersistenceStoreFactory.getInstance().close();
+        atRefreshJob.close();
+        commitLogCompactionJobInstance.close();
+        accessLogCompactionJobInstance.close();
         _isRunning = false;
       }
     } on Exception catch (e) {
@@ -335,7 +346,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
-  void _initializeHiveInstances() async {
+  Future<void> _initializeHiveInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext.currentAtSign,

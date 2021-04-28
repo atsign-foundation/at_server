@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 /// Class for AtNotification callback method implementations
 class AtNotificationCallback {
   static final AtNotificationCallback _singleton =
-  AtNotificationCallback._internal();
+      AtNotificationCallback._internal();
 
   AtNotificationCallback._internal();
 
@@ -41,7 +41,7 @@ class AtNotificationCallback {
   /// Method to invoke registered callbacks
   void invokeCallbacks(AtNotification atNotification) async {
     try {
-      if(atNotification == null){
+      if (atNotification == null) {
         return;
       }
       //Based on notification Entry type get callback function and invoke

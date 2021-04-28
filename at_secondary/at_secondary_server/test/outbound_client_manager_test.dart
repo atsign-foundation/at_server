@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   setUp(() {
@@ -34,10 +35,12 @@ void main() {
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
       clientManager.init(5);
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient_1 =
+          clientManager.getClient('bob', inboundConnection, isHandShake: false);
       expect(outBoundClient_1.toAtSign, 'bob');
       expect(clientManager.getActiveConnectionSize(), 1);
-      var outBoundClient_2 = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient_2 =
+          clientManager.getClient('bob', inboundConnection, isHandShake: false);
       expect(outBoundClient_1.toAtSign == outBoundClient_2.toAtSign, true);
       expect(clientManager.getActiveConnectionSize(), 1);
     });
@@ -125,7 +128,7 @@ class DummySocket implements Socket {
 
   @override
   InternetAddress get remoteAddress =>
-      InternetAddress('192.168.1.${clientCounter}');
+      InternetAddress('192.168.1.$clientCounter');
 
   @override
   int get remotePort => 6460 + clientCounter;
