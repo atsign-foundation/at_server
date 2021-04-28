@@ -16,7 +16,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   CommitLogKeyStore(this._currentAtSign);
 
-  void init(String storagePath) async {
+  Future<void> init(String storagePath) async {
     var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
@@ -33,11 +33,11 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
       return deletedEntries > 1;
     });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
-    logger.finer('last committed sequence: ${lastCommittedSequenceNum}');
+    logger.finer('last committed sequence: $lastCommittedSequenceNum');
   }
 
   /// Closes the [commitLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await box.close();
   }
 
@@ -223,8 +223,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      logger
-          .finer('startKey: ${startKey} all commit log entries: ${box.values}');
+      logger.finer('startKey: $startKey all commit log entries: ${box.values}');
       box.values.forEach((f) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {

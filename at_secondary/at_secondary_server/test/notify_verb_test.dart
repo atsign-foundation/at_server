@@ -778,8 +778,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
+  await AtNotificationKeystore.getInstance().close();
   AtNotificationMap.getInstance().clear();
+  var isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
