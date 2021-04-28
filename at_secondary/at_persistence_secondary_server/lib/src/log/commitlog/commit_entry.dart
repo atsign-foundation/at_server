@@ -8,11 +8,7 @@ class CommitEntry extends HiveObject {
   final String _atKey;
 
   @HiveField(1)
-  CommitOp _operation;
-
-  set operation(CommitOp value) {
-    _operation = value;
-  }
+  CommitOp operation;
 
   @HiveField(2)
   final DateTime _opTime;
@@ -20,24 +16,22 @@ class CommitEntry extends HiveObject {
   @HiveField(3)
   int commitId;
 
-  CommitEntry(this._atKey, this._operation, this._opTime);
+  CommitEntry(this._atKey, this.operation, this._opTime);
 
   String get atKey => _atKey;
-
-  CommitOp get operation => _operation;
 
   DateTime get opTime => _opTime;
 
   Map toJson() => {
         'atKey': _atKey,
-        'operation': _operation.name,
+        'operation': operation.name,
         'opTime': _opTime.toString(),
         'commitId': commitId
       };
 
   @override
   String toString() {
-    return 'CommitEntry{AtKey: ${_atKey}, operation: ${_operation}, commitId:${commitId}, opTime: ${_opTime}, internal_seq: ${key}}';
+    return 'CommitEntry{AtKey: $_atKey, operation: $operation, commitId:$commitId, opTime: $_opTime, internal_seq: $key}';
   }
 }
 

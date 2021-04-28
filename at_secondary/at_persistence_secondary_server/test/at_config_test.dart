@@ -100,7 +100,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
-    await Directory('test/hive/').deleteSync(recursive: true);
+    Directory('test/hive/').deleteSync(recursive: true);
   }
 }
 

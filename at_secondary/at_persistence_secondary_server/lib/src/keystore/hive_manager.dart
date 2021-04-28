@@ -110,7 +110,7 @@ class HivePersistenceManager {
       var exists = File(filePath).existsSync();
       if (exists) {
         if (_debug) print('AtServer.getHiveSecretFromFile file found');
-        hiveSecretString = await File(filePath).readAsStringSync();
+        hiveSecretString = File(filePath).readAsStringSync();
         if (hiveSecretString == null) {
           secretAsUint8List = _generatePersistenceSecret();
           hiveSecretString = String.fromCharCodes(secretAsUint8List);
@@ -137,7 +137,7 @@ class HivePersistenceManager {
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)
           .getSecondaryKeyStore();
