@@ -8,7 +8,7 @@ abstract class IndexKeyStore<K, V, T>
   /// @param keywords - query words to search
   /// @param index - defines the scope of the search
   /// @returns list of values that match the keywords
-  Future<List<String>> search(List<String> keywords, {String index});
+  Future<List<String>> search(List<String> keywords, {String index, int fuzziness, bool contains});
 
   /// Indexes the data in the keystore for future searches.
   /// @param data - data to be indexed

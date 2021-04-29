@@ -26,12 +26,33 @@ class SearchVerbHandler extends AbstractVerbHandler {
   }
 
   @override
+  HashMap<String, String> parse(String command) {
+    var verbParams = super.parse(command);
+    if (command.startsWith('search:contains:')) {
+      verbParams.putIfAbsent('contains', () => null);
+    }
+    return verbParams;
+  }
+
+  @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
 
     var keywords = verbParams['keywords'].split(RegExp('[ ,]'));
-    response.data = (await (keyStore as IndexKeyStore).search(keywords)).toString();
+    if (verbParams.containsKey('contains')) {
+      response.data = (await (keyStore as IndexKeyStore)
+          .search(keywords, contains: true))
+          .toString();
+    } else if (verbParams['fuzzy'] != null) {
+      response.data = (await (keyStore as IndexKeyStore)
+          .search(keywords, fuzziness: int.parse(verbParams['fuzzy'])))
+          .toString();
+    } else {
+      response.data = (await (keyStore as IndexKeyStore)
+          .search(keywords))
+          .toString();
+    }
   }
 }

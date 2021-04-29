@@ -277,7 +277,11 @@ class ElasticKeyStore implements IndexKeyStore<String, AtData, AtMetaData>, Seco
   }
 
   @override
-  Future<List<String>> search(List<String> keywords, {String index}) async {
+  Future<List<String>> search(
+      List<String> keywords,
+      {String index, int fuzziness = 0,
+        bool contains = false}) async {
+
     index ??= 'my_index';
 
     var result = <String>[];
@@ -287,17 +291,56 @@ class ElasticKeyStore implements IndexKeyStore<String, AtData, AtMetaData>, Seco
       searchQuery += '  ${keywords[i]}';
     }
 
-    (await client.search(
-      index: index,
-      type: 'my_type',
-      query: {
-        'simple_query_string': {
-          'query': searchQuery
+    List<Hit> hits;
+
+    if (fuzziness > 0) {
+      hits = (await client.search(
+        index: index,
+        type: 'my_type',
+        query: {
+          'simple_query_string': {
+            'query': searchQuery + '~$fuzziness',
+            'fields': ['*'],
+            'fuzzy_max_expansions': fuzziness,
+            'fuzzy_transpositions': true
+          }
         }
+      )).hits;
+    }
+    else if (contains) {
+
+      searchQuery = '*${keywords[0]}*';
+      for (var i = 1; i < keywords.length; i++) {
+        searchQuery += ' *${keywords[i]}*';
       }
-    ))
-        .hits
-        .forEach((element) {result.add(element.doc.toString());});
+
+      hits = (await client.search(
+        index: index,
+        type: 'my_type',
+        query: {
+          'query_string': {
+            'query': searchQuery,
+            'fields': ['*']
+          }
+        }
+      )).hits;
+    }
+    else {
+      hits = (await client.search(
+          index: index,
+          type: 'my_type',
+          query: {
+            'simple_query_string': {
+              'query': searchQuery,
+              'fields': ['*']
+            }
+          }
+      )).hits;
+    }
+
+    for (var hit in hits) {
+      result.add(hit.doc.toString());
+    }
 
     return result;
   }
