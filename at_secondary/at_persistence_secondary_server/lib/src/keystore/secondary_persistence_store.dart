@@ -8,7 +8,6 @@ class SecondaryPersistenceStore {
   HiveKeystore _hiveKeystore;
   HivePersistenceManager _hivePersistenceManager;
   SecondaryKeyStoreManager _secondaryKeyStoreManager;
-  IndexKeyStore _indexKeyStore;
   String _atSign;
 
   SecondaryPersistenceStore(String atSign) {
@@ -20,8 +19,8 @@ class SecondaryPersistenceStore {
     return _hiveKeystore;
   }
 
-  IndexKeyStore getIndexKeyStore() {
-    return _indexKeyStore;
+  IndexableKeyStore getIndexKeyStore() {
+    return ElasticKeyStore();
   }
 
   HivePersistenceManager getHivePersistenceManager() {
@@ -33,7 +32,6 @@ class SecondaryPersistenceStore {
   }
 
   void _init() {
-    _indexKeyStore = ElasticKeyStore();
     _hiveKeystore = HiveKeystore();
     _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;

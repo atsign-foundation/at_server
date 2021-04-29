@@ -1,7 +1,7 @@
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 /// IndexKeyStore represents a keystore that can index values and search through those values
-abstract class IndexKeyStore<K, V, T>
+abstract class IndexableKeyStore<K, V, T>
     implements SecondaryKeyStore<K, V, T> {
 
   /// Searches all the values in keystore with queryWords.
@@ -16,4 +16,9 @@ abstract class IndexKeyStore<K, V, T>
   /// @param index - the index that this data should be associated with
   /// @returns the id of the data
   Future<String> index(String data, {String id, String index});
+
+  /// Removes data associated with specified id from the index
+  /// @param id - id of the data that needs to be removed
+  /// @param index - index from which the data needs to be removed
+  void unindex(String id, {String index});
 }

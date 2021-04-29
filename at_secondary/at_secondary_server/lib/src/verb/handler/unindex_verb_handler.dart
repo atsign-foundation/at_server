@@ -8,22 +8,20 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:uuid/uuid.dart';
-import '';
 
-class IndexVerbHandler extends AbstractVerbHandler {
-  static Index index = Index();
+class UnIndexVerbHandler extends AbstractVerbHandler {
+  static UnIndex unIndex = UnIndex();
 
-  IndexVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  UnIndexVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) {
-    return command.startsWith('index:');
+    return command.startsWith('unindex');
   }
 
   @override
   Verb getVerb() {
-    return index;
+    return unIndex;
   }
 
   @override
@@ -35,8 +33,7 @@ class IndexVerbHandler extends AbstractVerbHandler {
     InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
     var fromAtSign = connectionMetadata.fromAtSign;
 
-    await (keyStore as IndexableKeyStore).index(verbParams['json'], id: fromAtSign);
+    (keyStore as IndexableKeyStore).unindex(fromAtSign);
     response.data = 'success';
   }
-
 }

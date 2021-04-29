@@ -9,7 +9,7 @@ import 'package:elastic_client/elastic_client.dart';
 import 'package:utf7/utf7.dart';
 import 'package:uuid/uuid.dart';
 
-class ElasticKeyStore implements IndexKeyStore<String, AtData, AtMetaData>, SecondaryKeyStore<String, AtData, AtMetaData> {
+class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('ElasticKeyStore');
   var _atSign;
 
@@ -257,6 +257,12 @@ class ElasticKeyStore implements IndexKeyStore<String, AtData, AtMetaData>, Seco
       logger.severe('ElasticKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
     }
+  }
+
+  @override
+  void unindex(String id, {String index}) async {
+    index ??= 'my_index';
+    await client.deleteDoc(index: index, id: id);
   }
 
   @override

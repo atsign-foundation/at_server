@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
@@ -21,6 +22,7 @@ import 'package:at_secondary/src/verb/handler/search_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/unindex_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -61,7 +63,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
                 AtSecondaryServerImpl.getInstance().currentAtSign);
     var keyStore =
         secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
-    var indexStore = secondaryPersistenceStore.getIndexKeyStore();
 
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
@@ -85,8 +86,14 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler((keyStore)));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
-    _verbHandlers.add(IndexVerbHandler(indexStore));
-    _verbHandlers.add(SearchVerbHandler(indexStore));
+
+    if (AtSecondaryConfig.enableIndexing) {
+      var indexStore = secondaryPersistenceStore.getIndexKeyStore();
+      _verbHandlers.add(IndexVerbHandler(indexStore));
+      _verbHandlers.add(SearchVerbHandler(indexStore));
+      _verbHandlers.add(UnIndexVerbHandler(indexStore));
+    }
+
     return _verbHandlers;
   }
 }

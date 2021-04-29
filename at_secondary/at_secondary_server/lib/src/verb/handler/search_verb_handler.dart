@@ -17,7 +17,7 @@ class SearchVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) {
-    return command.startsWith('search');
+    return command.startsWith('search:');
   }
 
   @override
@@ -42,15 +42,15 @@ class SearchVerbHandler extends AbstractVerbHandler {
 
     var keywords = verbParams['keywords'].split(RegExp('[ ,]'));
     if (verbParams.containsKey('contains')) {
-      response.data = (await (keyStore as IndexKeyStore)
+      response.data = (await (keyStore as IndexableKeyStore)
           .search(keywords, contains: true))
           .toString();
     } else if (verbParams['fuzzy'] != null) {
-      response.data = (await (keyStore as IndexKeyStore)
+      response.data = (await (keyStore as IndexableKeyStore)
           .search(keywords, fuzziness: int.parse(verbParams['fuzzy'])))
           .toString();
     } else {
-      response.data = (await (keyStore as IndexKeyStore)
+      response.data = (await (keyStore as IndexableKeyStore)
           .search(keywords))
           .toString();
     }
