@@ -16,6 +16,7 @@ dependencies:
   cron: ^0.2.2
   crypto: ^2.1.4
   uuid: ^2.0.2
+  elastic_client: ^0.2.2
   at_persistence_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
@@ -30,9 +31,9 @@ dependencies:
       ref: dev_env_staging
       version: ^1.0.1+6
 
-#dependency_overrides:
-#  at_persistence_spec:
-#    path: ../../../at_server/at_persistence/at_persistence_spec
+dependency_overrides:
+  at_persistence_spec:
+    path: ../../../at_server/at_persistence/at_persistence_spec
 #  at_utils:
 #    path: ../../../at_tools/at_utils
 #  at_commons:

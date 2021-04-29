@@ -5,6 +5,7 @@ import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/index_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
@@ -16,6 +17,7 @@ import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/search_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
@@ -59,6 +61,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
                 AtSecondaryServerImpl.getInstance().currentAtSign);
     var keyStore =
         secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
+    var indexStore = secondaryPersistenceStore.getIndexKeyStore();
+
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
@@ -81,6 +85,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler((keyStore)));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
+    _verbHandlers.add(IndexVerbHandler(indexStore));
+    _verbHandlers.add(SearchVerbHandler(indexStore));
     return _verbHandlers;
   }
 }
