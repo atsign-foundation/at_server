@@ -119,7 +119,7 @@ class AtConfig {
     var result = false;
     try {
       var blockList = await getBlockList();
-      result = blockList.contains(atsign) ?? result;
+      result = blockList.contains(atsign);
       return result;
     } on Exception catch (e) {
       throw DataStoreException(
