@@ -19,8 +19,8 @@ class SecondaryPersistenceStore {
     return _hiveKeystore;
   }
 
-  IndexableKeyStore getIndexKeyStore() {
-    return ElasticKeyStore();
+  IndexableKeyStore getIndexKeyStore(String url) {
+    return ElasticKeyStore(url);
   }
 
   HivePersistenceManager getHivePersistenceManager() {

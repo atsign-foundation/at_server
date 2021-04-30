@@ -88,7 +88,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
 
     if (AtSecondaryConfig.enableIndexing) {
-      var indexStore = secondaryPersistenceStore.getIndexKeyStore();
+      var indexStore = secondaryPersistenceStore.getIndexKeyStore(AtSecondaryConfig.elasticSearchURL);
       _verbHandlers.add(IndexVerbHandler(indexStore));
       _verbHandlers.add(SearchVerbHandler(indexStore));
       _verbHandlers.add(UnIndexVerbHandler(indexStore));

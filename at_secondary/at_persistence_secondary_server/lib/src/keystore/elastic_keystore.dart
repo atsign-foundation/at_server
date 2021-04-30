@@ -13,20 +13,23 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
   final logger = AtSignLogger('ElasticKeyStore');
   var _atSign;
 
-  static Client client;
+  Client client;
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var _commitLog;
 
-  static final ElasticKeyStore _instance = ElasticKeyStore._internal();
+  static final Map<String, ElasticKeyStore> _instancesMap = {};
 
-  factory ElasticKeyStore() {
-    return _instance;
+  factory ElasticKeyStore(String url) {
+    if (!_instancesMap.containsKey(url)) {
+      _instancesMap[url] = ElasticKeyStore._internal(url);
+    }
+    return _instancesMap[url];
   }
 
-  ElasticKeyStore._internal() {
+  ElasticKeyStore._internal(String url) {
     try {
-      var transport = HttpTransport(url: 'http://localhost:9200/');
+      var transport = HttpTransport(url: url);
       client = Client(transport);
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: ' + e.toString());
