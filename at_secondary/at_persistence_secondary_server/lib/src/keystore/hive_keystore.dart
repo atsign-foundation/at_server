@@ -80,7 +80,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isCascade: metadata?.isCached,
             isBinary: metadata?.isBinary,
             isEncrypted: metadata?.isEncrypted,
-            dataSignature: metadata?.dataSignature);
+            dataSignature: metadata?.dataSignature,
+            sharedKeyStatus: metadata?.sharedKeyStatus);
         logger.finest('hive key:${hive_key}');
         logger.finest('hive value:${hive_value}');
         await persistenceManager.box?.put(hive_key, hive_value);
@@ -102,6 +103,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   Future<int> create(String key, AtData value, {Metadata metadata}) async {
     var result;
     var commitOp;
+    metadata ??= Metadata();
     var hive_key = keyStoreHelper.prepareKey(key);
     var hive_data = keyStoreHelper.prepareDataForCreate(value,
         ttl: metadata?.ttl,
@@ -136,7 +138,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             a4: metadata.ccd,
             a5: metadata.isBinary,
             a6: metadata.isEncrypted,
-        a7: metadata.sharedKeyStatus)) {
+            a7: metadata.sharedKeyStatus)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 

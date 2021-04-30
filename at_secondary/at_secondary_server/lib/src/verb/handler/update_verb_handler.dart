@@ -102,14 +102,18 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = 'cached:$key';
       }
 
-      //update status for shared keys
-      if(sharedWithAtSign != null) {
-        logger.finer('updating shared key status. shared with : $sharedWithAtSign');
-        updateParams.metadata.sharedKeyStatus = getSharedKeyName(SharedKeyStatus.LOCAL_UPDATED);
-      }
-
       // update the key in data store
-      var result = await keyStore.put(key, atData, metadata: updateParams.metadata);
+      var result =
+          await keyStore.put(key, atData, metadata: updateParams.metadata);
+      //update status for shared keys
+      if (result != null && sharedWithAtSign != null) {
+        updateParams.metadata.sharedKeyStatus =
+            getSharedKeyName(SharedKeyStatus.REMOTE_UPDATED);
+        result =
+            await keyStore.put(key, atData, metadata: updateParams.metadata);
+        logger.finer(
+            'updating shared key status. shared with : $sharedWithAtSign');
+      }
       response.data = result?.toString();
       if (AUTO_NOTIFY) {
         var atMetadata = AtMetaData()
