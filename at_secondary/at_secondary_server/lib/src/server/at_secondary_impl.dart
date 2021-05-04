@@ -15,6 +15,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -133,7 +134,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     currentAtSign = AtUtils.formatAtSign(serverContext.currentAtSign);
     logger.info('currentAtSign : $currentAtSign');
 
+    //Initializing all the hive instances
     await _initializeHiveInstances();
+
+    //Initializing verb handler manager
+    DefaultVerbHandlerManager().init();
 
     if (!serverContext.isKeyStoreInitialized) {
       throw AtServerException('Secondary keystore is not initialized');
