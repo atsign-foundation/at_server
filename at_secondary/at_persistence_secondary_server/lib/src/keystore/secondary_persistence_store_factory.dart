@@ -1,7 +1,9 @@
+import 'package:at_persistence_secondary_server/src/keystore/redis/secondary_persistence_redis_store.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_utils/at_logger.dart';
 
 class SecondaryPersistenceStoreFactory {
+  String keyStore;
   static final SecondaryPersistenceStoreFactory _singleton =
       SecondaryPersistenceStoreFactory._internal();
 
@@ -18,8 +20,13 @@ class SecondaryPersistenceStoreFactory {
 
   SecondaryPersistenceStore getSecondaryPersistenceStore(String atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
-      var secondaryPersistenceStore = SecondaryPersistenceStore(atSign);
-      _secondaryPersistenceStoreMap[atSign] = secondaryPersistenceStore;
+      if (keyStore == 'redis') {
+        var secondaryPersistenceStore = SecondaryPersistenceRedisStore(atSign);
+        _secondaryPersistenceStoreMap[atSign] = secondaryPersistenceStore;
+      } else {
+        var secondaryPersistenceStore = SecondaryPersistenceStore(atSign);
+        _secondaryPersistenceStoreMap[atSign] = secondaryPersistenceStore;
+      }
     }
     return _secondaryPersistenceStoreMap[atSign];
   }

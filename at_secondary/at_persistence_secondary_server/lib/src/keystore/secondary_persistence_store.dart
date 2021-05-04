@@ -1,6 +1,8 @@
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 
 class SecondaryPersistenceStore {
   HiveKeystore _hiveKeystore;
@@ -13,11 +15,11 @@ class SecondaryPersistenceStore {
     _init();
   }
 
-  HiveKeystore getSecondaryKeyStore() {
+  SecondaryKeyStore getSecondaryKeyStore() {
     return _hiveKeystore;
   }
 
-  HivePersistenceManager getHivePersistenceManager() {
+  PersistenceManager getPersistenceManager() {
     return _hivePersistenceManager;
   }
 

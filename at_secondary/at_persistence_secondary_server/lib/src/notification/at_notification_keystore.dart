@@ -81,18 +81,18 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     throw UnimplementedError();
   }
 
   @override
-  List getExpiredKeys() {
+  Future<List> getExpiredKeys() async {
     // TODO: implement getExpiredKeys
     throw UnimplementedError();
   }
 
   @override
-  List getKeys({String regex}) {
+  Future<List> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
 

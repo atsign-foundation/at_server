@@ -44,7 +44,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
-        currentAtSign);
+        currentAtSign, AtSecondaryConfig.keyStore);
     atConnection.initiatedBy = currentAtSign;
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var fromAtSign = verbParams[AT_SIGN];

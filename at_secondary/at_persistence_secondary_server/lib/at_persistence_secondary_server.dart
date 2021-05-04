@@ -2,7 +2,7 @@ library at_persistence_secondary_server;
 
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job.dart';
 export 'package:at_persistence_secondary_server/src/config/at_config.dart';
-export 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
+export 'package:at_persistence_secondary_server/src/keystore/hive/hive_manager.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
@@ -31,3 +31,5 @@ export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_
 export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log_manager_impl.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
+export 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore.dart';
+export 'package:at_persistence_secondary_server/src/keystore/redis/redis_keystore.dart';

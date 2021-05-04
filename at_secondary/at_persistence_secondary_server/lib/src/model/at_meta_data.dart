@@ -2,7 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
-@HiveType()
+//@HiveType()
 class AtMetaData extends HiveObject {
   @HiveField(0)
   String createdBy;

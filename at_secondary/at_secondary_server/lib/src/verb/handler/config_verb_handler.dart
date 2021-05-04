@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -51,7 +52,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       atConfigInstance = AtConfig(
           await AtCommitLogManagerImpl.getInstance()
               .getCommitLog(currentAtSign),
-          currentAtSign);
+          currentAtSign, AtSecondaryConfig.keyStore);
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];

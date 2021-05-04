@@ -1,6 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
@@ -186,10 +186,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
-      var expiredKeys = getExpiredKeys();
+      var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         expiredKeys.forEach((element) {
           remove(element);
@@ -206,7 +206,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  List<String> getExpiredKeys() {
+  Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
     try {
       var now = DateTime.now().toUtc();
@@ -229,7 +229,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String regex}) {
+  Future<List<String>> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
 

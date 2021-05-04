@@ -13,6 +13,9 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = 'certs/cacert.pem';
 
   //Secondary Storage
+  static String _keyStore = 'hive';
+  static String _redisUrl = 'redis://localhost:6379';
+  static String _redisPassword = 'mypassword';
   static String _storagePath = 'storage/hive';
   static String _commitLogPath = 'storage/commitLog';
   static String _accessLogPath = 'storage/accessLog';
@@ -312,6 +315,39 @@ class AtSecondaryConfig {
       return _storagePath = ConfigUtil.getYaml()['hive']['storagePath'];
     }
     return _storagePath;
+  }
+
+  static String get keyStore {
+    if (_envVars.containsKey('keyStore')) {
+      return _envVars['keyStore'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['keyStore'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['keyStore'];
+    }
+    return _keyStore;
+  }
+
+  static String get redisUrl {
+    if (_envVars.containsKey('redisUrl')) {
+      return _envVars['redisUrl'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['redisUrl'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['redisUrl'];
+    }
+    return _redisUrl;
+  }
+
+  static String get redisPassword {
+    if (_envVars.containsKey('redisPassword')) {
+      return _envVars['redisPassword'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['redisPassword'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['redisPassword'];
+    }
+    return _redisPassword;
   }
 
   static int get outbound_idletime_millis {

@@ -1,17 +1,16 @@
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 
-import 'secondary_persistence_store_factory.dart';
-
-class HivePersistenceManager {
+class HivePersistenceManager implements PersistenceManager {
   final bool _debug = false;
 
   final logger = AtSignLogger('HivePersistenceManager');
@@ -27,7 +26,7 @@ class HivePersistenceManager {
 
   HivePersistenceManager(this._atsign);
 
-  Future<bool> init(String atSign, String storagePath) async {
+  Future<bool> init(String atSign, String storagePath, {String password}) async {
     var success = false;
     try {
       assert(storagePath != null && storagePath != '');

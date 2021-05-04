@@ -374,22 +374,37 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext.currentAtSign);
-    var manager = secondaryPersistenceStore.getHivePersistenceManager();
-    await manager.init(serverContext.currentAtSign, storagePath);
-    await manager.openVault(serverContext.currentAtSign);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins);
+    var secondaryPersistenceStore;
+    var secondaryPersistenceStoreFactory =
+        SecondaryPersistenceStoreFactory.getInstance();
+    secondaryPersistenceStoreFactory.keyStore = AtSecondaryConfig.keyStore;
 
+    secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(serverContext.currentAtSign);
+    var manager = secondaryPersistenceStore.getPersistenceManager();
+    var hiveKeyStore;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      await manager.init(
+          serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+          password: AtSecondaryConfig.redisPassword);
+      hiveKeyStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(serverContext.currentAtSign)
+              .getSecondaryKeyStore() as RedisKeyStore;
+    } else {
+      await manager.init(serverContext.currentAtSign, storagePath);
+      await manager.openVault(serverContext.currentAtSign);
+      manager.scheduleKeyExpireTask(expiringRunFreqMins);
+      hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(serverContext.currentAtSign)
+          .getSecondaryKeyStore() as HiveKeystore;
+    }
+    //}
     var atData = AtData();
     atData.data = serverContext.sharedSecret;
     var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext.currentAtSign)
         .getSecondaryKeyStoreManager();
-    var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext.currentAtSign)
-        .getSecondaryKeyStore();
     hiveKeyStore.commitLog = atCommitLog;
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
