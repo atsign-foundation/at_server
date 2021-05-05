@@ -23,13 +23,8 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    try {
-      connection.getSocket().listen(_messageHandler,
-          onDone: _finishedHandler, onError: _errorHandler);
-    } on Exception catch (e) {
-      logger.finer(
-          'Exception while listening on inbound connection: ${e.toString()}');
-    }
+    connection.getSocket().listen(_messageHandler,
+        onDone: _finishedHandler, onError: _errorHandler);
     connection.getMetaData().isListening = true;
   }
 
@@ -82,8 +77,13 @@ class InboundMessageListener {
   }
 
   void _closeConnection() async {
-    if (!connection.isInValid()) {
-      await connection.close();
+    try {
+      if (!connection.isInValid()) {
+        await connection.close();
+      }
+    } on Exception catch (e) {
+      logger.finer(
+          'Exception while listening on inbound connection: ${e.toString()}');
     }
   }
 }
