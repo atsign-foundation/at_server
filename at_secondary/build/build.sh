@@ -9,6 +9,6 @@ pub update
 
 #Run unit tests before building binary
 #pub run test --concurrency=1
-#
+# 
 #Generate the binary
 dart compile exe  bin/main.dart -o secondary
