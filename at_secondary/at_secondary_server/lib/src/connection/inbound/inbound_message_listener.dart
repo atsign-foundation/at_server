@@ -15,6 +15,7 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
+
   Function(String, InboundConnection) onBufferEndCallBack;
   Function(List<int>, InboundConnection) onStreamCallBack;
 
@@ -22,8 +23,13 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    connection.getSocket().listen(_messageHandler,
-        onDone: _finishedHandler, onError: _errorHandler);
+    try {
+      connection.getSocket().listen(_messageHandler,
+          onDone: _finishedHandler, onError: _errorHandler);
+    } on Exception catch (e) {
+      logger.finer(
+          'Exception while listening on inbound connection: ${e.toString()}');
+    }
     connection.getMetaData().isListening = true;
   }
 

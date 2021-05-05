@@ -1,10 +1,10 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
@@ -39,6 +39,8 @@ void main() {
     var inbound = InboundConnectionImpl(null, null);
     var defaultVerbExecutor = DefaultVerbExecutor();
     var defaultVerbHandlerManager = DefaultVerbHandlerManager();
+    defaultVerbHandlerManager.init();
+
     expect(
         () => defaultVerbExecutor.execute(
             command, inbound, defaultVerbHandlerManager),
