@@ -105,3 +105,15 @@ refreshJob:
 certificate_expiry:
   # Force restart secondary server.
   force_restart: false
+
+# Whether the server should support indexing functionality or not
+enable_indexing: true
+
+elasticSearchURL: 'http://localhost:9200'
+
+#keystore type
+keyStore: 'hive'
+
+#redis configuration
+redisUrl: 'redis://localhost:6379'
+redisPassword: 'mypassword'

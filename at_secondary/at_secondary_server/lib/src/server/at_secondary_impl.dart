@@ -293,7 +293,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///@param - connection : The inbound connection to secondary server from client
   ///Throws [AtConnection] if exceptions occurs in connection.
   ///Throws [InternalServerError] if error occurs in server.
-  void _executeVerbCallBack(
+  void _executeVerbCallBack (
       String command, InboundConnection connection) async {
     logger.finer('inside _executeVerbCallBack: $command');
     try {

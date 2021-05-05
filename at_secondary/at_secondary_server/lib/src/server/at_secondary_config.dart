@@ -68,6 +68,12 @@ class AtSecondaryConfig {
   //force restart
   static final bool _isForceRestart = false;
 
+  //elasticsearch url
+  static final String _elasticSearchURL = 'http://localhost:9200/';
+
+  //enable indexing
+  static final bool _enableIndexing = true;
+
   //version
   static final String _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -78,6 +84,31 @@ class AtSecondaryConfig {
   static final Map<String, String> _envVars = Platform.environment;
 
   static String get secondaryServerVersion => _secondaryServerVersion;
+
+  static bool get enableIndexing {
+    var result = _getBoolEnvVar('enable_indexing');
+    if (result != null) return result;
+
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['enable_indexing'] != null) {
+      return ConfigUtil.getYaml()['enable_indexing'];
+    }
+
+    return _enableIndexing;
+  }
+
+  static String get elasticSearchURL {
+    if (_envVars.containsKey('elasticSearchURL')) {
+      return _envVars['elasticSearchURL'];
+    }
+
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['elasticSearchURL'] != null) {
+      return ConfigUtil.getYaml()['elasticSearchURL'];
+    }
+
+    return _elasticSearchURL;
+  }
 
   static bool get useSSL {
     var result = _getBoolEnvVar('useSSL');

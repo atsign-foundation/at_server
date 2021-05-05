@@ -33,3 +33,4 @@ export 'package:at_persistence_secondary_server/src/keystore/secondary_persisten
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 export 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore.dart';
 export 'package:at_persistence_secondary_server/src/keystore/redis/redis_keystore.dart';
+export 'package:at_persistence_secondary_server/src/keystore/elastic_keystore.dart';

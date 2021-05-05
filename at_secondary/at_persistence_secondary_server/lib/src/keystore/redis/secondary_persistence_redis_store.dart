@@ -41,4 +41,10 @@ class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
     // TODO: implement getHivePersistenceManager
     throw UnimplementedError();
   }
+
+  @override
+  IndexableKeyStore getIndexKeyStore(String url) {
+    return ElasticKeyStore(url);
+  }
+
 }

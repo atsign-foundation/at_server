@@ -2,7 +2,9 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/hive/hive_keystore.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/elastic_keystore.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class SecondaryPersistenceStore {
   HiveKeystore _hiveKeystore;
@@ -21,6 +23,10 @@ class SecondaryPersistenceStore {
 
   PersistenceManager getPersistenceManager() {
     return _hivePersistenceManager;
+  }
+
+  IndexableKeyStore getIndexKeyStore(String url) {
+    return ElasticKeyStore(url);
   }
 
   SecondaryKeyStoreManager getSecondaryKeyStoreManager() {
