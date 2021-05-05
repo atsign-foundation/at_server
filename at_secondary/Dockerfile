@@ -4,9 +4,7 @@ COPY . .
 WORKDIR /app/build
 RUN ./build.sh
 # Set up the @ environment
-ENV APP_BINARY=/usr/local/at
 WORKDIR /app
-COPY at_secondary_server/secondary $APP_BINARY/
 ENV HOME=/atsign
 RUN mkdir -p $HOME
 RUN mkdir -p /archive
@@ -20,16 +18,13 @@ RUN chown -R atsign:atsign /archive
 RUN mkdir $HOME/storage
 RUN mkdir $HOME/config
 COPY at_secondary_server/config/* $HOME/config/
-#COPY pubspec.yaml $HOME/
 RUN chown -R atsign:atsign $HOME/storage
-#RUN ls -la $HOME/config
-RUN ls -la $HOME/
 WORKDIR $HOME
 # Now go slim with an almost scracth container
 FROM atsigncompany/runimage
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
-COPY --from=buildimage --chown=atsign:atsign /usr/local/at/secondary /usr/local/at/
+COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /usr/local/at/
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
 WORKDIR /atsign
