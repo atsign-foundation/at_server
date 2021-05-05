@@ -132,7 +132,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns the first committed sequence number
   int? firstCommittedSequenceNumber() {
-    var firstCommittedSequenceNum = box!.keys.isNotEmpty ? box!.keys.first : null;
+    var firstCommittedSequenceNum =
+        box!.keys.isNotEmpty ? box!.keys.first : null;
     return firstCommittedSequenceNum;
   }
 
@@ -210,17 +211,17 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry?> getChanges(int sequenceNumber, {String? regex}) {
-    var changes = <CommitEntry?>[];
+  List<CommitEntry> getChanges(int sequenceNumber, {String? regex}) {
+    var changes = <CommitEntry>[];
     var regexString = (regex != null) ? regex : '';
     try {
       var keys = box!.keys;
-      if (keys == null || keys.isEmpty) {
+      if (keys.isEmpty) {
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      logger
-          .finer('startKey: ${startKey} all commit log entries: ${box!.values}');
+      logger.finer(
+          'startKey: ${startKey} all commit log entries: ${box!.values}');
       box!.values.forEach((f) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {

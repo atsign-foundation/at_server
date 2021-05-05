@@ -54,8 +54,8 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry?> getChanges(int? sequenceNumber, String? regex) {
-    List<CommitEntry?> changes = <CommitEntry>[];
+  List<CommitEntry> getChanges(int? sequenceNumber, String? regex) {
+    var changes;
     try {
       changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
@@ -63,6 +63,9 @@ class AtCommitLog implements AtLogType {
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
+    }
+    if (changes == null) {
+      return [];
     }
     return changes;
   }
