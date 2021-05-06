@@ -44,25 +44,20 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<int> put(String key, AtData value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future<int> put(String key, AtData value, {Metadata metadata}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
     // Verifies if any of the args are not null
-    var isMetadataNotNull = ObjectsUtil.isAnyNotNull(
-        a1: time_to_live,
-        a2: time_to_born,
-        a3: time_to_refresh,
-        a4: isCascade,
-        a5: isBinary,
-        a6: isEncrypted);
+    var isMetadataNotNull = (metadata != null) &&
+        ObjectsUtil.isAnyNotNull(
+            a1: metadata.ttl,
+            a2: metadata.ttb,
+            a3: metadata.ttr,
+            a4: metadata.ccd,
+            a5: metadata.isBinary,
+            a6: metadata.isEncrypted,
+            a7: metadata.sharedKeyStatus);
     if (isMetadataNotNull) {
       // Set commit op to UPDATE_META
       commitOp = CommitOp.UPDATE_META;
@@ -74,25 +69,19 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       assert(key != null);
       var existingData = await get(key);
       if (existingData == null) {
-        result = await create(key, value,
-            time_to_live: time_to_live,
-            time_to_born: time_to_born,
-            time_to_refresh: time_to_refresh,
-            isCascade: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted,
-            dataSignature: dataSignature);
+        result = await create(key, value, metadata: metadata);
       } else {
         var hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForUpdate(
             existingData, value,
-            ttl: time_to_live,
-            ttb: time_to_born,
-            ttr: time_to_refresh,
-            isCascade: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted,
-            dataSignature: dataSignature);
+            ttl: metadata?.ttl,
+            ttb: metadata?.ttb,
+            ttr: metadata?.ttr,
+            isCascade: metadata?.isCached,
+            isBinary: metadata?.isBinary,
+            isEncrypted: metadata?.isEncrypted,
+            dataSignature: metadata?.dataSignature,
+            sharedKeyStatus: metadata?.sharedKeyStatus);
         logger.finest('hive key:${hive_key}');
         logger.finest('hive value:${hive_value}');
         await persistenceManager.box?.put(hive_key, hive_value);
@@ -111,47 +100,45 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<int> create(String key, AtData value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future<int> create(String key, AtData value, {Metadata metadata}) async {
     var result;
     var commitOp;
+    metadata ??= Metadata();
     var hive_key = keyStoreHelper.prepareKey(key);
     var hive_data = keyStoreHelper.prepareDataForCreate(value,
-        ttl: time_to_live,
-        ttb: time_to_born,
-        ttr: time_to_refresh,
-        isCascade: isCascade,
-        isBinary: isBinary,
-        isEncrypted: isEncrypted,
-        dataSignature: dataSignature);
+        ttl: metadata?.ttl,
+        ttb: metadata?.ttb,
+        ttr: metadata?.ttr,
+        isCascade: metadata?.isCached,
+        isBinary: metadata?.isBinary,
+        isEncrypted: metadata?.isEncrypted,
+        dataSignature: metadata?.dataSignature,
+        sharedKeyStatus: metadata?.sharedKeyStatus);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
     // Setting metadata defined in values
     if (value != null && value.metaData != null) {
-      time_to_live ??= value.metaData.ttl;
-      time_to_born ??= value.metaData.ttb;
-      time_to_refresh ??= value.metaData.ttr;
-      isCascade ??= value.metaData.isCascade;
-      isBinary ??= value.metaData.isBinary;
-      isEncrypted ??= value.metaData.isEncrypted;
-      dataSignature ??= value.metaData.dataSignature;
+      metadata.ttl ??= value.metaData.ttl;
+      metadata.ttb ??= value.metaData.ttb;
+      metadata.ttr ??= value.metaData.ttr;
+      metadata.ccd ??= value.metaData.isCascade;
+      metadata.isBinary ??= value.metaData.isBinary;
+      metadata.isEncrypted ??= value.metaData.isEncrypted;
+      metadata.dataSignature ??= value.metaData.dataSignature;
+      metadata.sharedKeyStatus ??= value.metaData.sharedKeyStatus;
     }
 
     // If metadata is set, set commitOp to Update all
-    if (ObjectsUtil.isAnyNotNull(
-        a1: time_to_live,
-        a2: time_to_born,
-        a3: time_to_refresh,
-        a4: isCascade,
-        a5: isBinary,
-        a6: isEncrypted)) {
+    if (metadata != null &&
+        ObjectsUtil.isAnyNotNull(
+            a1: metadata.ttl,
+            a2: metadata.ttb,
+            a3: metadata.ttr,
+            a4: metadata.ccd,
+            a5: metadata.isBinary,
+            a6: metadata.isEncrypted,
+            a7: metadata.sharedKeyStatus)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 
