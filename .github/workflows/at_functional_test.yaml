@@ -6,7 +6,9 @@
 name: at_functional_test
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - git-129-trunk
 
 jobs:
   build:
