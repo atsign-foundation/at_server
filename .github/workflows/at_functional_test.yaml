@@ -57,7 +57,7 @@ jobs:
         with:
           file: at_functional_test/lib/Dockerfile
           context: at_functional_test/lib/
-          tags: at_virtual_env:test
+          tags: at_virtual_env:trunk
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
@@ -74,5 +74,39 @@ jobs:
       - name: Stop docker container
         run: docker container stop at_virtual_env_cont
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push for trunk branch
+        if: ${{ github.ref == 'refs/heads/trunk' }}
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: at_functional_test/lib/
+          tags: atsigncompany/virtualenv:GHA${{ github.run_number }}
+
+      - name: Build and push secondary image for amd64
+        if: ${{ github.ref == 'refs/heads/trunk' }}
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: at_secondary
+          tags: atsigncompany/secondary:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+
       - name: Remove docker image
-        run: docker rmi at_virtual_env:test
+        run: docker rmi at_virtual_env:GHA${{ github.run_number }}
+
+
