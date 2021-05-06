@@ -3,6 +3,7 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
+# This workflow triggers when a pull request is raised to the below mentioned branches.
 name: at_functional_test
 
 on:
@@ -82,7 +83,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push for trunk branch
-        if: ${{ github.ref == 'refs/heads/trunk' }}
         id: docker_build_trunk
         uses: docker/build-push-action@v2
         with:
@@ -91,7 +91,6 @@ jobs:
           tags: atsigncompany/virtualenv:GHA${{ github.run_number }}
 
       - name: Build and push secondary image for amd64
-        if: ${{ github.ref == 'refs/heads/trunk' }}
         id: docker_build_secondary
         uses: docker/build-push-action@v2
         with:
@@ -102,7 +101,8 @@ jobs:
             linux/amd64
 
       - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
+        run: echo ${{ steps.docker_build_secondary.outputs.digest }}
 
+      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
       - name: Remove docker image
-        run: docker rmi at_virtual_env:GHA${{ github.run_number }}
+        run: docker rmi at_virtual_env:trunk
