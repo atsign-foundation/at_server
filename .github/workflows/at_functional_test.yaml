@@ -6,11 +6,7 @@
 name: at_functional_test
 
 on:
-  pull_request:
-    branches:
-      - master
-      - trunk
-      - dev_env
+  workflow_dispatch:
 
 jobs:
   build:
@@ -108,5 +104,3 @@ jobs:
 
       - name: Remove docker image
         run: docker rmi at_virtual_env:GHA${{ github.run_number }}
-
-
