@@ -68,16 +68,16 @@ To prepare your dedicated GitHub repository:
    git fetch upstream
    ```
 
-1. Reset your fork's `master` branch to exactly match upstream `master`:
+1. Reset your fork's `trunk` branch to exactly match upstream `trunk`:
 
    ```sh
-   git checkout master
-   git reset --hard upstream/master
+   git checkout trunk
+   git reset --hard upstream/trunk
    git push --force
    ```
 
    **IMPORTANT**: Do this only once, when you start working on new feature as
-   the commands above will completely overwrite any local changes in `master` content.
+   the commands above will completely overwrite any local changes in `trunk` content.
 1. Edit, edit, edit, and commit your changes to Git:
 
    ```sh
@@ -93,4 +93,4 @@ To prepare your dedicated GitHub repository:
    # explain tests here
    ```
 
-1. Open a new Pull Request to the main repository using your `master` branch
+1. Open a new Pull Request to the main repository using your `trunk` branch
