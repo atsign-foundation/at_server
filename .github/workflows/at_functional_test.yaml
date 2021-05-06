@@ -3,15 +3,22 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-# This workflow triggers when a pull request is raised to the below mentioned branches.
 name: at_functional_test
 
+# Runs the workflow on pull request or on push event to "trunk" branch.
 on:
   push:
     branches:
+      - trunk
+      - git-129-trunk
+
+  pull_request:
+    branches:
+      - trunk
       - git-129-trunk
 
 jobs:
+  # Jobs runs a dart analyze, unit tests and functional tests.
   build:
     env:
       working-directory: at_server
@@ -73,6 +80,19 @@ jobs:
       - name: Stop docker container
         run: docker container stop at_virtual_env_cont
 
+      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
+      - name: Remove docker image
+        run: docker rmi at_virtual_env:trunk
+
+  # This job run's on trigger event 'push'. The Jobs builds the at_virtual_env and secondary server and pushes
+  # the docker images to docker hub.
+  deploy:
+    if: ${{ github.event_name == 'push' }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
 
@@ -82,6 +102,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push for trunk branch
         id: docker_build_trunk
         uses: docker/build-push-action@v2
@@ -90,6 +111,10 @@ jobs:
           context: at_functional_test/lib/
           tags: atsigncompany/virtualenv:GHA${{ github.run_number }}
 
+      - name: Image digest of at_virtual_env
+        run: echo ${{ steps.docker_build_trunk.outputs.digest }}
+
+      # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64
         id: docker_build_secondary
         uses: docker/build-push-action@v2
@@ -100,9 +125,5 @@ jobs:
           platforms: |
             linux/amd64
 
-      - name: Image digest
+      - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
-
-      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
-      - name: Remove docker image
-        run: docker rmi at_virtual_env:trunk
