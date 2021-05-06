@@ -83,7 +83,7 @@ jobs:
 
       - name: Build and push for trunk branch
         if: ${{ github.ref == 'refs/heads/trunk' }}
-        id: docker_build
+        id: docker_build_trunk
         uses: docker/build-push-action@v2
         with:
           push: true
@@ -92,7 +92,7 @@ jobs:
 
       - name: Build and push secondary image for amd64
         if: ${{ github.ref == 'refs/heads/trunk' }}
-        id: docker_build
+        id: docker_build_secondary
         uses: docker/build-push-action@v2
         with:
           push: true
