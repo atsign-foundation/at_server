@@ -87,6 +87,7 @@ jobs:
   # This job run's on trigger event 'push'. The Jobs builds the at_virtual_env and secondary server and pushes
   # the docker images to docker hub.
   deploy:
+    # Runs only after build is completed.
     needs: [ build ]
     if: ${{ github.event_name == 'push' }}
     env:
