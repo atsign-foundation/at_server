@@ -77,6 +77,22 @@ jobs:
         working-directory: at_functional_test
         run: pub run test
 
+      # On push event, upload root server binary for using in deploy job
+      - name: upload root server
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: root-server
+          path: at_root/at_root_server/root
+
+      # On push event, upload secondary server binary for using in deploy job
+      - name: upload secondary server
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: secondary-server
+          path: at_secondary/at_secondary_server/secondary
+
       - name: Stop docker container
         run: docker container stop at_virtual_env_cont
 
@@ -105,6 +121,20 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Gets the root server binary generated from the above "build" job.
+      - name: get root server
+        uses: actions/download-artifact@v2
+        with:
+          name: root-server
+          path: at_functional_test/lib/root/
+
+      # Gets the secondary server binary generated from the above "secondary" job.
+      - name: get secondary server
+        uses: actions/download-artifact@v2
+        with:
+          name: secondary-server
+          path: at_functional_test/lib/secondary/
 
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push for trunk branch
