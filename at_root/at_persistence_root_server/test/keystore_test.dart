@@ -31,6 +31,6 @@ class MapKeyStore implements Keystore<String, int> {
 
   @override
   Future<int> get(String key) {
-    return Future.delayed(Duration(seconds: 2), () => test[key]!);
+    return Future.delayed(Duration(seconds: 2), () => test[key]);
   }
 }
