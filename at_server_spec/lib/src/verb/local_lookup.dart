@@ -13,7 +13,7 @@ class LocalLookup extends Verb {
   String syntax() => VerbSyntax.llookup;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

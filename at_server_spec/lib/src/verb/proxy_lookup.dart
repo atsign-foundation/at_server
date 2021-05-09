@@ -15,7 +15,7 @@ class ProxyLookup extends Verb {
   String syntax() => VerbSyntax.plookup;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

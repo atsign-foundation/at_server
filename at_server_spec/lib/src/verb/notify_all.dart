@@ -13,7 +13,7 @@ class NotifyAll extends Verb {
   @override
   String syntax() => VerbSyntax.notifyAll;
 
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

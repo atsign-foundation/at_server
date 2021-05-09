@@ -15,7 +15,7 @@ class Lookup extends Verb {
   String syntax() => VerbSyntax.lookup;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

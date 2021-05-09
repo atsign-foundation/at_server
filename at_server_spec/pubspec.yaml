@@ -6,19 +6,19 @@ homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_server_spec/index.html
 
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: dev_env
-      version: ^1.0.1+4
+      ref: null_safety
+      version: ^1.0.1+5
 
 #dependency_overrides:
 #  at_commons:
 #    path: ../../at_tools/at_commons
 
 dev_dependencies:
-  pedantic: ^1.8.0
+  pedantic: ^1.11.0

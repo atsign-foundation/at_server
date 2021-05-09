@@ -3,7 +3,7 @@ import 'package:at_commons/at_commons.dart';
 
 class StreamVerb extends Verb {
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

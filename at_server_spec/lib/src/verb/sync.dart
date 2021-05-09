@@ -12,7 +12,7 @@ class Sync extends Verb {
   String syntax() => VerbSyntax.sync;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 
