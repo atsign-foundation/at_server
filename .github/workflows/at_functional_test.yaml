@@ -10,12 +10,10 @@ on:
   push:
     branches:
       - trunk
-      - git-129-trunk
 
   pull_request:
     branches:
       - trunk
-      - git-129-trunk
 
 jobs:
   # Jobs runs a dart analyze, unit tests and functional tests.

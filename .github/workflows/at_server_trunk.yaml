@@ -12,9 +12,9 @@ on:
       - git-129-trunk
 
 jobs:
-  build_root:
+  test_at_persistence_root_server:
     env:
-      working-directory: at_server/at_root
+      working-directory: at_root/at_persistence_root_server
     runs-on: ubuntu-latest
 
     steps:
@@ -24,32 +24,17 @@ jobs:
           sdk: stable
 
       - name: Install dependencies in at_persistence_root_server
-        working-directory: at_persistence_root_server
         run: dart pub get
 
       - name: Run dart analyzer in at_persistence_root_server
-        working-directory: at_persistence_root_server
         run: dart analyze
 
       - name: Run tests in at_persistence_root_server
-        working-directory: at_persistence_root_server
         run: dart test --concurrency=1
 
-      - name: Install dependencies in at_root_server
-        working-directory: at_root_server
-        run: dart pub get
-
-      - name: Run dart analyzer in at_root_server
-        working-directory: at_root_server
-        run: dart analyze
-
-      - name: Run tests in at_root_server
-        working-directory: at_root_server
-        run: dart test --concurrency=1
-
-  build_secondary:
+  test_at_root_server:
     env:
-      working-directory: at_server/at_secondary
+      working-directory: at_root/at_root_server
     runs-on: ubuntu-latest
 
     steps:
@@ -58,32 +43,55 @@ jobs:
         with:
           sdk: stable
 
+      - name: Install dependencies in at_root_server
+        run: dart pub get
+
+      - name: Run dart analyzer in at_root_server
+        run: dart analyze
+
+      - name: Run tests in at_root_server
+        run: dart test --concurrency=1
+
+  test_at_persistence_secondary_server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: at_secondary/at_persistence_secondary_server
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
       - name: Install dependencies in at_persistence_secondary_server
-        working-directory: at_persistence_secondary_server
         run: dart pub get
 
       - name: Run dart analyzer in at_persistence_secondary_server
-        working-directory: at_persistence_secondary_server
         run: dart analyze
 
       - name: Run tests in at_persistence_secondary_server
-        working-directory: at_persistence_secondary_server
         run: dart test --concurrency=1
 
+  test_at_secondary_server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: at_secondary/at_secondary_server
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
       - name: Install dependencies in at_secondary_server
-        working-directory: at_secondary_server
         run: dart pub get
 
       - name: Run dart analyzer in at_secondary_server
-        working-directory: at_secondary_server
         run: dart analyze
 
       - name: Run tests in at_secondary_server
-        working-directory: at_secondary_server
         run: dart test --concurrency=1
 
-  test_secondary:
-    needs: [ build_secondary ]
+  run_functional_test:
+    needs: [ test_at_persistence_root_server, test_at_root_server, test_at_persistence_secondary_server, test_at_secondary_server ]
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
@@ -163,7 +171,7 @@ jobs:
   # the docker images to docker hub.
   push_docker_images:
     # Runs only after functional tests are completed.
-    needs: [ test_secondary ]
+    needs: [ run_functional_test ]
     if: ${{ github.event_name == 'push' }}
     env:
       working-directory: at_server
