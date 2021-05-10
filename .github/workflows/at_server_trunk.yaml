@@ -240,3 +240,15 @@ jobs:
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
+
+  deploy_root_sever:
+    needs: [ build_root ]
+      # Deploy root server image to cluster
+      runs-on: ubuntu-latest
+      steps:
+        - name: deploy to kubernates cluster
+          uses: steebchen/kubectl@master
+          env:
+            KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+          run: |
+            kubectl -n root set image deployment/root root=atsigncompany/root:GHA${{ github.run_number }}
