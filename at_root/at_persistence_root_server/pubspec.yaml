@@ -11,9 +11,10 @@ environment:
 dependencies:
   redis:
     git:
-      url: https://github.com/Derrick56007/redis-dart
-      ref: master
-      version: ^1.2.1
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: redis-dart
+      ref: null_safety
+      version: 1.4.0-nullsafety
   at_persistence_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
