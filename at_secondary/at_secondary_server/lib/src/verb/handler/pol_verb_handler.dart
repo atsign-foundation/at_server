@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -53,8 +52,16 @@ class PolVerbHandler extends AbstractVerbHandler {
     var sessionID = atConnectionMetadata.sessionID;
     var _from = atConnectionMetadata.from;
     logger.info('from : ${_from.toString()}');
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    var atAccessLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getRedisAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign,
+              AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getHiveAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    }
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
     if (_from == true) {

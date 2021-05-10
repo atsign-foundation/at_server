@@ -1,8 +1,8 @@
 import 'dart:collection';
 import 'dart:convert';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -29,8 +29,16 @@ class SyncVerbHandler extends AbstractVerbHandler {
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE];
-    var atCommitLog = await AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    var atCommitLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance()
+          .getRedisCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign,
+              AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance()
+          .getHiveCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    }
     var regex = verbParams[AT_REGEX];
     var commit_changes =
         atCommitLog.getChanges(int.parse(commit_sequence), regex);

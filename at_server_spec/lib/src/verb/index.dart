@@ -16,8 +16,7 @@ class Index extends Verb {
   }
 
   @override
-  // TODO: Move syntax to VerbSyntax
-  String syntax() => r'^index:(?<json>.+$)';
+  String syntax() => VerbSyntax.index;
 
   @override
   String usage() {

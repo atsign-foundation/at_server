@@ -13,7 +13,7 @@ Future<void> main(List<String> arguments) async {
 
   //commitLog keystore
   var commitLogInstance =
-      await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+      await AtCommitLogManagerImpl.getInstance().getHiveCommitLog('@alice');
   var hiveKey =
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
   var committedEntry = await commitLogInstance.getEntry(hiveKey);

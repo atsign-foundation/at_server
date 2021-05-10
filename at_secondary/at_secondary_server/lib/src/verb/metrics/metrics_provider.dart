@@ -1,4 +1,4 @@
 abstract class MetricProvider {
   String getName();
-  dynamic getMetrics({String regex});
+  Future<dynamic> getMetrics({String regex});
 }

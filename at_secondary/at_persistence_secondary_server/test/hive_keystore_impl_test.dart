@@ -79,7 +79,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys();
+      var keys = await keyStore.getKeys();
       expect(keys.length, 2);
     });
 
@@ -91,11 +91,11 @@ void main() async {
           throwsA(predicate((e) => e is AssertionError)));
     });
 
-    test('test get expired keys - no data', () {
+    test('test get expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var expiredKeys = keyStore.getExpiredKeys();
+      var expiredKeys = await keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
@@ -123,11 +123,11 @@ void main() async {
               e.message == 'Box has already been closed.')));
     });
 
-    test('test delete expired keys - no data', () {
+    test('test delete expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var result = keyStore.deleteExpiredKeys();
+      var result = await keyStore.deleteExpiredKeys();
       expect(result, true);
     });
 
@@ -141,7 +141,7 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyStore.put('first_name', data_2);
-      var keys = keyStore.getKeys(regex: '^first');
+      var keys = await keyStore.getKeys(regex: '^first');
       expect(keys.length, 1);
     });
 // tests commented for coverage. runs fine with pub run test or in IDE
@@ -191,16 +191,19 @@ Future<void> tearDownFunc() async {
 
 Future<void> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getHiveCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1');
   await persistenceManager
-      .getHivePersistenceManager()
+      .getPersistenceManager()
       .init('@test_user_1', storageDir);
-  await persistenceManager
-      .getHivePersistenceManager()
-      .openVault('@test_user_1');
-  persistenceManager.getSecondaryKeyStore().commitLog = commitLogInstance;
+  var manager = await persistenceManager.getPersistenceManager();
+  if( manager is HivePersistenceManager) {
+    await manager.openVault('@test_user_1');
+  }
+  var keyStore;
+  keyStore = persistenceManager.getSecondaryKeyStore();
+  keyStore.commitLog = commitLogInstance;
 }
 
 String _getShaForAtsign(String atsign) {

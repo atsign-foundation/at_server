@@ -17,7 +17,7 @@ class Search extends Verb {
 
   @override
   // TODO: Move syntax to VerbSyntax
-  String syntax() => r'^search:((fuzzy:(?<fuzzy>\d+):)|(?:contains:))?(?<keywords>(?<word>[^,]+[ ,]*)+$)';
+  String syntax() => VerbSyntax.search;
 
   @override
   String usage() {

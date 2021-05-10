@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/redis/redis_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:crypto/crypto.dart';
@@ -14,7 +15,7 @@ void main() async {
     setUp(() async => await setUpFunc(storageDir));
     test('test single insert', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       var hiveKey =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var committedEntry = await commitLogInstance.getEntry(hiveKey);
@@ -25,7 +26,7 @@ void main() async {
     });
     test('test multiple insert', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
@@ -38,7 +39,7 @@ void main() async {
 
     test('test get entry ', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       var key_1 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var committedEntry = await commitLogInstance.getEntry(key_1);
@@ -50,7 +51,7 @@ void main() async {
 
     test('test entries since commit Id', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
@@ -67,7 +68,7 @@ void main() async {
 
     test('test last sequence number called once', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
@@ -75,7 +76,7 @@ void main() async {
 
     test('test last sequence number called multiple times', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
@@ -84,7 +85,7 @@ void main() async {
 
     test('test commit - box not available', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.close();
       expect(
           () async =>
@@ -94,7 +95,7 @@ void main() async {
 
     test('test get entry - box not available', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       var key_1 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.close();
@@ -104,7 +105,7 @@ void main() async {
 
     test('test entries since commit Id - box not available', () async {
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice'));
+          .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
@@ -119,18 +120,21 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(_getShaForAtsign('@alice'), commitLogPath: storageDir);
+      .getHiveCommitLog(_getShaForAtsign('@alice'), commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice');
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getPersistenceManager();
   await persistenceManager.init('@alice', storageDir);
-  await persistenceManager.openVault('@alice');
+  var keyStore;
+  if(persistenceManager is HivePersistenceManager) {
+    await persistenceManager.openVault('@alice');
+  }
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
-  hiveKeyStore.commitLog = commitLogInstance;
+  keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  keyStore.commitLog = commitLogInstance;
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
-  keyStoreManager.keyStore = hiveKeyStore;
+  keyStoreManager.keyStore = keyStore;
   return keyStoreManager;
 }
 

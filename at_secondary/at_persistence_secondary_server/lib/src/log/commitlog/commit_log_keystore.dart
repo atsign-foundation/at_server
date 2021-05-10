@@ -139,7 +139,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
-  int entriesCount() {
+  Future<int> entriesCount() async {
     var totalKeys = 0;
     totalKeys = box?.keys?.length;
     return totalKeys;
@@ -149,7 +149,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
       entries = box.keys.toList().take(N).toList();
@@ -188,7 +188,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   @override
-  List getExpired(int expiryInDays) {
+  Future<List> getExpired(int expiryInDays) async {
     // TODO: implement getExpired
     return null;
   }

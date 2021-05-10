@@ -49,10 +49,17 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var commitLogInstance;
+      if (AtSecondaryConfig.keyStore == 'redis') {
+        commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+            .getRedisCommitLog(currentAtSign, AtSecondaryConfig.redisUrl,
+                password: AtSecondaryConfig.redisPassword);
+      } else {
+        commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+            .getHiveCommitLog(currentAtSign);
+      }
       atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog(currentAtSign),
-          currentAtSign, AtSecondaryConfig.keyStore);
+          commitLogInstance, currentAtSign, AtSecondaryConfig.keyStore);
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];

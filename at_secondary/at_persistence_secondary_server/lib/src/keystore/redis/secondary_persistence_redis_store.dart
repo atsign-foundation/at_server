@@ -6,7 +6,7 @@ import 'package:at_persistence_secondary_server/src/keystore/secondary_persisten
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 
 class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
-  RedisKeyStore _redisKeystore;
+  RedisKeystore _redisKeystore;
   RedisPersistenceManager _redisPersistenceManager;
   SecondaryKeyStoreManager _secondaryKeyStoreManager;
   String _atSign;
@@ -29,7 +29,7 @@ class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
   }
 
   void _init() {
-    _redisKeystore = RedisKeyStore(this._atSign);
+    _redisKeystore = RedisKeystore(this._atSign);
     _redisPersistenceManager = RedisPersistenceManager(this._atSign);
     _redisKeystore.persistenceManager = _redisPersistenceManager;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager();
@@ -37,14 +37,7 @@ class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
   }
 
   @override
-  HivePersistenceManager getHivePersistenceManager() {
-    // TODO: implement getHivePersistenceManager
-    throw UnimplementedError();
-  }
-
-  @override
   IndexableKeyStore getIndexKeyStore(String url) {
     return ElasticKeyStore(url);
   }
-
 }

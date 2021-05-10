@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -52,8 +53,18 @@ class CramVerbHandler extends AbstractVerbHandler {
     // authenticate if retrieved secret is equal to the cram digest passed
     if ('$digest' == '$secret') {
       atConnectionMetadata.isAuthenticated = true;
-      var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-          .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+      var atAccessLog;
+      if (AtSecondaryConfig.keyStore == 'redis') {
+        atAccessLog = await AtAccessLogManagerImpl.getInstance()
+            .getRedisAccessLog(
+                AtSecondaryServerImpl.getInstance().currentAtSign,
+                AtSecondaryConfig.redisUrl,
+                password: AtSecondaryConfig.redisPassword);
+      } else {
+        atAccessLog = await AtAccessLogManagerImpl.getInstance()
+            .getHiveAccessLog(
+                AtSecondaryServerImpl.getInstance().currentAtSign);
+      }
       try {
         await atAccessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {

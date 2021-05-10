@@ -42,9 +42,17 @@ class FromVerbHandler extends AbstractVerbHandler {
       HashMap<String, String> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
-        currentAtSign, AtSecondaryConfig.keyStore);
+    var commitLogInstance;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+          .getRedisCommitLog(currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+          .getHiveCommitLog(currentAtSign);
+    }
+    atConfigInstance =
+        AtConfig(commitLogInstance, currentAtSign, AtSecondaryConfig.keyStore);
     atConnection.initiatedBy = currentAtSign;
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var fromAtSign = verbParams[AT_SIGN];
@@ -86,8 +94,16 @@ class FromVerbHandler extends AbstractVerbHandler {
       atConnectionMetadata.from = true;
       atConnectionMetadata.fromAtSign = fromAtSign;
     }
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    var atAccessLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getRedisAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign,
+              AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getHiveAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    }
     try {
       await atAccessLog.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {

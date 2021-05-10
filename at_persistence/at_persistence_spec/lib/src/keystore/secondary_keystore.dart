@@ -2,6 +2,7 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 abstract class SecondaryKeyStore<K, V, T>
     implements WritableKeystore<K, V>, SynchronizableKeyStore<K, V, T> {
+
   /// Retrieves all keys have that expired.
   /// @return - List of keys that have expired
   Future<List<K>> getExpiredKeys();

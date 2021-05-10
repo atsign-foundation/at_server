@@ -7,7 +7,10 @@ import 'package:at_utils/at_logger.dart';
 import 'package:elastic_client/elastic_client.dart';
 import 'package:uuid/uuid.dart';
 
-class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, SecondaryKeyStore<String, AtData, AtMetaData> {
+class ElasticKeyStore
+    implements
+        IndexableKeyStore<String, AtData, AtMetaData>,
+        SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('ElasticKeyStore');
 
   Client client;
@@ -88,7 +91,6 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
       var value =
           (elastic_data != null) ? json.encode(elastic_data.toJson()) : null;
 
-
       await client.updateDoc(
         index: 'tutorial',
         type: 'helloworld',
@@ -104,7 +106,6 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
     }
   }
 
-
   @override
   Future<AtData> get(String key) async {
     var value = AtData();
@@ -114,8 +115,8 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
       // conditions.add(Query.match('id', elastic_key));
       // var query = Query.bool(should: conditions);
       var query = Query.match('_id', elastic_key);
-      var esResult = await client
-          .search(index: 'tutorial', type: 'helloworld', query: query);
+      var esResult = await client.search(
+          index: 'tutorial', type: 'helloworld', query: query);
       logger.info('es result : ${esResult.toMap()}');
       var result = esResult.toMap()['doc'];
       // var result = await persistenceManager.client
@@ -240,7 +241,10 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
         ? newData.metaData.version += 1
         : newData.metaData.version = 0;
     await client.updateDoc(
-        index: 'tutorial', type: 'helloworld', id: elastic_key, doc: {"data": newData});
+        index: 'tutorial',
+        type: 'helloworld',
+        id: elastic_key,
+        doc: {"data": newData});
     var result = await _commitLog.commit(elastic_key, CommitOp.UPDATE_META);
     return result;
   }
@@ -283,11 +287,8 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
   }
 
   @override
-  Future<List<String>> search(
-      List<String> keywords,
-      {String index, int fuzziness = 0,
-        bool contains = false}) async {
-
+  Future<List<String>> search(List<String> keywords,
+      {String index, int fuzziness = 0, bool contains = false}) async {
     index ??= 'my_index';
 
     var result = <String>[];
@@ -300,48 +301,36 @@ class ElasticKeyStore implements IndexableKeyStore<String, AtData, AtMetaData>, 
     List<Hit> hits;
 
     if (fuzziness > 0) {
-      hits = (await client.search(
-        index: index,
-        type: 'my_type',
-        query: {
-          'simple_query_string': {
-            'query': searchQuery + '~$fuzziness',
-            'fields': ['*'],
-            'fuzzy_max_expansions': fuzziness,
-            'fuzzy_transpositions': true
-          }
+      hits = (await client.search(index: index, type: 'my_type', query: {
+        'simple_query_string': {
+          'query': searchQuery + '~$fuzziness',
+          'fields': ['*'],
+          'fuzzy_max_expansions': fuzziness,
+          'fuzzy_transpositions': true
         }
-      )).hits;
-    }
-    else if (contains) {
-
+      }))
+          .hits;
+    } else if (contains) {
       searchQuery = '*${keywords[0]}*';
       for (var i = 1; i < keywords.length; i++) {
         searchQuery += ' *${keywords[i]}*';
       }
 
-      hits = (await client.search(
-        index: index,
-        type: 'my_type',
-        query: {
-          'query_string': {
-            'query': searchQuery,
-            'fields': ['*']
-          }
+      hits = (await client.search(index: index, type: 'my_type', query: {
+        'query_string': {
+          'query': searchQuery,
+          'fields': ['*']
         }
-      )).hits;
-    }
-    else {
-      hits = (await client.search(
-          index: index,
-          type: 'my_type',
-          query: {
-            'simple_query_string': {
-              'query': searchQuery,
-              'fields': ['*']
-            }
-          }
-      )).hits;
+      }))
+          .hits;
+    } else {
+      hits = (await client.search(index: index, type: 'my_type', query: {
+        'simple_query_string': {
+          'query': searchQuery,
+          'fields': ['*']
+        }
+      }))
+          .hits;
     }
 
     for (var hit in hits) {

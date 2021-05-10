@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/redis/redis_manager.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_manager_impl.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
+var keyStoreType;
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
   setUp(() async => await setUpFunc(storageDir));
@@ -14,8 +16,8 @@ void main() async {
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     var result = await atConfigInstance.addToBlockList(data);
     expect(result, 'success');
   });
@@ -23,8 +25,8 @@ void main() async {
   test('test for fetching blocklist', () async {
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
     var result = await atConfigInstance.getBlockList();
@@ -34,8 +36,8 @@ void main() async {
   test('test for removing blocklist data', () async {
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
     var result = await atConfigInstance.removeFromBlockList(data);
@@ -46,8 +48,8 @@ void main() async {
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     await atConfigInstance.addToBlockList(data);
     var removeData = {'@colin'};
     var result = await atConfigInstance.removeFromBlockList(removeData);
@@ -58,8 +60,8 @@ void main() async {
     var removeData = <String>{};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     expect(() async => await atConfigInstance.removeFromBlockList(removeData),
         throwsA(predicate((e) => e is AssertionError)));
   });
@@ -67,8 +69,8 @@ void main() async {
   test('test for removing null data', () async {
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
-        '@test_user_1');
+            .getHiveCommitLog(_getShaForAtsign('@test_user_1')),
+        '@test_user_1', keyStoreType);
     expect(() async => await atConfigInstance.removeFromBlockList(null),
         throwsA(predicate((e) => e is AssertionError)));
   });
@@ -82,18 +84,22 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(_getShaForAtsign('@test_user_1'),
+      .getHiveCommitLog(_getShaForAtsign('@test_user_1'),
           commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1');
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getPersistenceManager();
   await persistenceManager.init('@test_user_1', storageDir);
-  await persistenceManager.openVault('@test_user_1');
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
-  hiveKeyStore.commitLog = commitLogInstance;
+  if(persistenceManager is HivePersistenceManager) {
+    await persistenceManager.openVault('@test_user_1');
+  }
+  var keyStore;
+  keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  keyStore.commitLog = commitLogInstance;
+  keyStoreType = (persistenceManager is RedisPersistenceManager) ? 'redis' : 'hive';
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
-  keyStoreManager.keyStore = hiveKeyStore;
+  keyStoreManager.keyStore = keyStore;
   return keyStoreManager;
 }
 

@@ -293,7 +293,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///@param - connection : The inbound connection to secondary server from client
   ///Throws [AtConnection] if exceptions occurs in connection.
   ///Throws [InternalServerError] if error occurs in server.
-  void _executeVerbCallBack (
+  void _executeVerbCallBack(
       String command, InboundConnection connection) async {
     logger.finer('inside _executeVerbCallBack: $command');
     try {
@@ -353,17 +353,32 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
   Future<void> _initializeHiveInstances() async {
     // Initialize commit log
-    var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext.currentAtSign,
-        commitLogPath: commitLogPath);
+    var atCommitLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance()
+          .getRedisCommitLog(
+              serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance().getHiveCommitLog(
+          serverContext.currentAtSign,
+          commitLogPath: commitLogPath);
+    }
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
 
     // Initialize access log
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext.currentAtSign,
-        accessLogPath: accessLogPath);
+    var atAccessLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getRedisAccessLog(
+              serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance().getHiveAccessLog(
+          serverContext.currentAtSign,
+          accessLogPath: accessLogPath);
+    }
     _accessLog = atAccessLog;
-
     // Initialize notification storage
     var notificationInstance = AtNotificationKeystore.getInstance();
     await notificationInstance.init(
@@ -387,10 +402,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await manager.init(
           serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
           password: AtSecondaryConfig.redisPassword);
-      hiveKeyStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(serverContext.currentAtSign)
-              .getSecondaryKeyStore() as RedisKeyStore;
+      hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(serverContext.currentAtSign)
+          .getSecondaryKeyStore() as RedisKeystore;
     } else {
       await manager.init(serverContext.currentAtSign, storagePath);
       await manager.openVault(serverContext.currentAtSign);

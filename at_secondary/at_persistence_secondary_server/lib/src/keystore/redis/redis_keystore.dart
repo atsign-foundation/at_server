@@ -6,14 +6,14 @@ import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:utf7/utf7.dart';
 
-class RedisKeyStore implements SecondaryKeyStore<String, AtData, AtMetaData> {
+class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('RedisKeyStore');
   var _atSign;
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
 
-  RedisKeyStore(this._atSign);
+  RedisKeystore(this._atSign);
 
   set commitLog(value) {
     _commitLog = value;

@@ -40,8 +40,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var atAccessLog =
-        await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
+    var atAccessLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getRedisAccessLog(currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getHiveAccessLog(currentAtSign);
+    }
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
