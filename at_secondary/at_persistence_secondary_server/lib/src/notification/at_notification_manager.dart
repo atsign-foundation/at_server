@@ -7,7 +7,7 @@ abstract class NotificationManagerSpec {
   Future<String> notify(AtNotification atNotification);
 
   /// Returns the status of the notificationId.
-  Future<NotificationStatus> getStatus(String notificationId);
+  Future<NotificationStatus?> getStatus(String notificationId);
 
   /// Returns if notification can be accepted.
   bool isNotificationAccepted();
