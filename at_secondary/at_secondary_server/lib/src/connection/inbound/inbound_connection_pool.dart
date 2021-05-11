@@ -6,7 +6,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 class InboundConnectionPool {
   static final InboundConnectionPool _singleton =
       InboundConnectionPool._internal();
-  int _size;
+  int? _size;
 
   factory InboundConnectionPool.getInstance() {
     return _singleton;
@@ -14,15 +14,15 @@ class InboundConnectionPool {
 
   InboundConnectionPool._internal();
 
-  List<InboundConnection> _connections;
+  late List<InboundConnection> _connections;
 
-  void init(int size) {
+  void init(int? size) {
     _size = size;
     _connections = [];
   }
 
   bool hasCapacity() {
-    return _connections.length < _size;
+    return _connections.length < _size!;
   }
 
   void add(InboundConnection inboundConnection) {
@@ -45,7 +45,7 @@ class InboundConnectionPool {
     return _connections.length;
   }
 
-  int getCapacity() {
+  int? getCapacity() {
     return _size;
   }
 

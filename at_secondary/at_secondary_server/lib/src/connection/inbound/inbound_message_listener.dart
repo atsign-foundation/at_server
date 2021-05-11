@@ -15,8 +15,8 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
-  Function(String, InboundConnection) onBufferEndCallBack;
-  Function(List<int>, InboundConnection) onStreamCallBack;
+  late Function(String, InboundConnection) onBufferEndCallBack;
+  late Function(List<int>, InboundConnection) onStreamCallBack;
 
   /// Listens to the underlying connection's socket
   void listen(callback, streamCallBack) {
@@ -65,17 +65,17 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  void _errorHandler(error) async {
+  Future<void> _errorHandler(error) async {
     logger.severe(error.toString());
     await _closeConnection();
   }
 
   /// Closes the [InboundConnection]
-  void _finishedHandler() async {
+  Future<void> _finishedHandler() async {
     await _closeConnection();
   }
 
-  void _closeConnection() async {
+  Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
       await connection.close();
     }

@@ -8,15 +8,15 @@ import 'package:at_server_spec/at_server_spec.dart';
 class InboundConnectionImpl extends BaseConnection
     implements InboundConnection {
   @override
-  bool isMonitor = false;
+  bool? isMonitor = false;
 
   /// This contains the value of the atsign initiated the connection
   @override
-  String initiatedBy;
-  static int inbound_idle_time =
-      AtSecondaryServerImpl.getInstance().serverContext.inboundIdleTimeMillis;
+  String? initiatedBy;
+  static int? inbound_idle_time =
+      AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
 
-  InboundConnectionImpl(Socket socket, String sessionId) : super(socket) {
+  InboundConnectionImpl(Socket? socket, String? sessionId) : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
@@ -50,13 +50,13 @@ class InboundConnectionImpl extends BaseConnection
     // if lastAccessedTime is not set, use created time
     lastAccessedTime ??= getMetaData().created;
     var currentTime = DateTime.now().toUtc();
-    return currentTime.difference(lastAccessedTime).inMilliseconds;
+    return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 
   /// Returns true if the client's idle time is greater than configured idle time.
   /// false otherwise
   bool _isIdle() {
-    return _getIdleTimeMillis() > inbound_idle_time;
+    return _getIdleTimeMillis() > inbound_idle_time!;
   }
 
   @override
@@ -67,8 +67,8 @@ class InboundConnectionImpl extends BaseConnection
   }
 
   @override
-  Socket receiverSocket;
+  Socket? receiverSocket;
 
   @override
-  bool isStream;
+  bool? isStream;
 }

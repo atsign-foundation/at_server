@@ -28,7 +28,7 @@ class BatchVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     var verbParams = super.parse(command);
     return verbParams;
   }
@@ -39,9 +39,9 @@ class BatchVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var batchCommand = verbParams['json'];
+    var batchCommand = verbParams['json']!;
     var batchJson = jsonDecode(batchCommand);
     //handle invalid json
     var batchResponses = <BatchResponse>[];

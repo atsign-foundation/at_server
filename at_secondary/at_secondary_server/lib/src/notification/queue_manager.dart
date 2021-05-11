@@ -17,10 +17,10 @@ class QueueManager {
   /// 2. Makes use of persistent priority queue to queue the notifications
   void enqueue(AtNotification atNotification) {
     if (atNotification.notificationStatus == NotificationStatus.errored &&
-        atNotification.retryCount < noOfRetries) {
-      atNotification.retryCount++;
-      if (atNotification.priority.index > 1) {
-        var index = atNotification.priority.index;
+        atNotification.retryCount! < noOfRetries!) {
+      atNotification.retryCount = atNotification.retryCount! + 1;
+      if (atNotification.priority!.index > 1) {
+        var index = atNotification.priority!.index;
         atNotification.priority = NotificationPriority.values[--index];
       }
       atNotification.notificationStatus = NotificationStatus.queued;
@@ -31,7 +31,7 @@ class QueueManager {
   }
 
   /// Returns an Iterator of AtNotifications.
-  Iterator<AtNotification> dequeue(String atsign) {
+  Iterator<AtNotification> dequeue(String? atsign) {
     var mapInstance = AtNotificationMap.getInstance();
     return mapInstance.remove(atsign);
   }

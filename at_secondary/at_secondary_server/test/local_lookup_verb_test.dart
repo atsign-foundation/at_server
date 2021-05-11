@@ -95,7 +95,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -105,7 +105,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -115,7 +115,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -125,14 +125,14 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
   group('A group of hive related unit test', () {
     var storageDir = Directory.current.path + '/test/hive';
-    var keyStoreManager;
+    late var keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
     test('test local lookup with private key', () async {
@@ -149,7 +149,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}${fromResponse}';
       var bytes = utf8.encode(combo);
@@ -159,7 +159,8 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -196,7 +197,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}${fromResponse}';
       var bytes = utf8.encode(combo);
@@ -206,7 +207,8 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -230,7 +232,7 @@ void main() {
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'India');
     });
-    tearDown(() async => await tearDownFunc());
+    tearDown(() async => tearDownFunc());
   });
 }
 
@@ -238,18 +240,19 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(
       AtSecondaryServerImpl.getInstance().currentAtSign, storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
@@ -258,10 +261,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
-    await Directory('test/hive').deleteSync(recursive: true);
+    Directory('test/hive').deleteSync(recursive: true);
   }
 }
 

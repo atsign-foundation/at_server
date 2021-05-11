@@ -8,12 +8,12 @@ import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_commons/at_commons.dart';
 
 abstract class BaseResponseHandler implements ResponseHandler {
-  var logger;
+  late var logger;
   BaseResponseHandler() {
     logger = AtSignLogger(runtimeType.toString());
   }
   @override
-  void process(AtConnection connection, Response response) async {
+  Future<void> process(AtConnection connection, Response response) async {
     logger.finer('Got response: ${response}');
     var result = response.data;
     try {
@@ -23,7 +23,8 @@ abstract class BaseResponseHandler implements ResponseHandler {
         }
         return;
       }
-      InboundConnectionMetadata atConnectionMetadata = connection.getMetaData();
+      InboundConnectionMetadata atConnectionMetadata =
+          connection.getMetaData() as InboundConnectionMetadata;
       var isAuthenticated = atConnectionMetadata.isAuthenticated;
       var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       var isPolAuthenticated = connection.getMetaData().isPolAuthenticated;
@@ -31,11 +32,12 @@ abstract class BaseResponseHandler implements ResponseHandler {
       var prompt = isAuthenticated
           ? '$atSign@'
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
-      var responseMessage = getResponseMessage(result, prompt);
-      await connection.write(responseMessage);
+      var responseMessage = getResponseMessage(result, prompt)!;
+      connection.write(responseMessage);
     } on Exception catch (e) {
       logger.severe('exception in writing response to socket:${e.toString()}');
-      GlobalExceptionHandler.getInstance().handle(e, atConnection: connection);
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection);
     }
   }
 
@@ -43,5 +45,5 @@ abstract class BaseResponseHandler implements ResponseHandler {
   /// @params - result of the processed [Verb]
   /// @params - prompt to return to the user. e.g. @ or @alice@
   /// @return - response message to write to requesting connection
-  String getResponseMessage(String verbResult, String prompt);
+  String? getResponseMessage(String? verbResult, String prompt);
 }

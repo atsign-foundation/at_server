@@ -17,7 +17,7 @@ class NotifyConnectionsPool {
 
   var logger = AtSignLogger('NotifyConnectionPool');
 
-  OutboundClientPool _pool;
+  late OutboundClientPool _pool;
   static const int default_pool_size = 5;
 
   bool isInitialised = false;
@@ -33,10 +33,10 @@ class NotifyConnectionsPool {
       init(default_pool_size);
     }
     _pool.clearInvalidClients();
-    return _pool.getCapacity() - _pool.getCurrentSize();
+    return _pool.getCapacity()! - _pool.getCurrentSize();
   }
 
-  OutboundClient get(String toAtSign) {
+  OutboundClient get(String? toAtSign) {
     // Initialize the pool if not already done
     if (!isInitialised) {
       init(default_pool_size);
@@ -62,5 +62,6 @@ class NotifyConnectionsPool {
       _pool.add(newClient);
       return newClient;
     }
+    throw Exception('unable to create outbound client for notification');
   }
 }

@@ -22,7 +22,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
-  UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -38,7 +38,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     var verbParams = super.parse(command);
     if (command.contains('public:')) {
       verbParams.putIfAbsent('isPublic', () => 'true');
@@ -52,7 +52,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var updateParams = _getUpdateParams(verbParams);
 
@@ -65,13 +65,13 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       var atData = AtData();
       atData.data = value;
       atData.metaData = AtMetaData();
-      var ttl_ms = updateParams.metadata.ttl;
-      var ttb_ms = updateParams.metadata.ttb;
-      var ttr_ms = updateParams.metadata.ttr;
-      var isBinary = updateParams.metadata.isBinary;
-      var isEncrypted = updateParams.metadata.isEncrypted;
-      var dataSignature = updateParams.metadata.dataSignature;
-      var ccd = updateParams.metadata.ccd;
+      var ttl_ms = updateParams.metadata!.ttl;
+      var ttb_ms = updateParams.metadata!.ttb;
+      var ttr_ms = updateParams.metadata!.ttr;
+      var isBinary = updateParams.metadata!.isBinary;
+      var isEncrypted = updateParams.metadata!.isEncrypted;
+      var dataSignature = updateParams.metadata!.dataSignature;
+      var ccd = updateParams.metadata!.ccd;
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -82,11 +82,11 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         key = '${key}${atSign}';
       }
       // Append public: as prefix if key is public
-      if (updateParams.metadata.isPublic != null &&
-          updateParams.metadata.isPublic) {
+      if (updateParams.metadata!.isPublic != null &&
+          updateParams.metadata!.isPublic!) {
         key = 'public:${key}';
       }
-      var metadata = await keyStore.getMeta(key);
+      var metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
       if (cacheRefreshMetaMap != null) {
         ttr_ms = cacheRefreshMetaMap[AT_TTR];
@@ -112,7 +112,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
         ..dataSignature = dataSignature;
 
       // update the key in data store
-      var result = await keyStore.put(key, atData,
+      var result = await keyStore!.put(key, atData,
           time_to_live: ttl_ms,
           time_to_born: ttb_ms,
           time_to_refresh: ttr_ms,
@@ -121,7 +121,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
           isEncrypted: isEncrypted,
           dataSignature: dataSignature);
       response.data = result?.toString();
-      if (AUTO_NOTIFY) {
+      if (AUTO_NOTIFY!) {
         _notify(
             atSign,
             forAtSign,
@@ -139,7 +139,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void _notify(String atSign, String forAtSign, String key, String value,
+  void _notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return null;
@@ -147,7 +147,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     key = '${forAtSign}:${key}${atSign}';
     var expiresAt;
     if (atMetaData.ttl != null) {
-      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl));
+      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
     }
 
     var atNotification = (AtNotificationBuilder()
@@ -165,10 +165,10 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     NotificationManager.getInstance().notify(atNotification);
   }
 
-  UpdateParams _getUpdateParams(HashMap<String, String> verbParams) {
+  UpdateParams _getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
       print('update json');
-      var jsonString = verbParams['json'];
+      var jsonString = verbParams['json']!;
       Map jsonMap = jsonDecode(jsonString);
       return UpdateParams.fromJson(jsonMap);
     }
@@ -181,7 +181,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
     metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
     if (verbParams[AT_TTR] != null) {
-      metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+      metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
     }
     metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
     metadata.dataSignature = verbParams[PUBLIC_DATA_SIGNATURE];

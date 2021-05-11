@@ -8,9 +8,9 @@ import 'package:at_utils/at_logger.dart';
 import 'package:at_commons/at_commons.dart';
 
 abstract class AbstractVerbHandler implements VerbHandler {
-  SecondaryKeyStore keyStore;
+  SecondaryKeyStore? keyStore;
 
-  var logger;
+  late var logger;
   ResponseHandlerManager responseManager = DefaultResponseHandlerManager();
 
   AbstractVerbHandler(this.keyStore) {
@@ -19,7 +19,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Parses a given command against a corresponding verb syntax
   /// @returns  Map containing  key(group name from syntax)-value from the command
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     try {
       return handler_util.getVerbParam(getVerb().syntax(), command);
     } on InvalidSyntaxException {
@@ -63,5 +63,5 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///@param verbParams - contains key-value mapping of groups names from verb syntax
   ///@param atConnection - Requesting connection
   Future<void> processVerb(Response response,
-      HashMap<String, String> verbParams, InboundConnection atConnection);
+      HashMap<String, String?> verbParams, InboundConnection atConnection);
 }

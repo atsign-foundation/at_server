@@ -25,36 +25,36 @@ import 'package:uuid/uuid.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
-  static final bool useSSL = AtSecondaryConfig.useSSL;
+  static final bool? useSSL = AtSecondaryConfig.useSSL;
   static final AtSecondaryServerImpl _singleton =
       AtSecondaryServerImpl._internal();
   static final inboundConnectionFactory =
       InboundConnectionManager.getInstance();
-  static final String storagePath = AtSecondaryConfig.storagePath;
-  static final String commitLogPath = AtSecondaryConfig.commitLogPath;
-  static final String accessLogPath = AtSecondaryConfig.accessLogPath;
-  static final String notificationStoragePath =
+  static final String? storagePath = AtSecondaryConfig.storagePath;
+  static final String? commitLogPath = AtSecondaryConfig.commitLogPath;
+  static final String? accessLogPath = AtSecondaryConfig.accessLogPath;
+  static final String? notificationStoragePath =
       AtSecondaryConfig.notificationStoragePath;
-  static final int expiringRunFreqMins = AtSecondaryConfig.expiringRunFreqMins;
-  static final int commitLogCompactionFrequencyMins =
+  static final int? expiringRunFreqMins = AtSecondaryConfig.expiringRunFreqMins;
+  static final int? commitLogCompactionFrequencyMins =
       AtSecondaryConfig.commitLogCompactionFrequencyMins;
-  static final int commitLogCompactionPercentage =
+  static final int? commitLogCompactionPercentage =
       AtSecondaryConfig.commitLogCompactionPercentage;
-  static final int commitLogExpiryInDays =
+  static final int? commitLogExpiryInDays =
       AtSecondaryConfig.commitLogExpiryInDays;
-  static final int commitLogSizeInKB = AtSecondaryConfig.commitLogSizeInKB;
-  static final int accessLogCompactionFrequencyMins =
+  static final int? commitLogSizeInKB = AtSecondaryConfig.commitLogSizeInKB;
+  static final int? accessLogCompactionFrequencyMins =
       AtSecondaryConfig.accessLogCompactionFrequencyMins;
-  static final int accessLogCompactionPercentage =
+  static final int? accessLogCompactionPercentage =
       AtSecondaryConfig.accessLogCompactionPercentage;
-  static final int accessLogExpiryInDays =
+  static final int? accessLogExpiryInDays =
       AtSecondaryConfig.accessLogExpiryInDays;
-  static final int accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final int maxNotificationEntries =
+  static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
+  static final int? maxNotificationEntries =
       AtSecondaryConfig.maxNotificationEntries;
-  static final bool clientCertificateRequired =
+  static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
-  bool _isPaused;
+  late bool _isPaused;
 
   var logger = AtSignLogger('AtSecondaryServer');
 
@@ -64,18 +64,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   AtSecondaryServerImpl._internal();
 
-  static var _serverSocket;
+  static late var _serverSocket;
   bool _isRunning = false;
   var currentAtSign;
   var _commitLog;
   var _accessLog;
   var signingKey;
-  AtSecondaryContext serverContext;
-  VerbExecutor executor;
-  VerbHandlerManager verbManager;
-  AtRefreshJob atRefreshJob;
-  var commitLogCompactionJobInstance;
-  var accessLogCompactionJobInstance;
+  AtSecondaryContext? serverContext;
+  VerbExecutor? executor;
+  VerbHandlerManager? verbManager;
+  late AtRefreshJob atRefreshJob;
+  late var commitLogCompactionJobInstance;
+  late var accessLogCompactionJobInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -89,7 +89,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   @override
   void setServerContext(AtServerContext context) {
-    serverContext = context;
+    serverContext = context as AtSecondaryContext?;
   }
 
   @override
@@ -118,51 +118,51 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (verbManager == null) {
       throw AtServerException('Verb handler manager is not initialized');
     }
-    if (useSSL && serverContext.securityContext == null) {
+    if (useSSL! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
 
-    if (serverContext.port == null) {
+    if (serverContext!.port == null) {
       throw AtServerException('Secondary port is not set');
     }
 
-    if (serverContext.currentAtSign == null) {
+    if (serverContext!.currentAtSign == null) {
       throw AtServerException('User atSign is not set');
     }
 
-    currentAtSign = AtUtils.formatAtSign(serverContext.currentAtSign);
+    currentAtSign = AtUtils.formatAtSign(serverContext!.currentAtSign);
     logger.info('currentAtSign : $currentAtSign');
 
     await _initializeHiveInstances();
 
-    if (!serverContext.isKeyStoreInitialized) {
+    if (!serverContext!.isKeyStoreInitialized) {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
-        commitLogSizeInKB,
-        commitLogExpiryInDays,
-        commitLogCompactionPercentage,
-        commitLogCompactionFrequencyMins);
+        commitLogSizeInKB!,
+        commitLogExpiryInDays!,
+        commitLogCompactionPercentage!,
+        commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
     var atAccessLogCompactionConfig = AtCompactionConfig(
-        accessLogSizeInKB,
-        accessLogExpiryInDays,
-        accessLogCompactionPercentage,
-        accessLogCompactionFrequencyMins);
+        accessLogSizeInKB!,
+        accessLogExpiryInDays!,
+        accessLogCompactionPercentage!,
+        accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Refresh Cached Keys
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
-    atRefreshJob = AtRefreshJob(serverContext.currentAtSign);
+    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     //Certificate reload
@@ -176,13 +176,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     // Initialize inbound factory and outbound manager
-    inboundConnectionFactory.init(serverContext.inboundConnectionLimit);
+    inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
     OutboundClientManager.getInstance()
-        .init(serverContext.outboundConnectionLimit);
+        .init(serverContext!.outboundConnectionLimit);
 
     try {
       _isRunning = true;
-      if (useSSL) {
+      if (useSSL!) {
         _startSecuredServer();
       } else {
         _startUnSecuredServer();
@@ -245,11 +245,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (certsAvailable || retryCount > 60) {
           break;
         }
-        secCon
-            .useCertificateChain(serverContext.securityContext.publicKeyPath());
-        secCon.usePrivateKey(serverContext.securityContext.privateKeyPath());
+        secCon.useCertificateChain(
+            serverContext!.securityContext!.publicKeyPath());
+        secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath());
         secCon.setTrustedCertificates(
-            serverContext.securityContext.trustedCertificatePath());
+            serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
       } on FileSystemException catch (e) {
         retryCount++;
@@ -259,7 +259,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     if (certsAvailable) {
       SecureServerSocket.bind(
-              InternetAddress.anyIPv4, serverContext.port, secCon,
+              InternetAddress.anyIPv4, serverContext!.port, secCon,
               requestClientCertificate: true)
           .then((SecureServerSocket socket) {
         logger.info(
@@ -275,7 +275,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
   void _startUnSecuredServer() {
-    ServerSocket.bind(InternetAddress.anyIPv4, serverContext.port)
+    ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port)
         .then((ServerSocket socket) {
       logger.info('Unsecure Socket open');
       _serverSocket = socket;
@@ -293,13 +293,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finer('inside _executeVerbCallBack: ${command}');
     try {
       command = SecondaryUtil.convertCommand(command);
-      await executor.execute(command, connection, verbManager);
-    } on Exception catch (e) {
+      await executor!.execute(command, connection, verbManager!);
+    } on Exception catch (e, trace) {
+      print(trace);
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance().handle(e, atConnection: connection);
-    } on Error catch (e) {
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection);
+    } on Error catch (e, trace) {
+      print(trace);
       logger.severe(e.toString());
-      GlobalExceptionHandler.getInstance()
+      await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }
   }
@@ -309,14 +312,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var streamId = sender.getMetaData().streamId;
     print('stream id:${streamId}');
     if (streamId != null) {
-      StreamManager.receiverSocketMap[streamId].getSocket().add(data);
+      StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
   }
 
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
   @override
-  void stop() async {
+  Future<void> stop() async {
     pause();
     try {
       var result = inboundConnectionFactory.removeAllConnections();
@@ -345,16 +348,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
-  void _initializeHiveInstances() async {
+  Future<void> _initializeHiveInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext.currentAtSign,
+        serverContext!.currentAtSign!,
         commitLogPath: commitLogPath);
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext.currentAtSign,
+        serverContext!.currentAtSign!,
         accessLogPath: accessLogPath);
     _accessLog = atAccessLog;
 
@@ -363,31 +366,31 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationInstance.init(
         notificationStoragePath,
         'notifications_' +
-            AtUtils.getShaForAtSign(serverContext.currentAtSign));
+            AtUtils.getShaForAtSign(serverContext!.currentAtSign!));
     // Loads the notifications into Map.
     NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext.currentAtSign);
-    var manager = secondaryPersistenceStore.getHivePersistenceManager();
-    await manager.init(serverContext.currentAtSign, storagePath);
-    await manager.openVault(serverContext.currentAtSign);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins);
+            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+    var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
+    await manager.init(serverContext!.currentAtSign!, storagePath!);
+    await manager.openVault(serverContext!.currentAtSign!);
+    manager.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     var atData = AtData();
-    atData.data = serverContext.sharedSecret;
+    atData.data = serverContext!.sharedSecret;
     var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext.currentAtSign)
-        .getSecondaryKeyStoreManager();
+        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
+        .getSecondaryKeyStoreManager()!;
     var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext.currentAtSign)
-        .getSecondaryKeyStore();
+        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
+        .getSecondaryKeyStore()!;
     hiveKeyStore.commitLog = atCommitLog;
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
-    serverContext.isKeyStoreInitialized =
+    serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
     var cramData = await keyStore.get(AT_CRAM_SECRET_DELETED);

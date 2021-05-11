@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -12,7 +13,7 @@ import 'package:at_server_spec/src/connection/at_connection.dart';
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
 
-  PkamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  PkamVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -25,12 +26,12 @@ class PkamVerbHandler extends AbstractVerbHandler {
 
   @override
   Future<void> processVerb(Response response,
-      HashMap<String, String> verbParams, AtConnection atConnection) async {
+      HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata = atConnection.getMetaData();
     var sessionID = atConnectionMetadata.sessionID;
-    var signature = verbParams[AT_PKAM_SIGNATURE];
+    var signature = verbParams[AT_PKAM_SIGNATURE]!;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
+    var publicKeyData = await keyStore!.get(AT_PKAM_PUBLIC_KEY);
 
     // If there is no public key in keystored then return error
     if (publicKeyData == null) {
@@ -43,7 +44,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var atSignPub = RSAPublicKey.fromString(publicKey);
 
     //retrieve stored secret using sessionid and atsign
-    var storedSecret = await keyStore.get('private:$sessionID$atSign');
+    var storedSecret = await keyStore!.get('private:$sessionID$atSign');
     storedSecret = storedSecret?.data;
 
     var isValidSignature;
@@ -51,7 +52,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     //Throws error when digest is wrong.
     try {
       isValidSignature = atSignPub.verifySHA256Signature(
-          utf8.encode('$sessionID$atSign:$storedSecret'),
+          utf8.encode('$sessionID$atSign:$storedSecret') as Uint8List,
           base64Decode(signature));
     } on FormatException {
       logger.severe('invalid pkam signature');

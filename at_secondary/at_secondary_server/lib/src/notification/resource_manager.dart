@@ -28,8 +28,8 @@ class ResourceManager {
   ///Runs for every configured number of seconds(5).
   void schedule() async {
     _isRunning = true;
-    String atSign;
-    Iterator notificationIterator;
+    String? atSign;
+    late Iterator notificationIterator;
     try {
       //1. Check how many outbound connections are free.
       var N = NotifyConnectionsPool.getInstance().getCapacity();
@@ -53,14 +53,14 @@ class ResourceManager {
       var errorList = [];
       logger.severe('Connection failed for $atSign : ${e.toString()}');
       AtNotificationMap.getInstance().quarantineMap[atSign] =
-          DateTime.now().add(Duration(seconds: quarantineDuration));
+          DateTime.now().add(Duration(seconds: quarantineDuration!));
       while (notificationIterator.moveNext()) {
         errorList.add(notificationIterator.current);
       }
       _enqueueErrorList(errorList);
     } finally {
       //4. sleep for 5 seconds to refrain blocking main thread and call schedule again.
-      return Future.delayed(Duration(seconds: notificationJobFrequency))
+      return Future.delayed(Duration(seconds: notificationJobFrequency!))
           .then((value) => schedule());
     }
   }
@@ -68,7 +68,7 @@ class ResourceManager {
   /// Establish an outbound connection to [toAtSign]
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
-  Future<OutboundClient> _connect(String toAtSign) async {
+  Future<OutboundClient?> _connect(String? toAtSign) async {
     var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
@@ -110,19 +110,19 @@ class ResourceManager {
 
       //2. Setting isStale on  outbound connection metadata to true to remove the connection from
       //   Notification Connection Pool.
-      outBoundClient.outboundConnection.metaData.isStale = true;
+      outBoundClient.outboundConnection!.metaData.isStale = true;
     }
   }
 
   /// If the notification response is success, marks the status as [NotificationStatus.delivered]
   /// Else, marks the notification status as [NotificationStatus.queued] and reduce the priority and add back to queue.
-  void _notifyResponseProcessor(
-      String response, AtNotification atNotification, List errorList) async {
+  Future<void> _notifyResponseProcessor(
+      String? response, AtNotification? atNotification, List errorList) async {
     if (response == 'data:success') {
       var notificationKeyStore = await AtNotificationKeystore.getInstance();
-      var notifyEle = await notificationKeyStore.get(atNotification.id);
+      var notifyEle = await (notificationKeyStore.get(atNotification!.id));
       atNotification.notificationStatus = NotificationStatus.delivered;
-      await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
+      await AtNotificationKeystore.getInstance().put(notifyEle?.id, notifyEle);
     } else {
       errorList.add(atNotification);
     }

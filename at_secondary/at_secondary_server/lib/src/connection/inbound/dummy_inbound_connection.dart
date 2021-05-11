@@ -19,7 +19,7 @@ class DummyInboundConnection implements InboundConnection {
       Function(List<int>, InboundConnection) streamCallback) {}
 
   @override
-  void close() {}
+  Future<void> close() async {}
 
   @override
   bool equals(InboundConnection connection) {
@@ -36,7 +36,7 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   Socket getSocket() {
-    return null;
+    throw ('not implemented');
   }
 
   @override
@@ -48,14 +48,14 @@ class DummyInboundConnection implements InboundConnection {
   void write(String data) {}
 
   @override
-  bool isMonitor;
+  bool? isMonitor;
 
   @override
-  String initiatedBy;
+  String? initiatedBy;
 
   @override
   bool isStream = false;
 
   @override
-  Socket receiverSocket;
+  Socket? receiverSocket;
 }

@@ -16,7 +16,7 @@ import 'package:at_server_spec/src/verb/verb.dart';
 class StreamVerbHandler extends AbstractVerbHandler {
   static StreamVerb stream = StreamVerb();
 
-  InboundConnection atConnection;
+  InboundConnection? atConnection;
 
   StreamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -31,12 +31,12 @@ class StreamVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     logger.info('inside stream verb handler');
     var operation = verbParams['operation'];
     var receiver = verbParams['receiver'];
-    var streamId = verbParams['streamId'];
+    var streamId = verbParams['streamId']!;
     var fileName = verbParams['fileName'];
     var fileLength = verbParams['length'];
     var namespace = verbParams['namespace'];
@@ -54,7 +54,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         senderConnection.getMetaData().streamId = streamId;
         atConnection.getMetaData().streamId = streamId;
         senderConnection.receiverSocket =
-            StreamManager.receiverSocketMap[streamId].getSocket();
+            StreamManager.receiverSocketMap[streamId]!.getSocket();
         logger.info('writing stream ack');
         senderConnection.getSocket().write('stream:ack ${streamId}\n');
         break;
@@ -64,10 +64,10 @@ class StreamVerbHandler extends AbstractVerbHandler {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
         }
-        StreamManager.senderSocketMap[streamId]
+        StreamManager.senderSocketMap[streamId]!
             .write('stream:done ${streamId}\n');
-        await StreamManager.receiverSocketMap[streamId].getSocket().destroy();
-        await StreamManager.senderSocketMap[streamId].getSocket().destroy();
+        StreamManager.receiverSocketMap[streamId]!.getSocket().destroy();
+        StreamManager.senderSocketMap[streamId]!.getSocket().destroy();
         StreamManager.receiverSocketMap.remove(streamId);
         StreamManager.senderSocketMap.remove(streamId);
         break;
@@ -79,7 +79,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         }
         logger.info('forAtSign:${receiver}');
         logger.info('streamid:${streamId}');
-        fileName = fileName.trim();
+        fileName = fileName!.trim();
         logger.info('fileName:${fileName}');
         logger.info('fileLength:${fileLength}');
         var streamKey = 'stream_id';

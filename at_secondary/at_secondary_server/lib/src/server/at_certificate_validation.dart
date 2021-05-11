@@ -31,16 +31,16 @@ class AtCertificateValidationJob {
   }
 
   /// Spawns an isolate job to verify for the expiry of certificates.
-  void runCertificateExpiryCheckJob() async {
-    filePath = filePath.replaceAll('fullchain.pem', '');
+  Future<void> runCertificateExpiryCheckJob() async {
+    filePath = filePath!.replaceAll('fullchain.pem', '');
     var mainIsolateReceivePort = ReceivePort();
-    SendPort childIsolateSendPort;
+    SendPort? childIsolateSendPort;
     var isolate = await Isolate.spawn(
         _verifyChangeInCertificate, [mainIsolateReceivePort.sendPort]);
     mainIsolateReceivePort.listen((data) async {
       if (childIsolateSendPort == null && data is SendPort) {
         childIsolateSendPort = data;
-        childIsolateSendPort.send(filePath);
+        childIsolateSendPort!.send(filePath);
       } else {
         if (data == null) {
           return;
@@ -71,7 +71,7 @@ class AtCertificateValidationJob {
   }
 
   /// Restarts the secondary server.
-  void _restartServer() async {
+  Future<void> _restartServer() async {
     var secondary = AtSecondaryServerImpl.getInstance();
     await secondary.stop();
     await secondary.start();
@@ -80,10 +80,10 @@ class AtCertificateValidationJob {
   dynamic _initializeRestartProcess(_) async {
     //Pause the server to prevent it from accepting any incoming connections
     AtSecondaryServerImpl.getInstance().pause();
-    var isForceRestart = AtSecondaryConfig.isForceRestart;
+    var isForceRestart = AtSecondaryConfig.isForceRestart!;
     if (isForceRestart) {
       logger.info('Initializing force restart on secondary server');
-      _deleteRestartFile(filePath + restartFile);
+      _deleteRestartFile(filePath! + restartFile);
       await _restartServer();
       return;
     }
@@ -97,14 +97,14 @@ class AtCertificateValidationJob {
     if (totalSize == 0 || totalSize == monitorSize) {
       // Setting stopWaiting to true to prevent server start-up process into loop.
       stopWaiting = true;
-      _deleteRestartFile(filePath + restartFile);
+      _deleteRestartFile(filePath! + restartFile);
       logger.severe('Certificates expired. Restarting secondary server');
       await _restartServer();
     }
     if (!stopWaiting) {
       // Calls _initializeRestartProcess method for every 10 seconds until totalConnections are 0 or
       //totalConnections equals total monitor connections.
-      Future.delayed(Duration(seconds: 10), () {})
+      await Future.delayed(Duration(seconds: 10), () {})
           .then(_initializeRestartProcess);
     }
   }

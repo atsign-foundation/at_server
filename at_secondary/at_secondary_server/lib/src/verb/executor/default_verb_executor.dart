@@ -15,8 +15,8 @@ class DefaultVerbExecutor implements VerbExecutor {
   /// Throws [AtConnectException] for connection exception.
   /// Throws [Exception] for exception that occurs in processing the command.
   @override
-  void execute(String utf8EncodedCommand, InboundConnection fromConnection,
-      VerbHandlerManager verbManager) async {
+  Future<void> execute(String utf8EncodedCommand,
+      InboundConnection fromConnection, VerbHandlerManager verbManager) async {
     var handler = verbManager.getVerbHandler(utf8EncodedCommand);
     logger.finer('verb handler found : ' + handler.runtimeType.toString());
     if (handler == null) {

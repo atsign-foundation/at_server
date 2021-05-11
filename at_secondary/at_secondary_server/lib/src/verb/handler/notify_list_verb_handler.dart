@@ -18,7 +18,7 @@ import 'abstract_verb_handler.dart';
 class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
 
-  NotifyListVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyListVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -32,14 +32,14 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var regex = verbParams[AT_REGEX];
     var fromDateInEpoch;
     var toDateInEpoch;
     try {
       fromDateInEpoch = (verbParams['fromDate'] != null)
-          ? DateTime.parse(verbParams['fromDate']).millisecondsSinceEpoch
+          ? DateTime.parse(verbParams['fromDate']!).millisecondsSinceEpoch
           : null;
       toDateInEpoch = (verbParams['toDate'] != null)
           ? DateTime.parse('${verbParams['toDate']} 23:59:99Z')
@@ -53,18 +53,19 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       logger.severe('Invalid date format ${e.toString()}');
       throw IllegalArgumentException('Invalid date format');
     }
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
+    InboundConnectionMetadata atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
-    var responseList = <Notification>[];
+    var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign
     if (atConnectionMetadata.isAuthenticated) {
-      responseList = await _getReceivedNotification(responseList);
+      responseList = await (_getReceivedNotification(responseList));
     }
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
       responseList =
-          await _getSentNotifications(responseList, fromAtSign, atConnection);
+          await (_getSentNotifications(responseList, fromAtSign, atConnection));
     }
     responseList =
         _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
@@ -83,7 +84,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     var keyList = notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
-        (element) => _fetchNotificationEntries(
+        (dynamic element) => _fetchNotificationEntries(
             element, responseList, notificationKeyStore));
     return responseList;
   }
@@ -103,16 +104,16 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param fromAtSign : atsign who look up to the current atsign server
   /// @param atConnection : The inbound connection.
   /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
-  Future<List> _getSentNotifications(List responseList, String fromAtSign,
+  Future<List> _getSentNotifications(List responseList, String? fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient =
-        OutboundClientManager.getInstance().getClient(fromAtSign, atConnection);
+    var outBoundClient = OutboundClientManager.getInstance()
+        .getClient(fromAtSign, atConnection)!;
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();
       logger.finer('connect result: ${connectResult}');
     }
-    var sentNotifications = await outBoundClient.notifyList(fromAtSign);
+    var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
     sentNotifications.forEach((element) {
       responseList.add(Notification(element));
     });
@@ -120,8 +121,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   }
 
   /// Applies filter criteria on the notifications
-  List _applyFilter(List notificationList, int fromDateInEpoch,
-      int toDateInEpoch, String regex) {
+  List _applyFilter(List notificationList, int? fromDateInEpoch,
+      int toDateInEpoch, String? regex) {
     notificationList.retainWhere((notification) => _isNotificationRetained(
         notification, fromDateInEpoch, toDateInEpoch, regex));
     return notificationList;
@@ -160,7 +161,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @return list : list of notifications that match the regular expression.
   bool _applyRegexFilter(Notification notification, String regex) {
     return notification.notification.toString().contains(RegExp(regex)) ||
-        _isAtsignRegex(notification.fromAtSign, regex);
+        _isAtsignRegex(notification.fromAtSign!, regex);
   }
 
   /// Accepts atsign and regular expression(regex) and verifies if atsign matches the regular expression.
@@ -179,7 +180,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Filters notification basing on from and to date specified.
   bool _applyDateFilter(
       Notification notification, int fromDateInEpoch, int toDateInEpoch) {
-    return notification.dateTime >= fromDateInEpoch &&
-        notification.dateTime <= toDateInEpoch;
+    return notification.dateTime! >= fromDateInEpoch &&
+        notification.dateTime! <= toDateInEpoch;
   }
 }

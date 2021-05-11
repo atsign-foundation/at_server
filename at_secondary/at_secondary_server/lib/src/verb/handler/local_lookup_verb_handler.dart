@@ -11,7 +11,7 @@ import 'package:at_utils/at_utils.dart';
 class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
 
-  LocalLookupVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  LocalLookupVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -23,7 +23,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     var verbParams = super.parse(command);
     if (command.contains('public:')) {
       verbParams.putIfAbsent('isPublic', () => 'true');
@@ -37,7 +37,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
@@ -55,7 +55,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     if (verbParams.containsKey('isCached')) {
       key = 'cached:${key}';
     }
-    var lookup_data = await keyStore.get(key);
+    var lookup_data = await keyStore!.get(key);
     var isActive = false;
     isActive = await SecondaryUtil.isActiveKey(lookup_data);
     if (isActive) {

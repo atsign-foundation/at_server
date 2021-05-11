@@ -13,7 +13,7 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  CramVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  CramVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -27,13 +27,13 @@ class CramVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atConnectionMetadata = atConnection.getMetaData();
     var sessionID = atConnectionMetadata.sessionID;
     var digest = verbParams[AT_DIGEST];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var secret = await keyStore.get('privatekey:at_secret');
+    var secret = await keyStore!.get('privatekey:at_secret');
 
     // If there is no secret in keystore then return error
     if (secret == null) {
@@ -44,7 +44,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     secret = secret + '$sessionID$atSign';
 
     //retrieve stored secret using sessionid and atsign
-    var storedSecret = await keyStore.get('private:$sessionID$atSign');
+    var storedSecret = await keyStore!.get('private:$sessionID$atSign');
     storedSecret = storedSecret?.data;
     secret = '$secret:$storedSecret';
     secret = sha512.convert(utf8.encode(secret));
@@ -52,10 +52,10 @@ class CramVerbHandler extends AbstractVerbHandler {
     // authenticate if retrieved secret is equal to the cram digest passed
     if ('$digest' == '$secret') {
       atConnectionMetadata.isAuthenticated = true;
-      var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-          .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+      var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+          .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
       try {
-        await atAccessLog.insert(atSign, cram.name());
+        await atAccessLog?.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }

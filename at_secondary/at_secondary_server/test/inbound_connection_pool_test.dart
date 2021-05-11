@@ -93,11 +93,11 @@ void main() async {
 }
 
 class MockInBoundConnectionImpl extends InboundConnectionImpl {
-  MockInBoundConnectionImpl(Socket socket, String sessionId)
+  MockInBoundConnectionImpl(Socket? socket, String sessionId)
       : super(socket, sessionId);
 
   @override
-  void close() {
+  Future<void> close() async {
     print('closing mock connection');
     getMetaData().isClosed = true;
   }

@@ -15,7 +15,7 @@ import 'dart:convert';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  late var keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   group('A group of cram verb regex test', () {
     test('test from correct syntax with digest', () {
@@ -42,7 +42,7 @@ void main() async {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -68,7 +68,7 @@ void main() async {
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}${fromResponse}';
       var bytes = utf8.encode(combo);
@@ -77,7 +77,8 @@ void main() async {
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
     });
@@ -103,11 +104,12 @@ void main() async {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
-          throwsA(predicate((e) => e is UnAuthenticatedException)));
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
       expect(connectionMetadata.isAuthenticated, false);
     });
 
@@ -127,11 +129,12 @@ void main() async {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
-          throwsA(predicate((e) => e is UnAuthenticatedException)));
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
       expect(connectionMetadata.isAuthenticated, false);
     });
   });
@@ -140,17 +143,18 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1');
+      .getSecondaryPersistenceStore('@test_user_1')!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
@@ -160,7 +164,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
-    await Directory('test/hive').deleteSync(recursive: true);
+    Directory('test/hive').deleteSync(recursive: true);
   }
 }
 

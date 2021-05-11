@@ -5,7 +5,7 @@ import 'package:at_secondary/src/notification/priority_queue_impl.dart';
 /// Latest Notifications contains Map <String, AtNotificationPriorityQueue> where String is notifier
 /// AtNotificationPriorityQueue contains AtNotifications on priority basis.
 class LatestNotifications implements NotificationStrategy {
-  final _latestNotificationsMap = <String, AtNotificationPriorityQueue>{};
+  final _latestNotificationsMap = <String?, AtNotificationPriorityQueue>{};
 
   @override
   void add(AtNotification atNotification) {
@@ -13,15 +13,15 @@ class LatestNotifications implements NotificationStrategy {
       _latestNotificationsMap.putIfAbsent(atNotification.notifier,
           () => AtNotificationPriorityQueue(comparison: _comparePriorityDates));
     }
-    var list = _latestNotificationsMap[atNotification.notifier];
-    if (atNotification.depth <= list.size()) {
-      var n = atNotification.depth - list.size();
+    var list = _latestNotificationsMap[atNotification.notifier]!;
+    if (atNotification.depth! <= list.size()!) {
+      var n = atNotification.depth! - list.size()!;
       while (n == 0) {
         list.removeNotification();
         n--;
       }
     }
-    _latestNotificationsMap[atNotification.notifier]
+    _latestNotificationsMap[atNotification.notifier]!
         .addNotification(atNotification);
   }
 
@@ -29,14 +29,14 @@ class LatestNotifications implements NotificationStrategy {
   List<AtNotification> toList() {
     var tempList = <AtNotification>[];
     _latestNotificationsMap.keys.forEach((element) {
-      tempList.addAll(_latestNotificationsMap[element].toList());
+      tempList.addAll(_latestNotificationsMap[element]!.toList()!);
     });
     return tempList;
   }
 
   /// Compares two AtNotifications on notification data time.
   static int _comparePriorityDates(AtNotification p1, AtNotification p2) {
-    return p1.notificationDateTime.millisecondsSinceEpoch
-        .compareTo(p2.notificationDateTime.millisecondsSinceEpoch);
+    return p1.notificationDateTime!.millisecondsSinceEpoch
+        .compareTo(p2.notificationDateTime!.millisecondsSinceEpoch);
   }
 }
