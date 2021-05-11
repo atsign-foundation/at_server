@@ -13,7 +13,7 @@ abstract class AtConnection {
   AtConnectionMetaData getMetaData();
 
   /// closes the underlying connection
-  void close();
+  Future<void> close();
 
   /// Returns true if connection is closed or idle for configured time
   bool isInValid();
