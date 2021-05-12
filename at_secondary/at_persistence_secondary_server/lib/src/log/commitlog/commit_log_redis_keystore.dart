@@ -181,11 +181,11 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
         return changes;
       }
       for (var f in values) {
-        if (f.key >= startKey) {
-          if (_isRegexMatches(f.atKey, regexString)) {
+        //if (f.key >= startKey) {
+          if (_isRegexMatches(CommitEntry.fromJson(json.decode(f)).atKey, regexString)) {
             changes.add(f);
           }
-        }
+        //}
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');

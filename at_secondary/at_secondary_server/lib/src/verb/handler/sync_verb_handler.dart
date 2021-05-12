@@ -41,7 +41,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
     }
     var regex = verbParams[AT_REGEX];
     var commit_changes =
-        atCommitLog.getChanges(int.parse(commit_sequence), regex);
+        await atCommitLog.getChanges(int.parse(commit_sequence), regex);
     logger.finer(
         'number of changes since commitId: $commit_sequence is ${commit_changes.length}');
     commit_changes.removeWhere((entry) =>

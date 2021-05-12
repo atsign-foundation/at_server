@@ -54,10 +54,10 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber, String regex) {
+  Future<List<CommitEntry>> getChanges(int sequenceNumber, String regex) async {
     var changes = <CommitEntry>[];
     try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes = await _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -84,13 +84,13 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Returns the latest committed sequence number
-  int lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.lastCommittedSequenceNumber();
+  Future<int> lastCommittedSequenceNumber() async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumber();
   }
 
   /// Returns the latest committed sequence number with regex
-  int lastCommittedSequenceNumberWithRegex(String regex) {
-    return _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  Future<int> lastCommittedSequenceNumberWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
   CommitEntry lastSyncedEntry() {

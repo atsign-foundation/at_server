@@ -72,12 +72,11 @@ class LastCommitIDMetricImpl implements MetricProvider {
     var lastCommitID;
     if (regex != null) {
       lastCommitID = await _atCommitLog
-          .lastCommittedSequenceNumberWithRegex(regex)
-          .toString();
-      return lastCommitID;
+          .lastCommittedSequenceNumberWithRegex(regex);
+      return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
-    return lastCommitID;
+    lastCommitID = await _atCommitLog.lastCommittedSequenceNumber();
+    return lastCommitID.toString();
   }
 
   @override
