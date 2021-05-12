@@ -75,8 +75,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   Future<CommitEntry> get(int key) async {
     try {
       var commitEntry;
-      var value =
-          await redis_commands.lrange(COMMIT_LOG, key, key);
+      var value = await redis_commands.lrange(COMMIT_LOG, key, key);
       if (value == null) {
         return commitEntry;
       }
@@ -98,8 +97,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries =
-          await redis_commands.lrange(COMMIT_LOG, 0, N - 1);
+      entries = await redis_commands.lrange(COMMIT_LOG, 0, N - 1);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -145,8 +143,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   Future<List> getDuplicateEntries() async {
-    var commitLogList =
-        await redis_commands.lrange(COMMIT_LOG, 0, -1);
+    var commitLogList = await redis_commands.lrange(COMMIT_LOG, 0, -1);
     var commitLogMap =
         Map.fromIterable(commitLogList, key: (v) => v[0], value: (v) => v[1]);
     var sortedKeys = commitLogMap.keys.toList(growable: false)
@@ -173,19 +170,16 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     var changes = <CommitEntry>[];
     var regexString = (regex != null) ? regex : '';
     try {
-      var startKey = sequenceNumber + 1;
-
-      var values =
-          await redis_commands.lrange(COMMIT_LOG, 0, -1);
+      var values = await redis_commands.lrange(COMMIT_LOG, 0, -1);
       if (values == null || values.isEmpty) {
         return changes;
       }
       for (var f in values) {
-        //if (f.key >= startKey) {
-          if (_isRegexMatches(CommitEntry.fromJson(json.decode(f)).atKey, regexString)) {
-            changes.add(f);
-          }
-        //}
+        var commitEntry = CommitEntry.fromJson(json.decode(f));
+        var atKey = commitEntry.atKey;
+        if (commitEntry != null && _isRegexMatches(atKey, regexString)) {
+          changes.add(commitEntry);
+        }
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
@@ -207,16 +201,14 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
 
   /// Returns the latest committed sequence number
   Future<int> lastCommittedSequenceNumber() async {
-    var lastCommittedSequenceNum =
-        await redis_commands.llen(COMMIT_LOG);
+    var lastCommittedSequenceNum = await redis_commands.llen(COMMIT_LOG);
     return lastCommittedSequenceNum - 1;
   }
 
   /// Returns the latest committed sequence number with regex
   Future<int> lastCommittedSequenceNumberWithRegex(String regex) async {
     var lastCommittedEntry;
-    var values =
-        await redis_commands.lrange(COMMIT_LOG, 0, -1);
+    var values = await redis_commands.lrange(COMMIT_LOG, 0, -1);
     for (var value in values) {
       var entry = CommitEntry.fromJson(json.decode(value));
       if (_isRegexMatches(entry.atKey, regex)) {
@@ -231,8 +223,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   Future<CommitEntry> lastSyncedEntry({String regex}) async {
     var lastSyncedEntry;
     if (regex != null) {
-      var values =
-          await redis_commands.lrange(COMMIT_LOG, 0, -1);
+      var values = await redis_commands.lrange(COMMIT_LOG, 0, -1);
       for (var value in values) {
         var entry = CommitEntry.fromJson(json.decode(value));
         if (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)) {
@@ -240,8 +231,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
         }
       }
     } else {
-      var values =
-          await redis_commands.lrange(COMMIT_LOG, 0, -1);
+      var values = await redis_commands.lrange(COMMIT_LOG, 0, -1);
       for (var value in values) {
         var entry = CommitEntry.fromJson(json.decode(value));
         if (entry.commitId != null) {

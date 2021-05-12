@@ -24,7 +24,7 @@ class CommitEntry extends HiveObject {
 
   Map toJson() => {
         'atKey': _atKey,
-        'operation': operation.name,
+        'operation': operation.toString(),
         'opTime': _opTime.toUtc().toString(),
         'commitId': commitId
       };
@@ -38,7 +38,7 @@ class CommitEntry extends HiveObject {
     _atKey = json['atKey'];
     operation = CommitOp.values
         .firstWhere((element) => element.toString() == json['operation']);
-    _opTime == DateTime.parse(json['opTime'] as String);
+    _opTime = DateTime.parse(json['opTime'] as String);
     commitId = json['commitId'] as int;
   }
 }

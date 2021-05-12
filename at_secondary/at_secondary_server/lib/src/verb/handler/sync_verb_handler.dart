@@ -40,7 +40,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
           .getHiveCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     }
     var regex = verbParams[AT_REGEX];
-    var commit_changes =
+    List<CommitEntry> commit_changes =
         await atCommitLog.getChanges(int.parse(commit_sequence), regex);
     logger.finer(
         'number of changes since commitId: $commit_sequence is ${commit_changes.length}');
@@ -67,11 +67,9 @@ class SyncVerbHandler extends AbstractVerbHandler {
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
 
     if (syncResultList.isNotEmpty) {
-      syncResultList.forEach((element) {
-        atConnection
-            .write('${jsonEncode(element).length}#${jsonEncode(element)}\$');
-      });
+      response.data = jsonEncode(syncResultList);
     }
+
     return;
   }
 
