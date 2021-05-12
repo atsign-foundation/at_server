@@ -1,3 +1,14 @@
+"""
+Generates the config.yaml from the config-base.yaml
+The default values in the configurations can be overridden by creating an
+config-<environment>.properties file
+The file accepts an optional parameter <environment>; defaults to production.
+Example:
+    Generating config.yaml for development.
+        create an application properties file as 'config-development.properties'
+        Run the generate_config.py passing 'development' as command line argument.
+            python3 generate_config.py -e development
+"""
 import argparse
 import yaml
 from jproperties import Properties
@@ -5,7 +16,7 @@ from jproperties import Properties
 # Initialize parser
 parser = argparse.ArgumentParser()
 # Adding optional argument
-parser.add_argument("-e", "--env", default='prod')
+parser.add_argument("-e", "--env", default='production')
 
 # Read arguments from command line
 environment = parser.parse_args().env
@@ -28,9 +39,8 @@ with open("config-base.yaml", "r") as yamlfile:
             if i == len(fields) - 1:
                 temp[fields[i]] = configs.properties[key]
                 break
-            else:
-                temp = yamlMap[fields[i]]
-                i = i + 1
+            temp = yamlMap[fields[i]]
+            i = i + 1
     yamlfile.close()
 
 # write to config file.
