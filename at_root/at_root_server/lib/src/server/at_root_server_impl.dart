@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:ffi';
 import 'dart:io';
 import 'package:at_root_server/src/client/at_root_client.dart';
 import 'package:at_root_server/src/client/at_root_client_pool.dart';
@@ -95,7 +97,7 @@ class RootServerImpl implements AtRootServer {
   /// set _isRunning flag to false
   /// Close redis connection
   @override
-  void stop() {
+  Future<void> stop() async {
     _stopInProgress = true;
     try {
       var result = RootClientPool().closeAll();
