@@ -20,30 +20,43 @@ parser.add_argument("-e", "--env", default='production')
 
 # Read arguments from command line
 environment = parser.parse_args().env
+print('Generating config.yaml for ' + environment + ' environment')
 
 # Read properties file
 configs = Properties()
-with open('config-' + environment + '.properties', 'rb') as read_prop:
-    configs.load(read_prop)
+try:
+    with open('config-' + environment + '.properties', 'rb') as read_prop:
+        configs.load(read_prop)
+    read_prop.close()
+except OSError as os:
+    print('Exception Occurred: ' + os.strerror)
+    exit()
 
-with open("config-base.yaml", "r") as yamlfile:
-    yamlMap = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    # Loop on each of the property in config properties.
-    for key in configs.properties:
-        fields = key.split('.')
-        temp = yamlMap
-        i = 0
-        # Iterate into the map until the key is fetched.
-        while i < len(fields):
-            # Condition is to check if the key in the map is fetched.
-            if i == len(fields) - 1:
-                temp[fields[i]] = configs.properties[key]
-                break
-            temp = yamlMap[fields[i]]
-            i = i + 1
-    yamlfile.close()
+try:
+    with open("config-base.yaml", "r") as yamlFile:
+        yamlMap = yaml.load(yamlFile, Loader=yaml.FullLoader)
+        # Loop on each of the property in config properties.
+        for key in configs.properties:
+            fields = key.split('.')
+            temp = yamlMap
+            i = 0
+            # Iterate into the map until the key is fetched.
+            while i < len(fields):
+                # Condition is to check if the key in the map is fetched.
+                if i == len(fields) - 1:
+                    temp[fields[i]] = configs.properties[key]
+                    break
+                temp = yamlMap[fields[i]]
+                i = i + 1
+        yamlFile.close()
+except OSError as os:
+    print('Exception Occurred: ' + os.strerror)
 
 # write to config file.
-with open(r'config.yaml', 'w') as file:
-    documents = yaml.dump(yamlMap, file)
-    print('Generated the config file for ' + environment + ' environment')
+try:
+    with open('config.yaml', 'w') as file:
+        documents = yaml.dump(yamlMap, file)
+        print('Generated config.yaml file for ' + environment + ' environment successfully.')
+    file.close()
+except OSError as os:
+    print('Exception occurred: ' + os.filename + ' ' + os.strerror)
