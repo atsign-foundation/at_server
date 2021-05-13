@@ -184,7 +184,7 @@ jobs:
   push_docker_images:
     # Runs only after functional tests are completed.
     needs: [ run_functional_test ]
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' }}
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
@@ -237,18 +237,20 @@ jobs:
           tags: atsigncompany/secondary:GHA${{ github.run_number }}
           platforms: |
             linux/amd64
+            linux/arm64/v8
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
 
-  deploy_root_sever:
-    needs: [ build_root ]
-      # Deploy root server image to cluster
-      runs-on: ubuntu-latest
-      steps:
-        - name: deploy to kubernates cluster
-          uses: steebchen/kubectl@master
-          env:
-            KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
-          run: |
-            kubectl -n root set image deployment/root root=atsigncompany/root:GHA${{ github.run_number }}
+#  deploy_root_sever:
+#    needs: [ build_root ]
+#      # Deploy root server image to cluster if
+#      if: ${{ github.repository == 'atsign-foundation/at_server' }}
+#      runs-on: ubuntu-latest
+#      steps:
+#        - name: deploy to kubernates cluster
+#          uses: steebchen/kubectl@master
+#          env:
+#            KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+#          run: |
+#            kubectl -n root set image deployment/root root=atsigncompany/root:GHA${{ github.run_number }}
