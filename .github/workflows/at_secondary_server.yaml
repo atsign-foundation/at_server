@@ -42,12 +42,6 @@ jobs:
       - name: Analyze project source
         run: dart analyze
 
-      # Run python code analysis
-      - name: Python Linter
-        uses: sunnysid3up/python-linter@master
-        with:
-          source: "at_secondary/at_secondary_server/config/generate_config.py"
-
       # Your project will need to have tests in test/ and a dependency on
       # package:test for this step to succeed. Note that Flutter projects will
       # want to change this to 'flutter test'.
