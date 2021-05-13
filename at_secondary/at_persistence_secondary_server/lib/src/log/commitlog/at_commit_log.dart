@@ -57,7 +57,8 @@ class AtCommitLog implements AtLogType {
   Future<List<CommitEntry>> getChanges(int sequenceNumber, String regex) async {
     var changes = <CommitEntry>[];
     try {
-      changes = await _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes =
+          await _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -117,7 +118,7 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
       entries = _commitLogKeyStore.getDuplicateEntries();

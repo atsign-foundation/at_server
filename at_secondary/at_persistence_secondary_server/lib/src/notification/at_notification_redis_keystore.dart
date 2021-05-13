@@ -1,57 +1,67 @@
+import 'dart:convert';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
-import 'package:hive/hive.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:utf7/utf7.dart';
+import 'package:dartis/dartis.dart' as redis;
 
-/// Class to initialize, put and get entries into [AtNotificationKeystore]
-class AtNotificationKeystore implements SecondaryKeyStore {
-  static final AtNotificationKeystore _singleton =
-      AtNotificationKeystore._internal();
+/// Class to initialize, put and get entries into [AtNotificationRedisKeystore]
+class AtNotificationRedisKeystore implements SecondaryKeyStore {
+  static final AtNotificationRedisKeystore _singleton =
+      AtNotificationRedisKeystore._internal();
 
-  AtNotificationKeystore._internal();
+  AtNotificationRedisKeystore._internal();
 
-  factory AtNotificationKeystore.getInstance() {
+  factory AtNotificationRedisKeystore.getInstance() {
     return _singleton;
   }
 
-  Box _box;
-
   bool _register = false;
 
-  Future<void> init(storagePath, boxName) async {
-    Hive.init(storagePath);
-    if (!_register) {
-      Hive.registerAdapter(AtNotificationAdapter());
-      Hive.registerAdapter(OperationTypeAdapter());
-      Hive.registerAdapter(NotificationTypeAdapter());
-      Hive.registerAdapter(NotificationStatusAdapter());
-      Hive.registerAdapter(NotificationPriorityAdapter());
-      Hive.registerAdapter(MessageTypeAdapter());
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-      _register = true;
+  var redis_client;
+  var redis_commands;
+  final NOTIFICATION_LOG = 'at_notification_log';
+
+  final logger = AtSignLogger('AtNotificationRedisKeystore');
+
+  Future<void> init(String redisUrl, String password) async {
+    try {
+      // Connects.
+      redis_client = await redis.Client.connect(redisUrl);
+      // Runs some commands.
+      redis_commands = redis_client.asCommands<String, String>();
+      await redis_commands.auth(password);
+      await redis_commands.select(1);
+    } on Exception catch (e) {
+      logger.severe('AtPersistence.init exception: ' + e.toString());
+      throw DataStoreException(
+          'Exception initializing secondary keystore manager: ${e.toString()}');
     }
-    _box = await Hive.openBox(boxName);
   }
 
-  bool isEmpty() {
-    return _box.isEmpty;
-  }
+  // bool isEmpty() {
+  //   return _box.isEmpty;
+  // }
 
   /// Returns a list of atNotification sorted on notification date time.
-  Future<List<dynamic>> getValues() async {
+  Future<List> getValues() async {
     var returnList = [];
-    returnList = _box.values.toList();
-    returnList.sort(
+    returnList = await redis_commands.mget(keys: await redis_commands.keys('*'));
+    var values = <AtNotification>[];
+    returnList.forEach((element) {values.add(AtNotification.fromJson(json.decode(element)));});
+    values.sort(
         (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
-    return returnList;
+    return values;
   }
 
   @override
   Future<AtNotification> get(key) async {
-    return await _box.get(key);
+    var notification;
+    var result = await redis_commands.get(key);
+    notification = (result != null) ? AtNotification.fromJson(json.decode(result)) : null;
+    return notification;
   }
 
   @override
@@ -63,7 +73,8 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       bool isBinary,
       bool isEncrypted,
       String dataSignature}) async {
-    await _box.put(key, value);
+    var notification_value = json.encode(value.toJson());
+    await redis_commands.put(key, notification_value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
@@ -96,15 +107,16 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     var keys = <String>[];
     var encodedKeys;
 
-    if (_box.keys.isEmpty) {
+    var redis_keys = await redis_commands.keys();
+    if (redis_keys.isEmpty) {
       return null;
     }
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {
-      encodedKeys = _box.keys.where(
+      encodedKeys = redis_keys.where(
           (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
     } else {
-      encodedKeys = _box.keys.toList();
+      encodedKeys = redis_keys.toList();
     }
     encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
     return encodedKeys;
@@ -131,10 +143,16 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   @override
   Future remove(key) async {
     assert(key != null);
-    await _box.delete(key);
+    await redis_commands.del(keys: [key]);
   }
 
   Future<void> close() async {
-    await _box.close();
+    await redis_client.disconnect();
   }
+
+  Future<bool> isEmpty() async {
+    var list = await redis_commands.keys('*');
+    return list.isEmpty;
+  }
+
 }

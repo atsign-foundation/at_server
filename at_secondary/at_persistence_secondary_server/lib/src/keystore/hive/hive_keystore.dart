@@ -300,4 +300,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
     return result;
   }
+
+  @override
+  Future<List<AtData>> getValues() {
+    // TODO: implement getValues
+    throw UnimplementedError();
+  }
 }

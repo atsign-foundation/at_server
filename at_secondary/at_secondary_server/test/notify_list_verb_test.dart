@@ -112,8 +112,12 @@ void main() {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('122', notification1);
-      await AtNotificationKeystore.getInstance().put('125', notification2);
+      await AtNotificationKeyStoreFactory.getInstance()
+          .getNotificationKeyStore()
+          .put('122', notification1);
+      await AtNotificationKeyStoreFactory.getInstance()
+          .getNotificationKeyStore()
+          .put('125', notification2);
       var verb = NotifyList();
       var date = DateTime.now().toString().split(' ')[0];
       var command = 'notify:list:$date';
@@ -193,9 +197,15 @@ void main() {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('121', notification1);
-      await AtNotificationKeystore.getInstance().put('122', notification2);
-      await AtNotificationKeystore.getInstance().put('123', notification3);
+      await AtNotificationKeyStoreFactory.getInstance()
+          .getNotificationKeyStore()
+          .put('121', notification1);
+      await AtNotificationKeyStoreFactory.getInstance()
+          .getNotificationKeyStore()
+          .put('122', notification2);
+      await AtNotificationKeyStoreFactory.getInstance()
+          .getNotificationKeyStore()
+          .put('123', notification3);
       var verb = NotifyList();
       var fromDate =
           DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
@@ -245,9 +255,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getHiveCommitLog('@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
       .getHiveAccessLog('@test_user_1', accessLogPath: storageDir);
-  var notificationInstance = AtNotificationKeystore.getInstance();
-  await notificationInstance.init(
-      storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  var notificationFactory = AtNotificationKeyStoreFactory.getInstance();
+  await notificationFactory.init('hive',
+      storagePath: storageDir,
+      boxName: 'notifications_' + _getShaForAtsign('@test_user_1'));
   return keyStoreManager;
 }
 

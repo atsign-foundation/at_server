@@ -291,4 +291,10 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     }
     return null;
   }
+
+  @override
+  Future<List<AtData>> getValues() {
+    // TODO: implement getValues
+    throw UnimplementedError();
+  }
 }

@@ -262,15 +262,15 @@ class OutboundClient {
     return notifyResult;
   }
 
-  List<dynamic> notifyList(String atSign, {bool handshake = true}) {
+  Future<List> notifyList(String atSign, {bool handshake = true}) async {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
     }
     try {
-      var notificationKeyStore = AtNotificationKeystore.getInstance();
-      notifyResult = notificationKeyStore.getValues();
+      var notificationKeyStore = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
+      notifyResult = await notificationKeyStore.getValues();
       if (notifyResult != null) {
         notifyResult.retainWhere((element) =>
             element.type == NotificationType.sent &&

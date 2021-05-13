@@ -13,6 +13,8 @@ class NotificationManager implements NotificationManagerSpec {
     return _singleton;
   }
 
+  var notificationKeystore;
+
   @override
   Future<String> notify(AtNotification atNotification) async {
     if (atNotification.notifier == null || atNotification.notifier.isEmpty) {
@@ -31,7 +33,7 @@ class NotificationManager implements NotificationManagerSpec {
   Future<String> _storeNotificationInQueue(
       AtNotification atNotification) async {
     // Adding notification to hive key-store.
-    await AtNotificationKeystore.getInstance()
+    await AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore()
         .put(atNotification.id, atNotification);
 
     // Adding sent notification to queue.
@@ -44,7 +46,7 @@ class NotificationManager implements NotificationManagerSpec {
 
   @override
   Future<NotificationStatus> getStatus(String notificationId) async {
-    var notificationKeyStore = AtNotificationKeystore.getInstance();
+    var notificationKeyStore = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
     var notificationResponse = await notificationKeyStore.get(notificationId);
     if (notificationResponse != null) {
       return notificationResponse.notificationStatus;

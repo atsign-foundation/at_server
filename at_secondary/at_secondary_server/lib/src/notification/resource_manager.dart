@@ -120,10 +120,10 @@ class ResourceManager {
   Future<void> _notifyResponseProcessor(
       String response, AtNotification atNotification, List errorList) async {
     if (response == 'data:success') {
-      var notificationKeyStore = AtNotificationKeystore.getInstance();
+      var notificationKeyStore = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
       var notifyEle = await notificationKeyStore.get(atNotification.id);
       atNotification.notificationStatus = NotificationStatus.delivered;
-      await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
+      await AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore().put(notifyEle.id, notifyEle);
     } else {
       errorList.add(atNotification);
     }

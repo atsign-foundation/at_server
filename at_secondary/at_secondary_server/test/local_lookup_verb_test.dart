@@ -255,8 +255,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getHiveAccessLog('@test_user_1', accessLogPath: storageDir);
-  await AtNotificationKeystore.getInstance()
-      .init(storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  await AtNotificationKeyStoreFactory.getInstance().init('hive',
+      storagePath: storageDir,
+      boxName: 'notifications_' + _getShaForAtsign('@test_user_1'));
   return keyStoreManager;
 }
 

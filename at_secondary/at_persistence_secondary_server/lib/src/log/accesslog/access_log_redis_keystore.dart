@@ -15,7 +15,6 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
 
   AccessLogRedisKeyStore(this._currentAtSign);
 
-
   Future<void> init(String url, {String password}) async {
     var success = false;
     try {
@@ -39,7 +38,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
       var value = (accessLogEntry != null)
           ? json.encode(accessLogEntry.toJson())
           : null;
-      result = await redis_commands.rpush(ACCESS_LOG,value: value);
+      result = await redis_commands.rpush(ACCESS_LOG, value: value);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
@@ -63,8 +62,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   Future<AccessLogEntry> get(int key) async {
     try {
       var accessLogEntry;
-      var value =
-          await redis_commands.lrange(ACCESS_LOG, key, key);
+      var value = await redis_commands.lrange(ACCESS_LOG, key, key);
       if (value == null) {
         return accessLogEntry;
       }
@@ -81,8 +79,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
     var now = DateTime.now().toUtc();
-    var values =
-        await redis_commands.lrange(ACCESS_LOG, 0, -1);
+    var values = await redis_commands.lrange(ACCESS_LOG, 0, -1);
     for (var entry in values) {
       var value = AccessLogEntry.fromJson(json.decode(entry));
       if (value.requestDateTime != null &&
@@ -98,8 +95,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries =
-          await redis_commands.lrange(ACCESS_LOG, 0, N - 1);
+      entries = await redis_commands.lrange(ACCESS_LOG, 0, N - 1);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -117,7 +113,8 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   @override
   Future remove(int key) async {
     try {
-      await redis_commands.rem(ACCESS_LOG, key);
+      var value = await redis_commands.lrange(ACCESS_LOG, key, key);
+      await redis_commands.lrem(ACCESS_LOG, 1, value[0]);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
@@ -135,8 +132,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
   Future<Map> mostVisitedAtSigns(int length) async {
     var atSignMap = {};
-    var values =
-        await redis_commands.lrange(ACCESS_LOG, 0, -1);
+    var values = await redis_commands.lrange(ACCESS_LOG, 0, -1);
     for (var entry in values) {
       var value = AccessLogEntry.fromJson(json.decode(entry));
       //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
@@ -167,8 +163,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   ///value is number of times the key is looked up.
   Future<Map> mostVisitedKeys(int length) async {
     var atKeys = {};
-    var values =
-        await redis_commands.lrange(ACCESS_LOG, 0, -1);
+    var values = await redis_commands.lrange(ACCESS_LOG, 0, -1);
     for (var entry in values) {
       var value = AccessLogEntry.fromJson(json.decode(entry));
       //Verify the record in access entry is of from verb. To ignore the records of lookup(s)

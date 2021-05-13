@@ -68,8 +68,8 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  List getFirstNEntries(int N) {
-    return _accessLogKeyStore.getFirstNEntries(N);
+  Future<List> getFirstNEntries(int N) async {
+    return await _accessLogKeyStore.getFirstNEntries(N);
   }
 
   @override

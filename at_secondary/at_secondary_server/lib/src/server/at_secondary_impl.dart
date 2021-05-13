@@ -380,11 +380,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     _accessLog = atAccessLog;
     // Initialize notification storage
-    var notificationInstance = AtNotificationKeystore.getInstance();
-    await notificationInstance.init(
-        notificationStoragePath,
-        'notifications_' +
-            AtUtils.getShaForAtSign(serverContext.currentAtSign));
+    var notificationKeystoreFactory =
+        AtNotificationKeyStoreFactory.getInstance();
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      await notificationKeystoreFactory.init(AtSecondaryConfig.keyStore,
+          redisUrl: AtSecondaryConfig.redisUrl,
+          password: AtSecondaryConfig.redisPassword);
+    } else {
+      await notificationKeystoreFactory.init(AtSecondaryConfig.keyStore,
+          storagePath: notificationStoragePath,
+          boxName: 'notifications_' +
+              AtUtils.getShaForAtSign(serverContext.currentAtSign));
+    }
+
     // Loads the notifications into Map.
     NotificationUtil.loadNotificationMap();
 

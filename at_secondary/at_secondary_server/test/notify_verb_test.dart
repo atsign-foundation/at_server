@@ -773,14 +773,16 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getHiveCommitLog('@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
       .getHiveAccessLog('@test_user_1', accessLogPath: storageDir);
-  var notificationInstance = AtNotificationKeystore.getInstance();
-  await notificationInstance.init(
-      storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  var notificationFactory = AtNotificationKeyStoreFactory.getInstance();
+  await notificationFactory.init('hive',
+      storagePath: storageDir,
+      boxName: 'notifications_' + _getShaForAtsign('@test_user_1'));
   return keyStoreManager;
 }
 
 Future<void> tearDownFunc() async {
-  await AtNotificationKeystore.getInstance().close();
+  AtNotificationKeystore notificationKeystore = await AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
+  notificationKeystore.close();
   AtNotificationMap.getInstance().clear();
   var isExists = await Directory('test/hive').exists();
   if (isExists) {

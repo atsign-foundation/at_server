@@ -357,4 +357,10 @@ class ElasticKeyStore
     // TODO: implement getKeys
     throw UnimplementedError();
   }
+
+  @override
+  Future<List<AtData>> getValues() {
+    // TODO: implement getValues
+    throw UnimplementedError();
+  }
 }

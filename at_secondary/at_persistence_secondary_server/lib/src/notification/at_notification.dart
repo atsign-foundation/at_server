@@ -6,31 +6,31 @@ import 'package:uuid/uuid.dart';
 /// Represents an [AtNotification] entry in keystore.
 class AtNotification {
   @HiveField(0)
-  final String _id;
+  String _id;
 
   @HiveField(1)
-  final String _fromAtSign;
+  String _fromAtSign;
 
   @HiveField(2)
-  final _notificationDateTime;
+  DateTime _notificationDateTime;
 
   @HiveField(3)
-  final _toAtSign;
+  String _toAtSign;
 
   @HiveField(4)
-  final _notification;
+  String _notification;
 
   @HiveField(5)
-  final _type;
+  NotificationType _type;
 
   @HiveField(6)
-  final _opType;
+  OperationType _opType;
 
   @HiveField(7)
-  final _messageType;
+  MessageType _messageType;
 
   @HiveField(8)
-  final _expiresAt;
+  DateTime _expiresAt;
 
   @HiveField(9)
   NotificationPriority priority;
@@ -42,19 +42,19 @@ class AtNotification {
   int retryCount;
 
   @HiveField(12)
-  final _strategy;
+  String _strategy;
 
   @HiveField(13)
-  final _notifier;
+  String _notifier;
 
   @HiveField(14)
-  final _depth;
+  int _depth;
 
   @HiveField(15)
-  final _atValue;
+  String _atValue;
 
   @HiveField(16)
-  final _atMetadata;
+  AtMetaData _atMetadata;
 
   AtNotification._builder(AtNotificationBuilder atNotificationBuilder)
       : _id = atNotificationBuilder.id,
@@ -126,6 +126,32 @@ class AtNotification {
         'atValue': _atValue,
         'atMetadata': _atMetadata
       };
+
+  AtNotification.fromJson(Map<String, dynamic> json) {
+    _id = json['id'] as String;
+    _fromAtSign = json['fromAtSign'] as String;
+    _notificationDateTime =
+        DateTime.parse(json['notificationDateTime'] as String);
+    _toAtSign = json['toAtSign'] as String;
+    _notification = json['notification'] as String;
+    _type = NotificationType.values
+        .firstWhere((element) => element.toString() == json['type']);
+    _opType = OperationType.values
+        .firstWhere((element) => element.toString() == json['opType']);
+    _messageType = MessageType.values
+        .firstWhere((element) => element.toString() == json['messageType']);
+    priority = NotificationPriority.values
+        .firstWhere((element) => element.toString() == json['priority']);
+    notificationStatus = NotificationStatus.values.firstWhere(
+        (element) => element.toString() == json['notificationStatus']);
+    retryCount = json['retryCount'] as int;
+    _strategy = json['strategy'] as String;
+    _depth = json['depth'] as int;
+    _notifier = json['notifier'] as String;
+    _expiresAt = DateTime.parse(json['expiresAt'] as String);
+    _atValue = json['atValue'] as String;
+    _atMetadata = AtMetaData().fromJson(json['atMetadata']);
+  }
 
   @override
   String toString() {
