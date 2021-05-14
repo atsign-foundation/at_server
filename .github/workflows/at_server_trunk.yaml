@@ -247,7 +247,7 @@ jobs:
 
   # Deploy root server image to cluster
   deploy_root_sever:
-      needs: [ build_root ]
+      needs: [ push_docker_images ]
       runs-on: ubuntu-latest
       steps:
         - name: Install doctl
