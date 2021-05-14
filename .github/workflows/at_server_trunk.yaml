@@ -249,14 +249,14 @@ jobs:
       needs: [ build_root ]
         # Deploy root server image to cluster
       runs-on: ubuntu-latest
-        steps:
-          - name: Install doctl
-            uses: digitalocean/action-doctl@v2
-            with:
-              token: token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          
-          - name: Save DigitalOcean kubeconfig with short-lived credentials
-            run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
+      steps:
+        - name: Install doctl
+          uses: digitalocean/action-doctl@v2
+          with:
+            token: token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        
+        - name: Save DigitalOcean kubeconfig with short-lived credentials
+          run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
 
-          - name: Deploy to DigitalOcean Kubernetes
-            run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
+        - name: Deploy to DigitalOcean Kubernetes
+          run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
