@@ -245,18 +245,20 @@ jobs:
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
 
+  # Deploy root server image to cluster
   deploy_root_sever:
       needs: [ build_root ]
-        # Deploy root server image to cluster
       runs-on: ubuntu-latest
       steps:
         - name: Install doctl
           uses: digitalocean/action-doctl@v2
           with:
-            token: token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+            token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         
+        #Generate kubeconfig file
         - name: Save DigitalOcean kubeconfig with short-lived credentials
           run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
 
+        #Deploy root image to k8 root deployment
         - name: Deploy to DigitalOcean Kubernetes
           run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
