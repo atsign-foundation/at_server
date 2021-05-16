@@ -106,15 +106,19 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   @override
-  int getSize() {
-    // TODO: implement getSize
-    return null;
+  Future<int> getSize() async {
+    //Returning number of entries
+    var logSize = await redis_commands.llen(COMMIT_LOG);
+    return logSize;
   }
 
   @override
   Future remove(int key) async {
     try {
-      await redis_commands.lrem(COMMIT_LOG, key);
+      var value = await redis_commands.lrange(COMMIT_LOG, key, key);
+      if (value != null && value.isNotEmpty) {
+        await redis_commands.lrem(COMMIT_LOG, value[0]);
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
     }

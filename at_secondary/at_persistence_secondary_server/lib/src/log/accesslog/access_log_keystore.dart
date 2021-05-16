@@ -119,7 +119,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  int getSize() {
+  Future<int> getSize() async {
     var logSize = 0;
     var logLocation = Directory(storagePath);
 

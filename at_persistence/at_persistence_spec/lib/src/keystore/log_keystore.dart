@@ -44,5 +44,5 @@ abstract class LogKeyStore<K, V> {
 
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
-  int getSize();
+  Future<int> getSize();
 }

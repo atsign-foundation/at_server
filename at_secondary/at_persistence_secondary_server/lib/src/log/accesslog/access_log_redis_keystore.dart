@@ -104,9 +104,9 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  int getSize() {
-    // TODO
-    var logSize = 0;
+  Future<int> getSize() async {
+    //Returning number of entries
+    var logSize = await redis_commands.llen(ACCESS_LOG);
     return logSize;
   }
 
@@ -114,7 +114,9 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   Future remove(int key) async {
     try {
       var value = await redis_commands.lrange(ACCESS_LOG, key, key);
-      await redis_commands.lrem(ACCESS_LOG, 1, value[0]);
+      if (value != null && value.isNotEmpty) {
+        await redis_commands.lrem(ACCESS_LOG, 1, value[0]);
+      }
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
