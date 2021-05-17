@@ -110,21 +110,22 @@ class AtNotification {
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
-        'notificationDateTime': _notificationDateTime,
+        'notificationDateTime': _notificationDateTime.toUtc().toString(),
         'toAtSign': _toAtSign,
         'notification': _notification,
-        'type': _type,
-        'opType': _opType,
-        'messageType': _messageType,
-        'priority': priority,
-        'notificationStatus': notificationStatus,
+        'type': _type.toString(),
+        'opType': _opType.toString(),
+        'messageType': _messageType.toString(),
+        'priority': priority.toString(),
+        'notificationStatus': notificationStatus.toString(),
         'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
-        'expiresAt': _expiresAt,
+        'expiresAt':
+            (_expiresAt != null ? _expiresAt.toUtc().toString() : _expiresAt),
         'atValue': _atValue,
-        'atMetadata': _atMetadata
+        'atMetadata': (_atMetadata != null ? _atMetadata.toJson() : _atMetadata)
       };
 
   AtNotification.fromJson(Map<String, dynamic> json) {
@@ -148,9 +149,13 @@ class AtNotification {
     _strategy = json['strategy'] as String;
     _depth = json['depth'] as int;
     _notifier = json['notifier'] as String;
-    _expiresAt = DateTime.parse(json['expiresAt'] as String);
+    _expiresAt = (_expiresAt != null
+        ? DateTime.parse(json['expiresAt'] as String)
+        : _expiresAt);
     _atValue = json['atValue'] as String;
-    _atMetadata = AtMetaData().fromJson(json['atMetadata']);
+    _atMetadata = (_atMetadata != null
+        ? AtMetaData().fromJson(json['atMetadata'])
+        : _atMetadata);
   }
 
   @override

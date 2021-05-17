@@ -80,7 +80,7 @@ class AtNotificationRedisKeystore implements SecondaryKeyStore {
       bool isEncrypted,
       String dataSignature}) async {
     var notification_value = json.encode(value.toJson());
-    await redis_commands.put(key, notification_value);
+    await redis_commands.set(key, notification_value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
