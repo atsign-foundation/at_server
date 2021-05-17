@@ -1,0 +1,264 @@
+name: at_server_trunk
+# Runs the workflow on pull request or on push event to "trunk" branch.
+on:
+  push:
+    branches:
+      - trunk
+      - git-129-trunk
+
+  pull_request:
+    branches:
+      - trunk
+      - git-129-trunk
+
+jobs:
+  test_at_persistence_root_server:
+    env:
+      working-directory: ./at_root/at_persistence_root_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies in at_persistence_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart pub get
+
+      - name: Run dart analyzer in at_persistence_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart analyze
+
+      - name: Run tests in at_persistence_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart test --concurrency=1
+
+  test_at_root_server:
+    env:
+      working-directory: ./at_root/at_root_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies in at_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart pub get
+
+      - name: Run dart analyzer in at_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart analyze
+
+      - name: Run tests in at_root_server
+        working-directory: ${{ env.working-directory }}
+        run: dart test --concurrency=1
+
+  test_at_persistence_secondary_server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./at_secondary/at_persistence_secondary_server
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies in at_persistence_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart pub get
+
+      - name: Run dart analyzer in at_persistence_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart analyze
+
+      - name: Run tests in at_persistence_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart test --concurrency=1
+
+  test_at_secondary_server:
+    runs-on: ubuntu-latest
+    env:
+      working-directory: ./at_secondary/at_secondary_server
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies in at_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart pub get
+
+      - name: Run dart analyzer in at_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart analyze
+
+      - name: Run tests in at_secondary_server
+        working-directory: ${{ env.working-directory }}
+        run: dart test --concurrency=1
+
+  run_functional_test:
+    needs: [ test_at_persistence_root_server, test_at_root_server, test_at_persistence_secondary_server, test_at_secondary_server ]
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: at_functional_test
+        run: dart pub get
+
+      - name: Run dart analyzer
+        working-directory: at_functional_test
+        run: dart analyze
+
+      - name: Add entry to hosts file
+        run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
+
+      - name: Generate root server binary
+        working-directory: at_root/at_root_server
+        # -o : path to copy the root binary
+        run: dart pub get && dart2native bin/main.dart -o root
+
+      - name: Generate secondary server binary
+        working-directory: at_secondary/at_secondary_server
+        run: dart pub get && dart2native bin/main.dart -o secondary
+
+      - name: copy binaries to at_functional_test
+        run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
+
+      - name: Build docker image
+        uses: docker/build-push-action@v2
+        with:
+          file: at_functional_test/lib/Dockerfile
+          context: at_functional_test/lib/
+          tags: at_virtual_env:trunk
+
+      - name: Run docker container
+        # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
+        run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+
+      - name: Check test environment readiness
+        working-directory: at_functional_test
+        run: dart run test/check_test_env.dart
+
+      - name: Run tests
+        working-directory: at_functional_test
+        run: pub run test
+
+      # On push event, upload root server binary for using in deploy job
+      - name: upload root server
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: root-server
+          path: at_root/at_root_server/root
+
+      # On push event, upload secondary server binary for using in deploy job
+      - name: upload secondary server
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: secondary-server
+          path: at_secondary/at_secondary_server/secondary
+
+      - name: Stop docker container
+        run: docker container stop at_virtual_env_cont
+
+      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
+      - name: Remove docker image
+        run: docker rmi at_virtual_env:trunk
+
+  # This job run's on trigger event 'push'. The Jobs builds the at_virtual_env and secondary server and pushes
+  # the docker images to docker hub.
+  push_docker_images:
+    # Runs only after functional tests are completed.
+    needs: [ run_functional_test ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.3.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.9.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Gets the root server binary generated from the above "build" job.
+      - name: Get root server
+        uses: actions/download-artifact@v2
+        with:
+          name: root-server
+          path: at_functional_test/lib/root/
+
+      # Gets the secondary server binary generated from the above "secondary" job.
+      - name: Get secondary server
+        uses: actions/download-artifact@v2
+        with:
+          name: secondary-server
+          path: at_functional_test/lib/secondary/
+
+      # Builds and pushes the at_virtual_env to docker hub.
+      - name: Build and push for trunk branch
+        id: docker_build_trunk
+        uses: docker/build-push-action@v2.4.0
+        with:
+          push: true
+          context: at_functional_test/lib/
+          tags: atsigncompany/virtualenv:GHA${{ github.run_number }}
+
+      - name: Image digest of at_virtual_env
+        run: echo ${{ steps.docker_build_trunk.outputs.digest }}
+
+      # Builds and pushes the secondary server image to docker hub.
+      - name: Build and push secondary image for amd64
+        id: docker_build_secondary
+        uses: docker/build-push-action@v2.4.0
+        with:
+          push: true
+          context: at_secondary
+          tags: atsigncompany/secondary:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest of secondary server
+        run: echo ${{ steps.docker_build_secondary.outputs.digest }}
+
+  # Deploy root server image to cluster
+  deploy_root_sever:
+      needs: [ push_docker_images ]
+      runs-on: ubuntu-latest
+      steps:
+        - name: Install doctl
+          uses: digitalocean/action-doctl@v2
+          with:
+            token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        
+        #Generate kubeconfig file
+        - name: Save DigitalOcean kubeconfig with short-lived credentials
+          run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
+
+        #Deploy root image to k8 root deployment
+        - name: Deploy to DigitalOcean Kubernetes
+          run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
