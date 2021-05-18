@@ -258,7 +258,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -310,7 +310,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -783,6 +783,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   AtNotificationMap.getInstance().clear();
+  isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }

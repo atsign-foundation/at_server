@@ -10,7 +10,6 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
   setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
     test('test update', () async {
@@ -65,7 +64,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
-      var result = await keyStore.put('last_name', updateData);
+      await keyStore.put('last_name', updateData);
       await keyStore.remove('last_name');
       var dataFromHive = await keyStore.get('last_name');
       expect(dataFromHive, isNull);

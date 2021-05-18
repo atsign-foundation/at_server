@@ -4,6 +4,7 @@ version: 1.0.1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_server_spec/index.html
+publish_to: none
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -13,8 +14,8 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: null_safety
-      version: ^1.0.1+5
+      ref: trunk
+      version: ^1.0.1+7
 
 #dependency_overrides:
 #  at_commons:

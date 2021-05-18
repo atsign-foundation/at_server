@@ -22,8 +22,8 @@ Future<void> main() async {
   }
   usedSize = RedisConnectionManager.getInstance().pool!.getUsedSize();
   pooledSize = RedisConnectionManager.getInstance().pool!.getPooledSize();
-  print('used connection ${usedSize} ');
-  print('pooled connection ${pooledSize}');
+  print('used connection $usedSize ');
+  print('pooled connection $pooledSize');
   assert(usedSize == 3);
   assert(pooledSize == 2);
   print('***');
@@ -32,8 +32,8 @@ Future<void> main() async {
       (c) => RedisConnectionManager.getInstance().releaseConnection(c));
   usedSize = RedisConnectionManager.getInstance().pool!.getUsedSize();
   pooledSize = RedisConnectionManager.getInstance().pool!.getPooledSize();
-  print('used connection ${usedSize} ');
-  print('pooled connection ${pooledSize}');
+  print('used connection $usedSize ');
+  print('pooled connection $pooledSize');
   assert(usedSize == 0);
   assert(pooledSize == 5);
   print('***');
@@ -45,8 +45,8 @@ Future<void> main() async {
   RedisConnectionManager.getInstance().pool!.releaseAllConnections();
   usedSize = RedisConnectionManager.getInstance().pool!.getUsedSize();
   pooledSize = RedisConnectionManager.getInstance().pool!.getPooledSize();
-  print('used connection ${usedSize} ');
-  print('pooled connection ${pooledSize}');
+  print('used connection $usedSize ');
+  print('pooled connection $pooledSize');
   assert(usedSize == 0);
   assert(pooledSize == 0);
 }

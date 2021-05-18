@@ -4,6 +4,7 @@ version: 1.0.1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_root_server/index.html
+publish_to: none
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -19,15 +20,15 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: null_safety
+      ref: trunk
       version: ^1.0.1+4
 
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: null_safety
-      version: ^1.0.1+5
+      ref: trunk
+      version: ^1.0.1+7
 
 #dependency_overrides:
 #  at_persistence_spec:

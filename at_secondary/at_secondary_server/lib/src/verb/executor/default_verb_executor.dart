@@ -1,7 +1,7 @@
+import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_commons/at_commons.dart';
 
 /// The default implementation of [VerbExecutor]
 class DefaultVerbExecutor implements VerbExecutor {
@@ -20,7 +20,7 @@ class DefaultVerbExecutor implements VerbExecutor {
     var handler = verbManager.getVerbHandler(utf8EncodedCommand);
     logger.finer('verb handler found : ' + handler.runtimeType.toString());
     if (handler == null) {
-      logger.severe('No handler found for command: ${utf8EncodedCommand}');
+      logger.severe('No handler found for command: $utf8EncodedCommand');
       throw InvalidSyntaxException('invalid command');
     }
     try {
@@ -29,7 +29,7 @@ class DefaultVerbExecutor implements VerbExecutor {
       rethrow;
     } on Exception catch (e) {
       logger.severe(
-          'exception in processing command :${utf8EncodedCommand}: ${e.toString()}');
+          'exception in processing command :$utf8EncodedCommand: ${e.toString()}');
       rethrow;
     }
   }

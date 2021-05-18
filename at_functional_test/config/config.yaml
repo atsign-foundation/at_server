@@ -1,0 +1,8 @@
+# The @Protocol secondary server configurations.
+
+# The @Protocol root server configuration
+root_server:
+  # The port to connect to root server
+  port: 64
+  # The url to connect to root server
+  url: 'vip.ve.atsign.zone'

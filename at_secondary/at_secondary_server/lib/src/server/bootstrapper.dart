@@ -5,8 +5,8 @@ import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
-import 'package:at_utils/at_utils.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_utils/at_utils.dart';
 
 /// The bootstrapper class for initializing the secondary server configuration parameters from [config.yaml]
 /// and call the start method to start the secondary server.

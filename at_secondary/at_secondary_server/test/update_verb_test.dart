@@ -1,10 +1,13 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -14,8 +17,6 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_commons/at_commons.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
@@ -534,7 +535,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -581,7 +582,7 @@ void main() {
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}${fromResponse}';
+      var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());

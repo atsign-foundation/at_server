@@ -85,7 +85,7 @@ class OutboundClient {
         await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
-          'No secondary url found for atsign: ${toAtSign}');
+          'No secondary url found for atsign: $toAtSign');
     }
     return secondaryUrl;
   }
@@ -121,9 +121,9 @@ class OutboundClient {
       //2. Receive proof
       var fromResult = await messageListener.read();
       logger.info('fromResult : $fromResult');
-      if (fromResult == null || fromResult == "") {
+      if (fromResult == null || fromResult == '') {
         throw HandShakeException(
-            'no response received for From:${toAtSign} command');
+            'no response received for From:$toAtSign command');
       }
 
       //3. Save cookie
@@ -146,7 +146,7 @@ class OutboundClient {
         throw HandShakeException('no response received for pol command');
       }
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      if (handShakeResult.startsWith('${currentAtSign}@')) {
+      if (handShakeResult.startsWith('$currentAtSign@')) {
         result = true;
       }
     } on ConnectionInvalidException {
@@ -173,14 +173,14 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
-      logger.finer('writing to outbound connection: ${lookUpRequest}');
+      logger.finer('writing to outbound connection: $lookUpRequest');
       outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
-      throw OutBoundConnectionInvalidException('Outbound connectin invalid');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var lookupResult = await messageListener.read();
     if (lookupResult != null) {
@@ -201,7 +201,7 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
-      logger.finer('writing to outbound connection: ${scanRequest}');
+      logger.finer('writing to outbound connection: $scanRequest');
       outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();

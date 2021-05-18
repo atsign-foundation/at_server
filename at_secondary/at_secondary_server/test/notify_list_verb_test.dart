@@ -116,7 +116,7 @@ void main() {
       await AtNotificationKeystore.getInstance().put('125', notification2);
       var verb = NotifyList();
       var date = DateTime.now().toString().split(' ')[0];
-      var command = 'notify:list:${date}';
+      var command = 'notify:list:$date';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';

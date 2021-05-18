@@ -44,7 +44,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var operation = verbParams[OPERATION];
     // Generate query using key, atSign from verbParams
     atSign = AtUtils.formatAtSign(atSign);
-    key = '${key}${atSign}';
+    key = '$key$atSign';
     //If key is cached, return cached value.
     var result = await _getCachedValue(operation, key);
     // If cached key value is null, perform a remote plookup.
@@ -87,7 +87,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var outBoundClient = OutboundClientManager.getInstance()
         .getClient(atSign, atConnection, isHandShake: false)!;
     if (!outBoundClient.isConnectionCreated) {
-      logger.finer('creating outbound connection ${atSign}');
+      logger.finer('creating outbound connection $atSign');
       await outBoundClient.connect(handshake: false);
     }
     // call lookup with the query. Added operation as all to get key's value and metadata for caching

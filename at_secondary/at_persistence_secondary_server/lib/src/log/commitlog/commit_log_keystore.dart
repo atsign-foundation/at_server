@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
-import 'package:at_utils/at_logger.dart';
 
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   var logger = AtSignLogger('CommitLogKeyStore');
@@ -33,7 +33,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
       return deletedEntries > 1;
     });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
-    logger.finer('last committed sequence: ${lastCommittedSequenceNum}');
+    logger.finer('last committed sequence: $lastCommittedSequenceNum');
   }
 
   /// Closes the [commitLogKeyStore] instance.
@@ -139,6 +139,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
+  @override
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = box?.keys?.length;
@@ -148,6 +149,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   /// Gets the first 'N' keys from the logs
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
+  @override
   List getFirstNEntries(int N) {
     var entries = [];
     try {
@@ -171,6 +173,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
   }
 
+  @override
   int getSize() {
     var logSize = 0;
     var logLocation = Directory(storagePath!);
@@ -185,6 +188,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     return logSize ~/ 1024;
   }
 
+  @override
   List getExpired(int expiryInDays) {
     // TODO: implement getExpired
     return [];
@@ -221,7 +225,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
       }
       var startKey = sequenceNumber + 1;
       logger.finer(
-          'startKey: ${startKey} all commit log entries: ${box!.values}');
+          'startKey: $startKey all commit log entries: ${box!.values}');
       box!.values.forEach((f) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {

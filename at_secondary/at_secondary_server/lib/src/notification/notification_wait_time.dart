@@ -38,17 +38,17 @@ class NotificationWaitTime {
     } else {
       var difference = DateTime.now().difference(_lastComputedAt!).inSeconds;
       meanWaitTime =
-          (_waitTime + difference * (totalPriorities - 1)) / totalPriorities;
-      _lastComputedAt = DateTime.now();
+          (waitTime + difference * (totalPriorities - 1)) / totalPriorities;
+      lastComputedAt = DateTime.now();
       return meanWaitTime;
     }
   }
 
   double calculateWaitTime({DateTime? dateTime}) {
     //@sign to pick = Max(sum(priorities) + (Mean (wait time) * Mean of the priorities)
-    var meanOfPriorities = _prioritiesSum / _totalPriorities;
+    var meanOfPriorities = prioritiesSum / totalPriorities;
     var meanValue = (_calculateMeanWaitTime(dateTime) * meanOfPriorities);
-    _waitTime = _prioritiesSum + meanValue;
-    return _waitTime;
+    waitTime = prioritiesSum + meanValue;
+    return waitTime;
   }
 }
