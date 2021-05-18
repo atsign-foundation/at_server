@@ -67,7 +67,9 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     try {
       var value =
           (redis_data != null) ? json.encode(redis_data.toJson()) : null;
-      await persistenceManager.redis_commands.set(redis_key, value);
+      /// milliseconds: Removes the key after specified milliseconds(time_to_live).
+      await persistenceManager.redis_commands
+          .set(redis_key, value, milliseconds: time_to_live);
       result = await _commitLog.commit(redis_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -154,7 +156,7 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         //encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
+      logger.severe('Invalid regular expression : $regex');
       throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('RedisKeystore getKeys exception: ${exception.toString()}');
@@ -213,14 +215,15 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('redis key:${redis_key}');
-        logger.finest('redis value:${redis_value}');
+        logger.finest('redis key:$redis_key');
+        logger.finest('redis value:$redis_value');
         // await persistenceManager.box?.put(redis_key, redis_value);
         // result = await _commitLog.commit(redis_key, commitOp);
         var redis_value_json =
             (redis_value != null) ? json.encode(redis_value.toJson()) : null;
+        /// milliseconds: Removes the key after specified milliseconds(time_to_live).
         await persistenceManager.redis_commands
-            .set(redis_key, redis_value_json);
+            .set(redis_key, redis_value_json, milliseconds: time_to_live);
         result = await _commitLog.commit(redis_key, commitOp);
       }
     } on DataStoreException {
@@ -253,7 +256,9 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     value.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
     // Updating the version of the metadata.
     (metadata.version != null) ? metadata.version += 1 : metadata.version = 0;
-    await persistenceManager.redis_commands?.set(redis_key, value);
+    /// milliseconds: Removes the key after specified milliseconds(time_to_live).
+    await persistenceManager.redis_commands
+        ?.set(redis_key, value, milliseconds: metadata.ttl);
     result = await _commitLog.commit(redis_key, CommitOp.UPDATE_ALL);
     return result;
   }
@@ -270,7 +275,9 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     (newData.metaData.version != null)
         ? newData.metaData.version += 1
         : newData.metaData.version = 0;
-    await persistenceManager.redis_commands?.set(redis_key, newData);
+    /// milliseconds: Removes the key after specified milliseconds(time_to_live).
+    await persistenceManager.redis_commands
+        ?.set(redis_key, newData, milliseconds: metadata.ttl);
     var result = await _commitLog.commit(redis_key, CommitOp.UPDATE_META);
     return result;
   }

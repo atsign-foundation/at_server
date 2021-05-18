@@ -100,9 +100,8 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   /// @return List of first 'N' keys from the log
   @override
   Future<List> getFirstNEntries(int N) async {
-    var entries = [];
     try {
-      entries = box.keys.toList().take(N).toList();
+      return box.keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -110,7 +109,6 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries;
   }
 
   @override

@@ -137,7 +137,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Returns the total number of keys
-  /// @return - int : Returns number of keys in access log
+  /// @return - int : Returns number of keys in commit log
   @override
   Future<int> entriesCount() async {
     var totalKeys = 0;

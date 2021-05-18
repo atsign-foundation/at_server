@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.d
 import 'package:at_utils/at_logger.dart';
 import 'package:dartis/dartis.dart' as redis;
 
+/// Class contains implementation for redis keystore.
 class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   final logger = AtSignLogger('AccessLogRedisKeyStore');
   var redis_client;
@@ -53,6 +54,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
     return totalKeys;
   }
 
+  /// Returns the [AccessLogEntry] for the key.
   @override
   Future<AccessLogEntry> get(int key) async {
     try {
@@ -70,13 +72,17 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
     }
   }
 
+  /// Returns the expired keys
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
     var now = DateTime.now().toUtc();
     var values = await redis_commands.lrange(ACCESS_LOG, 0, -1);
+    ///Iterates on the access log entries
     for (var entry in values) {
       var value = AccessLogEntry.fromJson(json.decode(entry));
+      /// If the date-time of entry in access log is before the number of days to expire,
+      /// index of the value is added to expiredKeys List.
       if (value.requestDateTime != null &&
           value.requestDateTime
               .isBefore(now.subtract(Duration(days: expiryInDays)))) {
@@ -91,6 +97,7 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
     var entries = [];
     try {
       var result = await redis_commands.lrange(ACCESS_LOG, 0, N - 1);
+      /// Iterates of access log entries and adds the index of each entry to list.
       result.forEach((entry) {
         entries.add(result.indexOf(entry));
       });
@@ -108,10 +115,12 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
     return logSize;
   }
 
+  /// Removed the entry from the access log.
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       var value = await redis_commands.lrange(ACCESS_LOG, key, key);
+      /// Removes the value from the access log.
       if (value != null && value.isNotEmpty) {
         await redis_commands.lrem(ACCESS_LOG, 1, value[0]);
       }
