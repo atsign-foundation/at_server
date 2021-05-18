@@ -2,7 +2,7 @@
 abstract class AtLogType {
   /// Returns the total number of keys in storage.
   /// @return int Returns the total number of keys.
-  int entriesCount();
+  Future<int> entriesCount();
 
   /// Returns the first 'N' keys of the log instance.
   /// @param N : Fetches first 'N' entries
@@ -11,16 +11,16 @@ abstract class AtLogType {
 
   /// Removes the keys from storage.
   /// @param expiredKeys delete the expiredKeys from the storage
-  void delete(dynamic expiredKeys);
+  Future<void> remove(dynamic expiredKeys);
 
   ///Returns the list of expired keys
   ///@param expiryInDays
   ///@return List<dynamic>
-  List<dynamic> getExpired(int expiryInDays);
+  Future<List<dynamic>> getExpired(int expiryInDays);
 
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
-  int getSize();
+  Future<int> getSize();
 }
 
 /// The abstract class for Compaction Job

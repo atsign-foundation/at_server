@@ -47,11 +47,6 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
-  }
-
-  @override
   Future<int> entriesCount() async {
     var totalKeys = 0;
     totalKeys = await redis_commands.llen(ACCESS_LOG);
@@ -95,7 +90,10 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries = await redis_commands.lrange(ACCESS_LOG, 0, N - 1);
+      var result = await redis_commands.lrange(ACCESS_LOG, 0, N - 1);
+      result.forEach((entry) {
+        entries.add(result.indexOf(entry));
+      });
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');

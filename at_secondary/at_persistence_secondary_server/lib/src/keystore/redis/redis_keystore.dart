@@ -282,8 +282,9 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       var redis_key = keyStoreHelper.prepareKey(key);
       var value = await persistenceManager.redis_commands?.get(redis_key);
       if (value != null) {
-        result = result.fromJson(json.decode(value));
-        return result.metaData;
+        var atData = json.decode(value);
+        result = AtMetaData().fromJson(atData['metaData']);
+        return result;
       }
     } on Exception catch (exception) {
       logger.severe('RedisKeystore getMeta exception: $exception');

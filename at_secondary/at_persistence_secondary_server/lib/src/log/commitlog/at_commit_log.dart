@@ -80,8 +80,8 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
-  List<dynamic> getExpired(int expiryInDays) {
-    return _commitLogKeyStore.getExpired(expiryInDays);
+  Future<List<dynamic>> getExpired(int expiryInDays) async{
+    return await _commitLogKeyStore.getExpired(expiryInDays);
   }
 
   /// Returns the latest committed sequence number
@@ -110,7 +110,7 @@ class AtCommitLog implements AtLogType {
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
-  int entriesCount() {
+  Future<int> entriesCount() {
     return _commitLogKeyStore.entriesCount();
   }
 
@@ -121,7 +121,7 @@ class AtCommitLog implements AtLogType {
   Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries = _commitLogKeyStore.getDuplicateEntries();
+      entries = await _commitLogKeyStore.getFirstNEntries(N);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -132,20 +132,20 @@ class AtCommitLog implements AtLogType {
     return entries;
   }
 
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
   @override
-  void delete(dynamic expiredKeys) {
-    _commitLogKeyStore.delete(expiredKeys);
-  }
-
-  @override
-  int getSize() {
-    return _commitLogKeyStore.getSize();
+  Future<int> getSize() async {
+    return await _commitLogKeyStore.getSize();
   }
 
   /// Closes the [CommitLogKeyStore] instance.
   Future<void> close() async {
     await _commitLogKeyStore.close();
+  }
+
+  @override
+  Future<void> remove(expiredKeys) async {
+    await Future.forEach(expiredKeys, (key) async {
+      await _commitLogKeyStore.remove(key);
+    });
   }
 }

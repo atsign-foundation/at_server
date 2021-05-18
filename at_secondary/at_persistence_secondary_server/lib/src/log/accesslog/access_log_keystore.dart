@@ -57,7 +57,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       await box.delete(key);
     } on Exception catch (e) {
@@ -67,11 +67,6 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       throw DataStoreException(
           'Hive error deleting entry from access log:${e.toString()}');
     }
-  }
-
-  @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
   }
 
   /// Returns the total number of keys
