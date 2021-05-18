@@ -100,12 +100,12 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
 
   @override
   Future<AtData> get(String key) async {
-    var value = AtData();
+    var value;
     try {
       var redis_key = keyStoreHelper.prepareKey(key);
       var result = await persistenceManager.redis_commands.get(redis_key);
       if (result != null) {
-        value = value.fromJson(json.decode(result));
+        value = AtData().fromJson(json.decode(result));
       }
     } on Exception catch (exception) {
       logger.severe('RedisKeystore get exception: $exception');
