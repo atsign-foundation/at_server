@@ -34,7 +34,11 @@ abstract class BaseResponseHandler implements ResponseHandler {
           ? '$atSign@'
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
       var responseMessage = getResponseMessage(result, prompt);
-      connection.write(responseMessage);
+      try {
+        connection.write(responseMessage);
+      } on ConnectionInvalidException {
+        rethrow;
+      }
     } on Exception catch (e) {
       logger.severe('exception in writing response to socket:${e.toString()}');
       GlobalExceptionHandler.getInstance().handle(e, atConnection: connection);

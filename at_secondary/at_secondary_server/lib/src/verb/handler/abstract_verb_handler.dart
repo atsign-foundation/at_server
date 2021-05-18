@@ -32,7 +32,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> process(String command, InboundConnection atConnection) async {
     var response = await processInternal(command, atConnection);
     var handler = responseManager.getResponseHandler(getVerb());
-    handler.process(atConnection, response);
+    try {
+      handler.process(atConnection, response);
+    } on ConnectionInvalidException {
+      await undo();
+    }
   }
 
   Future<Response> processInternal(
@@ -53,6 +57,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on Exception {
       rethrow;
     }
+  }
+
+  //# TODO move undo to spec
+  Future<void> undo() async {
+    logger.finer('Verb : ${getVerb().name()} undo called');
   }
 
   /// Return the instance of the current verb
