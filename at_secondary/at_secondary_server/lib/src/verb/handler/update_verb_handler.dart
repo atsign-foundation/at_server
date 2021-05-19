@@ -149,12 +149,17 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     if (atMetaData.ttl != null) {
       expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl));
     }
+    var notificationType = NotificationType.sent;
+    // If forAtSign and current atsign are same, then notification type is set to received.
+    if (forAtSign == atSign) {
+      notificationType = NotificationType.received;
+    }
 
     var atNotification = (AtNotificationBuilder()
           ..fromAtSign = atSign
           ..toAtSign = forAtSign
           ..notification = key
-          ..type = NotificationType.sent
+          ..type = notificationType
           ..priority = priority
           ..opType = OperationType.update
           ..expiresAt = expiresAt

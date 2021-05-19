@@ -39,7 +39,8 @@ class NotificationUtil {
             ..atValue = value
             ..notificationStatus = notificationStatus)
           .build();
-      var notificationKeyStore = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
+      var notificationKeyStore =
+          AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
       await notificationKeyStore.put(atNotification.id, atNotification);
       return atNotification.id;
     } catch (exception) {
@@ -51,16 +52,17 @@ class NotificationUtil {
 
   /// Load the notification into the map to notify on server start-up.
   static Future<void> loadNotificationMap() async {
-    var _notificationLog = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
+    var _notificationLog =
+        AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
     var notificationMap = AtNotificationMap.getInstance();
     var values = await _notificationLog.getValues();
     if (values.isEmpty) {
       return;
     }
-    await values.forEach((element) {
+    await Future.forEach(values, (element) {
       // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent &&
-          element.notificationStatus != NotificationStatus.delivered) {
+          element.notificationStatus == NotificationStatus.queued) {
         notificationMap.add(element);
       }
     });
