@@ -4,7 +4,7 @@ import 'package:args/args.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_commons/at_commons.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
