@@ -20,21 +20,21 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
-      ref: trunk
+      ref: connection_issue
       version: ^1.0.1+7
 
   at_lookup:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
-      ref: trunk
-      version: ^1.0.0+8
+      ref: connection_issue
+      version: ^1.0.0+9
 
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: trunk
+      ref: connection_issue
       version: ^1.0.0
 
 dependency_overrides:
@@ -42,16 +42,16 @@ dependency_overrides:
   json_annotation: ^2.3.0
 #  at_persistence_secondary_server:
 #    path: ../at_persistence_secondary_server
-  at_server_spec:
-    path: ../../at_server_spec
-#  at_persistence_spec:
-#    path: ../../at_persistence/at_persistence_spec
-#  at_utils:
-#    path: ../../../at_tools/at_utils
-  at_commons:
-    path: ../../../at_tools/at_commons
-  at_lookup:
-     path: ../../../at_libraries/at_lookup
+#  at_server_spec:
+#    path: ../../at_server_spec
+##  at_persistence_spec:
+##    path: ../../at_persistence/at_persistence_spec
+##  at_utils:
+##    path: ../../../at_tools/at_utils
+#  at_commons:
+#    path: ../../../at_tools/at_commons
+#  at_lookup:
+#     path: ../../../at_libraries/at_lookup
 
 dev_dependencies:
   test: ^1.6.0

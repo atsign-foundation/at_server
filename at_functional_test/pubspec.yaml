@@ -16,7 +16,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
-      ref: trunk
+      ref: connection_issue
       version: ^1.0.0+8
 
 #dependency_overrides:
