@@ -1,10 +1,9 @@
 import 'dart:io';
-
 import 'package:args/args.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
@@ -12,6 +11,7 @@ class GlobalExceptionHandler {
       GlobalExceptionHandler._internal();
 
   GlobalExceptionHandler._internal();
+  var logger = AtSignLogger('GlobalExceptionHandler');
 
   factory GlobalExceptionHandler.getInstance() {
     return _singleton;
@@ -124,7 +124,8 @@ class GlobalExceptionHandler {
     try {
       atConnection.write('error:$error_code-$error_description\n$prompt');
     } on ConnectionInvalidException {
-      // do Nothing. Unable to write error code back to client
+      logger.finer(
+          'unable to write error code $error_code-$error_description to client socket: ');
     }
   }
 }

@@ -5,9 +5,4 @@ class StreamResponseHandler extends BaseResponseHandler {
   String getResponseMessage(String verbResult, String prompt) {
     return '';
   }
-
-  @override
-  bool isComplete() {
-    return true;
-  }
 }
