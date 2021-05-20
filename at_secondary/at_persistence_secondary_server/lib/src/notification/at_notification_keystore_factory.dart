@@ -22,12 +22,18 @@ class AtNotificationKeyStoreFactory {
       String boxName,
       String redisUrl,
       String password}) async {
-    if (keyStore == 'redis') {
-      await AtNotificationRedisKeystore.getInstance().init(redisUrl, password);
-    } else {
-      await AtNotificationKeystore.getInstance().init(storagePath, boxName);
+    switch (keyStore.toLowerCase()) {
+      case 'redis':
+        await AtNotificationRedisKeystore.getInstance()
+            .init(redisUrl, password);
+        _notificationKeystore = AtNotificationRedisKeystore.getInstance();
+        break;
+
+      case 'hive':
+        await AtNotificationKeystore.getInstance().init(storagePath, boxName);
+        _notificationKeystore = AtNotificationKeystore.getInstance();
+        break;
     }
-    _notificationKeystore = AtNotificationRedisKeystore.getInstance();
   }
 
   SecondaryKeyStore getNotificationKeyStore() {

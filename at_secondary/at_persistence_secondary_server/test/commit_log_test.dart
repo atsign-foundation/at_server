@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/redis/redis_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:crypto/crypto.dart';
@@ -80,6 +79,7 @@ void main() async {
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       expect(await commitLogInstance.lastCommittedSequenceNumber(), 1);
+      expect(await commitLogInstance.lastCommittedSequenceNumber(), 1);
     });
 
     test('test commit - box not available', () async {
@@ -115,6 +115,55 @@ void main() async {
 
     tearDown(() async => await tearDownFunc());
   });
+
+  group('A group of commit log compaction tests', () {
+    test('A test to verify index of duplicate entries are returned', () {
+      var commitLogKeystore = CommitLogKeyStore('@alice');
+      var commitLogMap = {
+        0: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":0}')),
+        1: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":1}')),
+        2: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":2}'))
+      };
+      var duplicateIndexList =
+          commitLogKeystore.getDuplicateEntries(commitLogMap);
+      assert(duplicateIndexList.length == 2);
+      assert(duplicateIndexList[0] == 1 && duplicateIndexList[1] == 0);
+    });
+
+    test('A test to verify index of all entries are returned', () {
+      var commitLogKeystore = CommitLogKeyStore('@alice');
+      var commitLogMap = {
+        0: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":0}')),
+        1: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:mobile@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":1}')),
+        2: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:location@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":2}'))
+      };
+      var duplicateIndexList =
+          commitLogKeystore.getDuplicateEntries(commitLogMap);
+      assert(duplicateIndexList.isEmpty);
+    });
+
+    test('A test to verify one of the entries is duplicate', () {
+      var commitLogKeystore = CommitLogKeyStore('@alice');
+      var commitLogMap = {
+        0: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":0}')),
+        1: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:mobile@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":1}')),
+        2: CommitEntry.fromJson(jsonDecode(
+            '{\"atKey\":\"@alice:phone@bob\",\"operation\":\"CommitOp.UPDATE\",\"opTime\":\"2021-05-20 03:50:42.109205Z\",\"commitId\":2}'))
+      };
+      var duplicateIndexList =
+          commitLogKeystore.getDuplicateEntries(commitLogMap);
+      assert(duplicateIndexList.length == 1);
+      assert(duplicateIndexList[0] == 0);
+    });
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
@@ -122,11 +171,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getHiveCommitLog(_getShaForAtsign('@alice'), commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice');
-  var persistenceManager =
-      secondaryPersistenceStore.getPersistenceManager();
+  var persistenceManager = secondaryPersistenceStore.getPersistenceManager();
   await persistenceManager.init('@alice', storageDir);
   var keyStore;
-  if(persistenceManager is HivePersistenceManager) {
+  if (persistenceManager is HivePersistenceManager) {
     await persistenceManager.openVault('@alice');
   }
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
@@ -143,7 +191,6 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/commit/').deleteSync(recursive: true);
   }
-  AtCommitLogManagerImpl.getInstance().clear();
 }
 
 String _getShaForAtsign(String atsign) {

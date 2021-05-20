@@ -1,7 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:cron/cron.dart';
 import 'package:dartis/dartis.dart' as redis;
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
@@ -16,6 +15,7 @@ class RedisPersistenceManager implements PersistenceManager {
   var redis_client;
   var redis_commands;
 
+  @override
   Future<bool> init(String atSign, String url, {String password}) async {
     var success = false;
     try {
@@ -32,24 +32,19 @@ class RedisPersistenceManager implements PersistenceManager {
     return success;
   }
 
-  //TODO change into to Duration and construct cron string dynamically
+  /// Redis has internal mechanism to remove the expired keys. Hence leaving the method
+  /// unimplemented.
+  @override
   void scheduleKeyExpireTask(int runFrequencyMins) {
-    logger.finest('scheduleKeyExpireTask starting cron job.');
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
-      var redisKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atSign)
-          .getSecondaryKeyStore();
-      await redisKeyStore.deleteExpiredKeys();
-    });
+    /// Not applicable
   }
 
   // Closes the secondary keystore.
+  @override
   void close() {
     redis_commands.disconnect();
   }
 
-  @override
   Future openVault(String atsign, {List<int> hiveSecret}) {
     // Not applicable
     return null;

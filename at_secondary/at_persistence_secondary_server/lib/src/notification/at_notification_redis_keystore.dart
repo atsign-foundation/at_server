@@ -46,12 +46,14 @@ class AtNotificationRedisKeystore implements SecondaryKeyStore {
   // }
 
   /// Returns a list of atNotification sorted on notification date time.
+  @override
   Future<List> getValues() async {
     var returnList = [];
     var keys = await redis_commands.keys('*');
-    if (keys != null && keys.isNotEmpty) {
-      returnList = await redis_commands.mget(keys: keys);
+    if (keys == null || keys.isEmpty) {
+      return [];
     }
+    returnList = await redis_commands.mget(keys: keys);
     var values = <AtNotification>[];
     returnList.forEach((element) {
       values.add(AtNotification.fromJson(json.decode(element)));
