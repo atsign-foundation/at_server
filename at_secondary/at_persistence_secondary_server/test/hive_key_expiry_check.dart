@@ -5,8 +5,9 @@ import 'package:at_persistence_secondary_server/src/keystore/secondary_persisten
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 
 void main() async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1');
+  var persistenceStoreFactory = SecondaryPersistenceStoreFactory.getInstance();
+  persistenceStoreFactory.keyStore = 'hive';
+  var secondaryPersistenceStore = persistenceStoreFactory.getSecondaryPersistenceStore('@test_user_1');
   var manager = secondaryPersistenceStore.getPersistenceManager();
   var result = await manager.init('@test_user_1', 'test/hive');
   if(manager is HivePersistenceManager) {

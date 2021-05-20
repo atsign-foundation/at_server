@@ -9,7 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = Directory.current.path + '/test/commit';
 
   group('A group of commit log test', () {
     setUp(() async => await setUpFunc(storageDir));
@@ -31,7 +31,7 @@ void main() async {
       var key_2 =
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.DELETE);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 2);
+      expect(await commitLogInstance.lastCommittedSequenceNumber(), 2);
       var committedEntry = await commitLogInstance.getEntry(key_2);
       expect(committedEntry.atKey, 'location@alice');
       expect(committedEntry.operation, CommitOp.UPDATE);
@@ -58,7 +58,7 @@ void main() async {
       await commitLogInstance.commit('location@alice', CommitOp.DELETE);
       await commitLogInstance.commit('phone@bob', CommitOp.UPDATE);
       await commitLogInstance.commit('email@charlie', CommitOp.UPDATE);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 4);
+      expect(await commitLogInstance.lastCommittedSequenceNumber(), 4);
       var changes = await commitLogInstance.getChanges(key_2, '');
       expect(changes.length, 3);
       expect(changes[0].atKey, 'location@alice');
@@ -71,7 +71,7 @@ void main() async {
           .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
+      expect(await commitLogInstance.lastCommittedSequenceNumber(), 1);
     });
 
     test('test last sequence number called multiple times', () async {
@@ -79,8 +79,7 @@ void main() async {
           .getHiveCommitLog(_getShaForAtsign('@alice'));
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
+      expect(await commitLogInstance.lastCommittedSequenceNumber(), 1);
     });
 
     test('test commit - box not available', () async {
@@ -140,9 +139,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 Future<void> tearDownFunc() async {
   await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive/').exists();
+  var isExists = await Directory('test/commit/').exists();
   if (isExists) {
-    Directory('test/hive/').deleteSync(recursive: true);
+    Directory('test/commit/').deleteSync(recursive: true);
   }
   AtCommitLogManagerImpl.getInstance().clear();
 }
