@@ -8,7 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = Directory.current.path + '/test/commit';
 
   group('A group of commit log test', () {
     setUp(() async => await setUpFunc(storageDir));
@@ -187,9 +187,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 Future<void> tearDownFunc() async {
   await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive/').exists();
+  var isExists = await Directory('test/commit/').exists();
   if (isExists) {
-    Directory('test/hive/').deleteSync(recursive: true);
+    Directory('test/commit/').deleteSync(recursive: true);
   }
 }
 
