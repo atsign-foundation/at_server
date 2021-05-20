@@ -110,7 +110,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     if (expiredKeys.isEmpty) {
       return null;
     }
-    return _getDuplicateEntries(expiredKeys);
+    return getDuplicateEntries(expiredKeys);
   }
 
   /// Returns the first N entries from commit log persistent store
@@ -123,7 +123,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
         var value = CommitEntry.fromJson(json.decode(entry));
         expiredKeys.putIfAbsent(values.indexOf(entry), () => value);
       }
-      return _getDuplicateEntries(expiredKeys);
+      return getDuplicateEntries(expiredKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -174,7 +174,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Returns the duplicate commit entries
-  List _getDuplicateEntries(Map commitLogMap) {
+  List getDuplicateEntries(Map commitLogMap) {
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));

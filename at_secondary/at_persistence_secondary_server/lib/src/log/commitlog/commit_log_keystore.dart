@@ -152,7 +152,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   Future<List> getFirstNEntries(int N) async {
     try {
       var expiredKeys = box.toMap();
-      return _getDuplicateEntries(expiredKeys);
+      return getDuplicateEntries(expiredKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -187,10 +187,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
     if (expiredKeys.isEmpty) {
       return null;
     }
-    return _getDuplicateEntries(expiredKeys);
+    return getDuplicateEntries(expiredKeys);
   }
 
-  List _getDuplicateEntries(Map commitLogMap) {
+  List getDuplicateEntries(Map commitLogMap) {
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
