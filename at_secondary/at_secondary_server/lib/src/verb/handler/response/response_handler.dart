@@ -6,4 +6,6 @@ abstract class ResponseHandler {
   /// @param [AtConnection]
   /// @param [Response]
   void process(AtConnection connection, Response response);
+
+  bool isComplete();
 }

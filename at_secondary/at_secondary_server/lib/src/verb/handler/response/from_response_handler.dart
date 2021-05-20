@@ -11,4 +11,9 @@ class FromResponseHandler extends BaseResponseHandler {
     }
     return responseMessage;
   }
+
+  @override
+  bool isComplete() {
+    return true;
+  }
 }

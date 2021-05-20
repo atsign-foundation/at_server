@@ -34,7 +34,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
     var handler = responseManager.getResponseHandler(getVerb());
     try {
       handler.process(atConnection, response);
-    } on ConnectionInvalidException {
+    } on Exception {
+      if (handler.isComplete()) {
+        doNothing();
+        return;
+      }
       await undo();
     }
   }
@@ -62,6 +66,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
   //# TODO move undo to spec
   Future<void> undo() async {
     logger.finer('Verb : ${getVerb().name()} undo called');
+  }
+
+  void doNothing() {
+    logger.finer('Verb : ${getVerb().name()} doNothing called');
   }
 
   /// Return the instance of the current verb

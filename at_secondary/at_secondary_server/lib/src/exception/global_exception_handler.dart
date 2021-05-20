@@ -121,6 +121,10 @@ class GlobalExceptionHandler {
 
   Future<void> _writeToSocket(AtConnection atConnection, String prompt,
       String error_code, String error_description) async {
-    atConnection.write('error:$error_code-$error_description\n$prompt');
+    try {
+      atConnection.write('error:$error_code-$error_description\n$prompt');
+    } on ConnectionInvalidException {
+      // do Nothing. Unable to write error code back to client
+    }
   }
 }

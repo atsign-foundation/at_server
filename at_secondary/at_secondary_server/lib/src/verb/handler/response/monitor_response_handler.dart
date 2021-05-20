@@ -5,4 +5,9 @@ class MonitorResponseHandler extends BaseResponseHandler {
   String getResponseMessage(String verbResult, String prompt) {
     return '';
   }
+
+  @override
+  bool isComplete() {
+    return true;
+  }
 }
