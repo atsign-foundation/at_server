@@ -35,7 +35,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       handler.process(atConnection, response);
     } on Exception {
-      await undo();
+      await undo(command);
     }
   }
 
@@ -60,7 +60,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   //# TODO move undo to spec
-  Future<void> undo() async {
+  Future<void> undo(String command) async {
     logger.finer('Verb : ${getVerb().name()} undo called');
   }
 
