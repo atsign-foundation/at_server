@@ -112,7 +112,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
         (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.commitId : null;
     return lastCommittedSequenceNum;
   }
 

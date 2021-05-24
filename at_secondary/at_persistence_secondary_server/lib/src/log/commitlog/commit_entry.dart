@@ -22,9 +22,10 @@ class CommitEntry extends HiveObject {
 
   DateTime get opTime => _opTime;
 
-  Map toJson() => {
+  Map toJson() =>
+      {
         'atKey': _atKey,
-        'operation': operation.toString(),
+        'operation': operation.name,
         'opTime': _opTime.toUtc().toString(),
         'commitId': commitId
       };
@@ -37,7 +38,7 @@ class CommitEntry extends HiveObject {
   CommitEntry.fromJson(Map<String, dynamic> json) {
     _atKey = json['atKey'];
     operation = CommitOp.values
-        .firstWhere((element) => element.toString() == json['operation']);
+        .firstWhere((element) => element.name == json['operation']);
     _opTime = DateTime.parse(json['opTime'] as String);
     commitId = json['commitId'] as int;
   }
@@ -82,8 +83,7 @@ class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
   @override
   void write(BinaryWriter writer, CommitEntry entry) {
     writer
-      ..writeByte(4)
-      ..writeByte(0)
+      ..writeByte(4)..writeByte(0)
       ..write(entry.atKey)
       ..writeByte(1)
       ..write(entry.operation)
@@ -125,8 +125,7 @@ class CommitOpAdapter extends TypeAdapter<CommitOp> {
   @override
   void write(BinaryWriter writer, CommitOp commitOp) {
     writer
-      ..writeByte(1)
-      ..writeByte(0)
+      ..writeByte(1)..writeByte(0)
       ..write(commitOp.name);
   }
 }

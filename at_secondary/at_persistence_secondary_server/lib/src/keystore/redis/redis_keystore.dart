@@ -69,8 +69,9 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
           (redis_data != null) ? json.encode(redis_data.toJson()) : null;
 
       /// milliseconds: Removes the key after specified milliseconds(time_to_live).
-      await persistenceManager.redis_commands
-          .set(redis_key, value, milliseconds: time_to_live);
+      await persistenceManager.redis_commands.set(redis_key, value,
+          milliseconds:
+              (time_to_live != null && time_to_live > 0 ? time_to_live : null));
       result = await _commitLog.commit(redis_key, commitOp);
       return result;
     } on Exception catch (exception) {

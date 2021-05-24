@@ -245,7 +245,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
       }
     }
     var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.commitId : null;
     return lastCommittedSequenceNum;
   }
 
