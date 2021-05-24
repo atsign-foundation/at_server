@@ -223,7 +223,7 @@ jobs:
         with:
           push: true
           context: at_functional_test/lib/
-          tags: atsigncompany/virtualenv:GHA${{ github.run_number }}
+          tags: atsigncompany/virtualenv:dev_env
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
