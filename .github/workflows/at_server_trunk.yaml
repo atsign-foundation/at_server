@@ -4,12 +4,10 @@ on:
   push:
     branches:
       - trunk
-      - git-129-trunk
 
   pull_request:
     branches:
       - trunk
-      - git-129-trunk
 
 jobs:
   test_at_persistence_root_server:
@@ -237,7 +235,9 @@ jobs:
         with:
           push: true
           context: at_secondary
-          tags: atsigncompany/secondary:GHA${{ github.run_number }}
+          tags: |
+            atsigncompany/secondary:dev_env
+            atsigncompany/secondary:dess
           platforms: |
             linux/amd64
             linux/arm64/v8
