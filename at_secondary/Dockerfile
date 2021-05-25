@@ -21,7 +21,8 @@ COPY at_secondary_server/config/* $HOME/config/
 RUN chown -R atsign:atsign $HOME/storage
 WORKDIR $HOME
 # Now go slim with an almost scracth container
-FROM atsigncompany/runimage
+FROM scratch
+COPY --from=buildimage /runtime/ /
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
 COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /usr/local/at/
