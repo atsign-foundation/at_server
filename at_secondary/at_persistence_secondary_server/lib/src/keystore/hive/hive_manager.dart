@@ -26,6 +26,7 @@ class HivePersistenceManager implements PersistenceManager {
 
   HivePersistenceManager(this._atsign);
 
+  @override
   Future<bool> init(String atSign, String storagePath, {String password}) async {
     var success = false;
     try {
@@ -133,6 +134,7 @@ class HivePersistenceManager implements PersistenceManager {
   }
 
   //TODO change into to Duration and construct cron string dynamically
+  @override
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
@@ -140,7 +142,7 @@ class HivePersistenceManager implements PersistenceManager {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)
           .getSecondaryKeyStore();
-      hiveKeyStore.deleteExpiredKeys();
+      await hiveKeyStore.deleteExpiredKeys();
     });
   }
 
@@ -149,6 +151,7 @@ class HivePersistenceManager implements PersistenceManager {
   }
 
   /// Closes the secondary keystore.
+  @override
   Future<void> close() async {
     await box.close();
   }

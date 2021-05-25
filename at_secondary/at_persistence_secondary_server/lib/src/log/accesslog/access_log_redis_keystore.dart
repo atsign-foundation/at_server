@@ -11,9 +11,8 @@ class AccessLogRedisKeyStore implements LogKeyStore<int, AccessLogEntry> {
   var redis_commands;
   final String ACCESS_LOG = 'at_access_log';
   String storagePath;
-  final _currentAtSign;
 
-  AccessLogRedisKeyStore(this._currentAtSign);
+  AccessLogRedisKeyStore();
 
   Future<void> init(String url, {String password}) async {
     var success = false;

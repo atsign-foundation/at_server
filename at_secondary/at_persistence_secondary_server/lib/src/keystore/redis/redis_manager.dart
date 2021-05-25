@@ -6,9 +6,7 @@ import 'package:dartis/dartis.dart' as redis;
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class RedisPersistenceManager implements PersistenceManager {
-  final bool _debug = false;
-
-  var _atSign;
+  final _atSign;
 
   RedisPersistenceManager(this._atSign);
 
@@ -16,6 +14,7 @@ class RedisPersistenceManager implements PersistenceManager {
   var redis_client;
   var redis_commands;
 
+  @override
   Future<bool> init(String atSign, String url, {String password}) async {
     var success = false;
     try {
@@ -32,24 +31,24 @@ class RedisPersistenceManager implements PersistenceManager {
     return success;
   }
 
-  //TODO change into to Duration and construct cron string dynamically
+  @override
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var redisKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atSign)
+          .getSecondaryPersistenceStore(_atSign)
           .getSecondaryKeyStore();
       await redisKeyStore.deleteExpiredKeys();
     });
   }
 
   // Closes the secondary keystore.
+  @override
   void close() {
     redis_commands.disconnect();
   }
 
-  @override
   Future openVault(String atsign, {List<int> hiveSecret}) {
     // Not applicable
     return null;

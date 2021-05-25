@@ -32,7 +32,7 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
   Future<AtAccessLog> getRedisAccessLog(String atSign, String url,
       {String password}) async {
     if (!_accessLogMap.containsKey(atSign)) {
-      var accessLogKeyStore = AccessLogRedisKeyStore(atSign);
+      var accessLogKeyStore = AccessLogRedisKeyStore();
       await accessLogKeyStore.init(url, password: password);
       _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
     }

@@ -35,7 +35,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
       {String password, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.
     if (!_commitLogMap.containsKey(atSign)) {
-      var commitLogKeyStore = CommitLogRedisKeyStore(atSign);
+      var commitLogKeyStore = CommitLogRedisKeyStore();
       commitLogKeyStore.enableCommitId = enableCommitId;
       await commitLogKeyStore.init(url, password: password);
       _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);

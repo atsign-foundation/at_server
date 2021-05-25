@@ -16,21 +16,24 @@ class SecondaryPersistenceRedisStore implements SecondaryPersistenceStore {
     _init();
   }
 
+  @override
   SecondaryKeyStore getSecondaryKeyStore() {
-    return this._redisKeystore;
+    return _redisKeystore;
   }
 
+  @override
   PersistenceManager getPersistenceManager() {
-    return this._redisPersistenceManager;
+    return _redisPersistenceManager;
   }
 
+  @override
   SecondaryKeyStoreManager getSecondaryKeyStoreManager() {
-    return this._secondaryKeyStoreManager;
+    return _secondaryKeyStoreManager;
   }
 
   void _init() {
-    _redisKeystore = RedisKeystore(this._atSign);
-    _redisPersistenceManager = RedisPersistenceManager(this._atSign);
+    _redisKeystore = RedisKeystore();
+    _redisPersistenceManager = RedisPersistenceManager(_atSign);
     _redisKeystore.persistenceManager = _redisPersistenceManager;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager();
     _secondaryKeyStoreManager.keyStore = _redisKeystore;

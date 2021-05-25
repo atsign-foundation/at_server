@@ -16,8 +16,7 @@ class UnIndex extends Verb {
   }
 
   @override
-  // TODO: Move syntax to VerbSyntax
-  String syntax() => r'^unindex$';
+  String syntax() => VerbSyntax.unindex;
 
   @override
   String usage() {

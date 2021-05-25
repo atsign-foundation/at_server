@@ -13,9 +13,9 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = 'certs/cacert.pem';
 
   //Secondary Storage
-  static String _keyStore = 'hive';
-  static String _redisUrl = 'redis://localhost:6379';
-  static String _redisPassword = 'mypassword';
+  static final String _keyStore = 'hive';
+  static final String _redisUrl = 'redis://localhost:6379';
+  static final String _redisPassword = 'mypassword';
   static String _storagePath = 'storage/hive';
   static String _commitLogPath = 'storage/commitLog';
   static String _accessLogPath = 'storage/accessLog';

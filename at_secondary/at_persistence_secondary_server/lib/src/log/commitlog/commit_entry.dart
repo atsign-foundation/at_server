@@ -36,6 +36,7 @@ class CommitEntry extends HiveObject {
 
   CommitEntry.fromJson(Map<String, dynamic> json) {
     _atKey = json['atKey'];
+    operation = '*' as CommitOp;
     operation = CommitOp.values
         .firstWhere((element) => element.toString() == json['operation']);
     _opTime = DateTime.parse(json['opTime'] as String);

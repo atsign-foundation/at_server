@@ -57,7 +57,7 @@ class NotificationUtil {
     if (values.isEmpty) {
       return;
     }
-    await values.forEach((element) {
+    values.forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent &&
           element.notificationStatus != NotificationStatus.delivered) {

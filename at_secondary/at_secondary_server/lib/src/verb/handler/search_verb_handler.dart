@@ -7,8 +7,6 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:uuid/uuid.dart';
-import '';
 
 class SearchVerbHandler extends AbstractVerbHandler {
   static Search search = Search();

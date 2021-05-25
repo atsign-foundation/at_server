@@ -13,9 +13,8 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   var redis_commands;
   final COMMIT_LOG = 'at_commit_log';
   String storagePath;
-  final _currentAtSign;
 
-  CommitLogRedisKeyStore(this._currentAtSign);
+  CommitLogRedisKeyStore();
 
   Future<void> init(String url, {String password}) async {
     var success = false;
@@ -44,7 +43,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
       }
       internalKey = await redis_commands.rpush(COMMIT_LOG, value: value);
       logger.info(
-          'CommitLog InternalKey ${internalKey}, ${internalKey.runtimeType}');
+          'CommitLog InternalKey $internalKey, ${internalKey.runtimeType}');
       //set the hive generated key as commit id
       if (enableCommitId) {
         commitEntry.commitId = internalKey - 1;

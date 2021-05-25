@@ -8,12 +8,11 @@ import 'package:utf7/utf7.dart';
 
 class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   final logger = AtSignLogger('RedisKeyStore');
-  var _atSign;
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
 
-  RedisKeystore(this._atSign);
+  RedisKeystore();
 
   set commitLog(value) {
     _commitLog = value;
@@ -154,7 +153,7 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         //encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
+      logger.severe('Invalid regular expression : $regex');
       throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('RedisKeystore getKeys exception: ${exception.toString()}');
@@ -213,10 +212,8 @@ class RedisKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('redis key:${redis_key}');
-        logger.finest('redis value:${redis_value}');
-        // await persistenceManager.box?.put(redis_key, redis_value);
-        // result = await _commitLog.commit(redis_key, commitOp);
+        logger.finest('redis key: $redis_key');
+        logger.finest('redis value: $redis_value');
         var redis_value_json =
             (redis_value != null) ? json.encode(redis_value.toJson()) : null;
         await persistenceManager.redis_commands

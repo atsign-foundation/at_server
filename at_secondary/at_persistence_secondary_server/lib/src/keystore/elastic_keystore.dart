@@ -95,7 +95,7 @@ class ElasticKeyStore
         index: 'tutorial',
         type: 'helloworld',
         id: elastic_key,
-        doc: {"data": value},
+        doc: {'data': value},
       );
       await client.flushIndex(index: 'tutorial');
       result = await _commitLog.commit(elastic_key, commitOp);
@@ -187,13 +187,8 @@ class ElasticKeyStore
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('elastic key:${elastic_key}');
-        logger.finest('elastic value:${elastic_value}');
-        // await persistenceManager.box?.put(elastic_key, elastic_value);
-        // result = await _commitLog.commit(elastic_key, commitOp);
-        var elastic_value_json = (elastic_value != null)
-            ? json.encode(elastic_value.toJson())
-            : null;
+        logger.finest('elastic key: $elastic_key');
+        logger.finest('elastic value: $elastic_value');
         await client.updateDoc(
           index: 'tutorial',
           type: 'helloworld',
@@ -222,7 +217,7 @@ class ElasticKeyStore
       index: 'tutorial',
       type: 'helloworld',
       id: elastic_key,
-      doc: {"data": value},
+      doc: {'data': value},
     );
     result = await _commitLog.commit(elastic_key, CommitOp.UPDATE_ALL);
     return result;
@@ -244,7 +239,7 @@ class ElasticKeyStore
         index: 'tutorial',
         type: 'helloworld',
         id: elastic_key,
-        doc: {"data": newData});
+        doc: {'data': newData});
     var result = await _commitLog.commit(elastic_key, CommitOp.UPDATE_META);
     return result;
   }
