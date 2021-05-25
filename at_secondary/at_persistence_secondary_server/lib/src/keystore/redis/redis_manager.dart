@@ -1,7 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:cron/cron.dart';
 import 'package:dartis/dartis.dart' as redis;
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
@@ -31,16 +30,11 @@ class RedisPersistenceManager implements PersistenceManager {
     return success;
   }
 
+  /// Redis has internal mechanism to remove the expired keys. Hence leaving the method
+  /// unimplemented.
   @override
   void scheduleKeyExpireTask(int runFrequencyMins) {
-    logger.finest('scheduleKeyExpireTask starting cron job.');
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
-      var redisKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(_atSign)
-          .getSecondaryKeyStore();
-      await redisKeyStore.deleteExpiredKeys();
-    });
+    /// Not applicable
   }
 
   // Closes the secondary keystore.

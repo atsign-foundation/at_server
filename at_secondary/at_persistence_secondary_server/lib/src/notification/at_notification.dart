@@ -143,8 +143,8 @@ class AtNotification {
         .firstWhere((element) => element.toString() == json['messageType']);
     priority = NotificationPriority.values
         .firstWhere((element) => element.toString() == json['priority']);
-    notificationStatus = NotificationStatus.values.firstWhere(
-        (element) => element.toString() == json['notificationStatus']);
+    notificationStatus = json['notificationStatus'] != 'null' ? NotificationStatus.values.firstWhere(
+        (element) => element.toString() == json['notificationStatus']) : null;
     retryCount = json['retryCount'] as int;
     _strategy = json['strategy'] as String;
     _depth = json['depth'] as int;

@@ -781,7 +781,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
-  AtNotificationKeystore notificationKeystore = AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
+  AtNotificationKeystore notificationKeystore =
+      AtNotificationKeyStoreFactory.getInstance().getNotificationKeyStore();
   await notificationKeystore.close();
   AtNotificationMap.getInstance().clear();
   var isExists = await Directory('test/hive').exists();

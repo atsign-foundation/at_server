@@ -57,7 +57,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       await box.delete(key);
     } on Exception catch (e) {
@@ -67,11 +67,6 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       throw DataStoreException(
           'Hive error deleting entry from access log:${e.toString()}');
     }
-  }
-
-  @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
   }
 
   /// Returns the total number of keys
@@ -105,9 +100,8 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   /// @return List of first 'N' keys from the log
   @override
   Future<List> getFirstNEntries(int N) async {
-    var entries = [];
     try {
-      entries = box.keys.toList().take(N).toList();
+      return box.keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -115,7 +109,6 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries;
   }
 
   @override

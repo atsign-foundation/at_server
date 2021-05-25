@@ -5,6 +5,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:dartis/dartis.dart' as redis;
 
+/// Class implementing the redis key store.
 class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
   final logger = AtSignLogger('CommitLogRedisKeyStore');
 
@@ -16,6 +17,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
 
   CommitLogRedisKeyStore();
 
+  /// Initializes the redis key store.
   Future<void> init(String url, {String password}) async {
     var success = false;
     try {
@@ -32,6 +34,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     return success;
   }
 
+  /// Adds entry to commit log persistent store.
   @override
   Future add(commitEntry) async {
     var internalKey;
@@ -58,11 +61,8 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     return internalKey - 1;
   }
 
-  @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
-  }
-
+  /// Returns the total number of keys
+  /// @return - int : Returns number of keys in commit log
   @override
   Future<int> entriesCount() async {
     var totalKeys = 0;
@@ -70,6 +70,7 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     return totalKeys;
   }
 
+  /// Returns the [CommitEntry] for the specified key,
   @override
   Future<CommitEntry> get(int key) async {
     try {
@@ -86,24 +87,49 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     }
   }
 
+  /// Returns all the expired keys in the at_commit_log before the number of days sepcified.
+  /// @param expiryInDays: Accepts an integer value
   @override
   Future<List> getExpired(int expiryInDays) async {
-    // TODO: implement getExpired
-    return null;
+    var expiredKeys = {};
+    var now = DateTime.now().toUtc();
+    var values = await redis_commands.lrange(COMMIT_LOG, 0, -1);
+
+    /// Iterates on each commit entry in at_commit_log instance.
+    for (var entry in values) {
+      var value = CommitEntry.fromJson(json.decode(entry));
+
+      /// If the date-time of commit entry is before the expiry date, the entry is added to expiredKeys.
+      if (value.opTime != null &&
+          value.opTime.isBefore(now.subtract(Duration(days: expiryInDays)))) {
+        expiredKeys.putIfAbsent(values.indexOf(entry), () => value);
+      }
+    }
+    // If expiredKeys isEmpty, return null.
+    if (expiredKeys.isEmpty) {
+      return null;
+    }
+    return getDuplicateEntries(expiredKeys);
   }
 
+  /// Returns the first N entries from commit log persistent store
   @override
   Future<List> getFirstNEntries(int N) async {
-    var entries = [];
+    var expiredKeys = {};
     try {
-      entries = await redis_commands.lrange(COMMIT_LOG, 0, N - 1);
+      var values = await redis_commands.lrange(COMMIT_LOG, 0, N - 1);
+      for (var entry in values) {
+        var value = CommitEntry.fromJson(json.decode(entry));
+        expiredKeys.putIfAbsent(values.indexOf(entry), () => value);
+      }
+      return getDuplicateEntries(expiredKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
     }
-    return entries;
   }
 
+  /// Returns of the size of the commit log
   @override
   Future<int> getSize() async {
     //Returning number of entries
@@ -111,12 +137,13 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     return logSize;
   }
 
+  ///Removes the key from commit log persistent store
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       var value = await redis_commands.lrange(COMMIT_LOG, key, key);
       if (value != null && value.isNotEmpty) {
-        await redis_commands.lrem(COMMIT_LOG, value[0]);
+        await redis_commands.lrem(COMMIT_LOG, 1, value[0]);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
@@ -145,10 +172,8 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
     return firstCommittedSequenceNum;
   }
 
-  Future<List> getDuplicateEntries() async {
-    var commitLogList = await redis_commands.lrange(COMMIT_LOG, 0, -1);
-    var commitLogMap =
-        Map.fromIterable(commitLogList, key: (v) => v[0], value: (v) => v[1]);
+  /// Returns the duplicate commit entries
+  List getDuplicateEntries(Map commitLogMap) {
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
@@ -219,10 +244,11 @@ class CommitLogRedisKeyStore implements LogKeyStore<int, CommitEntry> {
       }
     }
     var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.commitId : null;
     return lastCommittedSequenceNum;
   }
 
+  /// Returns the last synced commit entry
   Future<CommitEntry> lastSyncedEntry({String regex}) async {
     var lastSyncedEntry;
     if (regex != null) {

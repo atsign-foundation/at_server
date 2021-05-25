@@ -112,7 +112,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
         (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.commitId : null;
     return lastCommittedSequenceNum;
   }
 
@@ -137,7 +137,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Returns the total number of keys
-  /// @return - int : Returns number of keys in access log
+  /// @return - int : Returns number of keys in commit log
   @override
   Future<int> entriesCount() async {
     var totalKeys = 0;
@@ -150,25 +150,15 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// @return List of first 'N' keys from the log
   @override
   Future<List> getFirstNEntries(int N) async {
-    var entries = [];
     try {
-      entries = box.keys.toList().take(N).toList();
+      var expiredKeys = box.toMap();
+      return getDuplicateEntries(expiredKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
-    }
-    return entries;
-  }
-
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
-  @override
-  void delete(dynamic expiredKeys) {
-    if (expiredKeys.isNotEmpty) {
-      box.deleteAll(expiredKeys);
     }
   }
 
@@ -189,12 +179,18 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
 
   @override
   Future<List> getExpired(int expiryInDays) async {
-    // TODO: implement getExpired
-    return null;
+    var now = DateTime.now().toUtc();
+    var expiredKeys = box.toMap();
+    expiredKeys.removeWhere((key, value) =>
+        value.opTime.isAfter(now.subtract(Duration(days: expiryInDays))));
+    // If there are no expired keys, return null.
+    if (expiredKeys.isEmpty) {
+      return null;
+    }
+    return getDuplicateEntries(expiredKeys);
   }
 
-  List getDuplicateEntries() {
-    var commitLogMap = box.toMap();
+  List getDuplicateEntries(Map commitLogMap) {
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));

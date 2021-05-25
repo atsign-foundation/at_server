@@ -22,7 +22,7 @@ abstract class LogKeyStore<K, V> {
   /// @param key - Key associated with a value.
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> remove(K key);
+  Future<void> remove(K key);
 
   /// Returns the total number of keys in storage.
   /// @return int Returns the total number of keys.
@@ -32,10 +32,6 @@ abstract class LogKeyStore<K, V> {
   /// @param N : Fetches first 'N' entries
   /// @return List : Returns the list of keys.
   Future<List> getFirstNEntries(int N);
-
-  /// Removes the keys from storage.
-  /// @param expiredKeys delete the expiredKeys from the storage
-  void delete(dynamic expiredKeys);
 
   ///Returns the list of expired keys
   ///@param expiryInDays

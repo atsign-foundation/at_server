@@ -48,9 +48,10 @@ class AtNotificationRedisKeystore implements SecondaryKeyStore {
   Future<List> getValues() async {
     var returnList = [];
     var keys = await redis_commands.keys('*');
-    if (keys != null && keys.isNotEmpty) {
-      returnList = await redis_commands.mget(keys: keys);
+    if (keys == null || keys.isEmpty) {
+      return [];
     }
+    returnList = await redis_commands.mget(keys: keys);
     var values = <AtNotification>[];
     returnList.forEach((element) {
       values.add(AtNotification.fromJson(json.decode(element)));

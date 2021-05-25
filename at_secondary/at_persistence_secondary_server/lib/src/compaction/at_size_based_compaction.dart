@@ -12,20 +12,20 @@ class SizeBasedCompaction implements AtCompactionStrategy {
 
   @override
   Future<void> performCompaction(AtLogType atLogType) async {
-    var isRequired = _isCompactionRequired(atLogType);
+    var isRequired = await _isCompactionRequired(atLogType);
     if (isRequired) {
-      var totalKeys = atLogType.entriesCount();
+      var totalKeys = await atLogType.entriesCount();
       if (totalKeys > 0) {
         var N = (totalKeys * (compactionPercentage / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
-        atLogType.delete(keysToDelete);
+        await atLogType.remove(keysToDelete);
       }
     }
   }
 
-  bool _isCompactionRequired(AtLogType atLogType) {
+  Future<bool> _isCompactionRequired(AtLogType atLogType) async {
     var logStorageSize = 0;
-    logStorageSize = atLogType.getSize();
+    logStorageSize = await atLogType.getSize();
     if (logStorageSize >= sizeInKB) {
       return true;
     }

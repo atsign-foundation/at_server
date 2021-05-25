@@ -53,18 +53,13 @@ class AtAccessLog implements AtLogType {
   /// @param expiryInDays - The count of days after which the keys expires
   /// @return List<dynamic> - The list of expired keys.
   @override
-  List<dynamic> getExpired(int expiryInDays) {
-    return _accessLogKeyStore.getExpired(expiryInDays);
+  Future<List<dynamic>> getExpired(int expiryInDays) async {
+    return await _accessLogKeyStore.getExpired(expiryInDays);
   }
 
   @override
-  void delete(expiredKeys) {
-    _accessLogKeyStore.delete(expiredKeys);
-  }
-
-  @override
-  int entriesCount() {
-    return _accessLogKeyStore.entriesCount();
+  Future<int> entriesCount() async {
+    return await _accessLogKeyStore.entriesCount();
   }
 
   @override
@@ -73,12 +68,19 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  int getSize() {
-    return _accessLogKeyStore.getSize();
+  Future<int> getSize() async {
+    return await _accessLogKeyStore.getSize();
   }
 
   ///Closes the [accessLogKeyStore] instance.
   void close() {
     _accessLogKeyStore.close();
+  }
+
+  @override
+  Future<void> remove(expiredKeys) async {
+    await Future.forEach(expiredKeys, (key) async {
+      await _accessLogKeyStore.remove(key);
+    });
   }
 }
