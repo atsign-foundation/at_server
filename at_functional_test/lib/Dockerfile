@@ -18,11 +18,13 @@ run mkdir -p /apps/logs/
 # RUN any other configuration or dependency setup commands for apps
 RUN mkdir -p /atsign/root
 COPY ./root/root /atsign/root/
+RUN chmod +x /atsign/root/root
 RUN mkdir -p /atsign/root/config
 COPY ./root/config/* /atsign/root/config/
 RUN mkdir -p /atsign/root/certs
 COPY ./root/certs/* /atsign/root/certs/
 COPY ./secondary/ /atsign/secondary/
+RUN chmod +x /atsign/secondary/secondary
 
 #Copy in redis.conf
 COPY ./redis/redis.conf /etc/redis/redis.conf
