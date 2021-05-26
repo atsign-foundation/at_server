@@ -190,6 +190,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # Extract branch for docker tag
+      - name: Get branch name
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.1.0
 
@@ -226,7 +230,7 @@ jobs:
           context: at_functional_test/lib/
           tags: |
             atsigncompany/virtualenv:dev_env
-            atsigncompany/virtualenv:${GITHUB_REF##*/}-gha${{ github.run_number }}
+            atsigncompany/virtualenv:${{ env.BRANCH }}-gha${{ github.run_number }}
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
