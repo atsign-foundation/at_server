@@ -183,6 +183,7 @@ jobs:
     # Runs only after functional tests are completed.
     needs: [ run_functional_test ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' }}
+    environment: staging
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
@@ -221,7 +222,6 @@ jobs:
           path: at_functional_test/lib/secondary/
 
       # Builds and pushes the at_virtual_env to docker hub.
-      # ${GITHUB_REF##*/} in tags will return the branch name
       - name: Build and push for trunk branch
         id: docker_build_trunk
         uses: docker/build-push-action@v2.4.0
@@ -235,6 +235,26 @@ jobs:
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install jproperties
+
+      # Generates the config.yaml for staging environment
+      - name: Generates configuration file
+        working-directory: at_secondary/at_secondary_server/config
+        run: |
+          echo root_server.url=${{ secrets.root_server_url }} >> config-environment.properties
+          chmod +x generate_config.py
+          ./generate_config.py staging
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
@@ -244,7 +264,7 @@ jobs:
           context: at_secondary
           tags: |
             atsigncompany/secondary:dev_env
-            atsigncompany/secondary:dess
+            atsigncompany/secondary:dess_wtf
           platforms: |
             linux/amd64
             linux/arm64/v8

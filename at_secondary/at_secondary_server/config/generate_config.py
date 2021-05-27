@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Generates the config.yaml from the config-base.yaml
 The default values in the configurations can be overridden by creating an
@@ -11,6 +12,7 @@ Example:
 """
 import argparse
 import yaml
+# pip3 install jproperties
 from jproperties import Properties
 
 # Initialize parser
