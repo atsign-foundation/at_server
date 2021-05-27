@@ -101,7 +101,7 @@ class AtConfig {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      if(_keyStore == 'redis') {
+      if (_keyStore == 'redis') {
         value = await persistenceManager.redis_commands?.get(hive_key);
       } else {
         value = await persistenceManager.box?.get(hive_key);
@@ -143,9 +143,12 @@ class AtConfig {
     } else {
       newData = keyStoreHelper.prepareDataForUpdate(existingData, newData);
     }
-    logger.finest('hive key:$configKey');
-    logger.finest('hive value:$newData');
-    await persistenceManager.box?.put(configKey, newData);
+    logger.finest('config key:$configKey');
+    logger.finest('config value:$newData');
+    await SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(_atSign)
+        .getSecondaryKeyStore()
+        .put(configKey, newData);
     await _commitLog.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
