@@ -253,7 +253,7 @@ jobs:
         run: |
           echo root_server.url=${{ secrets.root_server_url }} >> config-environment.properties
           chmod +x generate_config.py
-          ./generate_config.py staging
+          ./generate_config.py -e environment
 
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
