@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 """
 Generates the config.yaml from the config-base.yaml
 The default values in the configurations can be overridden by creating an

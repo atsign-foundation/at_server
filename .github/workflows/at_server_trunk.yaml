@@ -245,7 +245,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip3 install jproperties
+          pip3 install jproperties pyyaml argparse
 
       # Generates the config.yaml for staging environment
       - name: Generates configuration file
@@ -253,7 +253,7 @@ jobs:
         run: |
           echo root_server.url=${{ secrets.root_server_url }} >> config-environment.properties
           chmod +x generate_config.py
-          ./generate_config.py -e environment
+          python3 generate_config.py -e environment
 
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
