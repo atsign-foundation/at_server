@@ -251,7 +251,7 @@ jobs:
       - name: Generates configuration file
         working-directory: at_secondary/at_secondary_server/config
         run: |
-          echo root_server.url=${{ secrets.root_server_url }} >> config-environment.properties
+          echo "root_server.url='${{ secrets.root_server_url }}'" >> config-environment.properties
           chmod +x generate_config.py
           python3 generate_config.py -e environment
 
