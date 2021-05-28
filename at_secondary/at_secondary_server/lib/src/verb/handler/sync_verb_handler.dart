@@ -61,8 +61,9 @@ class SyncVerbHandler extends AbstractVerbHandler {
     if (syncResultList.isNotEmpty) {
       syncResultList.forEach((element) {
         atConnection
-            .write('${jsonEncode(element).length}#${jsonEncode(element)}\$');
+            .write('${jsonEncode(element).length}~${jsonEncode(element)}\$');
       });
+      atConnection.write('\n');
     }
     return;
   }
