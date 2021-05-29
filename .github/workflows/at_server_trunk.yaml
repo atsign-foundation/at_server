@@ -245,13 +245,13 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip3 install jproperties pyyaml argparse
+          pip3 install jproperties ruamel.yaml argparse
 
       # Generates the config.yaml for staging environment
       - name: Generates configuration file
         working-directory: at_secondary/at_secondary_server/config
         run: |
-          echo "root_server.url='${{ secrets.root_server_url }}'" >> config-environment.properties
+          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
           chmod +x generate_config.py
           python3 generate_config.py -e environment
 
@@ -265,6 +265,7 @@ jobs:
           tags: |
             atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
+            atsigncompany/secondary:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
