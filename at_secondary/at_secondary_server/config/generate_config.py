@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """
 Generates the config.yaml from the config-base.yaml
 The default values in the configurations can be overridden by creating an
@@ -10,7 +11,8 @@ Example:
             python3 generate_config.py -e development
 """
 import argparse
-import yaml
+# pip3 install ruamel.yaml
+import ruamel.yaml
 # pip3 install jproperties
 from jproperties import Properties
 
@@ -35,7 +37,7 @@ except OSError as os:
 
 try:
     with open("config-base.yaml", "r") as yamlFile:
-        yamlMap = yaml.load(yamlFile, Loader=yaml.FullLoader)
+        yamlMap = ruamel.yaml.round_trip_load(yamlFile, preserve_quotes=True)
         # Loop on each of the property in config properties.
         for key in configs.properties:
             fields = key.split('.')
@@ -56,7 +58,7 @@ except OSError as os:
 # write to config file.
 try:
     with open('config.yaml', 'w') as file:
-        documents = yaml.dump(yamlMap, file)
+        documents = ruamel.yaml.round_trip_dump(yamlMap, file, explicit_start=True)
         print('Generated config.yaml file for ' + environment + ' environment successfully.')
     file.close()
 except OSError as os:
