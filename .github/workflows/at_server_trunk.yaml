@@ -256,6 +256,8 @@ jobs:
           python3 generate_config.py -e environment
 
       # Builds and pushes the secondary server image to docker hub.
+      # atsigncompany/secondary:dev_env removed until we have confidence
+      # in the new slim build
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
         uses: docker/build-push-action@v2.4.0
@@ -263,7 +265,6 @@ jobs:
           push: true
           context: at_secondary
           tags: |
-            atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
             atsigncompany/secondary:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
           platforms: |
