@@ -102,7 +102,9 @@ class AtConfig {
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
       if (_keyStore == 'redis') {
-        value = await persistenceManager.redis_commands?.get(hive_key);
+        var result = await persistenceManager.redis_commands?.get(hive_key);
+        value =
+            (result != null) ? AtData().fromJson(json.decode(result)) : null;
       } else {
         value = await persistenceManager.box?.get(hive_key);
       }
