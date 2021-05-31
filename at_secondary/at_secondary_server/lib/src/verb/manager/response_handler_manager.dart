@@ -23,7 +23,6 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
   static final _monitorHandler = MonitorResponseHandler();
   static final _streamHandler = StreamResponseHandler();
   static final _notifyAllHandler = NotifyAllResponseHandler();
-  //static final _syncHandler = SyncResponseHandler();
 
   @override
   ResponseHandler getResponseHandler(Verb verb) {

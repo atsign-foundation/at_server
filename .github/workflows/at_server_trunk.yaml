@@ -183,12 +183,17 @@ jobs:
     # Runs only after functional tests are completed.
     needs: [ run_functional_test ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' }}
+    environment: staging
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
+
+      # Extract branch for docker tag
+      - name: Get branch name
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.1.0
@@ -217,7 +222,6 @@ jobs:
           path: at_functional_test/lib/secondary/
 
       # Builds and pushes the at_virtual_env to docker hub.
-      # ${GITHUB_REF##*/} in tags will return the branch name
       - name: Build and push for trunk branch
         id: docker_build_trunk
         uses: docker/build-push-action@v2.4.0
@@ -226,10 +230,30 @@ jobs:
           context: at_functional_test/lib/
           tags: |
             atsigncompany/virtualenv:dev_env
-            atsigncompany/virtualenv:${GITHUB_REF##*/}-gha${{ github.run_number }}
+            atsigncompany/virtualenv:${{ env.BRANCH }}-gha${{ github.run_number }}
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
+
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install jproperties ruamel.yaml argparse
+
+      # Generates the config.yaml for staging environment
+      - name: Generates configuration file
+        working-directory: at_secondary/at_secondary_server/config
+        run: |
+          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
+          chmod +x generate_config.py
+          python3 generate_config.py -e environment
 
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
@@ -240,7 +264,8 @@ jobs:
           context: at_secondary
           tags: |
             atsigncompany/secondary:dev_env
-            atsigncompany/secondary:dess
+            atsigncompany/secondary:dess_wtf
+            atsigncompany/secondary:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
