@@ -112,7 +112,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
         (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
+        (lastCommittedEntry != null) ? lastCommittedEntry.commitId : null;
     return lastCommittedSequenceNum;
   }
 
@@ -137,9 +137,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   /// Returns the total number of keys
-  /// @return - int : Returns number of keys in access log
+  /// @return - int : Returns number of keys in commit log
   @override
-  int entriesCount() {
+  Future<int> entriesCount() async {
     var totalKeys = 0;
     totalKeys = box?.keys?.length;
     return totalKeys;
@@ -149,10 +149,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
-    var entries = [];
+  Future<List> getFirstNEntries(int N) async {
     try {
-      entries = box.keys.toList().take(N).toList();
+      var expiredKeys = box.toMap();
+      return getDuplicateEntries(expiredKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -160,20 +160,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries;
-  }
-
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
-  @override
-  void delete(dynamic expiredKeys) {
-    if (expiredKeys.isNotEmpty) {
-      box.deleteAll(expiredKeys);
-    }
   }
 
   @override
-  int getSize() {
+  Future<int> getSize() async {
     var logSize = 0;
     var logLocation = Directory(storagePath);
 
@@ -188,13 +178,19 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry> {
   }
 
   @override
-  List getExpired(int expiryInDays) {
-    // TODO: implement getExpired
-    return null;
+  Future<List> getExpired(int expiryInDays) async {
+    var now = DateTime.now().toUtc();
+    var expiredKeys = box.toMap();
+    expiredKeys.removeWhere((key, value) =>
+        value.opTime.isAfter(now.subtract(Duration(days: expiryInDays))));
+    // If there are no expired keys, return null.
+    if (expiredKeys.isEmpty) {
+      return null;
+    }
+    return getDuplicateEntries(expiredKeys);
   }
 
-  List getDuplicateEntries() {
-    var commitLogMap = box.toMap();
+  List getDuplicateEntries(Map commitLogMap) {
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));

@@ -13,6 +13,9 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = 'certs/cacert.pem';
 
   //Secondary Storage
+  static final String _keyStore = 'hive';
+  static final String _redisUrl = 'redis://localhost:6379';
+  static final String _redisPassword = 'mypassword';
   static String _storagePath = 'storage/hive';
   static String _commitLogPath = 'storage/commitLog';
   static String _accessLogPath = 'storage/accessLog';
@@ -65,6 +68,12 @@ class AtSecondaryConfig {
   //force restart
   static final bool _isForceRestart = false;
 
+  //elasticsearch url
+  static final String _elasticSearchURL = 'http://localhost:9200/';
+
+  //enable indexing
+  static final bool _enableIndexing = true;
+
   //version
   static final String _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -75,6 +84,31 @@ class AtSecondaryConfig {
   static final Map<String, String> _envVars = Platform.environment;
 
   static String get secondaryServerVersion => _secondaryServerVersion;
+
+  static bool get enableIndexing {
+    var result = _getBoolEnvVar('enable_indexing');
+    if (result != null) return result;
+
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['enable_indexing'] != null) {
+      return ConfigUtil.getYaml()['enable_indexing'];
+    }
+
+    return _enableIndexing;
+  }
+
+  static String get elasticSearchURL {
+    if (_envVars.containsKey('elasticSearchURL')) {
+      return _envVars['elasticSearchURL'];
+    }
+
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['elasticSearchURL'] != null) {
+      return ConfigUtil.getYaml()['elasticSearchURL'];
+    }
+
+    return _elasticSearchURL;
+  }
 
   static bool get useSSL {
     var result = _getBoolEnvVar('useSSL');
@@ -312,6 +346,39 @@ class AtSecondaryConfig {
       return _storagePath = ConfigUtil.getYaml()['hive']['storagePath'];
     }
     return _storagePath;
+  }
+
+  static String get keyStore {
+    if (_envVars.containsKey('keyStore')) {
+      return _envVars['keyStore'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['keyStore'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['keyStore'];
+    }
+    return _keyStore;
+  }
+
+  static String get redisUrl {
+    if (_envVars.containsKey('redisUrl')) {
+      return _envVars['redisUrl'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['redisUrl'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['redisUrl'];
+    }
+    return _redisUrl;
+  }
+
+  static String get redisPassword {
+    if (_envVars.containsKey('redisPassword')) {
+      return _envVars['redisPassword'];
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()['redisPassword'] != null) {
+      return _storagePath = ConfigUtil.getYaml()['redisPassword'];
+    }
+    return _redisPassword;
   }
 
   static int get outbound_idletime_millis {

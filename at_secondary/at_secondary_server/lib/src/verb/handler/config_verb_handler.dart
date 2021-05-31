@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -48,10 +49,17 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var commitLogInstance;
+      if (AtSecondaryConfig.keyStore == 'redis') {
+        commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+            .getRedisCommitLog(currentAtSign, AtSecondaryConfig.redisUrl,
+                password: AtSecondaryConfig.redisPassword);
+      } else {
+        commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+            .getHiveCommitLog(currentAtSign);
+      }
       atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog(currentAtSign),
-          currentAtSign);
+          commitLogInstance, currentAtSign, AtSecondaryConfig.keyStore);
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];

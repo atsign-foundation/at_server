@@ -89,6 +89,7 @@ class AtRefreshJob {
       var atData = AtData();
       atData.data = newValue;
       atData.metaData = oldValue.metaData;
+      logger.finer('refreshing the cached value of $element');
       await keyStore.put(element, atData);
     }
   }
@@ -96,7 +97,7 @@ class AtRefreshJob {
   /// The refresh job
   Future<void> _refreshJob(int runFrequencyHours) async {
     var keysToRefresh = await _getCachedKeys();
-    if (keysToRefresh == null) {
+    if (keysToRefresh == null || keysToRefresh.isEmpty) {
       return;
     }
     var lookupKey;

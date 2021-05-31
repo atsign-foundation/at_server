@@ -57,7 +57,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   }
 
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       await box.delete(key);
     } on Exception catch (e) {
@@ -69,15 +69,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
     }
   }
 
-  @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
-  }
-
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
-  int entriesCount() {
+  Future<int> entriesCount() async {
     var totalKeys = 0;
     totalKeys = box?.keys?.length;
     return totalKeys;
@@ -87,7 +82,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   /// @param expiryInDays - The count of days after which the keys expires
   /// @return List<dynamic> - The list of expired keys.
   @override
-  List<dynamic> getExpired(int expiryInDays) {
+  Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
     var now = DateTime.now().toUtc();
     box.toMap().forEach((key, value) {
@@ -104,10 +99,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
-    var entries = [];
+  Future<List> getFirstNEntries(int N) async {
     try {
-      entries = box.keys.toList().take(N).toList();
+      return box.keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -115,11 +109,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry> {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries;
   }
 
   @override
-  int getSize() {
+  Future<int> getSize() async {
     var logSize = 0;
     var logLocation = Directory(storagePath);
 

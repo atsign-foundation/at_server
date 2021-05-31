@@ -11,7 +11,7 @@ class AtCommitLog implements AtLogType {
 
   var _commitLogKeyStore;
 
-  AtCommitLog(CommitLogKeyStore keyStore) {
+  AtCommitLog(LogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
   }
 
@@ -54,10 +54,11 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber, String regex) {
+  Future<List<CommitEntry>> getChanges(int sequenceNumber, String regex) async {
     var changes = <CommitEntry>[];
     try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes =
+          await _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -79,18 +80,18 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
-  List<dynamic> getExpired(int expiryInDays) {
-    return _commitLogKeyStore.getExpired(expiryInDays);
+  Future<List<dynamic>> getExpired(int expiryInDays) async{
+    return await _commitLogKeyStore.getExpired(expiryInDays);
   }
 
   /// Returns the latest committed sequence number
-  int lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.lastCommittedSequenceNumber();
+  Future<int> lastCommittedSequenceNumber() async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumber();
   }
 
   /// Returns the latest committed sequence number with regex
-  int lastCommittedSequenceNumberWithRegex(String regex) {
-    return _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  Future<int> lastCommittedSequenceNumberWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
   CommitEntry lastSyncedEntry() {
@@ -109,7 +110,7 @@ class AtCommitLog implements AtLogType {
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
-  int entriesCount() {
+  Future<int> entriesCount() {
     return _commitLogKeyStore.entriesCount();
   }
 
@@ -117,10 +118,10 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  Future<List> getFirstNEntries(int N) async {
     var entries = [];
     try {
-      entries = _commitLogKeyStore.getDuplicateEntries();
+      entries = await _commitLogKeyStore.getFirstNEntries(N);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -131,20 +132,20 @@ class AtCommitLog implements AtLogType {
     return entries;
   }
 
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
   @override
-  void delete(dynamic expiredKeys) {
-    _commitLogKeyStore.delete(expiredKeys);
-  }
-
-  @override
-  int getSize() {
-    return _commitLogKeyStore.getSize();
+  Future<int> getSize() async {
+    return await _commitLogKeyStore.getSize();
   }
 
   /// Closes the [CommitLogKeyStore] instance.
   Future<void> close() async {
     await _commitLogKeyStore.close();
+  }
+
+  @override
+  Future<void> remove(expiredKeys) async {
+    await Future.forEach(expiredKeys, (key) async {
+      await _commitLogKeyStore.remove(key);
+    });
   }
 }

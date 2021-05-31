@@ -1,16 +1,14 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
-
 import 'at_meta_data.dart';
 
-@HiveType()
+//@HiveType()
 class AtData extends HiveObject {
-  @HiveField(0)
+  //@HiveField(0)
   String data;
 
-  @HiveField(1)
+  //@HiveField(1)
   AtMetaData metaData;
 
   @override
@@ -21,7 +19,7 @@ class AtData extends HiveObject {
   Map toJson() {
     // ignore: omit_local_variable_types
     Map map = {};
-    map['key'] = Utf7.decode(key);
+    //map['key'] = Utf7.decode(key);
     map['data'] = data;
     map['metaData'] = metaData.toJson();
     return map;

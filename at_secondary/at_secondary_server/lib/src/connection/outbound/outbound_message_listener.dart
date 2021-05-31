@@ -1,7 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';

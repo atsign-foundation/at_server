@@ -6,31 +6,31 @@ import 'package:uuid/uuid.dart';
 /// Represents an [AtNotification] entry in keystore.
 class AtNotification {
   @HiveField(0)
-  final String _id;
+  String _id;
 
   @HiveField(1)
-  final String _fromAtSign;
+  String _fromAtSign;
 
   @HiveField(2)
-  final _notificationDateTime;
+  DateTime _notificationDateTime;
 
   @HiveField(3)
-  final _toAtSign;
+  String _toAtSign;
 
   @HiveField(4)
-  final _notification;
+  String _notification;
 
   @HiveField(5)
-  final _type;
+  NotificationType _type;
 
   @HiveField(6)
-  final _opType;
+  OperationType _opType;
 
   @HiveField(7)
-  final _messageType;
+  MessageType _messageType;
 
   @HiveField(8)
-  final _expiresAt;
+  DateTime _expiresAt;
 
   @HiveField(9)
   NotificationPriority priority;
@@ -42,19 +42,19 @@ class AtNotification {
   int retryCount;
 
   @HiveField(12)
-  final _strategy;
+  String _strategy;
 
   @HiveField(13)
-  final _notifier;
+  String _notifier;
 
   @HiveField(14)
-  final _depth;
+  int _depth;
 
   @HiveField(15)
-  final _atValue;
+  String _atValue;
 
   @HiveField(16)
-  final _atMetadata;
+  AtMetaData _atMetadata;
 
   AtNotification._builder(AtNotificationBuilder atNotificationBuilder)
       : _id = atNotificationBuilder.id,
@@ -110,22 +110,53 @@ class AtNotification {
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
-        'notificationDateTime': _notificationDateTime,
+        'notificationDateTime': _notificationDateTime.toUtc().toString(),
         'toAtSign': _toAtSign,
         'notification': _notification,
-        'type': _type,
-        'opType': _opType,
-        'messageType': _messageType,
-        'priority': priority,
-        'notificationStatus': notificationStatus,
+        'type': _type.toString(),
+        'opType': _opType.toString(),
+        'messageType': _messageType.toString(),
+        'priority': priority.toString(),
+        'notificationStatus': notificationStatus.toString(),
         'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
-        'expiresAt': _expiresAt,
+        'expiresAt':
+            (_expiresAt != null ? _expiresAt.toUtc().toString() : _expiresAt),
         'atValue': _atValue,
-        'atMetadata': _atMetadata
+        'atMetadata': (_atMetadata != null ? _atMetadata.toJson() : _atMetadata)
       };
+
+  AtNotification.fromJson(Map<String, dynamic> json) {
+    _id = json['id'] as String;
+    _fromAtSign = json['fromAtSign'] as String;
+    _notificationDateTime =
+        DateTime.parse(json['notificationDateTime'] as String);
+    _toAtSign = json['toAtSign'] as String;
+    _notification = json['notification'] as String;
+    _type = NotificationType.values
+        .firstWhere((element) => element.toString() == json['type']);
+    _opType = OperationType.values
+        .firstWhere((element) => element.toString() == json['opType']);
+    _messageType = MessageType.values
+        .firstWhere((element) => element.toString() == json['messageType']);
+    priority = NotificationPriority.values
+        .firstWhere((element) => element.toString() == json['priority']);
+    notificationStatus = json['notificationStatus'] != 'null' ? NotificationStatus.values.firstWhere(
+        (element) => element.toString() == json['notificationStatus']) : null;
+    retryCount = json['retryCount'] as int;
+    _strategy = json['strategy'] as String;
+    _depth = json['depth'] as int;
+    _notifier = json['notifier'] as String;
+    _expiresAt = (_expiresAt != null
+        ? DateTime.parse(json['expiresAt'] as String)
+        : _expiresAt);
+    _atValue = json['atValue'] as String;
+    _atMetadata = (_atMetadata != null
+        ? AtMetaData().fromJson(json['atMetadata'])
+        : _atMetadata);
+  }
 
   @override
   String toString() {

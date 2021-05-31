@@ -1,17 +1,16 @@
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_manager.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 
-import 'secondary_persistence_store_factory.dart';
-
-class HivePersistenceManager {
+class HivePersistenceManager implements PersistenceManager {
   final bool _debug = false;
 
   final logger = AtSignLogger('HivePersistenceManager');
@@ -27,7 +26,8 @@ class HivePersistenceManager {
 
   HivePersistenceManager(this._atsign);
 
-  Future<bool> init(String atSign, String storagePath) async {
+  @override
+  Future<bool> init(String atSign, String storagePath, {String password}) async {
     var success = false;
     try {
       assert(storagePath != null && storagePath != '');
@@ -134,6 +134,7 @@ class HivePersistenceManager {
   }
 
   //TODO change into to Duration and construct cron string dynamically
+  @override
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
@@ -141,7 +142,7 @@ class HivePersistenceManager {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)
           .getSecondaryKeyStore();
-      hiveKeyStore.deleteExpiredKeys();
+      await hiveKeyStore.deleteExpiredKeys();
     });
   }
 
@@ -150,6 +151,7 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
+  @override
   Future<void> close() async {
     await box.close();
   }

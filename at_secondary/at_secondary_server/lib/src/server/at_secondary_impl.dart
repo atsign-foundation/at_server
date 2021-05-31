@@ -353,43 +353,80 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
   Future<void> _initializeHiveInstances() async {
     // Initialize commit log
-    var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext.currentAtSign,
-        commitLogPath: commitLogPath);
+    var atCommitLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance()
+          .getRedisCommitLog(
+              serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atCommitLog = await AtCommitLogManagerImpl.getInstance().getHiveCommitLog(
+          serverContext.currentAtSign,
+          commitLogPath: commitLogPath);
+    }
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
 
     // Initialize access log
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext.currentAtSign,
-        accessLogPath: accessLogPath);
+    var atAccessLog;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance()
+          .getRedisAccessLog(
+              serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+              password: AtSecondaryConfig.redisPassword);
+    } else {
+      atAccessLog = await AtAccessLogManagerImpl.getInstance().getHiveAccessLog(
+          serverContext.currentAtSign,
+          accessLogPath: accessLogPath);
+    }
     _accessLog = atAccessLog;
-
     // Initialize notification storage
-    var notificationInstance = AtNotificationKeystore.getInstance();
-    await notificationInstance.init(
-        notificationStoragePath,
-        'notifications_' +
-            AtUtils.getShaForAtSign(serverContext.currentAtSign));
+    var notificationKeystoreFactory =
+        AtNotificationKeyStoreFactory.getInstance();
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      await notificationKeystoreFactory.init(AtSecondaryConfig.keyStore,
+          redisUrl: AtSecondaryConfig.redisUrl,
+          password: AtSecondaryConfig.redisPassword);
+    } else {
+      await notificationKeystoreFactory.init(AtSecondaryConfig.keyStore,
+          storagePath: notificationStoragePath,
+          boxName: 'notifications_' +
+              AtUtils.getShaForAtSign(serverContext.currentAtSign));
+    }
+
     // Loads the notifications into Map.
-    NotificationUtil.loadNotificationMap();
+    await NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext.currentAtSign);
-    var manager = secondaryPersistenceStore.getHivePersistenceManager();
-    await manager.init(serverContext.currentAtSign, storagePath);
-    await manager.openVault(serverContext.currentAtSign);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins);
+    var secondaryPersistenceStore;
+    var secondaryPersistenceStoreFactory =
+        SecondaryPersistenceStoreFactory.getInstance();
+    secondaryPersistenceStoreFactory.keyStore = AtSecondaryConfig.keyStore;
 
+    secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(serverContext.currentAtSign);
+    var manager = secondaryPersistenceStore.getPersistenceManager();
+    var hiveKeyStore;
+    if (AtSecondaryConfig.keyStore == 'redis') {
+      await manager.init(
+          serverContext.currentAtSign, AtSecondaryConfig.redisUrl,
+          password: AtSecondaryConfig.redisPassword);
+      hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(serverContext.currentAtSign)
+          .getSecondaryKeyStore() as RedisKeystore;
+    } else {
+      await manager.init(serverContext.currentAtSign, storagePath);
+      await manager.openVault(serverContext.currentAtSign);
+      manager.scheduleKeyExpireTask(expiringRunFreqMins);
+      hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(serverContext.currentAtSign)
+          .getSecondaryKeyStore() as HiveKeystore;
+    }
+    //}
     var atData = AtData();
     atData.data = serverContext.sharedSecret;
     var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext.currentAtSign)
         .getSecondaryKeyStoreManager();
-    var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext.currentAtSign)
-        .getSecondaryKeyStore();
     hiveKeyStore.commitLog = atCommitLog;
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
@@ -414,7 +451,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var signingPrivateKey = await keyStore
         .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
     signingKey = signingPrivateKey?.data;
-    keyStore.deleteExpiredKeys();
+    await keyStore.deleteExpiredKeys();
   }
 
   @override

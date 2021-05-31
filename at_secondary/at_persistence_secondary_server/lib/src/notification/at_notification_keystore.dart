@@ -41,7 +41,8 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   /// Returns a list of atNotification sorted on notification date time.
-  List<dynamic> getValues() {
+  @override
+  Future<List<dynamic>> getValues() async {
     var returnList = [];
     returnList = _box.values.toList();
     returnList.sort(
@@ -76,23 +77,21 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       bool isBinary,
       bool isEncrypted,
       String dataSignature}) async {
-    // TODO: implement deleteExpiredKeys
     throw UnimplementedError();
   }
 
   @override
-  bool deleteExpiredKeys() {
+  Future<bool> deleteExpiredKeys() async {
     throw UnimplementedError();
   }
 
   @override
-  List getExpiredKeys() {
-    // TODO: implement getExpiredKeys
+  Future<List> getExpiredKeys() async {
     throw UnimplementedError();
   }
 
   @override
-  List getKeys({String regex}) {
+  Future<List> getKeys({String regex}) async {
     var keys = <String>[];
     var encodedKeys;
 
@@ -112,19 +111,16 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   @override
   Future getMeta(key) {
-    // TODO: implement getMeta
     throw UnimplementedError();
   }
 
   @override
   Future putAll(key, value, metadata) {
-    // TODO: implement putAll
     throw UnimplementedError();
   }
 
   @override
   Future putMeta(key, metadata) {
-    // TODO: implement putMeta
     throw UnimplementedError();
   }
 

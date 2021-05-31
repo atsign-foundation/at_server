@@ -12,8 +12,8 @@ class AtCompactionService {
     return _singleton;
   }
 
-  void executeCompaction(
-      AtCompactionConfig atCompactionConfig, AtLogType atLogType) {
+  Future<void> executeCompaction(
+      AtCompactionConfig atCompactionConfig, AtLogType atLogType) async {
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
@@ -33,7 +33,7 @@ class AtCompactionService {
       var timeBasedCompaction = TimeBasedCompaction(
           atCompactionConfig.timeInDays,
           atCompactionConfig.compactionPercentage);
-      timeBasedCompaction.performCompaction(atLogType);
+      await timeBasedCompaction.performCompaction(atLogType);
     }
 
     // Size based compaction is configured
@@ -42,7 +42,7 @@ class AtCompactionService {
       // If the are logs that met the size criteria delete them.
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
-      sizeBasedCompaction.performCompaction(atLogType);
+      await sizeBasedCompaction.performCompaction(atLogType);
     }
   }
 }
