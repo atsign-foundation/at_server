@@ -43,52 +43,107 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       var atNotificationCallback = AtNotificationCallback.getInstance();
 
       atNotificationCallback.registerNotificationCallback(
-          NotificationType.received, processReceiveNotification);
+          NotificationType.received, processReceivedAtNotification);
+
+      if (verbParams.containsKey(EPOCH_MILLIS)
+          && verbParams[EPOCH_MILLIS] != null) {
+        // Send notifications that are already received after EPOCH_MILLIS first
+        var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]);
+        var receivedNotifications =
+          await _getReceivedNotificationsAfterEpoch(fromEpochMillis);
+        receivedNotifications.forEach(
+                (notification) => processReceivedNotification(notification)
+        );
+      }
     }
     atConnection.isMonitor = true;
   }
 
-  void processReceiveNotification(AtNotification atNotification) {
+  /// Writes [notification] to connection if the [notification] matches [monitor]'s [regex]
+  void processReceivedNotification(Notification notification) {
+    var key = notification.notification;
+    var fromAtSign = notification.fromAtSign;
+    if (fromAtSign != null) {
+      fromAtSign = fromAtSign.replaceAll('@', '');
+    }
+
+    // If monitor verb contains a regular expression,
+    // push only if the notification matches regex
+    if (regex != null) {
+      logger.finer('regex is not null:$regex');
+      logger.finer('key: $key');
+      try {
+        // if key matches the regular expression, push notification.
+        // else if fromAtSign matches the regular expression, push notification.
+        if (key.contains(RegExp(regex))) {
+          logger.finer('key matches regex');
+          atConnection.write(
+              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+        } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex))) {
+          logger.finer('fromAtSign matches regex');
+          atConnection.write(
+              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+        } else {
+          logger.finer('no regex match');
+        }
+      } on FormatException {
+        logger.severe('Invalid regular expression : $regex');
+        throw InvalidSyntaxException('Invalid regular expression syntax');
+      }
+    } else {
+      atConnection
+          .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
+    }
+  }
+
+
+  void processReceivedAtNotification(AtNotification atNotification) {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
       var atNotificationCallback = AtNotificationCallback.getInstance();
       atNotificationCallback.unregisterNotificationCallback(
-          NotificationType.received, processReceiveNotification);
+          NotificationType.received, processReceivedAtNotification);
     } else {
       var notification = Notification(atNotification);
-      var key = atNotification.notification;
-      var fromAtSign = atNotification.fromAtSign;
-      if (fromAtSign != null) {
-        fromAtSign = fromAtSign.replaceAll('@', '');
-      }
+      processReceivedNotification(notification);
+    }
+  }
 
-      // If monitor verb contains regular expression, push notifications that matches the notifications.
-      // else push all notifications.
-      if (regex != null) {
-        logger.finer('regex is not null:$regex');
-        logger.finer('key: $key');
-        try {
-          // if key matches the regular expression, push notification.
-          // else if fromAtSign matches the regular expression, push notification.
-          if (key.contains(RegExp(regex))) {
-            logger.finer('key matches regex');
-            atConnection.write(
-                'notification: ' + jsonEncode(notification.toJson()) + '\n');
-          } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex))) {
-            logger.finer('fromAtSign matches regex');
-            atConnection.write(
-                'notification: ' + jsonEncode(notification.toJson()) + '\n');
-          } else {
-            logger.finer('no regex match');
-          }
-        } on FormatException {
-          logger.severe('Invalid regular expression : $regex');
-          throw InvalidSyntaxException('Invalid regular expression syntax');
-        }
-      } else {
-        atConnection
-            .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
+
+  /// Returns received notifications of the current atsign
+  /// @param responseList : List to add the notifications
+  /// @param Future<List> : Returns a list of received notifications of the current atsign.
+  Future<List<Notification>> _getReceivedNotificationsAfterEpoch(
+      int millisecondsEpoch) async {
+    // Get all received notifications
+    var allReceivedNotifications = <Notification>[];
+    var notificationKeyStore = AtNotificationKeystore.getInstance();
+    var keyList = notificationKeyStore.getValues();
+    await Future.forEach(
+        keyList,
+            (element) => _fetchNotificationEntry(
+            element, allReceivedNotifications, notificationKeyStore));
+
+    // Filter previous notifications than millisecondsEpoch
+    var responseList = <Notification>[];
+    allReceivedNotifications.forEach((notification) {
+      if (notification.dateTime > millisecondsEpoch) {
+        responseList.add(notification);
       }
+    });
+    return responseList;
+  }
+
+  /// Fetches a notification from the notificationKeyStore and adds it to responseList
+  void _fetchNotificationEntry(
+      dynamic element,
+      List<Notification> responseList,
+      AtNotificationKeystore notificationKeyStore) async {
+
+    var notificationEntry = await notificationKeyStore.get(element.id);
+    if (notificationEntry != null &&
+        notificationEntry.type == NotificationType.received) {
+      responseList.add(Notification(element));
     }
   }
 }
