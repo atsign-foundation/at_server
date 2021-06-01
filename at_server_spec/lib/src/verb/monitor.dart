@@ -16,7 +16,7 @@ class Monitor extends Verb {
   }
 
   @override
-  String syntax() => VerbSyntax.monitor;
+  String syntax() => r'^monitor(:(?<epochMillis>\d+))?( (?<regex>.+))?$';
 
   @override
   String usage() {
