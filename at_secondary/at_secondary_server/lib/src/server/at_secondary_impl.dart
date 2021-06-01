@@ -247,15 +247,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // if certs are unavailable then retry max 10 minutes
     while (true) {
       try {
-        if (certsAvailable || retryCount > 60) {
-          break;
-        }
         secCon
             .useCertificateChain(serverContext.securityContext.publicKeyPath());
         secCon.usePrivateKey(serverContext.securityContext.privateKeyPath());
         secCon.setTrustedCertificates(
             serverContext.securityContext.trustedCertificatePath());
         certsAvailable = true;
+
+        if (certsAvailable || retryCount > 60) {
+          break;
+        }
+        
       } on FileSystemException {
         retryCount++;
         logger.info('certs unavailable. Retry count $retryCount');
