@@ -255,6 +255,13 @@ jobs:
           chmod +x generate_config.py
           python3 generate_config.py -e environment
 
+      # Gets the secondary server binary generated from the above "secondary" job.
+      - name: Get secondary server
+        uses: actions/download-artifact@v2
+        with:
+          name: secondary-server
+          path: at_secondary/at_secondary_server
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
