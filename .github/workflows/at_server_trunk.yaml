@@ -261,7 +261,7 @@ jobs:
         uses: docker/build-push-action@v2.4.0
         with:
           push: true
-          context: at_secondary
+          context: at_secondary/at_secondary_server
           tags: |
             atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
