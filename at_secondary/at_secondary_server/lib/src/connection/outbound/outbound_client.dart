@@ -21,7 +21,6 @@ class OutboundClient {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
   InboundConnection inboundConnection;
-
   OutboundConnection outboundConnection;
 
   String toAtSign;
