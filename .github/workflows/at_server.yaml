@@ -331,7 +331,7 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
       working-directory: at_server
-      runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
