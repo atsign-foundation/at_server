@@ -4,14 +4,14 @@ name: at_server
 # 2. on push event to trunk branch.
 # 3. on tagging a release
 on:
-   push:
-     tags:
-       - 'v*.*.*'
-     branches:
-       - trunk
-   pull_request:
-     branches:
-       - trunk
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - trunk
+  pull_request:
+    branches:
+      - trunk
 
 jobs:
   # Runs dart lint rules and unit tests on at_persistence_root_server
