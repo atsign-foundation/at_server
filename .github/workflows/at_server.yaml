@@ -1,15 +1,20 @@
-name: at_server_trunk
-# Runs the workflow on pull request or on push event to "trunk" branch.
+name: at_server
+# Runs the workflow on the below events:
+# 1. on pull request raised to trunk branch.
+# 2. on push event to trunk branch.
+# 3. on tagging a release
 on:
   push:
+    tags:
+      - 'v*.*.*'
     branches:
       - trunk
-
   pull_request:
     branches:
       - trunk
 
 jobs:
+  # Runs dart lint rules and unit tests on at_persistence_root_server
   test_at_persistence_root_server:
     env:
       working-directory: ./at_root/at_persistence_root_server
@@ -33,6 +38,7 @@ jobs:
         working-directory: ${{ env.working-directory }}
         run: dart test --concurrency=1
 
+  # Runs dart lint rules and unit tests on at_root_server
   test_at_root_server:
     env:
       working-directory: ./at_root/at_root_server
@@ -56,6 +62,7 @@ jobs:
         working-directory: ${{ env.working-directory }}
         run: dart test --concurrency=1
 
+  # Runs dart lint rules and unit tests on at_persistence_secondary_server
   test_at_persistence_secondary_server:
     runs-on: ubuntu-latest
     env:
@@ -78,6 +85,7 @@ jobs:
         working-directory: ${{ env.working-directory }}
         run: dart test --concurrency=1
 
+  # Runs dart lint rules and unit tests on at_secondary_server
   test_at_secondary_server:
     runs-on: ubuntu-latest
     env:
@@ -100,6 +108,8 @@ jobs:
         working-directory: ${{ env.working-directory }}
         run: dart test --concurrency=1
 
+  # On completed of above jobs, runs functional tests on at_secondary.
+  # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   run_functional_test:
     needs: [ test_at_persistence_root_server, test_at_root_server, test_at_persistence_secondary_server, test_at_secondary_server ]
     env:
@@ -177,12 +187,13 @@ jobs:
       - name: Remove docker image
         run: docker rmi at_virtual_env:trunk
 
-  # This job run's on trigger event 'push'. The Jobs builds the at_virtual_env and secondary server and pushes
-  # the docker images to docker hub.
-  push_docker_images:
+  # This job run's on trigger event 'push' to trunk branch.
+  # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
+  # The job run's on completion of 'run_functional_test' job.
+  push_staging_virtual_env_images:
     # Runs only after functional tests are completed.
     needs: [ run_functional_test ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' }}
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
       working-directory: at_server
@@ -235,6 +246,37 @@ jobs:
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
 
+  # This job run's on trigger event 'push' to trunk branch.
+  # The job builds the staging version of secondary server image and pushes to docker hub.
+  # The jobs run's on completion of 'run_functional_test' job.
+  push_staging_secondary_image:
+    # Runs only after functional tests are completed.
+    needs: [ run_functional_test ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
+    environment: staging
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # Extract branch for docker tag
+      - name: Get branch name
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.3.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.9.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # Setup python
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -280,20 +322,70 @@ jobs:
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
 
+  # The below jobs run's on completion of 'run_functional_test' job.
+  # This job run's on trigger event 'push' and when a release is tagged.
+  # The job builds the production version of secondary server docker image and pushes to docker hub.
+  push_prod_secondary_image:
+    # Runs only after functional tests are completed.
+    needs: [ run_functional_test ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.3.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.9.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Gets the secondary server binary generated from the above "secondary" job.
+      - name: Get secondary server
+        uses: actions/download-artifact@v2
+        with:
+          name: secondary-server
+          path: at_secondary/at_secondary_server
+
+      # Builds and pushes the secondary server image to docker hub.
+      - name: Build and push secondary image for amd64 and arm64
+        id: docker_build_secondary
+        uses: docker/build-push-action@v2.4.0
+        with:
+          push: true
+          context: at_secondary/at_secondary_server
+          tags: |
+            atsigncompany/secondary:dess
+            atsigncompany/secondary:prod-gha${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest of secondary server
+        run: echo ${{ steps.docker_build_secondary.outputs.digest }}
+
   # Deploy root server image to cluster
   deploy_root_sever:
-      needs: [ push_docker_images ]
-      runs-on: ubuntu-latest
-      steps:
-        - name: Install doctl
-          uses: digitalocean/action-doctl@v2
-          with:
-            token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-        
-        #Generate kubeconfig file
-        - name: Save DigitalOcean kubeconfig with short-lived credentials
-          run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
+    needs: [ push_staging_secondary_image ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-        #Deploy root image to k8 root deployment
-        - name: Deploy to DigitalOcean Kubernetes
-          run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
+      #Generate kubeconfig file
+      - name: Save DigitalOcean kubeconfig with short-lived credentials
+        run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ludo
+
+      #Deploy root image to k8 root deployment
+      - name: Deploy to DigitalOcean Kubernetes
+        run: kubectl -n test set image deployment/nginx-deployment nginx=atsigncompany/root:GHA${{ github.run_number }}
