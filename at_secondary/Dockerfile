@@ -1,5 +1,5 @@
 FROM atsigncompany/buildimage AS buildimage
-ENV HOME=/atsign
+ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -12,16 +12,16 @@ RUN \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o secondary ; \
-  mkdir -p $HOME/storage ; \
-  mkdir -p $HOME/config ; \
+  mkdir -p $HOMEDIR/storage ; \
+  mkdir -p $HOMEDIR/config ; \
   mkdir -p /archive ; \
   addgroup --gid $GROUP_ID atsign ; \
   useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
-  --home $HOME atsign ; \
-  chown -R atsign:atsign $HOME ; \
+  --home $HOMEDIR atsign ; \
+  chown -R atsign:atsign $HOMEDIR ; \
   chown -R atsign:atsign /archive ; \
-  cp config/config.yaml $HOME/config/ ; \
-  cp pubspec.yaml $HOME/
+  cp config/config.yaml $HOMEDIR/config/ ; \
+  cp pubspec.yaml $HOMEDIR/
 # Second stage of build FROM scratch
 FROM scratch
 COPY --from=buildimage /runtime/ /
