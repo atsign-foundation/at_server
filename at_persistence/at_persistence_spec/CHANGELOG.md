@@ -17,3 +17,6 @@
 ## 1.0.1+3
 - Support multiple atsigns
   Introduced batch verb for sync
+  
+## 1.1.0
+- Null safety upgrade
