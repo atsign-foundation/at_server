@@ -266,7 +266,7 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
@@ -318,7 +318,7 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
@@ -783,7 +783,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   AtNotificationMap.getInstance().clear();
-  isExists = await Directory('test/hive').exists();
+  await AtNotificationKeystore.getInstance().close();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
