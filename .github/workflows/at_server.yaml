@@ -310,7 +310,7 @@ jobs:
         uses: docker/build-push-action@v2.4.0
         with:
           push: true
-          context: at_secondary/at_secondary_server
+          context: at_secondary
           tags: |
             atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
@@ -361,9 +361,10 @@ jobs:
         uses: docker/build-push-action@v2.4.0
         with:
           push: true
-          context: at_secondary/at_secondary_server
+          context: at_secondary
           tags: |
             atsigncompany/secondary:dess
+            atsigncompany/secondary:prod
             atsigncompany/secondary:prod-gha${{ github.run_number }}
           platforms: |
             linux/amd64
