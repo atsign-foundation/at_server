@@ -1,6 +1,6 @@
 name: at_root_server
 description: Root server implementation.
-version: 1.0.0+1.NULLSAFETY
+version: 1.1.0-NULLSAFETY
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 publish_to: none
@@ -16,15 +16,15 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: trunk
-      version: ^1.0.1
+      ref: null_safety
+      version: ^1.1.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: trunk
-      version: ^1.0.1
+      ref: null_safety
+      version: ^1.1.0
 
 #dependency_overrides:
 #  at_server_spec:
