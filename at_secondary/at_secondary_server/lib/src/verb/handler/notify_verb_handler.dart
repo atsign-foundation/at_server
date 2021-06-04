@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -59,11 +58,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var strategy = verbParams[STRATEGY];
     strategy ??= 'all';
     if (messageType == MessageType.key) {
-      key = '${key}${atSign}';
+      key = '$key$atSign';
     }
     if (forAtSign != null) {
       forAtSign = AtUtils.formatAtSign(forAtSign);
-      key = '${forAtSign}:${key}';
+      key = '$forAtSign:$key';
     }
     var operation = verbParams[AT_OPERATION];
     var opType;
@@ -90,7 +89,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
-            forAtSign, atSign, key, NotificationType.received, opType);
+            forAtSign, atSign, key, NotificationType.received, opType,
+            value: atValue);
         response.data = notificationId;
         return;
       }

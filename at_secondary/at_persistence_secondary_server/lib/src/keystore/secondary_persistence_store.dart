@@ -26,10 +26,10 @@ class SecondaryPersistenceStore {
   }
 
   void _init() {
-    _hiveKeystore = HiveKeystore(this._atSign);
-    _hivePersistenceManager = HivePersistenceManager(this._atSign);
+    _hiveKeystore = HiveKeystore();
+    _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
-    _secondaryKeyStoreManager = SecondaryKeyStoreManager(this._atSign);
+    _secondaryKeyStoreManager = SecondaryKeyStoreManager();
     _secondaryKeyStoreManager!.keyStore = _hiveKeystore;
   }
 }

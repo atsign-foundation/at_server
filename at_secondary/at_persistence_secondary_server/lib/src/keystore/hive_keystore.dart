@@ -1,24 +1,24 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 import 'package:dart_utf7/utf7.dart';
-import 'package:at_commons/at_commons.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final logger = AtSignLogger('HiveKeystore');
-  var _atSign;
+
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
 
-  HiveKeystore(this._atSign);
+  HiveKeystore();
 
   set commitLog(value) {
     _commitLog = value;
@@ -37,7 +37,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: ${error}');
+      logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
     return value;
@@ -93,8 +93,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('hive key:${hive_key}');
-        logger.finest('hive value:${hive_value}');
+        logger.finest('hive key:$hive_key');
+        logger.finest('hive value:$hive_value');
         await persistenceManager.box?.put(hive_key, hive_value);
         result = await _commitLog.commit(hive_key, commitOp);
       }
@@ -245,7 +245,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
+      logger.severe('Invalid regular expression : $regex');
       throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
@@ -266,7 +266,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.severe('HiveKeystore getMeta exception: $exception');
       throw DataStoreException('exception in getMeta: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore getMeta error: ${error}');
+      logger.severe('HiveKeystore getMeta error: $error');
       throw DataStoreException(error.message);
     }
     return null;

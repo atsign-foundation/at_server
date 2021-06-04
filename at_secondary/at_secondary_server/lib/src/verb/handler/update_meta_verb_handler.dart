@@ -60,7 +60,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
 
     key = _constructKey(key, forAtSign, atSign);
     if (verbParams.containsKey('isPublic')) {
-      key = 'public:${key}';
+      key = 'public:$key';
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -107,9 +107,9 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
 
   String _constructKey(String? key, String? forAtSign, String? atSign) {
     if (forAtSign != null) {
-      key = '${forAtSign}:${key}';
+      key = '$forAtSign:$key';
     }
-    key = '${key}${atSign}';
+    key = '$key$atSign';
     return key;
   }
 

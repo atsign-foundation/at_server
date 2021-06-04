@@ -118,9 +118,9 @@ class AtNotification {
         'type': _type,
         'opType': _opType,
         'messageType': _messageType,
-        'priority': _priority,
-        'notificationStatus': _notificationStatus,
-        'retryCount': _retryCount,
+        'priority': priority,
+        'notificationStatus': notificationStatus,
+        'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
@@ -131,10 +131,10 @@ class AtNotification {
 
   @override
   String toString() {
-    return 'AtNotification{id: ${_id},fromAtSign: ${_fromAtSign}, '
-        'notificationDateTime: ${_notificationDateTime}, '
-        'toAtSign:${_toAtSign}, notification:${_notification}, '
-        'type:${_type}, opType:${_opType}, expiresAt:${_expiresAt} : priority:${_priority} : notificationStatus:${notificationStatus} : atValue:${atValue}';
+    return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
+        'notificationDateTime: $_notificationDateTime, '
+        'toAtSign:$_toAtSign, notification:$_notification, '
+        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$_priority : notificationStatus:$notificationStatus : atValue:$atValue';
   }
 
   set priority(NotificationPriority? notificationPriority) {

@@ -62,7 +62,8 @@ class GlobalExceptionHandler {
     }
   }
 
-  void _handleInboundLimit(AtException exception, Socket clientSocket) async {
+  Future<void> _handleInboundLimit(
+      AtException exception, Socket clientSocket) async {
     var error_code = getErrorCode(exception);
     var error_description = getErrorDescription(error_code);
     clientSocket.write('error:$error_code-$error_description\n');

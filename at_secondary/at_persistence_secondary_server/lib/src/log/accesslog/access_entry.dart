@@ -36,7 +36,7 @@ class AccessLogEntry extends HiveObject {
 
   @override
   String toString() {
-    return 'AccessLogEntry{fromAtSign: ${_fromAtSign}, requestDateTime: ${_requestDateTime}, verbName:${_verbName}, lookupKey:${_lookupKey}}';
+    return 'AccessLogEntry{fromAtSign: $_fromAtSign, requestDateTime: $_requestDateTime, verbName:$_verbName, lookupKey:$_lookupKey}';
   }
 }
 

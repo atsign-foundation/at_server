@@ -79,7 +79,7 @@ class AtNotificationMap {
         atNotification.toAtSign, () => NotificationWaitTime());
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
     notificationWaitTime.prioritiesSum = atNotification.priority!.index;
-    notificationWaitTime.totalPriorities = 1;
+    notificationWaitTime.totalPriorities += 1;
     var date;
     if (notificationWaitTime.totalPriorities == 1) {
       date = atNotification.notificationDateTime;

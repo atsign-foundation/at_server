@@ -66,7 +66,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       // else push all notifications.
       if (regex != null) {
         logger.finer('regex is not null:$regex');
-        logger.finer('key: ${key}');
+        logger.finer('key: $key');
         try {
           // if key matches the regular expression, push notification.
           // else if fromAtSign matches the regular expression, push notification.
@@ -83,7 +83,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
             logger.finer('no regex match');
           }
         } on FormatException {
-          logger.severe('Invalid regular expression : ${regex}');
+          logger.severe('Invalid regular expression : $regex');
           throw InvalidSyntaxException('Invalid regular expression syntax');
         }
       } else {

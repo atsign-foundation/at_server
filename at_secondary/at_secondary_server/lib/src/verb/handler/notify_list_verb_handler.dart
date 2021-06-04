@@ -111,7 +111,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();
-      logger.finer('connect result: ${connectResult}');
+      logger.finer('connect result: $connectResult');
     }
     var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
     sentNotifications.forEach((element) {

@@ -8,14 +8,9 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  setUp(() async => await setUpFunc(storageDir));
 
   test('test for adding data to blocklist', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
@@ -26,10 +21,6 @@ void main() async {
   });
 
   test('test for fetching blocklist', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
             .getCommitLog(_getShaForAtsign('@test_user_1')),
@@ -41,10 +32,6 @@ void main() async {
   }, timeout: Timeout(Duration(minutes: 10)));
 
   test('test for removing blocklist data', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
             .getCommitLog(_getShaForAtsign('@test_user_1')),
@@ -56,10 +43,6 @@ void main() async {
   });
 
   test('test for removing non existing data from blocklist', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
@@ -72,11 +55,7 @@ void main() async {
   });
 
   test('test for removing empty data', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
-    Set<String> removeData = {};
+    var removeData = <String>{};
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
             .getCommitLog(_getShaForAtsign('@test_user_1')),
@@ -86,10 +65,6 @@ void main() async {
   });
 
   test('test for removing null data', () async {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1')!;
-    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
     var atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance()
             .getCommitLog(_getShaForAtsign('@test_user_1')),

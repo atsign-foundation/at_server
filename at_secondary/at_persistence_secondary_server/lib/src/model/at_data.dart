@@ -14,7 +14,7 @@ class AtData extends HiveObject {
 
   @override
   String toString() {
-    return 'AtData{data: ${data}, metaData: ${metaData.toString()}';
+    return 'AtData{data: $data, metaData: ${metaData.toString()}';
   }
 
   Map toJson() {

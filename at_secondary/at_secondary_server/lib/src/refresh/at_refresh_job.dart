@@ -7,7 +7,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
 class AtRefreshJob {
-  var _atSign;
+  final _atSign;
   var keyStore;
   late var _cron;
 
@@ -69,7 +69,7 @@ class AtRefreshJob {
       if (!outBoundClient.isHandShakeDone) {
         var connectResult =
             await outBoundClient.connect(handshake: isHandShake);
-        logger.finer('connect result: ${connectResult}');
+        logger.finer('connect result: $connectResult');
       }
       lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
     } catch (exception) {
@@ -130,7 +130,7 @@ class AtRefreshJob {
   void scheduleRefreshJob(int runJobHour) {
     logger.finest('scheduleKeyRefreshTask runs at $runJobHour hours');
     _cron = Cron();
-    _cron.schedule(Schedule.parse('0 ${runJobHour} * * *'), () async {
+    _cron.schedule(Schedule.parse('0 $runJobHour * * *'), () async {
       logger.finest('Scheduled Refresh Job started');
       await _refreshJob(runJobHour);
       logger.finest('scheduled Refresh Job completed');

@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:pedantic/pedantic.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -58,7 +59,7 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    await childIsolateReceivePort.listen((message) async {
+    childIsolateReceivePort.listen((message) {
       var filePath = message;
       var directory = Directory(filePath);
       var fileSystemEvent = directory.watch(events: FileSystemEvent.create);

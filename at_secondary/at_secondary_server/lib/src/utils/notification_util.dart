@@ -46,6 +46,7 @@ class NotificationUtil {
       logger.severe(
           'exception while storing notification : ${exception.toString()}');
     }
+    return null;
   }
 
   /// Load the notification into the map to notify on server start-up.

@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 class InboundMetricImpl implements MetricProvider {
-  static InboundMetricImpl _singleton = InboundMetricImpl._internal();
+  static final InboundMetricImpl _singleton = InboundMetricImpl._internal();
   var connectionMetrics = ConnectionMetricsImpl();
 
   InboundMetricImpl._internal();
@@ -30,7 +31,7 @@ class InboundMetricImpl implements MetricProvider {
 }
 
 class OutBoundMetricImpl implements MetricProvider {
-  static OutBoundMetricImpl _singleton = OutBoundMetricImpl._internal();
+  static final OutBoundMetricImpl _singleton = OutBoundMetricImpl._internal();
   var connectionMetrics = ConnectionMetricsImpl();
 
   OutBoundMetricImpl._internal();
@@ -52,7 +53,8 @@ class OutBoundMetricImpl implements MetricProvider {
 }
 
 class LastCommitIDMetricImpl implements MetricProvider {
-  static LastCommitIDMetricImpl _singleton = LastCommitIDMetricImpl._internal();
+  static final LastCommitIDMetricImpl _singleton =
+      LastCommitIDMetricImpl._internal();
   var _atCommitLog;
 
   set atCommitLog(value) {
@@ -85,7 +87,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 }
 
 class SecondaryStorageMetricImpl implements MetricProvider {
-  static SecondaryStorageMetricImpl _singleton =
+  static final SecondaryStorageMetricImpl _singleton =
       SecondaryStorageMetricImpl._internal();
   var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath!);
 
@@ -117,7 +119,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtSignMetricImpl implements MetricProvider {
-  static MostVisitedAtSignMetricImpl _singleton =
+  static final MostVisitedAtSignMetricImpl _singleton =
       MostVisitedAtSignMetricImpl._internal();
 
   MostVisitedAtSignMetricImpl._internal();
@@ -141,7 +143,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtKeyMetricImpl implements MetricProvider {
-  static MostVisitedAtKeyMetricImpl _singleton =
+  static final MostVisitedAtKeyMetricImpl _singleton =
       MostVisitedAtKeyMetricImpl._internal();
 
   MostVisitedAtKeyMetricImpl._internal();

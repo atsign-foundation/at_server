@@ -30,14 +30,14 @@ class CommitEntry extends HiveObject {
 
   Map toJson() => {
         'atKey': _atKey,
-        'operation': _operation.name,
+        'operation': operation.name,
         'opTime': _opTime.toString(),
         'commitId': commitId
       };
 
   @override
   String toString() {
-    return 'CommitEntry{AtKey: ${_atKey}, operation: ${_operation}, commitId:${commitId}, opTime: ${_opTime}, internal_seq: ${key}}';
+    return 'CommitEntry{AtKey: $_atKey, operation: $operation, commitId:$commitId, opTime: $_opTime, internal_seq: $key}';
   }
 }
 

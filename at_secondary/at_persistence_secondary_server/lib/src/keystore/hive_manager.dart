@@ -71,8 +71,8 @@ class HivePersistenceManager {
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      // ignore: omit_local_variable_types
-      var hiveBox = await Hive.openBox(_boxName, encryptionKey: hiveSecret,
+      var hiveBox = await Hive.openBox(_boxName,
+          encryptionCipher: HiveAesCipher(hiveSecret!),
           compactionStrategy: (entries, deletedEntries) {
         return deletedEntries > 50;
       });
@@ -137,7 +137,7 @@ class HivePersistenceManager {
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(this._atsign)!
           .getSecondaryKeyStore()!;

@@ -5,8 +5,6 @@ class SecondaryPersistenceStoreFactory {
   static final SecondaryPersistenceStoreFactory _singleton =
       SecondaryPersistenceStoreFactory._internal();
 
-  final bool _debug = false;
-
   SecondaryPersistenceStoreFactory._internal();
 
   factory SecondaryPersistenceStoreFactory.getInstance() {
@@ -30,6 +28,6 @@ class SecondaryPersistenceStoreFactory {
         _secondaryPersistenceStoreMap.values,
             (SecondaryPersistenceStore secondaryPersistenceStore) =>
             secondaryPersistenceStore.getHivePersistenceManager()?.close());
-
+            _secondaryPersistenceStoreMap.clear();
   }
 }

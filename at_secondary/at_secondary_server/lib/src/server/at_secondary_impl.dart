@@ -15,6 +15,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -133,6 +134,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     currentAtSign = AtUtils.formatAtSign(serverContext!.currentAtSign);
     logger.info('currentAtSign : $currentAtSign');
 
+    //Initializing all the hive instances
     await _initializeHiveInstances();
 
     if (!serverContext!.isKeyStoreInitialized) {
@@ -251,9 +253,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
-      } on FileSystemException catch (e) {
+      } on FileSystemException {
         retryCount++;
-        logger.info('certs unavailable. Retry count ${retryCount}');
+        logger.info('certs unavailable. Retry count $retryCount');
       }
       sleep(Duration(seconds: 10));
     }
@@ -290,7 +292,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer('inside _executeVerbCallBack: ${command}');
+    logger.finer('inside _executeVerbCallBack: $command');
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
@@ -310,7 +312,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _streamCallBack(List<int> data, InboundConnection sender) {
     print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:${streamId}');
+    print('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }

@@ -75,16 +75,16 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
-        key = '${forAtSign}:${key}';
+        key = '$forAtSign:$key';
       }
       if (atSign != null) {
         atSign = AtUtils.formatAtSign(atSign);
-        key = '${key}${atSign}';
+        key = '$key$atSign';
       }
       // Append public: as prefix if key is public
       if (updateParams.metadata!.isPublic != null &&
           updateParams.metadata!.isPublic!) {
-        key = 'public:${key}';
+        key = 'public:$key';
       }
       var metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
@@ -144,7 +144,7 @@ class UpdateVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null) {
       return null;
     }
-    key = '${forAtSign}:${key}${atSign}';
+    key = '$forAtSign:$key$atSign';
     var expiresAt;
     if (atMetaData.ttl != null) {
       expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
