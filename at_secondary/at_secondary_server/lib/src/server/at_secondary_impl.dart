@@ -268,7 +268,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               requestClientCertificate: true)
           .then((SecureServerSocket socket) {
         logger.info(
-            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion}');
+            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
         logger.info('Secure Socket open for $currentAtSign !');
         _serverSocket = socket;
         _listen(_serverSocket);
