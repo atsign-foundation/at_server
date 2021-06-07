@@ -90,6 +90,9 @@ jobs:
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
         run: dart pub get
