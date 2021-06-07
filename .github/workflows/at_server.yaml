@@ -92,10 +92,10 @@ jobs:
           python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${{ github.head_ref }}
 
       - name: Add dependency overrides on push to branch
-          if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
-          run: |
-            chmod +x add_dependency_overrides.py
-            python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -139,10 +139,10 @@ jobs:
           python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${{ github.head_ref }}
 
       - name: Add dependency overrides on push to branch
-          if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
-          run: |
-            chmod +x add_dependency_overrides.py
-            python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
