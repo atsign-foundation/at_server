@@ -73,6 +73,23 @@ jobs:
         with:
           sdk: stable
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      - name: Add dependency overrides
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
+
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
         run: dart pub get
@@ -95,6 +112,23 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      - name: Add dependency overrides
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
