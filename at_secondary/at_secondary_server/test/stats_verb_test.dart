@@ -86,7 +86,6 @@ void main() {
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager();
-      defaultVerbHandlerManager.init();
       expect(
           () => defaultVerbExecutor.execute(
               command, inbound, defaultVerbHandlerManager),

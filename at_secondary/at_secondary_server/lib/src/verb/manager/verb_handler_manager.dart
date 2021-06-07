@@ -25,7 +25,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
-  late List<VerbHandler>  _verbHandlers;
+  static List<VerbHandler> _verbHandlers = _loadVerbHandlers();
 
   static final DefaultVerbHandlerManager _singleton =
       DefaultVerbHandlerManager._internal();
@@ -34,11 +34,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
 
   factory DefaultVerbHandlerManager() {
     return _singleton;
-  }
-
-  /// Initializing verb handlers
-  void init() {
-    _verbHandlers = _loadVerbHandlers();
   }
 
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
@@ -57,7 +52,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     return null;
   }
 
-  List<VerbHandler> _loadVerbHandlers() {
+  static List<VerbHandler> _loadVerbHandlers() {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(

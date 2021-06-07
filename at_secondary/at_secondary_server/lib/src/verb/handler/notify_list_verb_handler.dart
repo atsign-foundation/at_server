@@ -53,7 +53,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       logger.severe('Invalid date format ${e.toString()}');
       throw IllegalArgumentException('Invalid date format');
     }
-    InboundConnectionMetadata atConnectionMetadata =
+    var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var responseList = [];
