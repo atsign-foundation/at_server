@@ -85,13 +85,17 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install ruamel.yaml
 
-      - name: Add dependency overrides
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${{ github.head_ref }}
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      - name: Add dependency overrides on push to branch
+          if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
+          run: |
+            chmod +x add_dependency_overrides.py
+            python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -128,13 +132,17 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install ruamel.yaml
 
-      - name: Add dependency overrides
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${{ github.head_ref }}
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      - name: Add dependency overrides on push to branch
+          if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
+          run: |
+            chmod +x add_dependency_overrides.py
+            python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -415,7 +423,7 @@ jobs:
 
   # Deploy root server image to cluster
   deploy_root_sever:
-    needs: [ push_staging_secondary_image ]
+    needs: [ run_functional_test ]
     runs-on: ubuntu-latest
     steps:
       - name: Install doctl

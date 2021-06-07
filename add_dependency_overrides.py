@@ -27,7 +27,12 @@ def add_dependency_overrides(project):
         if key.startswith('at_') and 'at_server.git' in dependency_map[key]['git']['url']:
             dependency_map[key]['git']['ref'] = branch
 
-    yaml_map['dependency_overrides'] = dependency_map
+    # If pubpsec.yaml contains dependency_overrides section,
+    # update the existing dependency_overrides section
+    if 'dependency_overrides' in yaml_map:
+        yaml_map['dependency_overrides'].update(dependency_map)
+    else:
+        yaml_map['dependency_overrides'] = dependency_map
 
     with open(project + '/pubspec.yaml', 'w') as file:
         ruamel.yaml.round_trip_dump(yaml_map, file, explicit_start=True)
