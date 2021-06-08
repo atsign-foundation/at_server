@@ -17,8 +17,8 @@ class QueueManager {
   /// 2. Makes use of persistent priority queue to queue the notifications
   void enqueue(AtNotification atNotification) {
     if (atNotification.notificationStatus == NotificationStatus.errored &&
-        atNotification.retryCount! < noOfRetries!) {
-      atNotification.retryCount = atNotification.retryCount! + 1;
+        atNotification.retryCount < noOfRetries!) {
+      atNotification.retryCount = atNotification.retryCount + 1;
       if (atNotification.priority!.index > 1) {
         var index = atNotification.priority!.index;
         atNotification.priority = NotificationPriority.values[--index];

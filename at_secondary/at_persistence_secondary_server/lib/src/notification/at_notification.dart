@@ -33,13 +33,13 @@ class AtNotification {
   final _expiresAt;
 
   @HiveField(9)
-  final NotificationPriority? _priority;
+  NotificationPriority? priority;
 
   @HiveField(10)
-  final NotificationStatus? _notificationStatus;
+  NotificationStatus? notificationStatus;
 
   @HiveField(11)
-  final int? _retryCount;
+  int retryCount;
 
   @HiveField(12)
   final _strategy;
@@ -66,9 +66,9 @@ class AtNotification {
         _opType = atNotificationBuilder.opType,
         _messageType = atNotificationBuilder.messageType,
         _expiresAt = atNotificationBuilder.expiresAt,
-        _priority = atNotificationBuilder.priority,
-        _notificationStatus = atNotificationBuilder.notificationStatus,
-        _retryCount = atNotificationBuilder.retryCount,
+        priority = atNotificationBuilder.priority,
+        notificationStatus = atNotificationBuilder.notificationStatus,
+        retryCount = atNotificationBuilder.retryCount,
         _strategy = atNotificationBuilder.strategy,
         _notifier = atNotificationBuilder.notifier,
         _depth = atNotificationBuilder.depth,
@@ -93,12 +93,6 @@ class AtNotification {
 
   String? get atValue => _atValue;
 
-  NotificationPriority? get priority => _priority;
-
-  int? get retryCount => _retryCount;
-
-  NotificationStatus? get notificationStatus => _notificationStatus;
-
   String? get notifier => _notifier;
 
   int? get depth => _depth;
@@ -108,6 +102,7 @@ class AtNotification {
   MessageType? get messageType => _messageType;
 
   AtMetaData? get atMetadata => _atMetadata;
+
 
   Map toJson() => {
         'id': _id,
@@ -134,7 +129,7 @@ class AtNotification {
     return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
         'notificationDateTime: $_notificationDateTime, '
         'toAtSign:$_toAtSign, notification:$_notification, '
-        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$_priority : notificationStatus:$notificationStatus : atValue:$atValue';
+        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
   }
 }
 
@@ -172,7 +167,7 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
           ..expiresAt = fields[8] as DateTime?
           ..priority = fields[9] as NotificationPriority?
           ..notificationStatus = fields[10] as NotificationStatus?
-          ..retryCount = fields[11] as int?
+          ..retryCount = fields[11] as int
           ..strategy = fields[12] as String?
           ..notifier = fields[13] as String?
           ..depth = fields[14] as int?
@@ -422,7 +417,7 @@ class AtNotificationBuilder {
 
   NotificationStatus? notificationStatus = NotificationStatus.queued;
 
-  int? retryCount = 1;
+  int retryCount = 1;
 
   String? strategy = 'all';
 
