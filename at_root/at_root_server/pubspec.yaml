@@ -25,6 +25,12 @@ dependencies:
       path: at_root/at_persistence_root_server
       ref: null_safety
       version: ^1.1.0
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_utils
+      ref: null_safety
+      version: ^1.1.0
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
