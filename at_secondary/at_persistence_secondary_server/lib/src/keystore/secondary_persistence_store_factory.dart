@@ -24,7 +24,7 @@ class SecondaryPersistenceStoreFactory {
     return _secondaryPersistenceStoreMap[atSign];
   }
 
- Future<void> close() async {
+  Future<void> close() async {
     await Future.forEach(
         _secondaryPersistenceStoreMap.values,
         (secondaryPersistenceStore) =>

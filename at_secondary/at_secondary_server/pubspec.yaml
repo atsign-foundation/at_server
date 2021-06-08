@@ -16,20 +16,8 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.14.13
   basic_utils: ^3.0.0
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: trunk
-      version: ^1.0.1+7
-
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: trunk
-      version: ^1.0.0+8
-
+  at_persistence_secondary_server: ^1.0.1+8
+  at_lookup: ^1.0.0+8
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git

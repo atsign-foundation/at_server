@@ -17,3 +17,8 @@
 - Notification sub system changes
 ## 1.0.1+6
 - Add await on close methods.
+## 1.0.1+7
+- Third party package dependency upgrade
+## 1.0.1+8
+- Refactor code with dart lint rules
+- Fixed minor bug in secondary persistence store factory 
