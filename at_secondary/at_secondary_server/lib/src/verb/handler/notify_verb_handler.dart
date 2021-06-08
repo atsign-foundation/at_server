@@ -41,7 +41,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata =
+    var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;

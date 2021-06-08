@@ -15,7 +15,6 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -121,10 +120,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     if (useSSL! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
-    }
-
-    if (serverContext!.port == null) {
-      throw AtServerException('Secondary port is not set');
     }
 
     if (serverContext!.currentAtSign == null) {
@@ -247,17 +242,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (certsAvailable || retryCount > 60) {
           break;
         }
+
         secCon.useCertificateChain(
             serverContext!.securityContext!.publicKeyPath());
         secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath());
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
-
-        if (certsAvailable || retryCount > 60) {
-          break;
-        }
-        
       } on FileSystemException {
         retryCount++;
         logger.info('certs unavailable. Retry count $retryCount');

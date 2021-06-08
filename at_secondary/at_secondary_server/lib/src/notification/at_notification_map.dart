@@ -43,8 +43,8 @@ class AtNotificationMap {
       return [].iterator as Iterator<AtNotification>;
     }
     var tempMap = _notificationMap.remove(atsign)!;
-    LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
-    AllNotifications list = tempMap['all'] as AllNotifications;
+    var latestList = tempMap['latest'] as LatestNotifications;
+    var list = tempMap['all'] as AllNotifications;
     var returnList = List<AtNotification>.from(latestList.toList())
       ..addAll(list.toList()!);
     return returnList.iterator;
@@ -67,10 +67,7 @@ class AtNotificationMap {
     var list = _waitTimeMap.keys.toList()
       ..sort((k1, k2) =>
           _waitTimeMap[k2]!.waitTime.compareTo(_waitTimeMap[k1]!.waitTime));
-    if (N != null) {
-      return list.take(N).toList();
-    }
-    return list;
+    return list.take(N).toList();
   }
 
   /// Computes the wait for the notification.

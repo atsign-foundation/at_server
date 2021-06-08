@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'dart:isolate';
-
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:pedantic/pedantic.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.

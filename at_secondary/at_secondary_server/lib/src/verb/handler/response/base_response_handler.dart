@@ -24,7 +24,7 @@ abstract class BaseResponseHandler implements ResponseHandler {
         }
         return;
       }
-      InboundConnectionMetadata atConnectionMetadata =
+      var atConnectionMetadata =
           connection.getMetaData() as InboundConnectionMetadata;
       var isAuthenticated = atConnectionMetadata.isAuthenticated;
       var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;

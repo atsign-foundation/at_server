@@ -107,7 +107,7 @@ void main() async {
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
@@ -124,7 +124,7 @@ void main() async {
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
@@ -164,7 +164,7 @@ void main() async {
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });

@@ -42,7 +42,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata =
+    var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var scanRegex = verbParams[AT_REGEX];
@@ -64,7 +64,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         String keyString;
-        List<String?> keys =
+        var keys =
             keyStore!.getKeys(regex: scanRegex) as List<String?>;
         keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces

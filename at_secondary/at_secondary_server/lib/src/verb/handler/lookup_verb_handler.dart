@@ -38,7 +38,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata =
+    var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var atAccessLog =
@@ -148,11 +148,9 @@ class LookupVerbHandler extends AbstractVerbHandler {
       lookup_value = await keyStore!.get(keyToResolve);
       value = lookup_value?.data;
       // If the value is null for a private key, searches on public namespace.
-      if (value == null) {
-        keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-        lookup_value = await keyStore!.get(keyToResolve);
-        value = lookup_value?.data;
-      }
+      keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
+      lookup_value = await keyStore!.get(keyToResolve);
+      value = lookup_value?.data;
       resolutionCount++;
     }
     return value.contains(AT_VALUE_REFERENCE) ? null : value;

@@ -1,5 +1,4 @@
 import 'dart:collection';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
@@ -32,7 +31,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> process(String command, InboundConnection atConnection) async {
     var response = await processInternal(command, atConnection);
     var handler = responseManager.getResponseHandler(getVerb());
-    handler.process(atConnection, response);
+    await handler.process(atConnection, response);
   }
 
   Future<Response> processInternal(

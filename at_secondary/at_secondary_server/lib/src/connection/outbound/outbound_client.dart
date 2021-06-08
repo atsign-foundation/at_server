@@ -142,7 +142,7 @@ class OutboundClient {
       var handShakeResult = await messageListener.read();
       logger.finer('handShakeResult: $handShakeResult');
       if (handShakeResult == null) {
-        outboundConnection!.close();
+        await outboundConnection!.close();
         throw HandShakeException('no response received for pol command');
       }
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -152,7 +152,7 @@ class OutboundClient {
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } on Exception catch (e) {
-      outboundConnection!.close();
+      await outboundConnection!.close();
       throw HandShakeException(e.toString());
     }
     return result;

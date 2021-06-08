@@ -78,7 +78,7 @@ void main() async {
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
@@ -105,7 +105,7 @@ void main() async {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
@@ -130,7 +130,7 @@ void main() async {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(

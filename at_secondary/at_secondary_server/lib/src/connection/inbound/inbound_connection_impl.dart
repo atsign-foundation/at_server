@@ -28,14 +28,10 @@ class InboundConnectionImpl extends BaseConnection
   @override
   bool equals(InboundConnection connection) {
     var result = false;
-    if (connection != null) {
-      if (connection.getSocket() != null && getSocket() != null) {
-        if (getSocket().remoteAddress.address ==
-                connection.getSocket().remoteAddress.address &&
-            getSocket().remotePort == connection.getSocket().remotePort) {
-          result = true;
-        }
-      }
+    if (getSocket().remoteAddress.address ==
+            connection.getSocket().remoteAddress.address &&
+        getSocket().remotePort == connection.getSocket().remotePort) {
+      result = true;
     }
     return result;
   }
@@ -70,6 +66,5 @@ class InboundConnectionImpl extends BaseConnection
   @override
   Socket? receiverSocket;
 
-  @override
   bool? isStream;
 }

@@ -88,10 +88,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       }
       var metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
-      if (cacheRefreshMetaMap != null) {
-        ttr_ms = cacheRefreshMetaMap[AT_TTR];
-        ccd = cacheRefreshMetaMap[CCD];
-      }
+      ttr_ms = cacheRefreshMetaMap[AT_TTR];
+      ccd = cacheRefreshMetaMap[CCD];
 
       //If ttr is set and atsign is not equal to currentAtSign, the key is
       //cached key.

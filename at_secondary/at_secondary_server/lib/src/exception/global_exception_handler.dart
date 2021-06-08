@@ -38,7 +38,7 @@ class GlobalExceptionHandler {
       // Retry for n number of times and Close connection.
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
-      _handleInboundLimit(exception, clientSocket!);
+      await _handleInboundLimit(exception, clientSocket!);
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -74,7 +74,7 @@ class GlobalExceptionHandler {
   /// params: AtConnection
   /// This will close the connection and remove it from pool
   void _closeConnection(AtConnection? atConnection) async {
-    atConnection?.close();
+    await atConnection?.close();
   }
 
   Future<void> _handleInternalException(
@@ -120,6 +120,6 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? error_code, String error_description) {
-    atConnection.write('error:$error_code-$error_description\n${prompt}');
+    atConnection.write('error:$error_code-$error_description\n$prompt');
   }
 }

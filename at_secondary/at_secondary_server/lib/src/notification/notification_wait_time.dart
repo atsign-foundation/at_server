@@ -4,26 +4,34 @@ class NotificationWaitTime {
   DateTime? _lastComputedAt;
   double _waitTime = 0;
 
+  // ignore: unnecessary_getters_setters
   int get totalPriorities => _totalPriorities;
 
+  // ignore: unnecessary_getters_setters
   int get prioritiesSum => _prioritiesSum;
 
+  // ignore: unnecessary_getters_setters
   DateTime? get lastComputedAt => _lastComputedAt;
 
+  // ignore: unnecessary_getters_setters
   double get waitTime => _waitTime;
 
+  // ignore: unnecessary_getters_setters
   set totalPriorities(int value) {
     _totalPriorities += value;
   }
 
+  // ignore: unnecessary_getters_setters
   set waitTime(double value) {
     _waitTime = value;
   }
 
+  // ignore: unnecessary_getters_setters
   set lastComputedAt(DateTime? value) {
     _lastComputedAt = value;
   }
 
+  // ignore: unnecessary_getters_setters
   set prioritiesSum(int value) {
     _prioritiesSum += value;
   }

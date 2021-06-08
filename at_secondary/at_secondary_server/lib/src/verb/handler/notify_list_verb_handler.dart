@@ -113,7 +113,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       var connectResult = await outBoundClient.connect();
       logger.finer('connect result: $connectResult');
     }
-    var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
+    var sentNotifications = outBoundClient.notifyList(fromAtSign)!;
     sentNotifications.forEach((element) {
       responseList.add(Notification(element));
     });
@@ -171,7 +171,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   bool _isAtsignRegex(String atSign, String regex) {
     var isAtsignRegex = false;
     atSign = atSign.replaceAll('@', '');
-    if (atSign != null && atSign.contains(RegExp(regex))) {
+    if (atSign.contains(RegExp(regex))) {
       isAtsignRegex = true;
     }
     return isAtsignRegex;

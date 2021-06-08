@@ -52,7 +52,7 @@ class InboundMessageListener {
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
         if (command == '@exit') {
-          _finishedHandler();
+          await _finishedHandler();
           return;
         }
         _buffer.clear();
@@ -77,7 +77,7 @@ class InboundMessageListener {
 
   Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
-      connection.close();
+      await connection.close();
     }
   }
 }

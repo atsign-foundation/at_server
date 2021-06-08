@@ -543,7 +543,7 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
@@ -590,7 +590,7 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata =
+      var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');

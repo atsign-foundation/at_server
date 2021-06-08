@@ -87,12 +87,12 @@ class OutboundMessageListener {
   /// Logs the error and closes the [OutboundClient]
   void _errorHandler(error) async {
     logger.severe(error.toString());
-    _closeClient();
+    await _closeClient();
   }
 
   /// Closes the [InboundConnection]
   void _finishedHandler() async {
-    _closeClient();
+    await _closeClient();
   }
 
   Future<void> _closeClient() async {

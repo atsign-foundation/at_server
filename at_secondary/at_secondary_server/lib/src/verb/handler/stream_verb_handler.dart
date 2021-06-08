@@ -1,5 +1,4 @@
 import 'dart:collection';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
@@ -65,7 +64,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException('Invalid stream id');
         }
         StreamManager.senderSocketMap[streamId]!
-            .write('stream:done ${streamId}\n');
+            .write('stream:done $streamId\n');
         StreamManager.receiverSocketMap[streamId]!.getSocket().destroy();
         StreamManager.senderSocketMap[streamId]!.getSocket().destroy();
         StreamManager.receiverSocketMap.remove(streamId);

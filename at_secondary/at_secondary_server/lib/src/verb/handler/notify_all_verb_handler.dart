@@ -59,7 +59,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
 
-    var resultMap = Map<String, String?>();
+    var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
     if (forAtSignList != null && forAtSignList.isNotEmpty) {

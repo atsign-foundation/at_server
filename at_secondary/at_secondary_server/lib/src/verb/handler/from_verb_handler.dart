@@ -46,7 +46,7 @@ class FromVerbHandler extends AbstractVerbHandler {
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
         currentAtSign);
     atConnection.initiatedBy = currentAtSign;
-    InboundConnectionMetadata atConnectionMetadata =
+    var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = verbParams[AT_SIGN];
     fromAtSign = AtUtils.formatAtSign(fromAtSign);
@@ -109,8 +109,8 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer('_verifyFromAtSign secondayUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
-    SecureSocket secSocket = atConnection.getSocket() as SecureSocket;
-    logger.finer('secSocket : ${secSocket}');
+    var secSocket = atConnection.getSocket() as SecureSocket;
+    logger.finer('secSocket : $secSocket');
     var CN = secSocket.peerCertificate;
     logger.finer('CN : $CN');
     if (CN == null) {

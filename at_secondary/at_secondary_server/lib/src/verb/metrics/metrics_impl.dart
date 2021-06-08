@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -69,7 +68,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 
   @override
   String getMetrics({String? regex}) {
-    logger.finer('In commitID getMetrics...regex : ${regex}');
+    logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
       lastCommitID =
