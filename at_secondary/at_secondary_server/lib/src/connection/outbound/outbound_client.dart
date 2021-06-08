@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
+import 'package:at_lookup/src/at_lookup_impl.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -21,7 +21,6 @@ class OutboundClient {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
   InboundConnection inboundConnection;
-
   OutboundConnection outboundConnection;
 
   String toAtSign;
