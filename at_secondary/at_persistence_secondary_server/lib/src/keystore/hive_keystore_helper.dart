@@ -15,7 +15,6 @@ class HiveKeyStoreHelper {
   final logger = AtSignLogger('HiveKeyStoreHelper');
 
   String prepareKey(String key) {
-    assert(key != null && key != '');
     key = key.trim().toLowerCase().replaceAll(' ', '');
     return Utf7.encode(key);
   }
@@ -78,7 +77,6 @@ class HiveKeyStoreHelper {
   }
 
   static bool hasValueChanged(AtData newData, AtData oldData) {
-    assert(newData != null && oldData != null);
     return (newData.data != null && oldData.data == null) ||
         newData.data != oldData.data;
   }

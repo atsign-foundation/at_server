@@ -142,7 +142,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   int entriesCount() {
     int? totalKeys = 0;
-    totalKeys = box?.keys?.length;
+    totalKeys = box?.keys.length;
     return totalKeys!;
   }
 

@@ -53,7 +53,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
-      var result = await keyStore.put('last_name', updateData);
+      await keyStore.put('last_name', updateData);
       var dataFromHive = await (keyStore.get('last_name'));
       expect(dataFromHive?.data, 'alice');
     });
@@ -96,7 +96,7 @@ void main() async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-      List<String> expiredKeys = keyStore.getExpiredKeys();
+      var expiredKeys = keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 

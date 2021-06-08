@@ -15,7 +15,7 @@ class AtConfig {
   ///stores 'Configuration' type under [configkey] in secondary.
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  String? _atSign;
+  final String? _atSign;
   var _commitLog;
   var persistenceManager;
 
@@ -33,9 +33,7 @@ class AtConfig {
   Future<String> addToBlockList(Set<String> data) async {
     var result;
     try {
-      assert(data != null);
       assert(data.isNotEmpty);
-
       var existingData = await get(configKey);
       var blockList = await getBlockList();
       var uniqueBlockList = Set.from(blockList);
@@ -56,9 +54,7 @@ class AtConfig {
   Future<String?> removeFromBlockList(Set<String> data) async {
     var result;
     try {
-      assert(data != null);
       assert(data.isNotEmpty);
-
       var existingData = await get(configKey);
       if (existingData != null) {
         var blockList = await getBlockList();
@@ -78,7 +74,7 @@ class AtConfig {
 
   ///Returns blocklist by fetching from atsign's secondary.
   Future<Set<String>> getBlockList() async {
-    Set<String> result = {};
+    var result = <String>{};
     try {
       var existingData = await get(configKey);
       if (existingData != null) {

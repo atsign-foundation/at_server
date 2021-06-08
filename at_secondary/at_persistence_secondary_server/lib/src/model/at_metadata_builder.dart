@@ -89,9 +89,7 @@ class AtMetadataBuilder {
   }
 
   void setCCD(bool ccd) {
-    if (ccd != null) {
-      atMetaData.isCascade = ccd;
-    }
+    atMetaData.isCascade = ccd;
   }
 
   void setIsBinary(bool? isBinary) {
@@ -113,32 +111,24 @@ class AtMetadataBuilder {
   }
 
   DateTime? _getAvailableAt(int epochNow, int ttb) {
-    if (ttb != null) {
-      var availableAt = epochNow + ttb;
-      return DateTime.fromMillisecondsSinceEpoch(availableAt).toUtc();
-    }
-    return null;
+    var availableAt = epochNow + ttb;
+    return DateTime.fromMillisecondsSinceEpoch(availableAt).toUtc();
   }
 
   DateTime? _getExpiresAt(int epochNow, int ttl, {int? ttb}) {
-    if (ttl != null) {
-      var expiresAt = epochNow + ttl;
-      if (ttb != null) {
-        expiresAt = expiresAt + ttb;
-      }
-      return DateTime.fromMillisecondsSinceEpoch(expiresAt).toUtc();
+    var expiresAt = epochNow + ttl;
+    if (ttb != null) {
+      expiresAt = expiresAt + ttb;
     }
-    return null;
+    return DateTime.fromMillisecondsSinceEpoch(expiresAt).toUtc();
   }
 
   DateTime? _getRefreshAt(DateTime today, int ttr) {
     if (ttr == -1) {
       return null;
     }
-    if (ttr != null) {
-      return today.add(Duration(seconds: ttr));
-    }
-    return null;
+
+    return today.add(Duration(seconds: ttr));
   }
 
   AtMetaData? build() {

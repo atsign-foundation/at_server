@@ -27,12 +27,11 @@ void main() async {
     test('test multiple insert', () async {
       var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice')));
-      var key_1 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_3 =
-          await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 2);
       var committedEntry = await (commitLogInstance?.getEntry(key_2));
       expect(committedEntry?.atKey, 'location@alice');
@@ -54,42 +53,42 @@ void main() async {
     test('test entries since commit Id', () async {
       var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice')));
-      var key_1 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_3 =
-          await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
-      var key_4 = await commitLogInstance?.commit('phone@bob', CommitOp.UPDATE);
-      var key_5 =
-          await commitLogInstance?.commit('email@charlie', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
+      await commitLogInstance?.commit('phone@bob', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('email@charlie', CommitOp.UPDATE);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 4);
-      var changes = commitLogInstance?.getChanges(key_2, '')!;
+      var changes = commitLogInstance?.getChanges(key_2, '');
       expect(changes?.length, 3);
-      if(changes != null) {
-        expect(changes[0]?.atKey, 'location@alice');
-        expect(changes[1]?.atKey, 'phone@bob');
-        expect(changes[2]?.atKey, 'email@charlie');
+      if (changes != null) {
+        expect(changes[0].atKey, 'location@alice');
+        expect(changes[1].atKey, 'phone@bob');
+        expect(changes[2].atKey, 'email@charlie');
       }
     });
 
     test('test last sequence number called once', () async {
       var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice')));
-      var key_1 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_2 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
     });
 
     test('test last sequence number called multiple times', () async {
       var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice')));
-      var key_1 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_2 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
     });
@@ -99,8 +98,8 @@ void main() async {
           .getCommitLog(_getShaForAtsign('@alice')));
       await commitLogInstance?.close();
       expect(
-          () async =>
-              await commitLogInstance?.commit('location@alice', CommitOp.UPDATE),
+          () async => await commitLogInstance?.commit(
+              'location@alice', CommitOp.UPDATE),
           throwsA(predicate((dynamic e) => e is DataStoreException)));
     });
 
@@ -117,8 +116,7 @@ void main() async {
     test('test entries since commit Id - box not available', () async {
       var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog(_getShaForAtsign('@alice')));
-      var key_1 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       await AtCommitLogManagerImpl.getInstance().close();
@@ -142,7 +140,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   return keyStoreManager;
 }
@@ -153,8 +152,6 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-
-
 }
 
 String _getShaForAtsign(String atsign) {

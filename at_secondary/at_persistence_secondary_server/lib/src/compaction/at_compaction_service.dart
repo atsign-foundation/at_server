@@ -12,8 +12,8 @@ class AtCompactionService {
     return _singleton;
   }
 
-  Future<void> executeCompaction(
-      AtCompactionConfig atCompactionConfig, AtLogType atLogType) async {
+  void executeCompaction(
+      AtCompactionConfig atCompactionConfig, AtLogType atLogType) {
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =

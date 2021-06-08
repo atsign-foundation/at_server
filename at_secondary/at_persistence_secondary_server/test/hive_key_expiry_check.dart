@@ -16,7 +16,7 @@ void main() async {
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var commitLogKeyStore = CommitLogKeyStore('@test_user_1');
-  commitLogKeyStore.init('test/hive/commit');
+  await commitLogKeyStore.init('test/hive/commit');
   keyStore.commitLog = AtCommitLog(commitLogKeyStore);
   keyStoreManager.keyStore = keyStore;
   var atData = AtData();

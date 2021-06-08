@@ -33,13 +33,13 @@ class AtNotification {
   final _expiresAt;
 
   @HiveField(9)
-  NotificationPriority? _priority;
+  final NotificationPriority? _priority;
 
   @HiveField(10)
-  NotificationStatus? _notificationStatus;
+  final NotificationStatus? _notificationStatus;
 
   @HiveField(11)
-  int? _retryCount;
+  final int? _retryCount;
 
   @HiveField(12)
   final _strategy;
@@ -135,18 +135,6 @@ class AtNotification {
         'notificationDateTime: $_notificationDateTime, '
         'toAtSign:$_toAtSign, notification:$_notification, '
         'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$_priority : notificationStatus:$notificationStatus : atValue:$atValue';
-  }
-
-  set priority(NotificationPriority? notificationPriority) {
-    _priority = notificationPriority;
-  }
-
-  set notificationStatus(NotificationStatus? notificationStatusNew) {
-    _notificationStatus = notificationStatusNew;
-  }
-
-  set retryCount(int? value) {
-    _retryCount = value;
   }
 }
 
@@ -262,6 +250,8 @@ class OperationTypeAdapter extends TypeAdapter<OperationType?> {
       case OperationType.delete:
         writer.writeByte(1);
         break;
+      default:
+        break;
     }
   }
 }
@@ -291,6 +281,8 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType?> {
         break;
       case NotificationType.received:
         writer.writeByte(1);
+        break;
+      default:
         break;
     }
   }
@@ -326,6 +318,8 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
         break;
       case NotificationStatus.queued:
         writer.writeByte(2);
+        break;
+      default:
         break;
     }
   }
@@ -367,6 +361,8 @@ class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority?> {
       case NotificationPriority.high:
         writer.writeByte(3);
         break;
+      default:
+        break;
     }
   }
 }
@@ -395,6 +391,8 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
         break;
       case MessageType.text:
         writer.writeByte(1);
+        break;
+      default:
         break;
     }
   }

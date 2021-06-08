@@ -30,7 +30,6 @@ class HivePersistenceManager {
   Future<bool> init(String atSign, String storagePath) async {
     var success = false;
     try {
-      assert(storagePath != null && storagePath != '');
       if (_debug) {
         logger.finer('AtPersistence.init received storagePath: ' + storagePath);
       }
@@ -64,7 +63,6 @@ class HivePersistenceManager {
         logger.finer('AtPersistence.openVault received hiveSecret: ' +
             hiveSecret.toString());
       }
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase().replaceAll(' ', '');
       if (_debug) {
         logger.finer('AtPersistence.openVault received atsign: $atsign');
@@ -93,7 +91,6 @@ class HivePersistenceManager {
       String atsign, String storagePath) async {
     List<int>? secretAsUint8List;
     try {
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase();
       if (_debug) {
         logger.finer('getHiveSecretFromFile fetching hiveSecretString for ' +
@@ -139,7 +136,7 @@ class HivePersistenceManager {
     var cron = Cron();
     cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atsign)!
+          .getSecondaryPersistenceStore(_atsign)!
           .getSecondaryKeyStore()!;
       hiveKeyStore.deleteExpiredKeys();
     });

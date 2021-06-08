@@ -79,7 +79,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   int entriesCount() {
     int? totalKeys = 0;
-    totalKeys = box?.keys?.length;
+    totalKeys = box?.keys.length;
     return totalKeys!;
   }
 

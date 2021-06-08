@@ -71,7 +71,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       commitOp = CommitOp.UPDATE_ALL;
     }
     try {
-      assert(key != null);
       var existingData = await get(key);
       if (existingData == null) {
         result = await create(key, value,
@@ -134,7 +133,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     commitOp = CommitOp.UPDATE;
 
     // Setting metadata defined in values
-    if (value != null && value.metaData != null) {
+    if (value.metaData != null) {
       time_to_live ??= value.metaData!.ttl;
       time_to_born ??= value.metaData!.ttb;
       time_to_refresh ??= value.metaData!.ttr;
@@ -172,7 +171,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> remove(String key) async {
     var result;
     try {
-      assert(key != null);
       await persistenceManager.box?.delete(Utf7.encode(key));
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;

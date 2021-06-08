@@ -13,9 +13,6 @@ class TimeBasedCompaction implements AtCompactionStrategy {
   @override
   void performCompaction(AtLogType atLogType) {
     var expiredKeys = atLogType.getExpired(timeInDays);
-    if (expiredKeys == null) {
-      return;
-    }
     // If expired keys is empty, log compaction is not performed.
     if (expiredKeys.isEmpty) {
       return;

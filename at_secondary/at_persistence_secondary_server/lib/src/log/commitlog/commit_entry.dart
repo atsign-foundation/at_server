@@ -8,11 +8,7 @@ class CommitEntry extends HiveObject {
   final String? _atKey;
 
   @HiveField(1)
-  CommitOp? _operation;
-
-  set operation(CommitOp? value) {
-    _operation = value;
-  }
+  final CommitOp? _operation;
 
   @HiveField(2)
   final DateTime? _opTime;
