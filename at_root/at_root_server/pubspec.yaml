@@ -20,12 +20,7 @@ dependencies:
       ref: trunk
       version: ^1.0.0
 
-  at_persistence_root_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_root/at_persistence_root_server
-      ref: trunk
-      version: ^1.0.0
+  at_persistence_root_server: ^1.0.0
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
