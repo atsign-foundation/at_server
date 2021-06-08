@@ -253,6 +253,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
+
+        if (certsAvailable || retryCount > 60) {
+          break;
+        }
+        
       } on FileSystemException {
         retryCount++;
         logger.info('certs unavailable. Retry count $retryCount');
@@ -265,7 +270,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               requestClientCertificate: true)
           .then((SecureServerSocket socket) {
         logger.info(
-            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion}');
+            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
         logger.info('Secure Socket open for $currentAtSign !');
         _serverSocket = socket;
         _listen(_serverSocket);
