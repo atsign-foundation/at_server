@@ -84,12 +84,12 @@ void main() async {
       expect(keys.length, 2);
     });
 
-    test('test get null key', () {
+    test('test get null key', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
       var keyStore = keyStoreManager.getSecondaryKeyStore();
-      expect(() async => await keyStore!.get(''),
-          throwsA(predicate((dynamic e) => e is AssertionError)));
+      var value = await keyStore!.get('');
+      expect(value, null);
     });
 
     test('test get expired keys - no data', () {
