@@ -16,16 +16,6 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^1.0.1+8
-  at_lookup: ^1.0.0+8
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_server_spec
-      ref: null_safety
-      version: ^1.1.0
-
-dependency_overrides:
   at_persistence_secondary_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
@@ -39,7 +29,12 @@ dependency_overrides:
       path: at_lookup
       ref: null_safety
       version: ^1.1.0
-
+  at_server_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_server_spec
+      ref: null_safety
+      version: ^1.1.0
 
 dev_dependencies:
   test: ^1.17.3
