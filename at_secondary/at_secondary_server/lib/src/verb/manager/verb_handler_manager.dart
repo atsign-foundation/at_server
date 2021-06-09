@@ -25,7 +25,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
-  List<VerbHandler> _verbHandlers;
+  static List<VerbHandler> _verbHandlers = _loadVerbHandlers();
 
   static final DefaultVerbHandlerManager _singleton =
       DefaultVerbHandlerManager._internal();
@@ -36,18 +36,13 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     return _singleton;
   }
 
-  /// Initializing verb handlers
-  void init() {
-    _verbHandlers = _loadVerbHandlers();
-  }
-
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
   ///@param - utf8EncodedCommand: command in UTF-8 format.
   ///@return - VerbHandler: returns the appropriate verb handler.
   @override
-  VerbHandler getVerbHandler(String utf8EncodedCommand) {
+  VerbHandler? getVerbHandler(String? utf8EncodedCommand) {
     for (var handler in _verbHandlers) {
-      if (handler.accept(utf8EncodedCommand)) {
+      if (handler.accept(utf8EncodedCommand!)) {
         if (handler is MonitorVerbHandler) {
           return handler.clone();
         }
@@ -57,13 +52,13 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     return null;
   }
 
-  List<VerbHandler> _loadVerbHandlers() {
+  static List<VerbHandler> _loadVerbHandlers() {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(
-                AtSecondaryServerImpl.getInstance().currentAtSign);
+                AtSecondaryServerImpl.getInstance().currentAtSign)!;
     var keyStore =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
+        secondaryPersistenceStore.getSecondaryKeyStoreManager()!.getKeyStore();
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));

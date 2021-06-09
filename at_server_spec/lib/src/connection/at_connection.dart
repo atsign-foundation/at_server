@@ -13,16 +13,16 @@ abstract class AtConnection {
   AtConnectionMetaData getMetaData();
 
   /// closes the underlying connection
-  void close();
+  Future<void> close();
 
   /// Returns true if connection is closed or idle for configured time
   bool isInValid();
 }
 
 abstract class AtConnectionMetaData {
-  String sessionID;
-  DateTime lastAccessed;
-  DateTime created;
+  String? sessionID;
+  DateTime? lastAccessed;
+  DateTime? created;
   bool isClosed = false;
   bool isCreated = false;
   bool isStale = false;
@@ -30,5 +30,5 @@ abstract class AtConnectionMetaData {
   bool isAuthenticated = false;
   bool isPolAuthenticated = false;
   bool isStream = false;
-  String streamId;
+  String? streamId;
 }

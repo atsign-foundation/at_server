@@ -9,7 +9,7 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  var outboundClient;
+  late var outboundClient;
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = 2000;

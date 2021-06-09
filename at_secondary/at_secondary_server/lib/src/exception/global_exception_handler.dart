@@ -20,7 +20,7 @@ class GlobalExceptionHandler {
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
-      {AtConnection atConnection, Socket clientSocket}) async {
+      {AtConnection? atConnection, Socket? clientSocket}) async {
     if (exception is InvalidSyntaxException ||
         exception is InvalidAtSignException ||
         exception is BlockedConnectionException ||
@@ -30,7 +30,7 @@ class GlobalExceptionHandler {
       // If we get InvalidSyntaxException, InvalidAtSignException, InboundConnectionLimitException
       // send error code
       // Close all the related inbound/outbound connections
-      await _sendResponse(exception, atConnection);
+      await _sendResponse(exception as AtException, atConnection);
       _closeConnection(atConnection);
     } else if (exception is DataStoreException ||
         exception is ConnectionInvalidException) {
@@ -38,7 +38,7 @@ class GlobalExceptionHandler {
       // Retry for n number of times and Close connection.
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
-      await _handleInboundLimit(exception, clientSocket);
+      await _handleInboundLimit(exception, clientSocket!);
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -48,7 +48,7 @@ class GlobalExceptionHandler {
       // In case of OutboundConnectionLimitException, LookupException, ConnectionInvalidException
       // SecondaryNotFoundException, HandShakeException, UnAuthorizedException, UnverifiedConnectionException
       // send error code.
-      await _sendResponse(exception, atConnection);
+      await _sendResponse(exception as AtException, atConnection);
     } else if (exception is AtServerException ||
         exception is ArgParserException) {
       // In case of AtServerException terminate the server
@@ -73,12 +73,12 @@ class GlobalExceptionHandler {
   /// Method to close connection.
   /// params: AtConnection
   /// This will close the connection and remove it from pool
-  void _closeConnection(AtConnection atConnection) {
-    atConnection?.close();
+  void _closeConnection(AtConnection? atConnection) async {
+    await atConnection?.close();
   }
 
   Future<void> _handleInternalException(
-      AtException exception, AtConnection atConnection) async {
+      AtException exception, AtConnection? atConnection) async {
     await _sendResponse(exception, atConnection);
   }
 
@@ -86,15 +86,14 @@ class GlobalExceptionHandler {
   /// Params: AtException, AtConnection
   /// We'll get error code based on the exception and write error:<error_code> to the client socket
   Future<void> _sendResponse(
-      AtException exception, AtConnection atConnection) async {
+      AtException exception, AtConnection? atConnection) async {
     if (atConnection != null) {
       if (!atConnection.isInValid()) {
         var prompt = _getPrompt(atConnection);
         var error_code = getErrorCode(exception);
         var error_description =
             '${getErrorDescription(error_code)} : ${exception.message}';
-        await _writeToSocket(
-            atConnection, prompt, error_code, error_description);
+        _writeToSocket(atConnection, prompt, error_code, error_description);
       }
     }
   }
@@ -110,17 +109,17 @@ class GlobalExceptionHandler {
     return prompt;
   }
 
-  String getErrorCode(Exception exception) {
+  String? getErrorCode(Exception exception) {
     var error_code = error_codes[exception.runtimeType.toString()];
     return error_code;
   }
 
-  String getErrorDescription(String error_code) {
+  String? getErrorDescription(String? error_code) {
     return error_description[error_code];
   }
 
-  Future<void> _writeToSocket(AtConnection atConnection, String prompt,
-      String error_code, String error_description) async {
+  void _writeToSocket(AtConnection atConnection, String prompt,
+      String? error_code, String error_description) {
     atConnection.write('error:$error_code-$error_description\n$prompt');
   }
 }

@@ -18,7 +18,7 @@ import 'verb.dart';
 /// ```
 class Config extends Verb {
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

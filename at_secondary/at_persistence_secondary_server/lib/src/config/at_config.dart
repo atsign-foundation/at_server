@@ -15,7 +15,7 @@ class AtConfig {
   ///stores 'Configuration' type under [configkey] in secondary.
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  final _atSign;
+  final String? _atSign;
   var _commitLog;
   var persistenceManager;
 
@@ -25,7 +25,7 @@ class AtConfig {
 
   AtConfig(this._commitLog, this._atSign) {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(_atSign)
+        .getSecondaryPersistenceStore(_atSign)!
         .getHivePersistenceManager();
   }
 
@@ -33,12 +33,10 @@ class AtConfig {
   Future<String> addToBlockList(Set<String> data) async {
     var result;
     try {
-      assert(data != null);
       assert(data.isNotEmpty);
-
       var existingData = await get(configKey);
       var blockList = await getBlockList();
-      var uniqueBlockList = Set.from(blockList ?? []);
+      var uniqueBlockList = Set.from(blockList);
       uniqueBlockList.addAll(data);
       var config = Configuration(List<String>.from(uniqueBlockList));
       result = await prepareAndStoreData(config, existingData);
@@ -53,12 +51,10 @@ class AtConfig {
   }
 
   ///removes [data] from blocklist if satisfies basic conditions.
-  Future<String> removeFromBlockList(Set<String> data) async {
+  Future<String?> removeFromBlockList(Set<String> data) async {
     var result;
     try {
-      assert(data != null);
       assert(data.isNotEmpty);
-
       var existingData = await get(configKey);
       if (existingData != null) {
         var blockList = await getBlockList();
@@ -78,11 +74,11 @@ class AtConfig {
 
   ///Returns blocklist by fetching from atsign's secondary.
   Future<Set<String>> getBlockList() async {
-    Set<String> result;
+    var result = <String>{};
     try {
       var existingData = await get(configKey);
       if (existingData != null) {
-        var config = jsonDecode(existingData.data);
+        var config = jsonDecode(existingData.data!);
         result = Set<String>.from(config['blockList']);
       }
       return result;
@@ -96,7 +92,7 @@ class AtConfig {
   }
 
   ///Returns [AtData] value for given [key].
-  Future<AtData> get(String key) async {
+  Future<AtData?> get(String key) async {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
@@ -116,7 +112,7 @@ class AtConfig {
     var result = false;
     try {
       var blockList = await getBlockList();
-      result = blockList?.contains(atsign) ?? result;
+      result = blockList.contains(atsign);
       return result;
     } on Exception catch (e) {
       throw DataStoreException(

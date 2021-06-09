@@ -94,7 +94,7 @@ void main() async {
 }
 
 class MockInBoundConnectionImpl extends InboundConnectionImpl {
-  MockInBoundConnectionImpl(Socket socket, String sessionId)
+  MockInBoundConnectionImpl(Socket? socket, String sessionId)
       : super(socket, sessionId);
 
   @override

@@ -4,7 +4,7 @@ import 'package:at_secondary/src/utils/regex_util.dart' as at_regex;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_utils.dart';
 
-HashMap<String, String> getVerbParam(String regex, String command) {
+HashMap<String, String?> getVerbParam(String regex, String command) {
   var regExp = RegExp(regex, caseSensitive: false);
   var regexMatches = at_regex.getMatches(regExp, command);
   if (regexMatches.isEmpty) {
@@ -16,7 +16,7 @@ HashMap<String, String> getVerbParam(String regex, String command) {
 
 /// Validates the TTR and CCD metadata.
 Map<String, dynamic> validateCacheMetadata(
-    AtMetaData metadata, int ttr_ms, bool ccd) {
+    AtMetaData? metadata, int? ttr_ms, bool? ccd) {
   // If metadata is null, key is new.
   // When key is new, If TTR is populated and CCD is not populated, CCD defaults to false.
   // If TTR is not populated and CCD is populated, Throw InvalidSyntaxException.

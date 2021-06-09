@@ -13,7 +13,7 @@ class From extends Verb {
   String syntax() => VerbSyntax.from;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

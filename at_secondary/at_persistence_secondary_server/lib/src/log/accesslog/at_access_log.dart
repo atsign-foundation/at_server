@@ -8,7 +8,7 @@ import 'package:at_utils/at_logger.dart';
 class AtAccessLog implements AtLogType {
   var logger = AtSignLogger('AtAccessLog');
 
-  var _accessLogKeyStore;
+  late var _accessLogKeyStore;
 
   AtAccessLog(AccessLogKeyStore keyStore) {
     _accessLogKeyStore = keyStore;
@@ -18,8 +18,8 @@ class AtAccessLog implements AtLogType {
   ///@param fromAtSign : The another user atsign
   ///@param verbName : The verb performed by the atsign user
   ///@param lookupKey : The optional parameter to hold lookup key when performing lookup or plookup verb.
-  Future<int> insert(String fromAtSign, String verbName,
-      {String lookupKey}) async {
+  Future<int?> insert(String fromAtSign, String verbName,
+      {String? lookupKey}) async {
     var result;
     var entry = AccessLogEntry(fromAtSign, DateTime.now(), verbName, lookupKey);
     try {
@@ -37,7 +37,7 @@ class AtAccessLog implements AtLogType {
   ///The functions returns the top [length] visited atSign's.
   ///@param - length : The maximum number of atsign's to return
   ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
-  Map mostVisitedAtSigns(int length) {
+  Map? mostVisitedAtSigns(int length) {
     return _accessLogKeyStore.mostVisitedAtSigns(length);
   }
 
@@ -45,7 +45,7 @@ class AtAccessLog implements AtLogType {
   ///@param length : The recent number of keys to fetch
   ///@return Map : Returns a key value pair. Key is the atsign key looked up and
   ///value is number of times the key is looked up.
-  Map mostVisitedKeys(int length) {
+  Map? mostVisitedKeys(int length) {
     return _accessLogKeyStore.mostVisitedKeys(length);
   }
 

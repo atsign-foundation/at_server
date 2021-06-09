@@ -87,16 +87,17 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@alice', storageDir);
   await persistenceManager.openVault('@alice');
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   return keyStoreManager;
 }

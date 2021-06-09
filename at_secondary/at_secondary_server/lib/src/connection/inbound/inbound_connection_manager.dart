@@ -17,7 +17,7 @@ class InboundConnectionManager implements AtConnectionFactory {
 
   bool _isInitialized = false;
 
-  InboundConnectionPool _pool;
+  late InboundConnectionPool _pool;
 
   factory InboundConnectionManager.getInstance() {
     return _singleton;
@@ -29,7 +29,7 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
-  InboundConnection createConnection(Socket socket, {String sessionId}) {
+  InboundConnection createConnection(Socket? socket, {String? sessionId}) {
     if (!_isInitialized) {
       init(default_pool_size);
     }
@@ -50,7 +50,7 @@ class InboundConnectionManager implements AtConnectionFactory {
 
   /// Initialises inbound client pool with a given size.
   /// @param - size - Maximum clients the pool can hold
-  void init(int size) {
+  void init(int? size) {
     _pool = InboundConnectionPool.getInstance();
     _pool.init(size);
     _isInitialized = true;

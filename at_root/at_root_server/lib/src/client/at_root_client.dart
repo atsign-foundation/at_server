@@ -7,9 +7,9 @@ import 'package:at_commons/at_commons.dart';
 
 /// Represents Root Server client instance which contains socket on which a connection got established
 class RootClient {
-  Socket _socket;
-  String _address;
-  int _port;
+  late Socket _socket;
+  String? _address;
+  int? _port;
   static final _keyStoreManager = KeystoreManagerImpl();
   final _buffer = StringBuffer(capacity: 255);
 
@@ -33,14 +33,14 @@ class RootClient {
       var message = utf8.decode(data);
       message = message.toLowerCase();
       _buffer.append(message);
-      if (_buffer.getData().trim() == '@exit') {
+      if (_buffer.getData()!.trim() == '@exit') {
         _finishedHandler();
         return;
       } else {
         if (_buffer.isEnd()) {
           var result = await _keyStoreManager
               .getKeyStore()
-              .get(_buffer.getData().trim());
+              .get(_buffer.getData()!.trim());
           logger.finer('result:${result}');
           result ??= 'null';
           write(result + '\r\n@');
@@ -49,7 +49,7 @@ class RootClient {
       }
     } on Exception catch (exception) {
       logger.severe(exception);
-      await _socket.destroy();
+      _socket.destroy();
     } catch (error) {
       _errorHandler(error.toString());
     }

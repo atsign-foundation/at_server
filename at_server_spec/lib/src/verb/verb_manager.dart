@@ -16,7 +16,7 @@ abstract class VerbHandlerManager {
   /// Returns the verb handler for a given command
   /// @param utf8 encoded command
   /// @returns [VerbHandler]
-  VerbHandler getVerbHandler(String utf8EncodedCommand);
+  VerbHandler? getVerbHandler(String utf8EncodedCommand);
 }
 
 abstract class VerbExecutor {
@@ -24,6 +24,6 @@ abstract class VerbExecutor {
   /// @params utf8EncodedCommand - command to execute
   /// @params fromConnection - requesting [InboundConnection]
   /// @params verbManager - [VerbHandlerManager]
-  Future<void> execute(String utf8EncodedCommand,
-      InboundConnection fromConnection, VerbHandlerManager verbManager);
+  Future<void> execute(String utf8EncodedCommand, InboundConnection fromConnection,
+      VerbHandlerManager verbManager);
 }

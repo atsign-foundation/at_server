@@ -4,7 +4,7 @@ abstract class Keystore<K, V> {
   ///
   /// @param key Key associated with a value.
   /// @return Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key or if key is not null.
-  Future<V> get(K key);
+  Future<V>? get(K key);
 }
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
@@ -19,13 +19,13 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> put(K key, V value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature});
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -36,12 +36,12 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> create(K key, V value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted});
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted});
 
   /// Removes the mapping for a key from this key store if it is present
   ///

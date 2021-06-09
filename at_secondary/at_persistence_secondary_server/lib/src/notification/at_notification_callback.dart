@@ -30,7 +30,7 @@ class AtNotificationCallback {
   /// Method to deregister callback function
   void unregisterNotificationCallback(
       NotificationType notificationType, Function callback) {
-    var functions = callbackMethods[notificationType];
+    var functions = callbackMethods[notificationType]!;
     functions.forEach((nfs) {
       if (nfs.function == callback) {
         nfs.isValid = false;
@@ -39,21 +39,21 @@ class AtNotificationCallback {
   }
 
   /// Method to invoke registered callbacks
-  void invokeCallbacks(AtNotification atNotification) async {
+  void invokeCallbacks(AtNotification? atNotification) async {
     try {
       if (atNotification == null) {
         return;
       }
       //Based on notification Entry type get callback function and invoke
       if (atNotification.type == NotificationType.received) {
-        var callbacks = callbackMethods[atNotification.type];
+        var callbacks = callbackMethods[atNotification.type!];
         if (callbacks == null || callbacks.isEmpty) {
           //logger.info('No callback registered for received notifications');
           return;
         }
         callbacks.forEach((callback) {
-          if (callback.isValid) {
-            callback.function(atNotification);
+          if (callback.isValid!) {
+            callback.function!(atNotification);
           }
         });
       }
@@ -69,6 +69,6 @@ class AtNotificationCallback {
 }
 
 class NotificationFunction {
-  Function function;
-  bool isValid;
+  Function? function;
+  bool? isValid;
 }

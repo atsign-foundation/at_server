@@ -30,7 +30,7 @@ void main() {
     var regex = verb.syntax();
     expect(
         () => getVerbParam(regex, command),
-        throwsA(predicate((e) =>
+        throwsA(predicate((dynamic e) =>
             e is InvalidSyntaxException && e.message == 'Syntax Exception')));
   });
 
@@ -39,11 +39,10 @@ void main() {
     var inbound = InboundConnectionImpl(null, null);
     var defaultVerbExecutor = DefaultVerbExecutor();
     var defaultVerbHandlerManager = DefaultVerbHandlerManager();
-    defaultVerbHandlerManager.init();
     expect(
         () => defaultVerbExecutor.execute(
             command, inbound, defaultVerbHandlerManager),
-        throwsA(predicate((e) =>
+        throwsA(predicate((dynamic e) =>
             e is InvalidSyntaxException && e.message == 'invalid command')));
   });
 }

@@ -1,6 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -21,7 +21,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
-  PolVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  PolVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -46,9 +46,10 @@ class PolVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
     var _from = atConnectionMetadata.from;
@@ -59,8 +60,8 @@ class PolVerbHandler extends AbstractVerbHandler {
     // If true proceed else return error message
     if (_from == true) {
       // Getting secondary server URL
-      var secondary_url =
-          await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort);
+      var secondary_url = await AtLookupImpl.findSecondary(
+          fromAtSign!, _rootDomain, _rootPort!);
       logger.finer('secondary url : $secondary_url');
       if (secondary_url != null && secondary_url.contains(':')) {
         var lookUpKey = '$sessionID$fromAtSign';
@@ -76,26 +77,28 @@ class PolVerbHandler extends AbstractVerbHandler {
           await outBoundClient.connect(handshake: false);
         }
         var signedChallenge =
-            await outBoundClient.lookUp(lookUpKey, handshake: false);
-        signedChallenge = signedChallenge.replaceFirst('data:', '');
+            await (outBoundClient.lookUp(lookUpKey, handshake: false));
+        signedChallenge = signedChallenge?.replaceFirst('data:', '');
         var plookupCommand = 'signing_publickey$fromAtSign';
-        var fromPublicKey = await outBoundClient.plookUp(plookupCommand);
-        fromPublicKey = fromPublicKey.replaceFirst('data:', '');
+        var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
+        fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
         // Getting stored secret from this secondary server
-        var secret = await keyStore.get('public:' + sessionID + fromAtSign);
+        var secret = await keyStore!.get('public:' + sessionID! + fromAtSign);
         var message = secret?.data;
-        var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
-            .verifySHA256Signature(
-                utf8.encode(message), base64Decode(signedChallenge));
-        logger.finer('isValidChallenge:$isValidChallenge');
-        // Comparing secretLookup form other secondary and stored secret are same or not
-        if (isValidChallenge) {
-          atConnectionMetadata.isPolAuthenticated = true;
-          response.data = 'pol:$fromAtSign@';
-          await atAccessLog.insert(fromAtSign, pol.name());
-          logger.info('response : $fromAtSign@');
-        } else {
-          throw UnAuthenticatedException('Pol Authentication Failed');
+        if (fromPublicKey != null && signedChallenge != null) {
+          // Comparing secretLookup form other secondary and stored secret are same or not
+          var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+              .verifySHA256Signature(utf8.encode(message) as Uint8List,
+                  base64Decode(signedChallenge));
+          logger.finer('isValidChallenge:$isValidChallenge');
+          if (isValidChallenge) {
+            atConnectionMetadata.isPolAuthenticated = true;
+            response.data = 'pol:$fromAtSign@';
+            await atAccessLog!.insert(fromAtSign, pol.name());
+            logger.info('response : $fromAtSign@');
+          } else {
+            throw UnAuthenticatedException('Pol Authentication Failed');
+          }
         }
 
         return;

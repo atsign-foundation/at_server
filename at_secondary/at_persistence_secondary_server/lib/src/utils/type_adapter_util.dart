@@ -1,5 +1,5 @@
 ///Sets the typeId of Hive type adapters to a unique number.
-const Map typeAdapterMap = {
+final Map typeAdapterMap = {
   'AtDataAdapter': 0,
   'AtMetaDataAdapter': 1,
   'CommitEntryAdapter': 2,

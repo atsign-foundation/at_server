@@ -27,7 +27,7 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var notificationId = verbParams['notificationId'];
 

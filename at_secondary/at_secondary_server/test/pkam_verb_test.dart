@@ -27,7 +27,7 @@ void main() {
     var regex = verb.syntax();
     expect(
         () => getVerbParam(regex, command),
-        throwsA(predicate((e) =>
+        throwsA(predicate((dynamic e) =>
             e is InvalidSyntaxException && e.message == 'Syntax Exception')));
   });
 
@@ -60,13 +60,13 @@ void main() {
   tearDown(() async => await tearDownFunc());
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager?> setUpFunc(storageDir) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@alice', storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
