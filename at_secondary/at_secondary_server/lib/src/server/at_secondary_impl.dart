@@ -242,7 +242,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (certsAvailable || retryCount > 60) {
           break;
         }
-
         secCon.useCertificateChain(
             serverContext!.securityContext!.publicKeyPath());
         secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath());
@@ -252,8 +251,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } on FileSystemException {
         retryCount++;
         logger.info('certs unavailable. Retry count $retryCount');
+        sleep(Duration(seconds: 10));
       }
-      sleep(Duration(seconds: 10));
     }
     if (certsAvailable) {
       SecureServerSocket.bind(
