@@ -29,6 +29,12 @@ dependencies:
   at_commons: ^1.0.1+8
 
 dependency_overrides:
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: null_safety
+      version: ^1.1.0
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'package:at_root_server/src/client/at_root_client.dart';
 import 'package:at_root_server/src/client/at_root_client_pool.dart';
