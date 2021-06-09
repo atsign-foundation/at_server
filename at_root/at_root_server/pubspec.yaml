@@ -16,14 +16,14 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
 
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
   at_utils: ^1.0.1+8
   at_commons: ^1.0.1+8
@@ -33,19 +33,19 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
 
 

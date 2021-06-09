@@ -22,7 +22,7 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: dart_utf7
-      ref: null_safety
+      ref: trunk
       version: 0.2.1-null-safety
 
 dependency_overrides:
@@ -30,19 +30,19 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: null_safety
+      ref: trunk
       version: ^1.1.0
 
 dev_dependencies:
