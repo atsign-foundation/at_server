@@ -17,7 +17,7 @@ class OutboundMessageListener {
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() {
-    var connection = client.outboundConnection!;
+    var connection = client.outboundConnection;
     connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
     _queue = Queue();

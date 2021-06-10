@@ -1,13 +1,13 @@
 import 'dart:io';
-import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_lookup/at_lookup.dart';
 
 class OutboundConnectionImpl extends OutboundConnection {
   static int? outbound_idle_time =
       AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
 
-  OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket) {
+  OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket!) {
     var sessionId = '_' + Uuid().v4();
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
@@ -30,5 +30,10 @@ class OutboundConnectionImpl extends OutboundConnection {
   @override
   bool isInValid() {
     return _isIdle() || getMetaData().isClosed || getMetaData().isStale;
+  }
+
+  @override
+  void setIdleTime(int? idleTimeMillis) {
+    outbound_idle_time = idleTimeMillis;
   }
 }

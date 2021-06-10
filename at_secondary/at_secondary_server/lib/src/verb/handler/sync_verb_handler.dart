@@ -27,7 +27,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
-      InboundConnection? atConnection) async {
+      InboundConnection atConnection) async {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE]!;
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
@@ -61,13 +61,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
     //sort the result by commitId ascending
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
-    var result;
-
     if (syncResultList.isNotEmpty) {
-      result = jsonEncode(syncResultList);
+      syncResultList.forEach((element) {
+        atConnection
+            .write('${jsonEncode(element).length}~${jsonEncode(element)}\$');
+      });
     }
 
-    response.data = result;
     return;
   }
 

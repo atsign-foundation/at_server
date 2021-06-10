@@ -49,7 +49,7 @@ void main() {
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection!.getMetaData().isStale = true;
+      client.outboundConnection.getMetaData().isStale = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(
@@ -63,7 +63,7 @@ void main() {
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection!.getMetaData().isClosed = true;
+      client.outboundConnection.getMetaData().isClosed = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(
