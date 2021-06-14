@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 1.1.0-NULLSAFETY
+version: 2.0.1-NULLSAFETY
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -31,7 +31,7 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
       ref: trunk
-      version: ^1.1.0
+      version: ^2.0.0
   at_persistence_secondary_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
@@ -43,19 +43,19 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: sdk_refactoring
-      version: ^1.1.1
+      version: ^2.0.1
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
       ref: sdk_refactoring
-      version: ^1.1.0
+      version: ^2.0.0
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: sdk_refactoring
-      version: ^1.1.1
+      version: ^2.0.1
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
