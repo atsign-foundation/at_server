@@ -42,14 +42,14 @@ void main() {
     print(id);
 
     // notify status
-    await socket_writer(_socket_first_atsign, 'notify:status:$id');
-    await Future.delayed(Duration(seconds: 6));
+    await Future.delayed(Duration(seconds: 15));
+    await socket_writer(_socket_second_atsign, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
     assert(response.contains('data:delivered'));
     
     ///notify:list verb
-    await socket_writer(_socket_second_atsign, 'notify:list');
+    await socket_writer(_socket_first_atsign, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
     expect(
@@ -70,13 +70,13 @@ void main() {
 
     //   // notify status
     await Future.delayed(Duration(seconds: 15));
-    await socket_writer(_socket_first_atsign, 'notify:status:$id');
+    await socket_writer(_socket_second_atsign, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     //   ///notify:list verb
-    await socket_writer(_socket_second_atsign, 'notify:list');
+    await socket_writer(_socket_first_atsign, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
     expect(response,
@@ -94,7 +94,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     //   // notify status
-    // await Future.delayed(Duration(seconds: 15));
+    await Future.delayed(Duration(seconds: 15));
     await socket_writer(_socket_first_atsign, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
@@ -158,7 +158,7 @@ void main() {
             '"key":"$second_atsign:twitter$first_atsign","value":"bob_G","operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  // // notify all delete
+  // notify all delete
   test('notify all for notifiying 2 atsigns at the same time for a delete ',
       () async {
     /// NOTIFY VERB

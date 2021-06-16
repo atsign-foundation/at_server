@@ -91,9 +91,8 @@ void main() {
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
 
-    var root_server1 = ConfigUtil.getYaml()['root_server']['url'];
     _socket_second_atsign =
-        await secure_socket_connection(root_server1, second_atsign_port);
+        await secure_socket_connection(root_server, second_atsign_port);
     socket_listener(_socket_second_atsign);
     await prepare(_socket_second_atsign, second_atsign);
 
@@ -104,7 +103,7 @@ void main() {
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign, 'scan:$second_atsign');
+    await socket_writer(_socket_first_atsign, 'scan 🦄');
     response = await read();
     await Future.delayed(Duration(seconds: 5));
     print('scan verb response : $response');

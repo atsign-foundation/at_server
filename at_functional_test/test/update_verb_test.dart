@@ -6,12 +6,14 @@ import 'dart:io';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
-  var first_atsign = '@bob🛠';
+ var first_atsign = '@bob🛠';
   var first_atsign_port = 25003;
 
   var second_atsign = '@alice🛠';
+  var second_atsign_port = 25000;
 
   Socket _socket_first_atsign;
+  Socket _socket_second_atsign;
   
   setUp(() async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
@@ -19,6 +21,11 @@ void main() {
         await secure_socket_connection(root_server, first_atsign_port);
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
+
+    _socket_second_atsign =
+    await secure_socket_connection(root_server, second_atsign_port);
+    socket_listener(_socket_second_atsign);
+    await prepare(_socket_second_atsign, second_atsign);
   });
 
   test('update-llookup verb with public key', () async {
@@ -134,6 +141,26 @@ void main() {
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:"パーニマぱーにま"'));
+  }, timeout: Timeout(Duration(seconds: 90)));
+
+  test('update verb by sharing a cached key ', () async {
+    ///UPDATE VERB
+    await socket_writer(_socket_first_atsign, 'update:ttr:-1:$second_atsign:yt$first_atsign john');
+    var response = await read();
+    print('update verb response : $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///LLOOKUP VERB in the same secondary
+    await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:yt$first_atsign');
+    response = await read();
+    print('llookup verb response : $response');
+    expect(response, contains('data:john'));
+
+    //LOOKUP VERB in the shared secondary
+    await socket_writer(_socket_second_atsign, 'llookup:cached:$second_atsign:yt$first_atsign');
+    response = await read();
+    print('llookup verb response : $response');
+    expect(response, contains('data:john'));
   }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb by passing 2 @ symbols ', () async {
