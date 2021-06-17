@@ -100,7 +100,7 @@ class PolVerbHandler extends AbstractVerbHandler {
             throw UnAuthenticatedException('Pol Authentication Failed');
           }
         }
-
+        outBoundClient.close();
         return;
       } else {
         throw SecondaryNotFoundException(
