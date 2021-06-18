@@ -63,6 +63,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     if (syncResultList.isNotEmpty) {
       syncResultList.forEach((element) {
+        logger.info('Syncing element on server ${element['atKey']}');
         atConnection
             .write('${jsonEncode(element).length}~${jsonEncode(element)}\$');
       });
