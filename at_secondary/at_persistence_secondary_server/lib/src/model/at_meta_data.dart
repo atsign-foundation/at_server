@@ -2,55 +2,55 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
-@HiveType()
+@HiveType(typeId: 1)
 class AtMetaData extends HiveObject {
   @HiveField(0)
-  String createdBy;
+  String? createdBy;
 
   @HiveField(1)
-  String updatedBy;
+  String? updatedBy;
 
   @HiveField(2)
-  DateTime createdAt;
+  DateTime? createdAt;
 
   @HiveField(3)
-  DateTime updatedAt;
+  DateTime? updatedAt;
 
   @HiveField(4)
-  DateTime expiresAt;
+  DateTime? expiresAt;
 
   @HiveField(5)
-  String status;
+  String? status;
 
   @HiveField(6)
-  int version;
+  int? version;
 
   @HiveField(7)
-  DateTime availableAt;
+  DateTime? availableAt;
 
   @HiveField(8)
-  int ttb;
+  int? ttb;
 
   @HiveField(9)
-  int ttl;
+  int? ttl;
 
   @HiveField(10)
-  int ttr;
+  int? ttr;
 
   @HiveField(11)
-  DateTime refreshAt;
+  DateTime? refreshAt;
 
   @HiveField(12)
-  bool isCascade;
+  bool? isCascade;
 
   @HiveField(13)
-  bool isBinary;
+  bool? isBinary;
 
   @HiveField(14)
-  bool isEncrypted;
+  bool? isEncrypted;
 
   @HiveField(15)
-  String dataSignature;
+  String? dataSignature;
 
   @override
   String toString() {
@@ -129,7 +129,7 @@ class AtMetaData extends HiveObject {
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
   @override
-  final typeId = typeAdapterMap['AtMetaDataAdapter'];
+  final int typeId = typeAdapterMap['AtMetaDataAdapter'];
 
   @override
   AtMetaData read(BinaryReader reader) {
@@ -138,20 +138,20 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return AtMetaData()
-      ..createdBy = fields[0] as String
-      ..updatedBy = fields[1] as String
-      ..createdAt = fields[2] as DateTime
-      ..updatedAt = fields[3] as DateTime
-      ..expiresAt = fields[4] as DateTime
-      ..status = fields[5] as String
-      ..version = fields[6] as int
-      ..ttb = fields[7] as int
-      ..ttl = fields[8] as int
-      ..ttr = fields[9] as int
-      ..refreshAt = fields[10] as DateTime
-      ..isCascade = fields[11] as bool
-      ..availableAt = fields[12] as DateTime
-      ..isBinary = fields[13] as bool
+      ..createdBy = fields[0] as String?
+      ..updatedBy = fields[1] as String?
+      ..createdAt = fields[2] as DateTime?
+      ..updatedAt = fields[3] as DateTime?
+      ..expiresAt = fields[4] as DateTime?
+      ..status = fields[5] as String?
+      ..version = fields[6] as int?
+      ..ttb = fields[7] as int?
+      ..ttl = fields[8] as int?
+      ..ttr = fields[9] as int?
+      ..refreshAt = fields[10] as DateTime?
+      ..isCascade = fields[11] as bool?
+      ..availableAt = fields[12] as DateTime?
+      ..isBinary = fields[13] as bool?
       ..isEncrypted = fields[14]
       ..dataSignature = fields[15];
   }

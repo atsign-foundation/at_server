@@ -20,7 +20,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
   static UpdateMeta updateMeta = UpdateMeta();
 
-  UpdateMetaVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  UpdateMetaVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -31,7 +31,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   Verb getVerb() => updateMeta;
 
   @override
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     var verbParams = super.parse(command);
     if (command.contains('public:')) {
       verbParams.putIfAbsent('isPublic', () => 'true');
@@ -42,7 +42,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var forAtSign = verbParams[FOR_AT_SIGN];
     forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -66,17 +66,15 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (ttr_ms != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
       isEncrypted = AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
       ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
-      metadata = await keyStore.getMeta(key);
+      metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
-      if (cacheRefreshMetaMap != null) {
-        ttr_ms = cacheRefreshMetaMap[AT_TTR];
-        ccd = cacheRefreshMetaMap[CCD];
-      }
+      ttr_ms = cacheRefreshMetaMap[AT_TTR];
+      ccd = cacheRefreshMetaMap[CCD];
     } on InvalidSyntaxException {
       rethrow;
     }
@@ -89,13 +87,13 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             isBinary: isBinary,
             isEncrypted: isEncrypted)
         .build();
-    var result = await keyStore.putMeta(key, atMetaData);
+    var result = await keyStore!.putMeta(key, atMetaData);
     response.data = result?.toString();
     // If forAtSign is null, do not auto notify
     if (forAtSign == null) {
       return;
     }
-    if (AUTO_NOTIFY && (atSign != forAtSign)) {
+    if (AUTO_NOTIFY! && (atSign != forAtSign)) {
       _notify(
           forAtSign,
           atSign,
@@ -105,7 +103,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  String _constructKey(String key, String forAtSign, String atSign) {
+  String _constructKey(String? key, String? forAtSign, String? atSign) {
     if (forAtSign != null) {
       key = '$forAtSign:$key';
     }
@@ -113,7 +111,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     return key;
   }
 
-  void _notify(forAtSign, atSign, key, priority, AtMetaData atMetaData) {
+  void _notify(forAtSign, atSign, key, priority, AtMetaData? atMetaData) {
     if (forAtSign == null) {
       return null;
     }

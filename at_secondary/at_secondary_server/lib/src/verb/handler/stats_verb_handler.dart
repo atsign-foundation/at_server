@@ -22,8 +22,8 @@ enum MetricNames {
   SECONDARY_SERVER_VERSION
 }
 
-extension MetricClasses on MetricNames {
-  MetricProvider get name {
+extension MetricClasses on MetricNames? {
+  MetricProvider? get name {
     switch (this) {
       case MetricNames.INBOUND:
         return InboundMetricImpl.getInstance();
@@ -60,7 +60,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
 
   var _regex;
 
-  StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  StatsVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -76,12 +76,12 @@ class StatsVerbHandler extends AbstractVerbHandler {
   Future<void> addStatToResult(id, result) async {
     logger.info('addStatToResult for id : $id, regex: $_regex');
     var metric = _getMetrics(id);
-    var name = metric.name.getName();
+    var name = metric.name!.getName();
     var value;
     if (id == '3' && _regex != null) {
-      value = metric.name.getMetrics(regex: _regex);
+      value = metric.name!.getMetrics(regex: _regex);
     } else {
-      value = await metric.name.getMetrics();
+      value = await metric.name!.getMetrics();
     }
     var stat = Stat(id, name, value);
     result.add(jsonEncode(stat));
@@ -93,7 +93,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
       var statID = verbParams[AT_STAT_ID];
@@ -110,7 +110,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
       var result = [];
       //Iterate through stats_id_list
       await Future.forEach(
-          stats_list, (element) => addStatToResult(element, result));
+          stats_list, (dynamic element) => addStatToResult(element, result));
       // Create response json
       var response_json = result.toString();
       response.data = response_json;
@@ -122,7 +122,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   }
 
   // get Metric based on ID
-  MetricNames _getMetrics(String key) {
+  MetricNames? _getMetrics(String key) {
     //use map and get name based on ID
     if (stats_map.containsKey(key)) {
       return stats_map[key];

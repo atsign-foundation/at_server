@@ -48,7 +48,7 @@ void main() {
       connManager.createConnection(dummySocket, sessionId: 'bbb');
       expect(
           () => connManager.createConnection(dummySocket, sessionId: 'ccc'),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InboundConnectionLimitException &&
               e.message == 'max limit reached on inbound pool')));
       ;

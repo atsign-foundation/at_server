@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:at_root_server/src/client/at_root_client.dart';
 import 'package:at_root_server/src/client/at_root_client_pool.dart';
@@ -11,12 +12,12 @@ import 'package:at_commons/at_commons.dart';
 /// Impl class for the root server of the @protocol.
 /// This Contains methods to start, stop and serve the requests.
 class RootServerImpl implements AtRootServer {
-  static final bool useSSL = AtRootConfig.useSSL;
+  static final bool? useSSL = AtRootConfig.useSSL;
   var logger = AtSignLogger('RootServerImpl');
-  static var _serverSocket;
+  static late var _serverSocket;
   bool _isRunning = false;
   bool _stopInProgress = false;
-  AtRootServerContext serverContext;
+  late AtRootServerContext serverContext;
 
   /// Returns status of the server
   /// return type - bool
@@ -55,10 +56,10 @@ class RootServerImpl implements AtRootServer {
     try {
       _isRunning = true;
       RootClientPool().init();
-      if (useSSL) {
+      if (useSSL!) {
         _startSecuredServer(port, serverContext.securityContext);
       } else {
-        _startUnSecuredServer(port);
+        _startUnSecuredServer(port!);
       }
     } on Exception catch (exception) {
       _isRunning = false;
@@ -95,7 +96,7 @@ class RootServerImpl implements AtRootServer {
   /// set _isRunning flag to false
   /// Close redis connection
   @override
-  void stop() {
+  Future<void> stop() async {
     _stopInProgress = true;
     try {
       var result = RootClientPool().closeAll();
@@ -109,12 +110,12 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  Future<KeystoreManagerImpl> getKeyStoreManager() async {
+  Future<KeystoreManagerImpl?> getKeyStoreManager() async {
     try {
       var keyStoreManager = KeystoreManagerImpl();
-      var result = await keyStoreManager.getKeyStore().get('ping');
+      var result = await (keyStoreManager.getKeyStore().get('ping'));
       logger.info(result);
-      assert('pong'.compareTo(result) == 0);
+      assert(result != null && 'pong'.compareTo(result) == 0);
       return keyStoreManager;
     } catch (exception) {
       logger.severe(exception);
@@ -122,7 +123,7 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  void _startSecuredServer(int port, AtSecurityContext context) {
+  void _startSecuredServer(int? port, AtSecurityContext? context) {
     try {
       var secCon = SecurityContext();
       var retryCount = 0;
@@ -134,8 +135,8 @@ class RootServerImpl implements AtRootServer {
             break;
           }
           secCon.useCertificateChain(
-              serverContext.securityContext.publicKeyPath());
-          secCon.usePrivateKey(serverContext.securityContext.privateKeyPath());
+              serverContext.securityContext!.publicKeyPath());
+          secCon.usePrivateKey(serverContext.securityContext!.privateKeyPath());
           certsAvailable = true;
         } on FileSystemException {
           retryCount++;
@@ -144,7 +145,7 @@ class RootServerImpl implements AtRootServer {
         sleep(Duration(seconds: 10));
       }
       if (certsAvailable) {
-        SecureServerSocket.bind(InternetAddress.anyIPv4, port, secCon)
+        SecureServerSocket.bind(InternetAddress.anyIPv4, port!, secCon)
             .then((SecureServerSocket socket) {
           logger.info(
               'root server started on version : ${AtRootConfig.root_server_version}');
@@ -186,7 +187,7 @@ class RootServerImpl implements AtRootServer {
 
   @override
   void setServerContext(AtServerContext context) {
-    serverContext = context;
+    serverContext = context as AtRootServerContext;
   }
 
   @override

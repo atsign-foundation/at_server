@@ -13,11 +13,11 @@ class AtNotificationMap {
     return _singleton;
   }
 
-  final _notificationMap = <String, Map<String, NotificationStrategy>>{};
-  final _waitTimeMap = <String, NotificationWaitTime>{};
-  var _quarantineMap = <String, DateTime>{};
+  final _notificationMap = <String?, Map<String, NotificationStrategy>>{};
+  final _waitTimeMap = <String?, NotificationWaitTime>{};
+  var _quarantineMap = <String?, DateTime>{};
 
-  Map<String, DateTime> get quarantineMap => _quarantineMap;
+  Map<String?, DateTime> get quarantineMap => _quarantineMap;
 
   set quarantineMap(value) {
     _quarantineMap = value;
@@ -27,61 +27,56 @@ class AtNotificationMap {
   void add(AtNotification atNotification) {
     _notificationMap.putIfAbsent(atNotification.toAtSign,
         () => {'all': AllNotifications(), 'latest': LatestNotifications()});
-    var notificationsMap = _notificationMap[atNotification.toAtSign];
-    notificationsMap[atNotification.strategy].add(atNotification);
+    var notificationsMap = _notificationMap[atNotification.toAtSign]!;
+    notificationsMap[atNotification.strategy!]!.add(atNotification);
     _computeWaitTime(atNotification);
   }
 
   /// Returns the map of first N entries.
-  Iterator<AtNotification> remove(String atsign) {
+  Iterator<AtNotification> remove(String? atsign) {
     // If map is empty, return empty map
     if (_notificationMap.isEmpty) {
-      return [].iterator;
+      return [].iterator as Iterator<AtNotification>;
     }
     // If map does not contain the atsign, return empty map.
     if (!_notificationMap.containsKey(atsign)) {
-      return [].iterator;
+      return [].iterator as Iterator<AtNotification>;
     }
-    var tempMap = _notificationMap.remove(atsign);
-    LatestNotifications latestList = tempMap['latest'];
-    AllNotifications list = tempMap['all'];
+    var tempMap = _notificationMap.remove(atsign)!;
+    var latestList = tempMap['latest'] as LatestNotifications;
+    var list = tempMap['all'] as AllNotifications;
     var returnList = List<AtNotification>.from(latestList.toList())
-      ..addAll(list.toList());
+      ..addAll(list.toList()!);
     return returnList.iterator;
   }
 
   /// Returns an Iterator of atsign on priority order.
-  Iterator<String> getAtSignToNotify(int N) {
+  Iterator<String?> getAtSignToNotify(int N) {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var list = _sortWaitTimeMap(N);
     list.removeWhere((atsign) =>
         _quarantineMap.containsKey(atsign) &&
-            _quarantineMap[atsign].millisecondsSinceEpoch >
+            _quarantineMap[atsign]!.millisecondsSinceEpoch >
                 DateTime.now().millisecondsSinceEpoch ||
         atsign == currentAtSign);
     return list.iterator;
   }
 
   /// Sorts the keys in [_waitTimeMap] in descending order according to the wait time.
-  List<String> _sortWaitTimeMap(int N) {
+  List<String?> _sortWaitTimeMap(int N) {
     var list = _waitTimeMap.keys.toList()
       ..sort((k1, k2) =>
-          _waitTimeMap[k2].waitTime.compareTo(_waitTimeMap[k1].waitTime));
-    if (N != null) {
-      return list.take(N).toList();
-    }
-    return list;
+          _waitTimeMap[k2]!.waitTime.compareTo(_waitTimeMap[k1]!.waitTime));
+    return list.take(N).toList();
   }
 
   /// Computes the wait for the notification.
   void _computeWaitTime(AtNotification atNotification) {
     _waitTimeMap.putIfAbsent(
         atNotification.toAtSign, () => NotificationWaitTime());
-    var notificationWaitTime = _waitTimeMap[atNotification.toAtSign];
-    notificationWaitTime.prioritiesSum =
-        notificationWaitTime.prioritiesSum + atNotification.priority.index;
-    notificationWaitTime.totalPriorities =
-        notificationWaitTime.totalPriorities + 1;
+    var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
+    notificationWaitTime.prioritiesSum = atNotification.priority!.index;
+    notificationWaitTime.totalPriorities += 1;
     var date;
     if (notificationWaitTime.totalPriorities == 1) {
       date = atNotification.notificationDateTime;
@@ -90,11 +85,11 @@ class AtNotificationMap {
   }
 
   /// Removes the entry from _waitTimeMap.
-  void removeWaitTimeEntry(String atsign) {
+  void removeWaitTimeEntry(String? atsign) {
     _waitTimeMap.remove(atsign);
   }
 
-  void removeQuarantineEntry(String atSign) {
+  void removeQuarantineEntry(String? atSign) {
     _quarantineMap.remove(atSign);
   }
 

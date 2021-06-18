@@ -16,7 +16,7 @@ abstract class VerbHandlerManager {
   /// Returns the verb handler for a given command
   /// @param utf8 encoded command
   /// @returns [VerbHandler]
-  VerbHandler getVerbHandler(String utf8EncodedCommand);
+  VerbHandler? getVerbHandler(String utf8EncodedCommand);
 }
 
 abstract class VerbExecutor {

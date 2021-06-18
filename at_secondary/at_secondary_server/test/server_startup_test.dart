@@ -12,7 +12,7 @@ void main() {
       var secondaryServerInstance = AtSecondaryServerImpl.getInstance();
       expect(
           () => secondaryServerInstance.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'Server context is not initialized')));
     });
@@ -23,7 +23,7 @@ void main() {
       secondaryServerInstance.setServerContext(context);
       expect(
           () => secondaryServerInstance.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'Verb executor is not initialized')));
     });
@@ -35,7 +35,7 @@ void main() {
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
       expect(
           () => secondaryServerInstance.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'Verb handler manager is not initialized')));
     });
@@ -50,7 +50,7 @@ void main() {
           .setVerbHandlerManager(DefaultVerbHandlerManager());
       expect(
           () => secondaryServerInstance.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'Security context is not set')));
     });
@@ -82,7 +82,7 @@ void main() {
       context.isKeyStoreInitialized = true;
       expect(
           () => secondaryServerInstance.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'User atSign is not set')));
     });

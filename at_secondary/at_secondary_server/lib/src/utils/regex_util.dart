@@ -8,8 +8,8 @@ Iterable<RegExpMatch> getMatches(RegExp regex, String command) {
   return matches;
 }
 
-HashMap<String, String> processMatches(Iterable<RegExpMatch> matches) {
-  var paramsMap = HashMap<String, String>();
+HashMap<String, String?> processMatches(Iterable<RegExpMatch> matches) {
+  var paramsMap = HashMap<String, String?>();
   matches.forEach((f) {
     for (var name in f.groupNames) {
       paramsMap.putIfAbsent(name, () => f.namedGroup(name));

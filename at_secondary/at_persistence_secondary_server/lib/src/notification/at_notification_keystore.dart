@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
+import 'package:dart_utf7/utf7.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore implements SecondaryKeyStore {
@@ -15,7 +15,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     return _singleton;
   }
 
-  Box _box;
+  late Box _box;
 
   bool _register = false;
 
@@ -50,32 +50,32 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  Future<AtNotification> get(key) async {
+  Future<AtNotification?> get(key) async {
     return await _box.get(key);
   }
 
   @override
   Future put(key, value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature}) async {
     await _box.put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
   @override
   Future create(key, value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature}) async {
     // TODO: implement deleteExpiredKeys
     throw UnimplementedError();
   }
@@ -92,12 +92,12 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  List getKeys({String regex}) {
+  List getKeys({String? regex}) {
     var keys = <String>[];
     var encodedKeys;
 
     if (_box.keys.isEmpty) {
-      return null;
+      return [];
     }
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {

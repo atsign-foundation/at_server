@@ -15,7 +15,7 @@ class Delete extends Verb {
   String syntax() => VerbSyntax.delete;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

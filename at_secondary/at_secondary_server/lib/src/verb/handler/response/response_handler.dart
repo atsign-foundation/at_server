@@ -5,5 +5,5 @@ abstract class ResponseHandler {
   /// Process a given response and write the result to the connection
   /// @param [AtConnection]
   /// @param [Response]
-  void process(AtConnection connection, Response response);
+  Future<void> process(AtConnection connection, Response response);
 }

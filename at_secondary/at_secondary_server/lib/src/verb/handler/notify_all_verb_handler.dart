@@ -33,7 +33,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var ttl_ms;
     var ttb_ms;
@@ -42,7 +42,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var forAtSignList = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
-    var key = verbParams[AT_KEY];
+    var key = verbParams[AT_KEY]!;
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var operation = SecondaryUtil().getOperationType(verbParams[AT_OPERATION]);
     var value = verbParams[AT_VALUE];
@@ -51,7 +51,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
           ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
@@ -59,7 +59,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
 
-    var resultMap = <String, String>{};
+    var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
     if (forAtSignList != null && forAtSignList.isNotEmpty) {

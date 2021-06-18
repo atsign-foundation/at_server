@@ -14,7 +14,7 @@ class Scan extends Verb {
   String syntax() => VerbSyntax.scan;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

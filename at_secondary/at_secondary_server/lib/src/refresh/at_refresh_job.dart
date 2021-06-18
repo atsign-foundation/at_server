@@ -9,19 +9,19 @@ import 'package:cron/cron.dart';
 class AtRefreshJob {
   final _atSign;
   var keyStore;
-  var _cron;
+  late var _cron;
 
   AtRefreshJob(this._atSign) {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(_atSign);
+            .getSecondaryPersistenceStore(_atSign)!;
     keyStore = secondaryPersistenceStore.getSecondaryKeyStore();
   }
 
   final logger = AtSignLogger('AtRefreshJob');
 
   /// Returns the list of cached keys
-  Future<List<dynamic>> _getCachedKeys() async {
+  Future<List<dynamic>?> _getCachedKeys() async {
     var keysList = await keyStore.getKeys(regex: CACHED);
     // If no keys to return
     if (keysList == null) {
@@ -57,13 +57,13 @@ class AtRefreshJob {
   /// Returns of the value of the key from the another secondary server.
   /// Key to lookup on the another secondary server.
   /// Future<String> value of the key.
-  Future<String> _lookupValue(String key, {bool isHandShake = true}) async {
+  Future<String?> _lookupValue(String key, {bool isHandShake = true}) async {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
     var lookupResult;
     var outBoundClient = OutboundClientManager.getInstance().getClient(
         atSign, DummyInboundConnection.getInstance(),
-        isHandShake: isHandShake);
+        isHandShake: isHandShake)!;
     // Need not connect again if the client's handshake is already done
     try {
       if (!outBoundClient.isHandShakeDone) {

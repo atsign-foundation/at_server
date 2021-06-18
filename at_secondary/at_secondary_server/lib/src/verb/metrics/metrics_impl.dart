@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -19,7 +18,7 @@ class InboundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     var connections = connectionMetrics.getInboundConnections().toString();
     return connections;
   }
@@ -41,7 +40,7 @@ class OutBoundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     var connections = connectionMetrics.getOutboundConnections().toString();
     return connections;
   }
@@ -68,7 +67,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
@@ -89,7 +88,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 class SecondaryStorageMetricImpl implements MetricProvider {
   static final SecondaryStorageMetricImpl _singleton =
       SecondaryStorageMetricImpl._internal();
-  var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath);
+  var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath!);
 
   SecondaryStorageMetricImpl._internal();
 
@@ -98,7 +97,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
   }
 
   @override
-  int getMetrics({String regex}) {
+  int getMetrics({String? regex}) {
     var secondaryStorageSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
@@ -129,11 +128,11 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String regex}) async {
-    final length = AtSecondaryConfig.stats_top_visits;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedAtSigns(length));
+  Future<String> getMetrics({String? regex}) async {
+    final length = AtSecondaryConfig.stats_top_visits!;
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    return jsonEncode(atAccessLog?.mostVisitedAtSigns(length));
   }
 
   @override
@@ -153,11 +152,11 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String regex}) async {
-    final length = AtSecondaryConfig.stats_top_keys;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedKeys(length));
+  Future<String> getMetrics({String? regex}) async {
+    final length = AtSecondaryConfig.stats_top_keys!;
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    return jsonEncode(atAccessLog?.mostVisitedKeys(length));
   }
 
   @override
@@ -177,7 +176,7 @@ class SecondaryServerVersion implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String? getMetrics({String? regex}) {
     return AtSecondaryConfig.secondaryServerVersion;
   }
 

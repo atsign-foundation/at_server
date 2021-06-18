@@ -23,7 +23,7 @@ import 'package:test/test.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  late var keyStoreManager;
 
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
@@ -91,7 +91,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -101,7 +101,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -111,7 +111,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -121,7 +121,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -131,7 +131,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -144,7 +144,7 @@ void main() {
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify verb - invalid ttb value', () {
@@ -156,7 +156,7 @@ void main() {
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
@@ -168,21 +168,21 @@ void main() {
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid command', () {
       var command = 'notify:location@alice';
       AbstractVerbHandler handler = NotifyVerbHandler(null);
       expect(() => handler.parse(command),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
       var command = 'notify:update:ttr:1000:ccd:test:location@alice';
       AbstractVerbHandler handler = NotifyVerbHandler(null);
       expect(() => handler.parse(command),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
   });
 
@@ -256,7 +256,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -266,7 +266,8 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
@@ -285,7 +286,7 @@ void main() {
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
-      var notifyData = jsonDecode(notifyListResponse.data);
+      var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
       expect(notifyData[0][TO], '@test_user_1');
@@ -307,7 +308,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst('data:', '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -317,7 +318,8 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
@@ -336,7 +338,7 @@ void main() {
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
-      var notifyData = jsonDecode(notifyListResponse.data);
+      var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
       expect(notifyData[0][TO], '@test_user_1');
@@ -368,7 +370,7 @@ void main() {
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
       var response = queueManager.dequeue('@alice');
-      var atNotification;
+      late var atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
       }
@@ -758,14 +760,15 @@ void main() {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
@@ -778,9 +781,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
-  await AtNotificationKeystore.getInstance().close();
-  AtNotificationMap.getInstance().clear();
   var isExists = await Directory('test/hive').exists();
+  AtNotificationMap.getInstance().clear();
+  await AtNotificationKeystore.getInstance().close();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }

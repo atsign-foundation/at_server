@@ -10,11 +10,11 @@ class InboundConnectionImpl extends BaseConnection
     implements InboundConnection {
   /// This contains the value of the atsign initiated the connection
   @override
-  String initiatedBy;
-  static int inbound_idle_time =
-      AtSecondaryServerImpl.getInstance().serverContext.inboundIdleTimeMillis;
+  String? initiatedBy;
+  static int? inbound_idle_time =
+      AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
 
-  InboundConnectionImpl(Socket socket, String sessionId) : super(socket) {
+  InboundConnectionImpl(Socket? socket, String? sessionId) : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
@@ -25,14 +25,10 @@ class InboundConnectionImpl extends BaseConnection
   @override
   bool equals(InboundConnection connection) {
     var result = false;
-    if (connection != null) {
-      if (connection.getSocket() != null && getSocket() != null) {
-        if (getSocket().remoteAddress.address ==
-                connection.getSocket().remoteAddress.address &&
-            getSocket().remotePort == connection.getSocket().remotePort) {
-          result = true;
-        }
-      }
+    if (getSocket().remoteAddress.address ==
+            connection.getSocket().remoteAddress.address &&
+        getSocket().remotePort == connection.getSocket().remotePort) {
+      result = true;
     }
     return result;
   }
@@ -54,13 +50,13 @@ class InboundConnectionImpl extends BaseConnection
     // if lastAccessedTime is not set, use created time
     lastAccessedTime ??= getMetaData().created;
     var currentTime = DateTime.now().toUtc();
-    return currentTime.difference(lastAccessedTime).inMilliseconds;
+    return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 
   /// Returns true if the client's idle time is greater than configured idle time.
   /// false otherwise
   bool _isIdle() {
-    return _getIdleTimeMillis() > inbound_idle_time;
+    return _getIdleTimeMillis() > inbound_idle_time!;
   }
 
   @override
@@ -71,5 +67,7 @@ class InboundConnectionImpl extends BaseConnection
   }
 
   @override
-  Socket receiverSocket;
+  Socket? receiverSocket;
+
+  bool? isStream;
 }

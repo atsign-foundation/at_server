@@ -61,7 +61,7 @@ void main() async {
             .getCommitLog(_getShaForAtsign('@test_user_1')),
         '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList(removeData),
-        throwsA(predicate((e) => e is AssertionError)));
+        throwsA(predicate((dynamic e) => e is AssertionError)));
   });
 
   test('test for removing null data', () async {
@@ -69,8 +69,8 @@ void main() async {
         await AtCommitLogManagerImpl.getInstance()
             .getCommitLog(_getShaForAtsign('@test_user_1')),
         '@test_user_1');
-    expect(() async => await atConfigInstance.removeFromBlockList(null),
-        throwsA(predicate((e) => e is AssertionError)));
+    expect(() async => await atConfigInstance.removeFromBlockList({}),
+        throwsA(predicate((dynamic e) => e is AssertionError)));
   });
 
   try {
@@ -85,14 +85,15 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getCommitLog(_getShaForAtsign('@test_user_1'),
           commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1');
+      .getSecondaryPersistenceStore('@test_user_1')!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   return keyStoreManager;
 }

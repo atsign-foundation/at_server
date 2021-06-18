@@ -1,35 +1,23 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 1.0.0+DEV
+version: 1.1.0-NULLSAFETY
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
 
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  args: ^1.5.0
+  args: ^2.1.0
   uuid: ^3.0.4
-  convert: ^2.1.1
-  crypto: ^3.0.0
+  convert: ^3.0.0
+  crypto: ^3.0.1
   crypton: ^2.0.1
-  collection: ^1.14.13
-  basic_utils: ^3.0.0
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: trunk
-      version: ^1.0.1+7
-
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: trunk
-      version: ^1.0.0+8
-
+  collection: ^1.15.0
+  basic_utils: ^3.0.2
+  at_persistence_secondary_server: ^1.0.1+8
+  at_lookup: ^1.0.0+8
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
@@ -38,22 +26,44 @@ dependencies:
       version: ^1.0.0
 
 dependency_overrides:
-  logging: ^1.0.0
-  json_annotation: ^2.3.0
-#  at_persistence_secondary_server:
-#    path: ../at_persistence_secondary_server
-#  at_server_spec:
-#    path: ../../at_server_spec
-#  at_persistence_spec:
-#    path: ../../at_persistence/at_persistence_spec
-#  at_utils:
-#    path: ../../../at_tools/at_utils
-#  at_commons:
-#    path: ../../../at_tools/at_commons
-#  at_lookup:
-#    path: ../../../at_libraries/at_lookup
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: trunk
+      version: ^1.1.0
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_secondary/at_persistence_secondary_server
+      ref: trunk
+      version: ^1.1.0
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: at_lookup
+      ref: trunk
+      version: ^1.1.0
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_utils
+      ref: trunk
+      version: ^1.1.0
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: trunk
+      version: ^1.1.0
+  at_server_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_server_spec
+      ref: trunk
+      version: ^1.1.0
 
 dev_dependencies:
-  test: ^1.6.0
-  test_coverage: ^0.5.0
-  mockito: ^4.1.1
+  test: ^1.17.3
+  #  test_coverage: ^0.5.0
+  mockito: ^5.0.7
