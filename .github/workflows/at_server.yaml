@@ -73,29 +73,20 @@ jobs:
         with:
           sdk: stable
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      # Install python packages
-      - name: Install dependencies
+      # In feature branch, on push event, remove the dependency overrides in pubspec.yaml
+      - name: Remove dependency overrides
+        if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
+        working-directory: ${{ env.working-directory }}
         run: |
-          python3 -m pip install --upgrade pip
-          pip3 install ruamel.yaml
-
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${{ github.head_ref }}
-
-      - name: Add dependency overrides on push to branch
-        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server -b ${GITHUB_REF##*/}
+          dart pub get
+          dart run remove_dependency_overrides.dart
+          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          # Stage the file, commit and push
+          git add pubspec.yaml
+          git commit -m "remove dependency overrides"
+          git push
 
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -120,29 +111,20 @@ jobs:
         with:
           sdk: stable
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      # Install python packages
-      - name: Install dependencies
+      # In feature branch, on push event, remove the dependency overrides in pubspec.yaml
+      - name: Remove dependency overrides
+        if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
+        working-directory: ${{ env.working-directory }}
         run: |
-          python3 -m pip install --upgrade pip
-          pip3 install ruamel.yaml
-
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${{ github.head_ref }}
-
-      - name: Add dependency overrides on push to branch
-        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
+          dart pub get
+          dart run remove_dependency_overrides.dart
+          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          # Stage the file, commit and push
+          git add pubspec.yaml
+          git commit -m "remove dependency overrides"
+          git push
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -170,18 +152,6 @@ jobs:
         with:
           sdk: stable
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      # Install python packages
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install ruamel.yaml
-
       - name: Install dependencies
         working-directory: at_functional_test
         run: dart pub get
@@ -197,18 +167,6 @@ jobs:
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
         run: dart pub get && dart compile exe bin/main.dart -o root
-
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${{ github.head_ref }}
-
-      - name: Add dependency overrides on push to branch
-        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/heads') }}
-        run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server -b ${GITHUB_REF##*/}
 
       - name: Generate secondary server binary
         working-directory: at_secondary/at_secondary_server
