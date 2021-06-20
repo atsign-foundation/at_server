@@ -30,13 +30,13 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: trunk
+      ref: fix_notifier
       version: ^1.1.0
   at_persistence_secondary_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
-      ref: trunk
+      ref: fix_notifier
       version: ^1.1.0
   at_lookup:
     git:
@@ -60,10 +60,11 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: trunk
+      ref: fix_notifier
       version: ^1.1.0
 
 dev_dependencies:
   test: ^1.17.3
   #  test_coverage: ^0.5.0
   mockito: ^5.0.7
+  json2yaml: ^1.0.1+1
