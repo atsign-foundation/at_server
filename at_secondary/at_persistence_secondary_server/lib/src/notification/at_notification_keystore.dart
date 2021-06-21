@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:hive/hive.dart';
-import 'package:dart_utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore implements SecondaryKeyStore {

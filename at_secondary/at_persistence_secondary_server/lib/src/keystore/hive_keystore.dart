@@ -9,7 +9,7 @@ import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:dart_utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final logger = AtSignLogger('HiveKeystore');
@@ -278,12 +278,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     // Updating the version of the metadata.
 //    (metadata!.version != null) ? metadata.version += 1 : metadata.version = 0;
     var version = metadata!.version;
-    if(version != null) {
+    if (version != null) {
       version = version + 1;
     } else {
       version = 0;
     }
-    metadata.version  = version;
+    metadata.version = version;
     await persistenceManager.box?.put(hive_key, value);
     result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
     return result;
@@ -303,7 +303,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 //        : newData.metaData!.version = 0;
 
     var version = newData.metaData?.version;
-    if(version != null) {
+    if (version != null) {
       version = version + 1;
     } else {
       version = 0;

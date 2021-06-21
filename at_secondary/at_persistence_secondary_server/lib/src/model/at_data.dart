@@ -1,7 +1,7 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
-import 'package:dart_utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 import 'at_meta_data.dart';
 
 @HiveType(typeId: 0)

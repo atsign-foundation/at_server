@@ -13,7 +13,8 @@ class SecondaryPersistenceStoreFactory {
 
   final logger = AtSignLogger('SecondaryPersistenceStoreFactory');
 
-  final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap = {};
+  final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
+      {};
 
   SecondaryPersistenceStore? getSecondaryPersistenceStore(String? atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
@@ -26,8 +27,8 @@ class SecondaryPersistenceStoreFactory {
   Future<void> close() async {
     await Future.forEach(
         _secondaryPersistenceStoreMap.values,
-            (SecondaryPersistenceStore secondaryPersistenceStore) =>
+        (SecondaryPersistenceStore secondaryPersistenceStore) =>
             secondaryPersistenceStore.getHivePersistenceManager()?.close());
-            _secondaryPersistenceStoreMap.clear();
+    _secondaryPersistenceStoreMap.clear();
   }
 }

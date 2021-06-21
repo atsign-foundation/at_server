@@ -22,5 +22,5 @@
 ## 1.0.1+8
 - Refactor code with dart lint rules
 - Fixed minor bug in secondary persistence store factory 
-## 1.1.0
+## 2.0.0
 - Null safety upgrade
