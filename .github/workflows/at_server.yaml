@@ -73,21 +73,6 @@ jobs:
         with:
           sdk: stable
 
-      # In feature branch, on push event, remove the dependency overrides in pubspec.yaml
-      - name: Remove dependency overrides
-        if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        working-directory: ${{ env.working-directory }}
-        run: |
-          dart pub get
-          dart run remove_dependency_overrides.dart
-          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
-          # Stage the file, commit and push
-          git add pubspec.yaml
-          git commit -m "remove dependency overrides"
-          git push
-
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
         run: dart pub get
@@ -110,21 +95,6 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-
-      # In feature branch, on push event, remove the dependency overrides in pubspec.yaml
-      - name: Remove dependency overrides
-        if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        working-directory: ${{ env.working-directory }}
-        run: |
-          dart pub get
-          dart run remove_dependency_overrides.dart
-          # setup the username and email. I tend to use 'GitHub Actions Bot' with no email by default
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
-          # Stage the file, commit and push
-          git add pubspec.yaml
-          git commit -m "remove dependency overrides"
-          git push
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -405,7 +375,7 @@ jobs:
 
   # Deploy root server image to cluster
   deploy_root_sever:
-    needs: [ run_functional_test ]
+    needs: [ push_staging_secondary_image ]
     runs-on: ubuntu-latest
     steps:
       - name: Install doctl

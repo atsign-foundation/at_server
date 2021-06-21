@@ -30,6 +30,5 @@ abstract class AtConnectionMetaData {
   bool isAuthenticated = false;
   bool isPolAuthenticated = false;
   bool isStream = false;
-  bool isMonitor = false;
   String? streamId;
 }

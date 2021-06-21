@@ -45,7 +45,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       atNotificationCallback.registerNotificationCallback(
           NotificationType.received, processReceiveNotification);
     }
-    atConnection.getMetaData().isMonitor = true;
+    atConnection.isMonitor = true;
   }
 
   void processReceiveNotification(AtNotification atNotification) {
