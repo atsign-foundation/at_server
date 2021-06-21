@@ -8,6 +8,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 class InboundConnectionImpl extends BaseConnection
     implements InboundConnection {
+  @override
+  bool? isMonitor = false;
+
   /// This contains the value of the atsign initiated the connection
   @override
   String? initiatedBy;
@@ -35,13 +38,7 @@ class InboundConnectionImpl extends BaseConnection
 
   @override
   bool isInValid() {
-    // Returns true if connection is closed or stale.
-    if (getMetaData().isClosed || getMetaData().isStale) {
-      return true;
-    }
-    // Returns true if connections is not monitor and idle for 'inbound_idle_time_millis' defined in config.yaml.
-    // inbound_idle_time_millis defaults to 10 minutes.
-    return !getMetaData().isMonitor && _isIdle();
+    return _isIdle() || getMetaData().isClosed || getMetaData().isStale;
   }
 
   /// Get the idle time of the inbound connection since last write operation
