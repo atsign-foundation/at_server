@@ -5,7 +5,7 @@ class ConnectionUtil {
   static int getMonitorConnectionSize() {
     var count = 0;
     InboundConnectionPool.getInstance().getConnections().forEach((connection) {
-      if (!connection.isInValid() && connection.isMonitor!) {
+      if (!connection.isInValid() && connection.getMetaData().isMonitor) {
         count++;
       }
     });
