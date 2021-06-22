@@ -27,4 +27,3 @@ dev_dependencies:
   test_cov: ^1.0.1
   pedantic: ^1.11.0
   test: ^1.17.3
-  
