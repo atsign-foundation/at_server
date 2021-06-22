@@ -18,9 +18,9 @@ security:
   # When [useSSL] is set to true, the secondary server starts in secure mode. On setting useSSL to true, the [certificateChainLocation] and
   # [privateKeyLocation] should be populated with the path's to respective certificates.
   useSSL: true
-  certificateChainLocation: 'certs/fullchain.pem'
-  privateKeyLocation: 'certs/privkey.pem'
-  trustedCertificateLocation: 'certs/cacert.pem'
+  certificateChainLocation: '/home/sitaram/work/atsign/certs/fullchain.pem'
+  privateKeyLocation: '/home/sitaram/work/atsign/certs/privkey.pem'
+  trustedCertificateLocation: '/home/sitaram/work/atsign/certs/cacert.pem'
   clientCertificateRequired: true
 
 # The @Protocol storage configurations
