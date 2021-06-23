@@ -20,3 +20,4 @@ export 'package:at_server_spec/src/verb/sync.dart';
 export 'package:at_server_spec/src/verb/update.dart';
 export 'package:at_server_spec/src/verb/update_meta.dart';
 export 'package:at_server_spec/src/verb/verb.dart';
+export 'package:at_server_spec/src/verb/sync_stream.dart';
