@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
+import 'package:at_secondary/src/utils/system_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 
 class InboundMetricImpl implements MetricProvider {
@@ -183,5 +184,46 @@ class SecondaryServerVersion implements MetricProvider {
   @override
   String getName() {
     return 'secondaryServerVersion';
+  }
+}
+
+class LastLoggedInDatetimeMetricImpl implements MetricProvider {
+  static final LastLoggedInDatetimeMetricImpl _singleton =
+      LastLoggedInDatetimeMetricImpl._internal();
+
+  LastLoggedInDatetimeMetricImpl._internal();
+
+  factory LastLoggedInDatetimeMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    return await SystemUtil.getLastLoggedInTime();
+  }
+
+  @override
+  String getName() {
+    return 'LastLoggedInDatetime';
+  }
+}
+
+class DiskSizeMetricImpl implements MetricProvider {
+  static final DiskSizeMetricImpl _singleton = DiskSizeMetricImpl._internal();
+
+  DiskSizeMetricImpl._internal();
+
+  factory DiskSizeMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    return await SystemUtil.getDiskSize();
+  }
+
+  @override
+  String getName() {
+    return 'diskSize';
   }
 }
