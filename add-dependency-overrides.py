@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 """
-Looks for dependency-overrides.yaml file the path specified.
-If dependencies are specified, adds the dependencies to dependency_overrides section in pubspec.yaml
+Accepts path to dependency-overrides.yaml file in the project as argument.
+If dependencies are specified in dependency-overrides.yaml, adds the dependencies to dependency_overrides section
+in pubspec.yaml
 This is file is used in GITHub actions to resolve dependencies.
 """
 import argparse
@@ -48,6 +49,7 @@ def add_dependency_overrides():
     with open(project_path + 'pubspec.yaml', 'w') as file:
         ruamel.yaml.round_trip_dump(yaml_map, file, explicit_start=True)
     file.close()
+    print('dependency_overrides updated successfully in ' + project_path + 'pubspec.yaml')
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+# The dependencies added here will be added to dependency_overrides in pubspec.yaml
 at_persistence_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
