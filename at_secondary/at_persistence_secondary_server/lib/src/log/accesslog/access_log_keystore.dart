@@ -198,6 +198,11 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     return sortedMap;
   }
 
+  ///Get last [AccessLogEntry] entry.
+  AccessLogEntry? getLastEntry() {
+    return box!.values.last;
+  }
+
   ///Closes the [accessLogKeyStore] instance.
   void close() async {
     await box!.close();

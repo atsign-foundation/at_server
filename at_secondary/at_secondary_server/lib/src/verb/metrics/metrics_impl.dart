@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
-import 'package:at_secondary/src/utils/system_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 
 class InboundMetricImpl implements MetricProvider {
@@ -199,7 +199,10 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    return await SystemUtil.getLastLoggedInTime();
+    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var entry = atAccessLog!.getLastAccessLogEntry();
+    return entry.requestDateTime!.toUtc().toString();
   }
 
   @override
@@ -218,12 +221,32 @@ class DiskSizeMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String?> getMetrics({String? regex}) async {
-    return await SystemUtil.getDiskSize();
+  String getMetrics({String? regex}) {
+    var storageLocation = Directory(AtSecondaryServerImpl.storagePath!);
+    var diskSize = 0;
+    //The listSync function returns the list of files in the hive storage location.
+    // In the loop iterating recursively into sub-directories and gets the size of each file using lengthSync
+    storageLocation.listSync(recursive: true).forEach((file) {
+      if (file is File) {
+        diskSize =
+            diskSize + File(file.path).lengthSync();
+      }
+    });
+    //Return total size
+    return formatBytes(diskSize, 2);
   }
 
   @override
   String getName() {
     return 'diskSize';
+  }
+
+  String formatBytes(int bytes, int decimals) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    var i = (log(bytes)/ log(1024)).floor();
+    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) +
+        ' ' +
+        suffixes[i];
   }
 }
