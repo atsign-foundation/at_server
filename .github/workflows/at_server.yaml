@@ -162,6 +162,12 @@ jobs:
         with:
           sdk: stable
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
       - name: Install dependencies
         working-directory: at_functional_test
         run: dart pub get
@@ -182,6 +188,8 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
         run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
 
