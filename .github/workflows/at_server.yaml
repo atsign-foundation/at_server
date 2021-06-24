@@ -73,6 +73,25 @@ jobs:
         with:
           sdk: stable
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      # adds dependency overrides to pubspec.yaml
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
+
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
         run: dart pub get
@@ -95,6 +114,25 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      # adds dependency overrides to pubspec.yaml
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -137,6 +175,12 @@ jobs:
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
         run: dart pub get && dart compile exe bin/main.dart -o root
+
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
 
       - name: Generate secondary server binary
         working-directory: at_secondary/at_secondary_server
