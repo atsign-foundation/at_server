@@ -86,8 +86,9 @@ jobs:
           pip3 install ruamel.yaml
 
       # adds dependency overrides to pubspec.yaml
+      # Runs when github action event type is pull_request or push event to trunk branch
       - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
@@ -128,8 +129,9 @@ jobs:
           pip3 install ruamel.yaml
 
       # adds dependency overrides to pubspec.yaml
+      # Runs when github action event type is pull_request or push event to trunk branch
       - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
@@ -176,8 +178,9 @@ jobs:
         # -o : path to copy the root binary
         run: dart pub get && dart compile exe bin/main.dart -o root
 
+      # Runs when github action event is pull_request or push to a trunk branch.
       - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
         run: |
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
