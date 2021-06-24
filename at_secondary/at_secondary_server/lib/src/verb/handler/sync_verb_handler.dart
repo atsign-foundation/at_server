@@ -16,7 +16,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':') && !command.contains('stream');
+      command.startsWith(getName(VerbEnum.sync) + ':') && !command.contains('sync:stream');
 
   @override
   Verb getVerb() {
