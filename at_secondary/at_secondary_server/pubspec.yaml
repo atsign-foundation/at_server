@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 2.0.0-NULLSAFETY
+version: 2.0.1-NULLSAFETY
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -16,9 +16,9 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^2.0.0
-  at_lookup: ^2.0.0
-  at_server_spec: ^2.0.0
+  at_persistence_secondary_server: ^2.0.1
+  at_lookup: ^2.0.1
+  at_server_spec: ^2.0.1
 
 dev_dependencies:
   test: ^1.17.3
