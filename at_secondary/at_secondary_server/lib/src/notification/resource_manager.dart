@@ -109,9 +109,8 @@ class ResourceManager {
       //1. Adds errored notifications back to queue.
       _enqueueErrorList(errorList);
 
-      //2. Setting isStale on  outbound connection metadata to true to remove the connection from
-      //   Notification Connection Pool.
-      outBoundClient.outboundConnection.metaData.isStale = true;
+      //2. Calling close method to close the outbound connection
+      outBoundClient.outboundConnection.close();
     }
   }
 
