@@ -121,6 +121,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
         metaDataMap.putIfAbsent(
             UPDATED_AT, () => metaData.updatedAt.toString());
       }
+
+      if (metaData.sharedKeyStatus != null) {
+        metaDataMap.putIfAbsent(
+            SHARED_KEY_STATUS, () => metaData.sharedKeyStatus);
+      }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
   }
