@@ -391,6 +391,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.2.0
 
@@ -420,7 +424,7 @@ jobs:
           tags: |
             atsigncompany/secondary:dess
             atsigncompany/secondary:prod
-            atsigncompany/secondary:prod-gha${{ github.run_number }}
+            atsigncompany/secondary:prod-${{ env.VERSION }}
           platforms: |
             linux/amd64
             linux/arm64/v8
