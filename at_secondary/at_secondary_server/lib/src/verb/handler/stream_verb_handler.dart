@@ -39,6 +39,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
     var fileName = verbParams['fileName'];
     var fileLength = verbParams['length'];
     var namespace = verbParams['namespace'];
+    var startByte = verbParams['startByte'];
     streamId = streamId.trim();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     switch (operation) {
@@ -65,10 +66,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         }
         StreamManager.senderSocketMap[streamId]!
             .write('stream:done $streamId\n');
-        StreamManager.receiverSocketMap[streamId]!.getSocket().destroy();
-        StreamManager.senderSocketMap[streamId]!.getSocket().destroy();
-        StreamManager.receiverSocketMap.remove(streamId);
-        StreamManager.senderSocketMap.remove(streamId);
+        _cleanUp(streamId);
         break;
       case 'init':
         if (!atConnection.getMetaData().isAuthenticated &&
@@ -81,9 +79,13 @@ class StreamVerbHandler extends AbstractVerbHandler {
         fileName = fileName!.trim();
         logger.info('fileName:$fileName');
         logger.info('fileLength:$fileLength');
+        logger.info('startByte:$startByte');
         var streamKey = 'stream_id';
         if (namespace != null && namespace.isNotEmpty && namespace != 'null') {
           streamKey = '$streamKey.$namespace';
+        }
+        if (startByte != null && int.parse(startByte) > 0) {
+          _cleanUp(streamId);
         }
 
         var notificationKey =
@@ -93,8 +95,28 @@ class StreamVerbHandler extends AbstractVerbHandler {
             notificationKey);
         StreamManager.senderSocketMap[streamId] = atConnection;
         break;
+      case 'resume':
+        var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        var notificationKey =
+            '$currentAtSign:stream_resume $streamId:$startByte';
+        print('inside stream resume $notificationKey');
+        _notify(receiver, currentAtSign, notificationKey);
+        break;
     }
     response.isStream = true;
+  }
+
+  void _cleanUp(String streamId) {
+    final receiverConnection = StreamManager.receiverSocketMap[streamId];
+    if (receiverConnection != null) {
+      receiverConnection.getSocket().destroy();
+    }
+    final senderConnection = StreamManager.senderSocketMap[streamId];
+    if (senderConnection != null) {
+      senderConnection.getSocket().destroy();
+    }
+    StreamManager.receiverSocketMap.remove(streamId);
+    StreamManager.senderSocketMap.remove(streamId);
   }
 
   void _notify(forAtSign, atSign, key) {
