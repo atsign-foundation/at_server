@@ -203,6 +203,14 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     return box!.values.last;
   }
 
+  ///Get last [AccessLogEntry] entry.
+  AccessLogEntry? getLastPkamEntry() {
+    var items = box!.values.toList();
+    items.removeWhere((item) => (item.verbName != 'pkam'));
+    items.sort((a, b) => a.requestDateTime.compareTo(b.requestDateTime));
+    return items.last;
+  }
+
   ///Closes the [accessLogKeyStore] instance.
   void close() async {
     await box!.close();

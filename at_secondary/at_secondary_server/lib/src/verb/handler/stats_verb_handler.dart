@@ -21,7 +21,8 @@ enum MetricNames {
   MOST_VISITED_ATKEYS,
   SECONDARY_SERVER_VERSION,
   LAST_LOGGEDIN_DATETIME,
-  DISK_SIZE
+  DISK_SIZE,
+  LAST_PKAM
 }
 
 extension MetricClasses on MetricNames? {
@@ -45,6 +46,8 @@ extension MetricClasses on MetricNames? {
         return LastLoggedInDatetimeMetricImpl.getInstance();
       case MetricNames.DISK_SIZE:
         return DiskSizeMetricImpl.getInstance();
+      case MetricNames.LAST_PKAM:
+        return LastPkamMetricImpl.getInstance();
       default:
         return null;
     }

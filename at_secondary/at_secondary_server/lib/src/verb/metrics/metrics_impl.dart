@@ -250,3 +250,27 @@ class DiskSizeMetricImpl implements MetricProvider {
         suffixes[i];
   }
 }
+
+class LastPkamMetricImpl implements MetricProvider {
+  static final LastPkamMetricImpl _singleton =
+  LastPkamMetricImpl._internal();
+
+  LastPkamMetricImpl._internal();
+
+  factory LastPkamMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var entry = atAccessLog!.getLastPkamAccessLogEntry();
+    return entry.requestDateTime!.toUtc().toString();
+  }
+
+  @override
+  String getName() {
+    return 'LastPkam';
+  }
+}
