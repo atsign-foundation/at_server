@@ -65,9 +65,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         a4: isCascade,
         a5: isBinary,
         a6: isEncrypted,
-        a7: sharedKeyStatus);
-        a6: isEncrypted,
-        a7: sharedBy);
+        a7: sharedKeyStatus,
+        a8: sharedBy);
     if (isMetadataNotNull) {
       // Set commit op to UPDATE_META
       commitOp = CommitOp.UPDATE_META;
@@ -124,8 +123,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isBinary,
       bool? isEncrypted,
       String? dataSignature,
-      String? sharedBy}) async {
-      String? dataSignature,
+      String? sharedBy,
       String? sharedKeyStatus}) async {
     var result;
     var commitOp;
@@ -138,8 +136,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         isBinary: isBinary,
         isEncrypted: isEncrypted,
         dataSignature: dataSignature,
-        sharedKeyStatus: sharedKeyStatus);
-        dataSignature: dataSignature,
+        sharedKeyStatus: sharedKeyStatus,
         sharedBy: sharedBy);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
@@ -165,9 +162,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         a4: isCascade,
         a5: isBinary,
         a6: isEncrypted,
-        a7: sharedKeyStatus)) {
-        a6: isEncrypted,
-        a7: sharedBy)) {
+        a7: sharedKeyStatus,
+        a8: sharedBy)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 
