@@ -6,15 +6,13 @@ class ObjectsUtil {
       dynamic a3,
       dynamic a4,
       dynamic a5,
-      dynamic a6,
-      dynamic a7}) {
+      dynamic a6}) {
     return ((a1 != null) ||
             (a2 != null) ||
             (a3 != null) ||
             (a4 != null) ||
             (a5 != null)) ||
-        (a6 != null) ||
-        (a7 != null);
+        (a6 != null);
   }
 
   /// Verifies if all of the named optional args are not null. Initializing to initial value of '@'
@@ -24,14 +22,12 @@ class ObjectsUtil {
       dynamic a3 = '@',
       dynamic a4 = '@',
       dynamic a5 = '@',
-      dynamic a6 = '@',
-      dynamic a7 = '@'}) {
+      dynamic a6 = '@'}) {
     return ((a1 != null) &&
-            (a2 != null) &&
-            (a3 != null) &&
-            (a4 != null) &&
-            (a5 != null) &&
-            (a6 != null)) &&
-        (a7 != null);
+        (a2 != null) &&
+        (a3 != null) &&
+        (a4 != null) &&
+        (a5 != null) &&
+        (a6 != null));
   }
 }

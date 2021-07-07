@@ -76,8 +76,9 @@ class InboundMessageListener {
   }
 
   Future<void> _closeConnection() async {
+    _buffer.clear();
     if (!connection.isInValid()) {
-      await connection.close();
+      connection.close();
     }
   }
 }

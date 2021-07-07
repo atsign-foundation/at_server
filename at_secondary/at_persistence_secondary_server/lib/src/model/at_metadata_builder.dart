@@ -21,6 +21,7 @@ class AtMetadataBuilder {
       bool? isBinary,
       bool? isEncrypted,
       String? dataSignature,
+      String? sharedKeyStatus,
       String? sharedBy}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
@@ -29,7 +30,6 @@ class AtMetadataBuilder {
     atMetaData.updatedBy = atSign;
     atMetaData.updatedAt = currentUtcTime;
     atMetaData.status = 'active';
-    //changed notifiedBy to sharedBy.
     atMetaData.sharedBy ??= sharedBy;
 
     //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
@@ -49,6 +49,7 @@ class AtMetadataBuilder {
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
+    sharedKeyStatus ??= newAtMetaData.sharedKeyStatus;
 
     if (ttl != null && ttl > 0) {
       setTTL(ttl, ttb: ttb);
@@ -66,6 +67,7 @@ class AtMetadataBuilder {
     setIsBinary(isBinary);
     setIsEncrypted(isEncrypted);
     setDataSignature(dataSignature);
+    setSharedKeyStatus(sharedKeyStatus);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
@@ -111,6 +113,10 @@ class AtMetadataBuilder {
     if (dataSignature != null) {
       atMetaData.dataSignature = dataSignature;
     }
+  }
+
+  void setSharedKeyStatus(String? sharedKeyStatus) {
+    atMetaData.sharedKeyStatus = sharedKeyStatus;
   }
 
   DateTime? _getAvailableAt(int epochNow, int ttb) {

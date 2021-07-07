@@ -1,4 +1,4 @@
-import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_commons/at_commons.dart';
 
 /// Metadata information for [InboundConnection]
 class InboundConnectionMetadata extends AtConnectionMetaData {
