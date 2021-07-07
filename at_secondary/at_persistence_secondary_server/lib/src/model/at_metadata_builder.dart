@@ -20,7 +20,8 @@ class AtMetadataBuilder {
       bool? ccd,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) {
+      String? dataSignature,
+      String? sharedBy}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -28,6 +29,8 @@ class AtMetadataBuilder {
     atMetaData.updatedBy = atSign;
     atMetaData.updatedAt = currentUtcTime;
     atMetaData.status = 'active';
+    //changed notifiedBy to sharedBy.
+    atMetaData.sharedBy ??= sharedBy;
 
     //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
     ttl ??= newAtMetaData.ttl;

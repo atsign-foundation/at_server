@@ -54,9 +54,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var atValue = verbParams[AT_VALUE];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
+    var isPublic = key!.startsWith('public:');
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
     strategy ??= 'all';
+    // If messageType is key, append atsign to the key
     if (messageType == MessageType.key) {
       key = '$key$atSign';
     }
@@ -128,6 +130,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
+      // If key is public, remove the forAtSign from the key
+      if(isPublic){
+        var start = key.indexOf(':');
+        key = key.substring(start + 1);
+      }
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
@@ -150,7 +157,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttl: ttl_ms,
                 ttb: ttb_ms,
                 ttr: ttr_ms,
-                ccd: isCascade)
+                ccd: isCascade,
+                sharedBy: fromAtSign)
             .build();
         await _storeCachedKeys(key, metadata, atValue: atValue);
         response.data = 'data:success';
