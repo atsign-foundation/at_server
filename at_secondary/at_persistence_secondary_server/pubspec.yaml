@@ -15,7 +15,7 @@ dependencies:
   cron: ^0.3.0
   crypto: ^3.0.1
   uuid: ^3.0.4
-  at_persistence_spec: ^2.0.1
+  at_persistence_spec: ^2.0.0
   at_utils: ^2.0.1
   at_commons: ^2.0.1
   dart_utf7:
@@ -30,19 +30,19 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: sdk_refactoring
+      ref: trunk
       version: ^2.0.0
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: sdk_refactoring
+      ref: trunk
       version: ^2.0.1
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: sdk_refactoring
+      ref: trunk
       version: ^2.0.1
 
 dev_dependencies:

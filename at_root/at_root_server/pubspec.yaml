@@ -23,30 +23,24 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
-      ref: sdk_refactoring
+      ref: trunk
       version: ^2.0.0
-  at_utils: ^1.0.1+8
-  at_commons: ^1.0.1+8
+  at_utils: ^2.0.1
+  at_commons: ^2.0.1
 
 dependency_overrides:
-  at_persistence_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_persistence/at_persistence_spec
-      ref: trunk
-      version: ^1.1.0
   at_utils:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_utils
-      ref: sdk_refactoring
-      version: ^1.1.0
+      ref: trunk
+      version: ^2.0.1
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: sdk_refactoring
-      version: ^1.1.1
+      ref: trunk
+      version: ^2.0.1
 
 
 dev_dependencies:
