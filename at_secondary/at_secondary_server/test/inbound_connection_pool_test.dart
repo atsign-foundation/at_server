@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -25,19 +26,18 @@ void main() async {
     test('test connection pool add connections', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(5);
-      var dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = InboundConnectionImpl(dummySocket, 'bbb');
+      var connection1 = DummyInboundConnection.getInstance();
+      var connection2 = DummyInboundConnection.getInstance();
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       expect(poolInstance.getCapacity(), 5);
       expect(poolInstance.getCurrentSize(), 2);
     });
+
     test('test connection pool has capacity', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      var dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = DummyInboundConnection.getInstance();
       poolInstance.add(connection1);
       expect(poolInstance.hasCapacity(), true);
     });
@@ -45,9 +45,8 @@ void main() async {
     test('test connection pool has no capacity', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      var dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = InboundConnectionImpl(dummySocket, 'bbb');
+      var connection1 = DummyInboundConnection.getInstance();
+      var connection2 = DummyInboundConnection.getInstance();
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       expect(poolInstance.hasCapacity(), false);
