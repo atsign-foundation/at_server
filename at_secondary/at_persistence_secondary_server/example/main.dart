@@ -14,8 +14,8 @@ Future<void> main(List<String> arguments) async {
   print(result);
 
   //commitLog keystore
-  var commitLogInstance =
-      await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice') as FutureOr<AtCommitLog>);
+  var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@alice') as FutureOr<AtCommitLog>);
   var hiveKey =
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
   var committedEntry = await commitLogInstance.getEntry(hiveKey);

@@ -73,6 +73,26 @@ jobs:
         with:
           sdk: stable
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      # adds dependency overrides to pubspec.yaml
+      # Runs when github action event type is pull_request or push event to trunk branch
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
+
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.working-directory }}
         run: dart pub get
@@ -95,6 +115,26 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
+
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+
+      # adds dependency overrides to pubspec.yaml
+      # Runs when github action event type is pull_request or push event to trunk branch
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
+        run: |
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
 
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.working-directory }}
@@ -122,6 +162,12 @@ jobs:
         with:
           sdk: stable
 
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
       - name: Install dependencies
         working-directory: at_functional_test
         run: dart pub get
@@ -137,6 +183,15 @@ jobs:
         working-directory: at_root/at_root_server
         # -o : path to copy the root binary
         run: dart pub get && dart compile exe bin/main.dart -o root
+
+      # Runs when github action event is pull_request or push to a trunk branch.
+      - name: Add dependency overrides on pull request
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install ruamel.yaml
+          chmod +x add_dependency_overrides.py
+          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
 
       - name: Generate secondary server binary
         working-directory: at_secondary/at_secondary_server
@@ -210,7 +265,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.3.0
+        uses: docker/setup-buildx-action@v1.4.1
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.9.0
@@ -269,7 +324,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.3.0
+        uses: docker/setup-buildx-action@v1.4.1
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.9.0
@@ -336,11 +391,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.3.0
+        uses: docker/setup-buildx-action@v1.4.1
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.9.0
@@ -365,7 +424,7 @@ jobs:
           tags: |
             atsigncompany/secondary:dess
             atsigncompany/secondary:prod
-            atsigncompany/secondary:prod-gha${{ github.run_number }}
+            atsigncompany/secondary:prod-${{ env.VERSION }}
           platforms: |
             linux/amd64
             linux/arm64/v8

@@ -13,7 +13,8 @@ void main() async {
   manager.scheduleKeyExpireTask(1);
   print(result);
 
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var commitLogKeyStore = CommitLogKeyStore('@test_user_1');
   await commitLogKeyStore.init('test/hive/commit');

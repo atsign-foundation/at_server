@@ -1,7 +1,7 @@
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:dart_utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
 class HiveKeyStoreHelper {
   static final HiveKeyStoreHelper _singleton = HiveKeyStoreHelper._internal();

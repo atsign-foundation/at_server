@@ -9,7 +9,7 @@ import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:dart_utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final logger = AtSignLogger('HiveKeystore');

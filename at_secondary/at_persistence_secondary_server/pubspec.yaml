@@ -4,7 +4,6 @@ version: 2.0.1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_secondary_server/index.html
-publish_to: none
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -18,13 +17,8 @@ dependencies:
   at_persistence_spec: ^2.0.0
   at_utils: ^2.0.1
   at_commons: ^2.0.1
-  dart_utf7:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: dart_utf7
-      ref: trunk
-      version: 0.2.1-null-safety
-
+  at_utf7: ^1.0.0
+  
 dependency_overrides:
   at_persistence_spec:
     git:
@@ -44,6 +38,8 @@ dependency_overrides:
       path: at_commons
       ref: trunk
       version: ^2.0.1
+  
+
 
 dev_dependencies:
   pedantic: ^1.11.0

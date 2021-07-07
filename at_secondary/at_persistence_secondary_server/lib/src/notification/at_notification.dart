@@ -103,7 +103,6 @@ class AtNotification {
 
   AtMetaData? get atMetadata => _atMetadata;
 
-
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
