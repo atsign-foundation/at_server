@@ -2,6 +2,7 @@ name: e2e_test on e2e-test branch
 
 on:
   workflow_dispatch:
+    branch: e2e-test
 
 jobs:
   test_running_commands_over_ssh:
