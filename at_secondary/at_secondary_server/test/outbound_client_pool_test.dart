@@ -8,6 +8,8 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
+import 'dummy_socket.dart';
+
 void main() async {
   late var outboundClient;
   setUp(() {
@@ -29,7 +31,8 @@ void main() async {
     test('test connection pool add clients', () {
       var poolInstance = outboundClient;
       poolInstance.init(5);
-      var dummySocket_1, dummySocket_2;
+      var dummySocket_1 = DummySocket.getInstance(),
+          dummySocket_2 = DummySocket.getInstance();
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
       var client_1 = OutboundClient(inboundConnection_1, 'alice');
       client_1.outboundConnection =
@@ -46,7 +49,9 @@ void main() async {
     test('test client pool - invalid clients', () {
       var poolInstance = outboundClient;
       poolInstance.init(5);
-      var dummySocket_1, dummySocket_2, dummySocket_3;
+      var dummySocket_1 = DummySocket.getInstance(),
+          dummySocket_2 = DummySocket.getInstance(),
+          dummySocket_3 = DummySocket.getInstance();
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
       var client_1 = OutboundClient(inboundConnection_1, 'alice');
       client_1.outboundConnection =
@@ -72,7 +77,8 @@ void main() async {
     test('test connection pool remove all clients', () {
       var poolInstance = outboundClient;
       poolInstance.init(5);
-      var dummySocket_1, dummySocket_2;
+      var dummySocket_1 = DummySocket.getInstance(),
+          dummySocket_2 = DummySocket.getInstance();
       var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
       var client_1 = OutboundClient(inboundConnection_1, 'alice');
       client_1.outboundConnection =

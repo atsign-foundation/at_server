@@ -122,7 +122,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Security context is not set');
     }
 
-    if (serverContext!.currentAtSign == null) {
+    if (serverContext!.currentAtSign.isEmpty) {
       throw AtServerException('User atSign is not set');
     }
 
