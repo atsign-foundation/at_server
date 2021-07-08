@@ -1,4 +1,4 @@
-import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
@@ -83,7 +83,7 @@ void main() {
 
     test('test stats verb - invalid syntax', () {
       var command = 'statsn';
-      var inbound = InboundConnectionImpl(null, null);
+      var inbound = DummyInboundConnection.getInstance();
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager();
       expect(

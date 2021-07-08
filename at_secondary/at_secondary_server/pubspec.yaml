@@ -20,6 +20,44 @@ dependencies:
   at_lookup: ^2.0.1
   at_server_spec: ^2.0.1
 
+dependency_overrides:
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: trunk
+      version: ^2.0.0
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_secondary/at_persistence_secondary_server
+      ref: trunk
+      version: ^2.0.1
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: at_lookup
+      ref: trunk
+      version: ^2.0.1
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_utils
+      ref: trunk
+      version: ^2.0.1
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: trunk
+      version: ^2.0.1
+  at_server_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_server_spec
+      ref: trunk
+      version: ^2.0.1
+      
 dev_dependencies:
   test: ^1.17.3
   #  test_coverage: ^0.5.0

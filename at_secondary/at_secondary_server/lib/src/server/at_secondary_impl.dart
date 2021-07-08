@@ -122,7 +122,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Security context is not set');
     }
 
-    if (serverContext!.currentAtSign == null) {
+    if (serverContext!.currentAtSign.isEmpty) {
       throw AtServerException('User atSign is not set');
     }
 
@@ -348,13 +348,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> _initializeHiveInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext!.currentAtSign!,
+        serverContext!.currentAtSign,
         commitLogPath: commitLogPath);
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext!.currentAtSign!,
+        serverContext!.currentAtSign,
         accessLogPath: accessLogPath);
     _accessLog = atAccessLog;
 
@@ -363,7 +363,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationInstance.init(
         notificationStoragePath,
         'notifications_' +
-            AtUtils.getShaForAtSign(serverContext!.currentAtSign!));
+            AtUtils.getShaForAtSign(serverContext!.currentAtSign));
     // Loads the notifications into Map.
     NotificationUtil.loadNotificationMap();
 
@@ -372,8 +372,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(serverContext!.currentAtSign!, storagePath!);
-    await manager.openVault(serverContext!.currentAtSign!);
+    await manager.init(serverContext!.currentAtSign, storagePath!);
+    await manager.openVault(serverContext!.currentAtSign);
     manager.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     var atData = AtData();

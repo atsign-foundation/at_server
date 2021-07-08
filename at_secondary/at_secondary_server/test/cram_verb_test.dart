@@ -4,8 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -55,6 +54,33 @@ void main() async {
       expect(verb is Cram, true);
     });
 
+    test('test cram verb handler processVerb auth fail', () async {
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      var secretData = AtData();
+      secretData.data =
+      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      await keyStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
+      var atConnection = DummyInboundConnection.getInstance();
+      var fromVerbParams = HashMap<String, String>();
+      fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
+      var response = Response();
+      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
+      var cramVerbParams = HashMap<String, String>();
+      var combo = '${secretData.data}randomfromresponse';
+      var bytes = utf8.encode(combo);
+      var digest = sha512.convert(bytes);
+      cramVerbParams.putIfAbsent('digest', () => digest.toString());
+      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var cramResponse = Response();
+      expect(
+              () async => await verbHandler.processVerb(
+              cramResponse, cramVerbParams, atConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
+      expect(atConnection.getMetaData().isAuthenticated, false);
+    });
+
     test('test cram verb handler processVerb auth success', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
@@ -63,8 +89,7 @@ void main() async {
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = DummyInboundConnection.getInstance();
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -78,47 +103,17 @@ void main() async {
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.isAuthenticated, true);
+      expect(atConnection.getMetaData().isAuthenticated, true);
       expect(cramResponse.data, 'success');
-    });
-
-    test('test cram verb handler processVerb auth fail', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-      var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
-      var fromVerbParams = HashMap<String, String>();
-      fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
-      var response = Response();
-      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}randomfromresponse';
-      var bytes = utf8.encode(combo);
-      var digest = sha512.convert(bytes);
-      cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
-      var cramResponse = Response();
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(
-          () async => await verbHandler.processVerb(
-              cramResponse, cramVerbParams, atConnection),
-          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
-      expect(connectionMetadata.isAuthenticated, false);
     });
 
     test('test cram verb handler processVerb no secret in keystore', () async {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = DummyInboundConnection.getInstance();
+      atConnection.getMetaData().sessionID = inBoundSessionId;
+      atConnection.getMetaData().isAuthenticated = false;
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -130,13 +125,11 @@ void main() async {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
-      expect(connectionMetadata.isAuthenticated, false);
+      expect(atConnection.getMetaData().isAuthenticated, false);
     });
   });
   tearDown(() async => await tearDownFunc());
