@@ -24,3 +24,14 @@ jobs:
           host: cicd2.atsign.wtf
           username: ubuntu
           privateKey: ${{ secrets.CICD_SSH_KEY}}
+
+      - name: multiple host
+        uses: appleboy/ssh-action@master
+        with:
+          host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
+          username: ubuntu
+          key: ${{ secrets.CICD_SSH_KEY }}
+          script: |
+            sudo docker service ls
+            sudo docker images
+
