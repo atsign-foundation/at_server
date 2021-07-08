@@ -10,7 +10,9 @@ class AtSecondaryContext extends AtServerContext {
   int? outboundConnectionLimit = 10;
   int? inboundIdleTimeMillis = 600000;
   int? outboundIdleTimeMillis = 600000;
-  late String currentAtSign;
+
+  // Setting to empty string. AtSign will be set on server start-up.
+  String currentAtSign = '';
   String? sharedSecret;
   AtSecurityContext? securityContext;
   SecondaryKeyStore? secondaryKeyStore;
