@@ -3,27 +3,14 @@ at_persistence_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_persistence/at_persistence_spec
-    ref: sdk_refactoring
-    version: ^2.0.0
-at_persistence_secondary_server:
-  git:
-    url: https://github.com/atsign-foundation/at_server.git
-    path: at_secondary/at_persistence_secondary_server
-    ref: sdk_refactoring
-    version: ^2.0.1
+    ref: trunk
 at_utils:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_utils
-    ref: sdk_refactoring
+    ref: trunk
 at_commons:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_commons
-    ref: sdk_refactoring
-at_server_spec:
-  git:
-    url: https://github.com/atsign-foundation/at_server.git
-    path: at_server_spec
-    ref: sdk_refactoring
-    version: ^2.0.1
+    ref: trunk

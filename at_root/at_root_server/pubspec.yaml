@@ -18,23 +18,9 @@ dependencies:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
       ref: trunk
-      version: ^2.0.0
+      version: ^2.0.1
   at_utils: ^2.0.1
   at_commons: ^2.0.1
-
-dependency_overrides:
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_utils
-      ref: trunk
-      version: ^2.0.1
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: trunk
-      version: ^2.0.1
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.

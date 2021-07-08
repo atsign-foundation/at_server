@@ -10,8 +10,7 @@ AtMetaData? AtMetadataAdapter(Metadata metadata) {
     ..isCascade = metadata.ccd
     ..isBinary = metadata.isBinary
     ..isEncrypted = metadata.isEncrypted
-    ..dataSignature = metadata.dataSignature
-    ..sharedKeyStatus = metadata.sharedKeyStatus;
+    ..dataSignature = metadata.dataSignature;
 
   return AtMetadataBuilder(newAtMetaData: atMetadata).build();
 }
