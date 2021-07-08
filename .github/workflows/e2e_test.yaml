@@ -1,4 +1,4 @@
-name: e2e_test
+name: e2e_test on e2e-test branch
 
 on:
   workflow_dispatch:
@@ -8,10 +8,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: list docker services
+      - name: list docker services on cicd1
         uses: garygrossgarten/github-action-ssh@release
         with:
           command: sudo docker service ls
           host: cicd1.atsign.wtf
+          username: ubuntu
+          privateKey: ${{ secrets.CICD_SSH_KEY}}
+
+      - name: list docker services on cicd2
+        uses: garygrossgarten/github-action-ssh@release
+        with:
+          command: sudo docker service ls
+          host: cicd2.atsign.wtf
           username: ubuntu
           privateKey: ${{ secrets.CICD_SSH_KEY}}
