@@ -12,7 +12,7 @@ jobs:
       - name: list docker services on cicd1
         uses: garygrossgarten/github-action-ssh@release
         with:
-          command: sudo docker service ls
+          command: sudo docker service ls;sudo docker images
           host: cicd1.atsign.wtf
           username: ubuntu
           privateKey: ${{ secrets.CICD_SSH_KEY}}
