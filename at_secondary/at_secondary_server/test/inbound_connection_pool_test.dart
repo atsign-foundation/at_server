@@ -7,6 +7,8 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
+import 'dummy_socket.dart';
+
 void main() async {
   setUp(() {
     var serverContext = AtSecondaryContext();
@@ -55,7 +57,7 @@ void main() async {
     test('test connection pool - clear closed connection', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      var dummySocket;
+      var dummySocket = DummySocket.getInstance();
       var connection1 = MockInBoundConnectionImpl(dummySocket, 'aaa');
       var connection2 = MockInBoundConnectionImpl(dummySocket, 'bbb');
       poolInstance.add(connection1);
@@ -69,7 +71,7 @@ void main() async {
     test('test connection pool - clear idle connection', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      var dummySocket;
+      var dummySocket = DummySocket.getInstance();
       var connection1 = MockInBoundConnectionImpl(dummySocket, 'aaa');
       var connection2 = MockInBoundConnectionImpl(dummySocket, 'bbb');
       var connection3 = MockInBoundConnectionImpl(dummySocket, 'ccc');
