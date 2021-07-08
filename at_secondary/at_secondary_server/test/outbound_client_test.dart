@@ -7,8 +7,6 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:test/test.dart';
 
-import 'dummy_socket.dart';
-
 void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
@@ -19,7 +17,7 @@ void main() {
   group('A group of outbound client tests', () {
     test('test outbound client - invalid outbound client if inbound is invalid',
         () {
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -28,7 +26,7 @@ void main() {
     });
 
     test('test outbound client - invalid outbound client idle', () {
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -37,7 +35,7 @@ void main() {
     });
 
     test('test outbound client - valid outbound client', () {
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -47,11 +45,11 @@ void main() {
     test(
         'test outbound client - stale connection - connection invalid exception',
         () {
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection.getMetaData().isStale = true;
+      client.outboundConnection!.getMetaData().isStale = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(
@@ -61,11 +59,11 @@ void main() {
     test(
         'test outbound client - closed connection - connection invalid exception',
         () {
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection.getMetaData().isClosed = true;
+      client.outboundConnection!.getMetaData().isClosed = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(

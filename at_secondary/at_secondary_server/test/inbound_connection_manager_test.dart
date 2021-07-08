@@ -5,8 +5,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
-import 'dummy_socket.dart';
-
 void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
@@ -21,7 +19,7 @@ void main() {
   group('A group of inbound connection manager tests', () {
     test('test inbound connection manager - create connection ', () {
       var connManager = InboundConnectionManager.getInstance();
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.init(5);
       var createdConnection =
           connManager.createConnection(dummySocket, sessionId: 'aaa');
@@ -32,7 +30,7 @@ void main() {
     test('test inbound connection manager - current pool size', () {
       var connManager = InboundConnectionManager.getInstance();
       connManager.init(2);
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.createConnection(dummySocket, sessionId: 'aaa');
       expect(ConnectionUtil.getActiveConnectionSize(), 1);
     });
@@ -44,7 +42,7 @@ void main() {
 
     test('test inbound connection manager - connect limit test', () {
       var connManager = InboundConnectionManager.getInstance();
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.init(2);
       connManager.createConnection(dummySocket, sessionId: 'aaa');
       connManager.createConnection(dummySocket, sessionId: 'bbb');
@@ -53,11 +51,12 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InboundConnectionLimitException &&
               e.message == 'max limit reached on inbound pool')));
+      ;
     });
 
     test('test inbound connection manager - has capacity true', () {
       var connManager = InboundConnectionManager.getInstance();
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.init(5);
       connManager.createConnection(dummySocket, sessionId: 'aaa');
       connManager.createConnection(dummySocket, sessionId: 'bbb');
@@ -67,7 +66,7 @@ void main() {
 
     test('test inbound connection manager - has capacity false', () {
       var connManager = InboundConnectionManager.getInstance();
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.init(3);
       connManager.createConnection(dummySocket, sessionId: 'aaa');
       connManager.createConnection(dummySocket, sessionId: 'bbb');
@@ -77,7 +76,7 @@ void main() {
 
     test('test inbound connection manager -clear connections', () {
       var connManager = InboundConnectionManager.getInstance();
-      var dummySocket = DummySocket.getInstance();
+      var dummySocket;
       connManager.init(3);
       connManager.createConnection(dummySocket, sessionId: 'aaa');
       connManager.createConnection(dummySocket, sessionId: 'bbb');

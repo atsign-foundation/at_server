@@ -4,7 +4,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -143,8 +144,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = DummyInboundConnection.getInstance();
-      atConnection.getMetaData().sessionID = inBoundSessionId;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -159,7 +159,9 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      expect(atConnection.getMetaData().isAuthenticated, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(keyStore);
@@ -190,8 +192,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = DummyInboundConnection.getInstance();
-      atConnection.getMetaData().sessionID = inBoundSessionId;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -206,7 +207,9 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      expect(atConnection.getMetaData().isAuthenticated, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(keyStore);

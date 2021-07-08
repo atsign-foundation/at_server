@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/src/at_constants.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -136,7 +137,7 @@ void main() {
 
     test('test notify verb - invalid ttl value', () {
       var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = DummyInboundConnection.getInstance();
+      var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '0');
@@ -148,7 +149,7 @@ void main() {
 
     test('test notify verb - invalid ttb value', () {
       var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = DummyInboundConnection.getInstance();
+      var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '0');
@@ -160,7 +161,7 @@ void main() {
 
     test('test notify verb - ttr = -2 invalid value ', () {
       var notifyVerb = NotifyVerbHandler(null);
-      var inboundConnection = DummyInboundConnection.getInstance();
+      var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
@@ -249,7 +250,8 @@ void main() {
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var atConnection = DummyInboundConnection.getInstance();
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -264,7 +266,9 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      expect(atConnection.getMetaData().isAuthenticated, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
       var notifyVerbHandler = NotifyVerbHandler(keyStore);
@@ -298,7 +302,8 @@ void main() {
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var atConnection = DummyInboundConnection.getInstance();
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -313,7 +318,9 @@ void main() {
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
-      expect(atConnection.getMetaData().isAuthenticated, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
       var notifyVerbHandler = NotifyVerbHandler(keyStore);

@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -100,15 +101,15 @@ void main() async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = DummyInboundConnection.getInstance();
-      atConnection.getMetaData().sessionID = inBoundSessionId;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
-
-      expect(atConnection.getMetaData().self, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.self, true);
     });
 
     test('test from verb handler processverb from atsign does not contain @',
@@ -116,15 +117,16 @@ void main() async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = DummyInboundConnection.getInstance();
-      atConnection.getMetaData().sessionID = inBoundSessionId;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
-      expect(atConnection.getMetaData().self, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.self, true);
     });
 
     /*test(
@@ -155,14 +157,16 @@ void main() async {
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = DummyInboundConnection.getInstance();
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
-      expect(atConnection.getMetaData().self, true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.self, true);
     });
 
     test('test from verb handler to block fromAtSign ', () async {
@@ -173,7 +177,8 @@ void main() async {
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var atConnection = DummyInboundConnection.getInstance();
+      var inBoundSessionId = '123';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@bob');
       var response = Response();

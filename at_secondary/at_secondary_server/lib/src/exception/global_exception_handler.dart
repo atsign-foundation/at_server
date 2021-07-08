@@ -4,7 +4,7 @@ import 'package:args/args.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_utils/at_logger.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 class GlobalExceptionHandler {
@@ -16,7 +16,6 @@ class GlobalExceptionHandler {
   factory GlobalExceptionHandler.getInstance() {
     return _singleton;
   }
-  final _logger = AtSignLogger('GlobalExceptionHandler');
 
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
@@ -75,7 +74,7 @@ class GlobalExceptionHandler {
   /// params: AtConnection
   /// This will close the connection and remove it from pool
   void _closeConnection(AtConnection? atConnection) async {
-    atConnection?.close();
+    await atConnection?.close();
   }
 
   Future<void> _handleInternalException(
@@ -121,11 +120,6 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? error_code, String error_description) {
-    try {
-      atConnection.write('error:$error_code-$error_description\n$prompt');
-    } on ConnectionInvalidException {
-      _logger.finer(
-          'unable to write error code $error_code-$error_description to client socket: ');
-    }
+    atConnection.write('error:$error_code-$error_description\n$prompt');
   }
 }
