@@ -63,3 +63,8 @@ jobs:
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
         run: echo "${{secrets.CICD_DATA_DART}}" > at_functional_test/test/at_demo_data.dart
+
+      # Run end to end test
+      - name: End to end test
+        working-directory: at_functional_test
+        run: dart run test test/update_verb_test.dart
