@@ -1,8 +1,21 @@
-# The @Protocol secondary server configurations.
-
 # The @Protocol root server configuration
 root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
-  url: 'vip.ve.atsign.zone'
+  url: 'root.atsign.wtf'
+
+# cicd atsign details
+first_atsign_server:
+  first_atsign_name: '@cicd1'
+  # # The port to connect to first atsign server
+  first_atsign_port: 6464
+  # # The url to connect to first atsign server
+  first_atsign_url: cicd1.atsign.wtf
+
+second_atsign_server:
+  second_atsign_name: '@cicd2'
+  # # The port to connect to second atsign server
+  second_atsign_port: 6464
+  # # The url to connect to second atsign server
+  second_atsign_url: cicd2.atsign.wtf
