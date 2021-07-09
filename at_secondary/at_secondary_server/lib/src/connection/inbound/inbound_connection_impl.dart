@@ -1,10 +1,10 @@
 import 'dart:io';
 
+import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_commons/at_commons.dart';
 
 class InboundConnectionImpl extends BaseConnection
     implements InboundConnection {
@@ -17,7 +17,7 @@ class InboundConnectionImpl extends BaseConnection
   static int? inbound_idle_time =
       AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
 
-  InboundConnectionImpl(Socket? socket, String? sessionId) : super(socket!) {
+  InboundConnectionImpl(Socket? socket, String? sessionId) : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()

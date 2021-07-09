@@ -9,7 +9,3 @@
 ## 2.0.1
 
 - at_commons version change
-
-## 2.0.2
-- Null safety upgrade
-- Remove and at_connection.dart and reuse from at_commons

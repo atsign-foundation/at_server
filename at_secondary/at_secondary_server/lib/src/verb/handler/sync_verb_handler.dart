@@ -16,7 +16,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':') && !command.contains('sync:stream');
+      command.startsWith(getName(VerbEnum.sync) + ':');
 
   @override
   Verb getVerb() {
@@ -27,7 +27,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
-      InboundConnection atConnection) async {
+      InboundConnection? atConnection) async {
     var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE]!;
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
@@ -42,7 +42,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
     if (regex != null && regex != 'null') {
       logger.finer('regex for sync : $regex');
       commit_changes
-          ?.removeWhere((entry) => !isRegexMatches(entry.atKey!, regex));
+          ?.removeWhere((entry) => !_isRegexMatches(entry.atKey!, regex));
     }
     var distinctKeys = <String>{};
     var syncResultList = [];
@@ -51,8 +51,10 @@ class SyncVerbHandler extends AbstractVerbHandler {
         (entry1, entry2) => entry2.commitId!.compareTo(entry1.commitId!));
     // for each latest key entry in commit log, get the value
     if (commit_changes != null) {
-      await Future.forEach(commit_changes,
-          (dynamic entry) => processEntry(entry, distinctKeys, syncResultList));
+      await Future.forEach(
+          commit_changes,
+          (dynamic entry) =>
+              _processEntry(entry, distinctKeys, syncResultList));
     }
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
@@ -60,14 +62,16 @@ class SyncVerbHandler extends AbstractVerbHandler {
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     var result;
+
     if (syncResultList.isNotEmpty) {
       result = jsonEncode(syncResultList);
     }
+
     response.data = result;
     return;
   }
 
-  Future<void> processEntry(entry, distinctKeys, syncResultList) async {
+  Future<void> _processEntry(entry, distinctKeys, syncResultList) async {
     var isKeyLatest = distinctKeys.add(entry.atKey);
     var resultMap = entry.toJson();
     // update value only for latest entry for duplicate keys in the commit log
@@ -78,13 +82,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
       } else if (entry.operation == CommitOp.UPDATE_ALL ||
           entry.operation == CommitOp.UPDATE_META) {
         resultMap.putIfAbsent('value', () => value?.data);
-        populateMetadata(value, resultMap);
+        _populateMetadata(value, resultMap);
       }
       syncResultList.add(resultMap);
     }
   }
 
-  void populateMetadata(value, resultMap) {
+  void _populateMetadata(value, resultMap) {
     var metaDataMap = <String, dynamic>{};
     AtMetaData? metaData = value?.metaData;
     if (metaData != null) {
@@ -121,16 +125,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
         metaDataMap.putIfAbsent(
             UPDATED_AT, () => metaData.updatedAt.toString());
       }
-
-      if (metaData.sharedKeyStatus != null) {
-        metaDataMap.putIfAbsent(
-            SHARED_KEY_STATUS, () => metaData.sharedKeyStatus);
-      }
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
   }
 
-  bool isRegexMatches(String atKey, String regex) {
+  bool _isRegexMatches(String atKey, String regex) {
     var result = false;
     if ((RegExp(regex).hasMatch(atKey)) ||
         atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||

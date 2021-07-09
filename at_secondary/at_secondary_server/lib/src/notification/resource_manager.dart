@@ -6,7 +6,6 @@ import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class that is responsible for sending the notifications.
@@ -109,8 +108,10 @@ class ResourceManager {
     } finally {
       //1. Adds errored notifications back to queue.
       _enqueueErrorList(errorList);
-      //2. Calling close method to close the outbound connection
-      outBoundClient.outboundConnection.close();
+
+      //2. Setting isStale on  outbound connection metadata to true to remove the connection from
+      //   Notification Connection Pool.
+      await outBoundClient.outboundConnection!.close();
     }
   }
 
@@ -123,14 +124,6 @@ class ResourceManager {
       var notifyEle = await (notificationKeyStore.get(atNotification!.id));
       atNotification.notificationStatus = NotificationStatus.delivered;
       await AtNotificationKeystore.getInstance().put(notifyEle?.id, notifyEle);
-      var metadata = Metadata()
-        ..sharedKeyStatus =
-            getSharedKeyName(SharedKeyStatus.SHARED_WITH_NOTIFIED);
-      await SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(
-              AtSecondaryServerImpl.getInstance().currentAtSign)!
-          .getSecondaryKeyStore()!
-          .putMeta(atNotification.notification!, AtMetadataAdapter(metadata));
     } else {
       errorList.add(atNotification);
     }
