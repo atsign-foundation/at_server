@@ -18,5 +18,5 @@ at_commons:
 at_persistence_secondary_server:
   git:
     url: https://github.com/atsign-foundation/at_server.git
-    path: at_persistence_secondary_server
+    path: at_secondary/at_persistence_secondary_server
     ref: stats_changes
