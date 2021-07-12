@@ -81,7 +81,7 @@ class AtAccessLog implements AtLogType {
     return _accessLogKeyStore.getLastEntry();
   }
 
-  AccessLogEntry getLastPkamAccessLogEntry() {
+  AccessLogEntry? getLastPkamAccessLogEntry() {
     return _accessLogKeyStore.getLastPkamEntry();
   }
 
