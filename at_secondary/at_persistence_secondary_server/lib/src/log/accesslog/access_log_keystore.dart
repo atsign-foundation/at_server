@@ -208,7 +208,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     var items = box!.values.toList();
     items.removeWhere((item) => (item.verbName != 'pkam'));
     items.sort((a, b) => a.requestDateTime.compareTo(b.requestDateTime));
-    return items.last;
+    return (items.isNotEmpty) ? items.last : null;
   }
 
   ///Closes the [accessLogKeyStore] instance.

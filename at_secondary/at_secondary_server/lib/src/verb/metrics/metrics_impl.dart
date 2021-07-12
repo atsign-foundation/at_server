@@ -266,7 +266,7 @@ class LastPkamMetricImpl implements MetricProvider {
     AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastPkamAccessLogEntry();
-    return entry.requestDateTime!.toUtc().toString();
+    return (entry!= null) ? entry.requestDateTime!.toUtc().toString() : 'Not Available';
   }
 
   @override
