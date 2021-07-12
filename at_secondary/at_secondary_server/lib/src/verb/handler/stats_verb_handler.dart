@@ -19,7 +19,10 @@ enum MetricNames {
   SECONDARY_STORAGE_SIZE,
   MOST_VISITED_ATSIGN,
   MOST_VISITED_ATKEYS,
-  SECONDARY_SERVER_VERSION
+  SECONDARY_SERVER_VERSION,
+  LAST_LOGGEDIN_DATETIME,
+  DISK_SIZE,
+  LAST_PKAM
 }
 
 extension MetricClasses on MetricNames? {
@@ -39,6 +42,12 @@ extension MetricClasses on MetricNames? {
         return MostVisitedAtKeyMetricImpl.getInstance();
       case MetricNames.SECONDARY_SERVER_VERSION:
         return SecondaryServerVersion.getInstance();
+      case MetricNames.LAST_LOGGEDIN_DATETIME:
+        return LastLoggedInDatetimeMetricImpl.getInstance();
+      case MetricNames.DISK_SIZE:
+        return DiskSizeMetricImpl.getInstance();
+      case MetricNames.LAST_PKAM:
+        return LastPkamMetricImpl.getInstance();
       default:
         return null;
     }
@@ -52,7 +61,10 @@ final Map stats_map = {
   '4': MetricNames.SECONDARY_STORAGE_SIZE,
   '5': MetricNames.MOST_VISITED_ATSIGN,
   '6': MetricNames.MOST_VISITED_ATKEYS,
-  '7': MetricNames.SECONDARY_SERVER_VERSION
+  '7': MetricNames.SECONDARY_SERVER_VERSION,
+  '8': MetricNames.LAST_LOGGEDIN_DATETIME,
+  '9': MetricNames.DISK_SIZE,
+  '10': MetricNames.LAST_PKAM
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
