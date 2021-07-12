@@ -63,7 +63,8 @@ final Map stats_map = {
   '6': MetricNames.MOST_VISITED_ATKEYS,
   '7': MetricNames.SECONDARY_SERVER_VERSION,
   '8': MetricNames.LAST_LOGGEDIN_DATETIME,
-  '9': MetricNames.DISK_SIZE
+  '9': MetricNames.DISK_SIZE,
+  '10': MetricNames.LAST_PKAM
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
