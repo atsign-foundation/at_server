@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_server_spec/src/connection/inbound_connection.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
+import 'package:at_utils/at_utils.dart';
 
 class StreamVerbHandler extends AbstractVerbHandler {
   static StreamVerb stream = StreamVerb();
@@ -97,10 +98,11 @@ class StreamVerbHandler extends AbstractVerbHandler {
         break;
       case 'resume':
         var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        //receiver = AtUtils.formatAtSign(receiver);
         var notificationKey =
-            '$currentAtSign:stream_resume $streamId:$startByte';
+            '@$receiver:stream_resume $streamId:$startByte';
         print('inside stream resume $notificationKey');
-        _notify(receiver, currentAtSign, notificationKey);
+        await _notify(receiver, currentAtSign, notificationKey);
         break;
     }
     response.isStream = true;
@@ -119,7 +121,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
     StreamManager.senderSocketMap.remove(streamId);
   }
 
-  void _notify(forAtSign, atSign, key) {
+  Future<void> _notify(forAtSign, atSign, key) async {
     if (forAtSign == null) {
       return;
     }
@@ -130,6 +132,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
           ..notification = key
           ..opType = OperationType.update)
         .build();
-    NotificationManager.getInstance().notify(atNotification);
+    var notification_id = await NotificationManager.getInstance().notify(atNotification);
+    print('notification_id : $notification_id');
   }
 }
