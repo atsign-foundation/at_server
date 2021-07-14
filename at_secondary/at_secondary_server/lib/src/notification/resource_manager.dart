@@ -80,6 +80,7 @@ class ResourceManager {
         }
       }
     } on Exception catch (e) {
+      outBoundClient.inboundConnection.getMetaData().isClosed = true;
       logger.finer('connect result: $e');
       throw ConnectionInvalidException('Connection failed');
     }
@@ -110,7 +111,7 @@ class ResourceManager {
       //1. Adds errored notifications back to queue.
       _enqueueErrorList(errorList);
       //2. Calling close method to close the outbound connection
-      outBoundClient.outboundConnection.close();
+      outBoundClient.outboundConnection?.close();
     }
   }
 
