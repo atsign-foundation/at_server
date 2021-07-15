@@ -130,6 +130,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             ..atValue = atValue
             ..notifier = notifier
             ..strategy = strategy
+            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
             ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
                 ? _getIntParam(verbParams[LATEST_N])
                 : 1
