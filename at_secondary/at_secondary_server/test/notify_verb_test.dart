@@ -99,10 +99,9 @@ void main() {
       var verb = Notify();
       var command = 'notify:@colin:location';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      var params = getVerbParam(regex, command);
+      expect(params['forAtSign'], 'colin');
+      expect(params['atKey'], 'location');
     });
 
     test('test notify with only key', () {
