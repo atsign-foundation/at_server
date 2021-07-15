@@ -92,16 +92,17 @@ class StreamVerbHandler extends AbstractVerbHandler {
         var notificationKey =
             '@$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
 
-        _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
+        await _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
             notificationKey);
         StreamManager.senderSocketMap[streamId] = atConnection;
         break;
       case 'resume':
         var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
         //receiver = AtUtils.formatAtSign(receiver);
+        final sender = receiver;
         var notificationKey =
-            '@$receiver:stream_resume $streamId:$startByte';
-        print('inside stream resume $notificationKey');
+            '@$sender:stream_resume $streamId:$startByte';
+        logger.finer('inside stream resume $notificationKey');
         await _notify(receiver, currentAtSign, notificationKey);
         break;
     }
@@ -133,6 +134,6 @@ class StreamVerbHandler extends AbstractVerbHandler {
           ..opType = OperationType.update)
         .build();
     var notification_id = await NotificationManager.getInstance().notify(atNotification);
-    print('notification_id : $notification_id');
+    logger.finer('notification_id : $notification_id');
   }
 }
