@@ -13,10 +13,10 @@ at_commons:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_commons
-    ref: git#221
+    ref: trunk
 
 at_persistence_secondary_server:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_secondary/at_persistence_secondary_server
-    ref: git#221
+    ref: trunk
