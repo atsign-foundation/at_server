@@ -113,6 +113,32 @@ void main() {
     assert(response.contains('cached:public:key-1$first_atsign'));
   },timeout: Timeout(Duration(seconds: 120)));
 
+  test('plookup verb with public key -updating same key multiple times', () async {
+    /// UPDATE VERB
+    await socket_writer(_socket_first_atsign, 'update:public:hobbies$first_atsign Dancing');
+    var response = await read();
+    print('update verb response $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///PLOOKUP VERB after updating same key multiple times
+    await socket_writer(_socket_first_atsign, 'plookup:hobbies$first_atsign');
+    response = await read();
+    print('plookup verb response $response');
+    expect(response, contains('data:Dancing'));
+
+    /// UPDATE the same key with a different value
+    await socket_writer(_socket_first_atsign, 'update:public:hobbies$first_atsign travel photography');
+    response = await read();
+    print('update verb response $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///PLOOKUP VERB after updating same key second time
+    await socket_writer(_socket_first_atsign, 'plookup:hobbies$first_atsign');
+    response = await read();
+    print('plookup verb response $response');
+    expect(response, contains('data:travel photography'));
+  },timeout: Timeout(Duration(seconds: 120)));
+
   tearDown(() {
     //Closing the client socket connection
     clear();

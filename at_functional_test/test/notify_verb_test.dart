@@ -118,13 +118,45 @@ void main() {
     assert((response.contains('Invalid syntax')));
   });
 
-  test('notify verb without giving notifier', () async {
+  test('notify verb without giving notifier for strategy latest', () async {
     //   /// NOTIFY VERB
     await socket_writer(_socket_first_atsign,
-        'notify:update:messageType:key:ttr:-1:$second_atsign:email$first_atsign');
+        'notify:update:messageType:key:strategy:latest:ttr:-1:$second_atsign:email$first_atsign');
     var response = await read();
     print('notify verb response : $response');
     assert((response.contains('Invalid syntax')));
+  });
+
+  test('notify verb with messageType text', () async {
+    //   /// NOTIFY VERB
+    await socket_writer(_socket_first_atsign,
+        'notify:update:messageType:text:$second_atsign:Hello!');
+    response = await read();
+    print('notify verb response : $response');
+    id = response.replaceAll('data:', '');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // notify status
+    await getNotifyStatus(_socket_first_atsign);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+  });
+
+  test('notify verb with space in the value', () async {
+    //   /// NOTIFY VERB
+    await socket_writer(_socket_first_atsign,
+        'notify:update:messageType:key:$second_atsign:company$first_atsign:Shris Infotech Services');
+    response = await read();
+    print('notify verb response : $response');
+    id = response.replaceAll('data:', '');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // notify status
+    await getNotifyStatus(_socket_first_atsign);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
   });
 
   test('notify verb in an incorrect order', () async {
@@ -155,6 +187,23 @@ void main() {
         response,
         contains(
             '"key":"$second_atsign:twitter$first_atsign","value":"bob_G","operation":"update"'));
+  }, timeout: Timeout(Duration(seconds: 120)));
+
+  test('notify all for notifiying a single atsign ', () async {
+    /// NOTIFY VERB
+    await socket_writer(_socket_first_atsign,
+        'notify:all:$second_atsign:whatsapp$first_atsign:+91-901291029');
+    var response = await read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///notify:list verb with regex
+    await Future.delayed(Duration(seconds: 10));
+    await socket_writer(_socket_second_atsign, 'notify:list:whatsapp');
+    response = await read();
+    print('notify list verb response : $response');
+    expect(response, contains('"key":"$second_atsign:whatsapp$first_atsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   // notify all delete
