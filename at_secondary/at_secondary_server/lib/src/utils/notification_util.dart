@@ -55,17 +55,13 @@ class NotificationUtil {
     if (_notificationLog.isEmpty()) {
       return;
     }
-    try {
-      _notificationLog.getValues().forEach((element) {
-        // If notifications are sent, adds the notifications to queue
-        // The notifications with status queued and errored whose retries count are less than maxRetries count
-        // are loaded into the queue.
-        if (element.type == NotificationType.sent) {
-          QueueManager.getInstance().enqueue(element);
-        }
-      });
-    } catch (e, s) {
-      print(s);
-    }
+    _notificationLog.getValues().forEach((element) {
+      // If notifications are sent, adds the notifications to queue
+      // The notifications with status queued and errored whose retries count are less than maxRetries count
+      // are loaded into the queue.
+      if (element.type == NotificationType.sent) {
+        QueueManager.getInstance().enqueue(element);
+      }
+    });
   }
 }
