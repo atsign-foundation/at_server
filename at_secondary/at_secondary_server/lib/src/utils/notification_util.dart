@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
@@ -52,16 +52,20 @@ class NotificationUtil {
   /// Load the notification into the map to notify on server start-up.
   static void loadNotificationMap() {
     var _notificationLog = AtNotificationKeystore.getInstance();
-    var notificationMap = AtNotificationMap.getInstance();
     if (_notificationLog.isEmpty()) {
       return;
     }
-    _notificationLog.getValues().forEach((element) {
-      // If notifications are sent and not delivered, add to notificationQueue.
-      if (element.type == NotificationType.sent &&
-          element.notificationStatus != NotificationStatus.delivered) {
-        notificationMap.add(element);
-      }
-    });
+    try {
+      _notificationLog.getValues().forEach((element) {
+        // If notifications are sent, adds the notifications to queue
+        // The notifications with status queued and errored whose retries count are less than maxRetries count
+        // are loaded into the queue.
+        if (element.type == NotificationType.sent) {
+          QueueManager.getInstance().enqueue(element);
+        }
+      });
+    } catch (e, s) {
+      print(s);
+    }
   }
 }
