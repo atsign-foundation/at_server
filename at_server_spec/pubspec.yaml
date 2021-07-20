@@ -1,6 +1,6 @@
 name: at_server_spec
 description: Specification for root and secondary server
-version: 2.0.2
+version: 2.0.3
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_server_spec/index.html
@@ -9,7 +9,7 @@ environment:
   sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  at_commons: ^2.0.2
+  at_commons: ^2.0.3
 
 dev_dependencies:
   pedantic: ^1.11.0
