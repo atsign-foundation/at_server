@@ -9,8 +9,8 @@ jobs:
   run_end2end_tests:
     # Runs only after functional tests are completed.
     # needs: [ run_functional_test ]
-    env:
-      working-directory: at_server
+    # env:
+    #  working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
