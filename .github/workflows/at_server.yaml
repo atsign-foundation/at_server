@@ -438,12 +438,12 @@ jobs:
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
 
-  # The below jobs run's on completion of 'run_functional_test' job.
+  # The below jobs run's on completion of 'run_end2end_tests' job.
   # This job run's on trigger event 'push' and when a release is tagged.
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ run_functional_test ]
+    needs: [ run_end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
       working-directory: at_server
@@ -495,7 +495,7 @@ jobs:
 
   # Deploy root server image to cluster
   deploy_root_sever:
-    needs: [ push_staging_secondary_image ]
+    needs: [ run_end2end_tests ]
     runs-on: ubuntu-latest
     steps:
       - name: Install doctl
