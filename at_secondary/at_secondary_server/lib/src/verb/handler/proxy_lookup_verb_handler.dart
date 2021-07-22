@@ -60,8 +60,11 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       if (operation != 'all') {
         result = SecondaryUtil.prepareResponseData(operation, atData);
       }
-      // Cache the value.
-      await _storeCachedKey(key, atData);
+      // Caching of keys is refrained when looked up the currentAtSign user
+      // Cache keys only if currentAtSign is not equal to atSign
+      if (AtSecondaryServerImpl.getInstance().currentAtSign != atSign) {
+        await _storeCachedKey(key, atData);
+      }
     }
     response.data = result;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()

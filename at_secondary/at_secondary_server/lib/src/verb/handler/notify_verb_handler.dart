@@ -24,9 +24,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.contains('list') &&
-      !command.contains('status') &&
-      !command.contains('notify:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:list') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:status') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:all');
 
   @override
   Verb getVerb() {
@@ -56,7 +56,21 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
+    // If strategy is null, default it to strategy all.
     strategy ??= 'all';
+    var notifier = verbParams[NOTIFIER];
+    // If strategy latest, notifier is mandatory.
+    // If notifier is null, throws InvalidSyntaxException.
+    if (strategy == 'latest' && notifier == null) {
+      throw InvalidSyntaxException(
+          'For Strategy latest, notifier cannot be null');
+    }
+    // If strategy is ALL, default the notifier to system.
+    if (strategy == 'all') {
+      notifier ??= SYSTEM;
+    }
+    // If messageType is key, append the atSign to key. For messageType text,
+    // atSign is not appended to the key.
     if (messageType == MessageType.key) {
       key = '$key$atSign';
     }
@@ -114,9 +128,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             ..priority =
                 SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
             ..atValue = atValue
-            ..notifier = verbParams[NOTIFIER]
+            ..notifier = notifier
             ..strategy = strategy
-            ..depth = _getIntParam(verbParams[LATEST_N])
+            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+            ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
+                ? _getIntParam(verbParams[LATEST_N])
+                : 1
             ..messageType = messageType
             ..notificationStatus = NotificationStatus.queued
             ..atMetaData = atMetadata

@@ -1,6 +1,6 @@
 name: at_root_server
 description: Root server implementation.
-version: 2.0.1-NULLSAFETY
+version: 2.0.3
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 publish_to: none
@@ -12,15 +12,15 @@ dependencies:
   args: ^2.1.0
   uuid: ^3.0.4
   yaml: ^3.1.0
-  at_server_spec: ^2.0.1
+  at_server_spec: ^2.0.3
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_root/at_persistence_root_server
       ref: trunk
-      version: ^2.0.1
-  at_utils: ^2.0.1
-  at_commons: ^2.0.1
+      version: ^2.0.3
+  at_utils: ^2.0.3
+  at_commons: ^2.0.3
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.

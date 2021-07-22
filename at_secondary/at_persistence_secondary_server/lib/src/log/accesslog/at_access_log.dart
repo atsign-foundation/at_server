@@ -77,6 +77,14 @@ class AtAccessLog implements AtLogType {
     return _accessLogKeyStore.getSize();
   }
 
+  AccessLogEntry getLastAccessLogEntry() {
+    return _accessLogKeyStore.getLastEntry();
+  }
+
+  AccessLogEntry? getLastPkamAccessLogEntry() {
+    return _accessLogKeyStore.getLastPkamEntry();
+  }
+
   ///Closes the [accessLogKeyStore] instance.
   void close() {
     _accessLogKeyStore.close();

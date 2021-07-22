@@ -1,6 +1,6 @@
 name: at_persistence_root_server
 description: Implementation for root server related persistence.
-version: 2.0.1
+version: 2.0.3
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_root_server/index.html
@@ -11,8 +11,8 @@ environment:
 
 dependencies:
   at_persistence_spec: ^2.0.0
-  at_utils: ^2.0.1
-  at_commons: ^2.0.1
+  at_utils: ^2.0.3
+  at_commons: ^2.0.3
   redis: ^2.0.0
 
 dev_dependencies:
