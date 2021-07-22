@@ -1,4 +1,4 @@
-import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_end2end_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'commons.dart';
