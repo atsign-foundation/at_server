@@ -291,21 +291,16 @@ jobs:
             ./update_image.sh
 
       - name: Install dependencies
-        working-directory: at_functional_test
+        working-directory: at_end2end_test
         run: dart pub get
 
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
-        run: echo "${{secrets.CICD_DATA_DART}}" > at_functional_test/test/at_demo_data.dart
-
-      # Need config.yaml with cicd1/2 VMs rather than virtual environment
-      - name: Get config.yaml into place
-        working-directory: at_functional_test/config
-        run: rm config.yaml && mv e22_config.yaml config.yaml
+        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
 
       # Run end to end test
       - name: End to end test
-        working-directory: at_functional_test
+        working-directory: at_end2end_test
         run: dart run test test/update_verb_test.dart
 
   # This job run's on trigger event 'push' to trunk branch.
@@ -369,10 +364,10 @@ jobs:
 
   # This job run's on trigger event 'push' to trunk branch.
   # The job builds the staging version of secondary server image and pushes to docker hub.
-  # The jobs run's on completion of 'run_functional_test' job.
+  # The jobs run's on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ run_functional_test ]
+    needs: [ run_end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
