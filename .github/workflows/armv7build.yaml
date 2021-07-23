@@ -39,7 +39,7 @@ jobs:
             docker push atsigncompany/secondary:dess-arm64
 
       # Logs into Pi and builds Armv7 dess secondary
-      - name: Armv7 dess secondary
+      - name: Create dess-arm image
         uses: appleboy/ssh-action@v0.1.4
         with:
           host: "70.167.220.138"
@@ -51,9 +51,12 @@ jobs:
             cd at_secondary
             docker build -t atsigncompany/secondary:dess-arm .
             docker push atsigncompany/secondary:dess-arm
-            docker manifest rm atsigncompany/secondary:dess-multi
-            docker manifest create atsigncompany/secondary:dess-multi \
-              --amend atsigncompany/secondary:dess-arm \
-              --amend atsigncompany/secondary:dess-arm64 \
-              --amend atsigncompany/secondary:dess-x64
-            docker manifest push atsigncompany/secondary:dess-multi
+
+      - name: Create and push multi-arch dess manifest
+        run: |
+          docker manifest rm atsigncompany/secondary:dess
+          docker manifest create atsigncompany/secondary:dess \
+            --amend atsigncompany/secondary:dess-arm \
+            --amend atsigncompany/secondary:dess-arm64 \
+            --amend atsigncompany/secondary:dess-x64
+          docker manifest push atsigncompany/secondary:dess
