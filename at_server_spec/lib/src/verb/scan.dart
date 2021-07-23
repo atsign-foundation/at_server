@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 /// The scan when used by an authenticated user via the cram verb, scans all the available keys on the secondary server.
 ///
 /// Syntax: scan
+/// To get the keys matches with the regex - scan:<regex>
 class Scan extends Verb {
   @override
   String name() => 'scan';
