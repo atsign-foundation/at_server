@@ -11,12 +11,23 @@ var maxRetryCount = 10;
 var retryCount = 1;
 
 ///Socket Connection
-Future<Socket> socket_connection(host, port) async {
-  return await Socket.connect(host, port);
+Future<SecureSocket> socket_connection(host, port) async {
+  var context = SecurityContext();
+  print(Directory.current);
+  context.setTrustedCertificates('lib/secondary/base/certs/cacert.pem');
+  context.usePrivateKey('lib/secondary/base/certs/privkey.pem');
+  context.useCertificateChain('lib/secondary/base/certs/fullchain.pem');
+  return await SecureSocket.connect(host, port , context: context );
+}
+
+void clear() {
+  _queue.clear();
+  print('queue cleared');
 }
 
 ///Secure Socket Connection
-Future<SecureSocket> secure_socket_connection(host, port) async {
+Future<SecureSocket> secure_socket_connection(
+    host, port) async {
   var socket;
   while (true) {
     try {
@@ -89,13 +100,14 @@ Future<String> read({int maxWaitMilliSeconds = 5000}) async {
   //wait maxWaitMilliSeconds seconds for response from remote socket
   var loopCount = (maxWaitMilliSeconds / 50).round();
   for (var i = 0; i < loopCount; i++) {
-    await Future.delayed(Duration(milliseconds: 100));
+    await Future.delayed(Duration(milliseconds: 1000));
     var queueLength = _queue.length;
     if (queueLength > 0) {
       result = _queue.removeFirst();
       // result from another secondary is either data or a @<atSign>@ denoting complete
       // of the handshake
       if (result.startsWith('data:') ||
+          (result.startsWith('error:')) ||
           (result.startsWith('@') && result.endsWith('@'))) {
         return result;
       } else {
