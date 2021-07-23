@@ -54,7 +54,6 @@ jobs:
 
       - name: Create and push multi-arch dess manifest
         run: |
-          docker manifest rm atsigncompany/secondary:dess
           docker manifest create atsigncompany/secondary:dess \
             --amend atsigncompany/secondary:dess-arm \
             --amend atsigncompany/secondary:dess-arm64 \
