@@ -7,14 +7,14 @@ import 'package:at_functional_test/conf/config_util.dart';
 
 var response;
 var retryCount = 1;
-var maxRetryCount = 5;
-var first_atsign = '@alice🛠';
-var first_atsign_port = 25000;
+var maxRetryCount = 10;
+var first_atsign =
+    ConfigUtil.getYaml()['first_atsign_server']['first_atsign_name'];
+var second_atsign =
+    ConfigUtil.getYaml()['second_atsign_server']['second_atsign_name'];
 
-var second_atsign = '@bob🛠';
-var second_atsign_port = 25003;
-
-var third_atsign = '@emoji🦄🛠';
+var third_atsign =
+    ConfigUtil.getYaml()['third_atsign_server']['third_atsign_name'];
 
 Socket _socket_first_atsign;
 Socket _socket_second_atsign;
@@ -22,14 +22,23 @@ Socket _socket_second_atsign;
 var id;
 void main() {
   setUp(() async {
-    var root_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_port =
+        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_port'];
+
+    var second_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var second_atsign_port =
+        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_port'];
+
+    // socket connection for first atsign
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
 
-    _socket_second_atsign =
-        await secure_socket_connection(root_server, second_atsign_port);
+    //Socket connection for second atsign
+    _socket_second_atsign = await secure_socket_connection(
+        second_atsign_server, second_atsign_port);
     socket_listener(_socket_second_atsign);
     await prepare(_socket_second_atsign, second_atsign);
   });

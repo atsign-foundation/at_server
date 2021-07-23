@@ -8,31 +8,39 @@ import 'package:at_functional_test/conf/config_util.dart';
 import 'package:crypton/crypton.dart';
 
 void main() {
-  var first_atsign = '@bob🛠';
-  var first_atsign_port = 25003;
-
-  var second_atsign = '@alice🛠';
-  var second_atsign_port = 25000;
+  var first_atsign =
+      ConfigUtil.getYaml()['first_atsign_server']['first_atsign_name'];
+  var second_atsign =
+      ConfigUtil.getYaml()['second_atsign_server']['second_atsign_name'];
 
   Socket _socket_first_atsign;
   Socket _socket_second_atsign;
 
   var signing_privateKey;
 
+  //Establish the client socket connection
   setUp(() async {
-    // socket connection for bob atsign
+    var first_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_port =
+        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_port'];
 
-    var root_server = ConfigUtil.getYaml()['root_server']['url'];
+    var second_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var second_atsign_port =
+        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_port'];
+
+    // socket connection for first atsign
     _socket_first_atsign =
-        await socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
 
-    _socket_second_atsign =
-        await socket_connection(root_server, second_atsign_port);
+    //Socket connection for second atsign
+    _socket_second_atsign = await secure_socket_connection(
+        second_atsign_server, second_atsign_port);
     socket_listener(_socket_second_atsign);
     await prepare(_socket_second_atsign, second_atsign);
   });
+
 
   // generating digest using the signing private key
   String generateSignInDigest(String atsign, String challenge,

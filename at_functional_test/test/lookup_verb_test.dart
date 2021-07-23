@@ -5,39 +5,46 @@ import 'package:test/test.dart';
 import 'commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
-
 void main() {
+  var first_atsign =
+      ConfigUtil.getYaml()['first_atsign_server']['first_atsign_name'];
+  var second_atsign =
+      ConfigUtil.getYaml()['second_atsign_server']['second_atsign_name'];
 
-  var first_atsign = '@bob🛠';
-  var first_atsign_port = 25003;
-
-  var second_atsign = '@alice🛠';
-  var second_atsign_port = 25000;
-
-  Socket _socket_second_atsign;
   Socket _socket_first_atsign;
+  Socket _socket_second_atsign;
 
+  //Establish the client socket connection
   setUp(() async {
-    // Socket connection for bob atsign
-   var root_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_port =
+        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_port'];
+
+    var second_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var second_atsign_port =
+        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_port'];
+
+    // socket connection for first atsign
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign);
     await prepare(_socket_first_atsign, first_atsign);
 
-    //Socket connection for alice atsign
-    _socket_second_atsign =
-    await secure_socket_connection(root_server, second_atsign_port);
+    //Socket connection for second atsign
+    _socket_second_atsign = await secure_socket_connection(
+        second_atsign_server, second_atsign_port);
     socket_listener(_socket_second_atsign);
     await prepare(_socket_second_atsign, second_atsign);
   });
 
   test('update-lookup verb on private key - positive verb', () async {
     ///Update verb on bob atsign
-    await socket_writer(_socket_first_atsign, 'update:$second_atsign:role$first_atsign developer');
+    await socket_writer(_socket_first_atsign,
+        'update:$second_atsign:role$first_atsign developer');
     var response = await read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///lookup verb alice  atsign
     await socket_writer(_socket_second_atsign, 'lookup:role$first_atsign');
@@ -48,10 +55,12 @@ void main() {
 
   test('update-lookup verb on self key - positive case', () async {
     ///update verb on bob atsign
-    await socket_writer(_socket_first_atsign, 'update:work$first_atsign atsign-company');
+    await socket_writer(
+        _socket_first_atsign, 'update:work$first_atsign atsign-company');
     var response = await read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     await socket_writer(_socket_second_atsign, 'lookup:work$first_atsign');
     response = await read();
@@ -61,14 +70,16 @@ void main() {
 
   test('update-lookup verb on public key - Negative case', () async {
     ///Update verb
-    await socket_writer(
-        _socket_second_atsign, 'update:public:location$second_atsign United-States');
+    await socket_writer(_socket_second_atsign,
+        'update:public:location$second_atsign United-States');
     var response = await read();
     print('update verb response from $second_atsign : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///lookup verb
-    await socket_writer(_socket_first_atsign, 'lookup:lookup:location$second_atsign');
+    await socket_writer(
+        _socket_first_atsign, 'lookup:lookup:location$second_atsign');
     response = await read();
     print('lookup verb response from $first_atsign : $response');
     expect(response, contains('data:null'));
@@ -76,14 +87,16 @@ void main() {
 
   test('update-lookup verb by giving wrong spelling - Negative case', () async {
     ///Update verb
-    await socket_writer(
-        _socket_second_atsign, 'update:public:phone$second_atsign +19012839456');
+    await socket_writer(_socket_second_atsign,
+        'update:public:phone$second_atsign +19012839456');
     var response = await read();
     print('update verb response from $second_atsign : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///lookup verb
-    await socket_writer(_socket_first_atsign, 'lokup:public:phone$second_atsign');
+    await socket_writer(
+        _socket_first_atsign, 'lokup:public:phone$second_atsign');
     response = await read();
     print('lookup verb response from $first_atsign : $response');
     expect(response, contains('Invalid syntax'));

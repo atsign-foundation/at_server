@@ -6,3 +6,17 @@ root_server:
   port: 64
   # The url to connect to root server
   url: 'vip.ve.atsign.zone'
+
+first_atsign_server:
+  first_atsign_name: '@bob🛠'
+  # # The port to connect to first atsign server
+  first_atsign_port: 25003
+
+second_atsign_server:
+  second_atsign_name: '@alice🛠'
+  # # The port to connect to second atsign server
+  second_atsign_port: 25000
+
+third_atsign_server:
+  third_atsign_name: '@emoji🦄🛠'
+
