@@ -9,9 +9,9 @@ import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
-class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
+class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final logger = AtSignLogger('HiveKeystore');
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
@@ -25,7 +25,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<AtData> get(String key) async {
+  Future<AtData?> get(String key) async {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
@@ -37,21 +37,21 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: ${error}');
+      logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
     return value;
   }
 
   @override
-  Future<int> put(String key, AtData value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future<int?> put(String key, AtData? value,
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
@@ -71,7 +71,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       commitOp = CommitOp.UPDATE_ALL;
     }
     try {
-      assert(key != null);
       var existingData = await get(key);
       if (existingData == null) {
         result = await create(key, value,
@@ -85,7 +84,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       } else {
         var hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForUpdate(
-            existingData, value,
+            existingData, value!,
             ttl: time_to_live,
             ttb: time_to_born,
             ttr: time_to_refresh,
@@ -93,8 +92,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
-        logger.finest('hive key:${hive_key}');
-        logger.finest('hive value:${hive_value}');
+        logger.finest('hive key:$hive_key');
+        logger.finest('hive value:$hive_value');
         await persistenceManager.box?.put(hive_key, hive_value);
         result = await _commitLog.commit(hive_key, commitOp);
       }
@@ -111,18 +110,18 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<int> create(String key, AtData value,
-      {int time_to_live,
-      int time_to_born,
-      int time_to_refresh,
-      bool isCascade,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) async {
+  Future<int?> create(String key, AtData? value,
+      {int? time_to_live,
+      int? time_to_born,
+      int? time_to_refresh,
+      bool? isCascade,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature}) async {
     var result;
     var commitOp;
     var hive_key = keyStoreHelper.prepareKey(key);
-    var hive_data = keyStoreHelper.prepareDataForCreate(value,
+    var hive_data = keyStoreHelper.prepareDataForCreate(value!,
         ttl: time_to_live,
         ttb: time_to_born,
         ttr: time_to_refresh,
@@ -134,14 +133,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
     commitOp = CommitOp.UPDATE;
 
     // Setting metadata defined in values
-    if (value != null && value.metaData != null) {
-      time_to_live ??= value.metaData.ttl;
-      time_to_born ??= value.metaData.ttb;
-      time_to_refresh ??= value.metaData.ttr;
-      isCascade ??= value.metaData.isCascade;
-      isBinary ??= value.metaData.isBinary;
-      isEncrypted ??= value.metaData.isEncrypted;
-      dataSignature ??= value.metaData.dataSignature;
+    if (value.metaData != null) {
+      time_to_live ??= value.metaData!.ttl;
+      time_to_born ??= value.metaData!.ttb;
+      time_to_refresh ??= value.metaData!.ttr;
+      isCascade ??= value.metaData!.isCascade;
+      isBinary ??= value.metaData!.isBinary;
+      isEncrypted ??= value.metaData!.isEncrypted;
+      dataSignature ??= value.metaData!.dataSignature;
     }
 
     // If metadata is set, set commitOp to Update all
@@ -169,10 +168,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<int> remove(String key) async {
+  Future<int?> remove(String key) async {
     var result;
     try {
-      assert(key != null);
       await persistenceManager.box?.delete(Utf7.encode(key));
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
@@ -229,7 +227,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String regex}) {
+  List<String> getKeys({String? regex}) {
     var keys = <String>[];
     var encodedKeys;
 
@@ -245,7 +243,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
         encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
     } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : ${regex}');
+      logger.severe('Invalid regular expression : $regex');
       throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
@@ -255,7 +253,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
   }
 
   @override
-  Future<AtMetaData> getMeta(String key) async {
+  Future<AtMetaData?> getMeta(String key) async {
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
       var value = await persistenceManager.box?.get(hive_key);
@@ -266,26 +264,33 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
       logger.severe('HiveKeystore getMeta exception: $exception');
       throw DataStoreException('exception in getMeta: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore getMeta error: ${error}');
+      logger.severe('HiveKeystore getMeta error: $error');
       throw DataStoreException(error.message);
     }
     return null;
   }
 
   @override
-  Future<int> putAll(String key, AtData value, AtMetaData metadata) async {
+  Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
     var result;
     var hive_key = keyStoreHelper.prepareKey(key);
-    value.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
+    value!.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
     // Updating the version of the metadata.
-    (metadata.version != null) ? metadata.version += 1 : metadata.version = 0;
+//    (metadata!.version != null) ? metadata.version += 1 : metadata.version = 0;
+    var version = metadata!.version;
+    if (version != null) {
+      version = version + 1;
+    } else {
+      version = 0;
+    }
+    metadata.version = version;
     await persistenceManager.box?.put(hive_key, value);
     result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
     return result;
   }
 
   @override
-  Future<int> putMeta(String key, AtMetaData metadata) async {
+  Future<int?> putMeta(String key, AtMetaData? metadata) async {
     var hive_key = keyStoreHelper.prepareKey(key);
     var existingData = await get(key);
     var newData = existingData ?? AtData();
@@ -293,9 +298,18 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData, AtMetaData> {
             newAtMetaData: metadata, existingMetaData: newData.metaData)
         .build();
     // Updating the version of the metadata.
-    (newData.metaData.version != null)
-        ? newData.metaData.version += 1
-        : newData.metaData.version = 0;
+//    (newData.metaData?.version != null)
+//        ? newData.metaData?.version += 1
+//        : newData.metaData!.version = 0;
+
+    var version = newData.metaData?.version;
+    if (version != null) {
+      version = version + 1;
+    } else {
+      version = 0;
+    }
+    newData.metaData?.version = version;
+
     await persistenceManager.box?.put(hive_key, newData);
     var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
     return result;

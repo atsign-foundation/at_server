@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'dart:isolate';
-
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:pedantic/pedantic.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -33,15 +31,15 @@ class AtCertificateValidationJob {
 
   /// Spawns an isolate job to verify for the expiry of certificates.
   Future<void> runCertificateExpiryCheckJob() async {
-    filePath = filePath.replaceAll('fullchain.pem', '');
+    filePath = filePath!.replaceAll('fullchain.pem', '');
     var mainIsolateReceivePort = ReceivePort();
-    SendPort childIsolateSendPort;
+    SendPort? childIsolateSendPort;
     var isolate = await Isolate.spawn(
         _verifyChangeInCertificate, [mainIsolateReceivePort.sendPort]);
     mainIsolateReceivePort.listen((data) async {
       if (childIsolateSendPort == null && data is SendPort) {
         childIsolateSendPort = data;
-        childIsolateSendPort.send(filePath);
+        childIsolateSendPort!.send(filePath);
       } else {
         if (data == null) {
           return;
@@ -81,10 +79,10 @@ class AtCertificateValidationJob {
   dynamic _initializeRestartProcess(_) async {
     //Pause the server to prevent it from accepting any incoming connections
     AtSecondaryServerImpl.getInstance().pause();
-    var isForceRestart = AtSecondaryConfig.isForceRestart;
+    var isForceRestart = AtSecondaryConfig.isForceRestart!;
     if (isForceRestart) {
       logger.info('Initializing force restart on secondary server');
-      _deleteRestartFile(filePath + restartFile);
+      _deleteRestartFile(filePath! + restartFile);
       await _restartServer();
       return;
     }
@@ -98,15 +96,15 @@ class AtCertificateValidationJob {
     if (totalSize == 0 || totalSize == monitorSize) {
       // Setting stopWaiting to true to prevent server start-up process into loop.
       stopWaiting = true;
-      _deleteRestartFile(filePath + restartFile);
+      _deleteRestartFile(filePath! + restartFile);
       logger.severe('Certificates expired. Restarting secondary server');
       await _restartServer();
     }
     if (!stopWaiting) {
       // Calls _initializeRestartProcess method for every 10 seconds until totalConnections are 0 or
       //totalConnections equals total monitor connections.
-      unawaited(Future.delayed(Duration(seconds: 10), () {})
-          .then(_initializeRestartProcess));
+      await Future.delayed(Duration(seconds: 10), () {})
+          .then(_initializeRestartProcess);
     }
   }
 

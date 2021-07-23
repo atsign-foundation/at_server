@@ -13,11 +13,11 @@ import 'package:at_server_spec/src/verb/verb.dart';
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
 
-  InboundConnection atConnection;
+  late InboundConnection atConnection;
 
-  String regex;
+  String? regex;
 
-  MonitorVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  MonitorVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.monitor));
@@ -34,7 +34,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
@@ -70,11 +70,12 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         try {
           // if key matches the regular expression, push notification.
           // else if fromAtSign matches the regular expression, push notification.
-          if (key.contains(RegExp(regex))) {
+          if (key!.contains(RegExp(regex!))) {
             logger.finer('key matches regex');
             atConnection.write(
                 'notification: ' + jsonEncode(notification.toJson()) + '\n');
-          } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex))) {
+          } else if (fromAtSign != null &&
+              fromAtSign.contains(RegExp(regex!))) {
             logger.finer('fromAtSign matches regex');
             atConnection.write(
                 'notification: ' + jsonEncode(notification.toJson()) + '\n');
@@ -95,18 +96,18 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
 ///Notification class to represent JSON format.
 class Notification {
-  String id;
-  String fromAtSign;
-  int dateTime;
-  String toAtSign;
-  String notification;
-  String operation;
-  String value;
+  String? id;
+  String? fromAtSign;
+  int? dateTime;
+  String? toAtSign;
+  String? notification;
+  String? operation;
+  String? value;
 
   Notification(AtNotification atNotification) {
     id = atNotification.id;
     fromAtSign = atNotification.fromAtSign;
-    dateTime = atNotification.notificationDateTime.millisecondsSinceEpoch;
+    dateTime = atNotification.notificationDateTime!.millisecondsSinceEpoch;
     toAtSign = atNotification.toAtSign;
     notification = atNotification.notification;
     operation =

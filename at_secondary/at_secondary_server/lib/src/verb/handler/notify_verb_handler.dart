@@ -19,14 +19,14 @@ enum Type { sent, received }
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
 
-  NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.contains('list') &&
-      !command.contains('status') &&
-      !command.contains('notify:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:list') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:status') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:all');
 
   @override
   Verb getVerb() {
@@ -39,9 +39,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var ttl_ms;
@@ -55,7 +56,21 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
+    // If strategy is null, default it to strategy all.
     strategy ??= 'all';
+    var notifier = verbParams[NOTIFIER];
+    // If strategy latest, notifier is mandatory.
+    // If notifier is null, throws InvalidSyntaxException.
+    if (strategy == 'latest' && notifier == null) {
+      throw InvalidSyntaxException(
+          'For Strategy latest, notifier cannot be null');
+    }
+    // If strategy is ALL, default the notifier to system.
+    if (strategy == 'all') {
+      notifier ??= SYSTEM;
+    }
+    // If messageType is key, append the atSign to key. For messageType text,
+    // atSign is not appended to the key.
     if (messageType == MessageType.key) {
       key = '$key$atSign';
     }
@@ -72,7 +87,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
           ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
@@ -113,9 +128,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             ..priority =
                 SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
             ..atValue = atValue
-            ..notifier = verbParams[NOTIFIER]
+            ..notifier = notifier
             ..strategy = strategy
-            ..depth = _getIntParam(verbParams[LATEST_N])
+            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+            ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
+                ? _getIntParam(verbParams[LATEST_N])
+                : 1
             ..messageType = messageType
             ..notificationStatus = NotificationStatus.queued
             ..atMetaData = atMetadata
@@ -138,10 +156,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         return;
       }
 
-      var isKeyPresent = await keyStore.get(notifyKey);
+      var isKeyPresent = await keyStore!.get(notifyKey);
       var atMetadata;
       if (isKeyPresent != null) {
-        atMetadata = await keyStore.getMeta(notifyKey);
+        atMetadata = await keyStore!.getMeta(notifyKey);
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
@@ -177,29 +195,29 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<void> _storeCachedKeys(String key, AtMetaData atMetaData,
-      {String atValue}) async {
+  Future<void> _storeCachedKeys(String? key, AtMetaData? atMetaData,
+      {String? atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
     atData.data = atValue;
     atData.metaData = atMetaData;
-    await keyStore.put(notifyKey, atData);
+    await keyStore!.put(notifyKey, atData);
   }
 
-  Future<void> _updateMetadata(String notifyKey, AtMetaData atMetaData) async {
-    await keyStore.putMeta(notifyKey, atMetaData);
+  Future<void> _updateMetadata(String notifyKey, AtMetaData? atMetaData) async {
+    await keyStore!.putMeta(notifyKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   ///key Key to delete.
   Future<void> _removeCachedKey(String key) async {
-    var metadata = await keyStore.getMeta(key);
+    var metadata = await keyStore!.getMeta(key);
     if (metadata != null && metadata.isCascade) {
-      await keyStore.remove(key);
+      await keyStore!.remove(key);
     }
   }
 
-  int _getIntParam(String arg) {
+  int? _getIntParam(String? arg) {
     if (arg == null) {
       return null;
     }

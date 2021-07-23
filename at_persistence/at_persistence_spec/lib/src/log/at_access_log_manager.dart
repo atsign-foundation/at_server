@@ -5,5 +5,5 @@ abstract class AtAccessLogManager {
   /// Retrieves an instance of AtCommitLog.
   ///
   /// @return An instance of the AtCommitLog for the given atSign.
-  Future<AtLogType> getAccessLog(String atSign, {String accessLogPath});
+  Future<AtLogType?> getAccessLog(String atSign, {String? accessLogPath});
 }

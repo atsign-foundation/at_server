@@ -9,7 +9,7 @@ class RootClientPool {
 
   RootClientPool._internal();
 
-  static List<RootClient> _clients;
+  static late List<RootClient> _clients;
 
   void init() {
     _clients = [];

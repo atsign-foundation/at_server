@@ -5,8 +5,8 @@
 /// And a Instance of actual exception returned by the data store.
 class DataStoreException implements Exception {
   String message;
-  int vendorErrorCode;
-  Exception vendorException;
+  int? vendorErrorCode;
+  Exception? vendorException;
 
   DataStoreException(this.message,
       {this.vendorErrorCode, this.vendorException});

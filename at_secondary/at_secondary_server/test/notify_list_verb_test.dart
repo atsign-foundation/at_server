@@ -15,7 +15,7 @@ import 'package:test/test.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  late var keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler = NotifyListVerbHandler(null);
@@ -66,7 +66,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -128,7 +128,7 @@ void main() {
       var response = Response();
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
-      var result = jsonDecode(response.data);
+      var result = jsonDecode(response.data!);
       expect('125', result[0]['id']);
       expect('@test_user_1', result[0]['from']);
       expect('@bob', result[0]['to']);
@@ -213,7 +213,7 @@ void main() {
       var response = Response();
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
-      var result = jsonDecode(response.data);
+      var result = jsonDecode(response.data!);
       expect('121', result[0]['id']);
       expect('@test_user_1', result[0]['from']);
       expect('@bob', result[0]['to']);
@@ -230,14 +230,15 @@ void main() {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@test_user_1', storageDir);
   await persistenceManager.openVault('@test_user_1');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);

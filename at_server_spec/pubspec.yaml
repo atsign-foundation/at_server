@@ -1,22 +1,15 @@
 name: at_server_spec
 description: Specification for root and secondary server
-version: 1.0.0
+version: 2.0.2
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_server_spec/index.html
-publish_to: none
 
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: dev_env_staging
-      version: ^1.0.1+6
-
+  at_commons: ^2.0.2
 
 dev_dependencies:
-  pedantic: ^1.8.0
+  pedantic: ^1.11.0

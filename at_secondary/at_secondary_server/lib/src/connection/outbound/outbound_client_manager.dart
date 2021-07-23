@@ -11,7 +11,7 @@ class OutboundClientManager {
 
   var logger = AtSignLogger('OutboundClientManager');
 
-  OutboundClientPool _pool;
+  late OutboundClientPool _pool;
 
   static const int default_pool_size = 10;
 
@@ -25,7 +25,7 @@ class OutboundClientManager {
 
   /// Initialises outbound client pool with a given size.
   /// @param - size - Maximum clients the pool can hold
-  void init(int size) {
+  void init(int? size) {
     _pool = OutboundClientPool();
     _pool.init(size);
     isInitialised = true;
@@ -35,7 +35,8 @@ class OutboundClientManager {
   /// Otherwise clears idle clients and creates a new outbound client if the pool has capacity. Returns null if pool does not have capacity.
   ///  If the pool is not initialized, initializes the pool with [default_pool_size] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
-  OutboundClient getClient(String toAtSign, InboundConnection inboundConnection,
+  OutboundClient? getClient(
+      String? toAtSign, InboundConnection inboundConnection,
       {bool isHandShake = true}) {
     // Initialize the pool if not already done
     if (!isInitialised) {

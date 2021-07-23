@@ -14,7 +14,7 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  late var keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
@@ -55,7 +55,7 @@ void main() async {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -85,7 +85,7 @@ void main() async {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -106,8 +106,9 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -121,9 +122,10 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      expect(response.data.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.split(':')[2], isNotNull);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -160,9 +162,10 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      expect(response.data.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.split(':')[2], isNotNull);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -242,17 +245,18 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice');
+      .getSecondaryPersistenceStore('@alice')!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@alice', storageDir);
   await persistenceManager.openVault('@alice');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   AtConfig(

@@ -38,25 +38,25 @@ void main() {
     test('send null as arguments', () {
       var args;
       expect(() => CommandLineParser().getParserResults(args),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
 
     test('Miss one argument', () {
       var arguments = ['--server_port', '6400'];
       expect(() => CommandLineParser().getParserResults(arguments),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
 
     test('invalid argument name', () {
       var arguments = ['--at_signnn', 'alice', '--server_port', '6400'];
       expect(() => CommandLineParser().getParserResults(arguments),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
 
     test('invalid abbreviation', () {
       var arguments = ['--at_sign', 'alice', '--s', '6400'];
       expect(() => CommandLineParser().getParserResults(arguments),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
   });
 }

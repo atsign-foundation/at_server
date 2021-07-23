@@ -12,7 +12,7 @@ class Stats extends Verb {
   String syntax() => VerbSyntax.stats;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

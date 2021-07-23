@@ -4,7 +4,7 @@ import 'package:at_root_server/src/server/root_server_bootstrapper.dart';
 import 'package:at_utils/at_logger.dart';
 
 Future<void> main(List<String> arguments) async {
-  var isDebug = AtRootConfig.debugLog;
+  var isDebug = AtRootConfig.debugLog!;
   if (isDebug) {
     AtSignLogger.root_level = 'finest';
   }

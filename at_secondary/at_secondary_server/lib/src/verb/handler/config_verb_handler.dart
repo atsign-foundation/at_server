@@ -28,9 +28,9 @@ extension Value on ConfigOp {
 /// ```
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
-  ConfigVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
-  var atConfigInstance;
+  late var atConfigInstance;
 
   @override
   bool accept(String command) =>
@@ -44,7 +44,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -65,7 +65,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'add':
           var nonCurrentAtSignList =
-              _retainNonCurrentAtsign(currentAtSign, atsigns);
+              _retainNonCurrentAtsign(currentAtSign, atsigns!);
           if (nonCurrentAtSignList.isNotEmpty) {
             result =
                 await atConfigInstance.addToBlockList(nonCurrentAtSignList);
@@ -77,7 +77,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           }
           break;
         case 'remove':
-          result = await atConfigInstance.removeFromBlockList(_toSet(atsigns));
+          result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
           break;
         default:
           result = 'unknown operation';

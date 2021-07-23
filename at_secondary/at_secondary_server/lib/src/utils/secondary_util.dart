@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -8,7 +8,7 @@ import 'package:crypton/crypton.dart';
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
 
-  static void saveCookie(String key, String value, String atSign) {
+  static void saveCookie(String key, String value, String? atSign) {
     logger.finer('In Secondary Util saveCookie');
     logger.finer('saveCookie key : ' + key);
     logger.finer('signed challenge : ' + value);
@@ -17,9 +17,9 @@ class SecondaryUtil {
 
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(atSign);
+            .getSecondaryPersistenceStore(atSign)!;
     var keystoreManager =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager();
+        secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
     keyStore.put('public:$key', atData,
         time_to_live: 60 * 1000); //expire in 1 min
@@ -40,7 +40,7 @@ class SecondaryUtil {
     proof = proof.trim();
     logger.info('proof : ' + proof);
     List listAnswer = proof.split(':');
-    return listAnswer;
+    return listAnswer as List<String>;
   }
 
   static String convertCommand(String command) {
@@ -57,14 +57,14 @@ class SecondaryUtil {
     return command;
   }
 
-  static bool isActiveKey(AtData atData) {
+  static bool isActiveKey(AtData? atData) {
     if (atData == null) {
       return false;
     }
     var now = DateTime.now().toUtc().millisecondsSinceEpoch;
     if (atData.metaData != null) {
-      var ttb = atData.metaData.availableAt;
-      var ttl = atData.metaData.expiresAt;
+      var ttb = atData.metaData!.availableAt;
+      var ttl = atData.metaData!.expiresAt;
       if (ttb == null && ttl == null) return true;
       if (ttb != null) {
         var ttb_ms = ttb.toUtc().millisecondsSinceEpoch;
@@ -87,18 +87,19 @@ class SecondaryUtil {
   static String signChallenge(String challenge, String privateKey) {
     var key = RSAPrivateKey.fromString(privateKey);
     challenge = challenge.trim();
-    var signature = key.createSHA256Signature(utf8.encode(challenge));
+    var signature =
+        key.createSHA256Signature(utf8.encode(challenge) as Uint8List);
     return base64Encode(signature);
   }
 
-  static String prepareResponseData(String operation, AtData atData) {
+  static String? prepareResponseData(String? operation, AtData? atData) {
     var result;
     if (atData == null) {
       return result;
     }
     switch (operation) {
       case 'meta':
-        result = json.encode(atData.metaData.toJson());
+        result = json.encode(atData.metaData!.toJson());
         break;
       case 'all':
         result = json.encode(atData.toJson());
@@ -111,7 +112,7 @@ class SecondaryUtil {
     return result;
   }
 
-  NotificationPriority getNotificationPriority(String arg1) {
+  NotificationPriority getNotificationPriority(String? arg1) {
     if (arg1 == null) {
       return NotificationPriority.low;
     }
@@ -127,7 +128,7 @@ class SecondaryUtil {
     }
   }
 
-  MessageType getMessageType(String arg1) {
+  MessageType getMessageType(String? arg1) {
     if (arg1 == null) {
       return MessageType.key;
     }
@@ -141,7 +142,7 @@ class SecondaryUtil {
     }
   }
 
-  OperationType getOperationType(String type) {
+  OperationType getOperationType(String? type) {
     if (type == null) {
       return OperationType.update;
     }

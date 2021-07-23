@@ -12,7 +12,7 @@ class AllNotifications implements NotificationStrategy {
     _priorityQueue.addNotification(atNotification);
   }
 
-  List<AtNotification> toList() {
+  List<AtNotification>? toList() {
     return _priorityQueue.toList();
   }
 }

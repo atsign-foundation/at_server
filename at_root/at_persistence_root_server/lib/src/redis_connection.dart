@@ -1,8 +1,8 @@
 import 'package:redis/redis.dart';
 
 class AtRedisConnection {
-  RedisConnection connection;
-  Command command;
+  RedisConnection? connection;
+  late Command command;
 
   Future<void> close() async {
     return await connection?.close();
@@ -10,7 +10,7 @@ class AtRedisConnection {
 }
 
 class AtRedisConfig {
-  String host;
-  int port;
-  String auth;
+  String? host;
+  int? port;
+  String? auth;
 }

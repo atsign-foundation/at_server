@@ -5,13 +5,13 @@ abstract class InboundConnection extends AtConnection {
   ///Returns true if remote socket and remote port of this and connection matches
   bool equals(InboundConnection connection);
 
-  bool isMonitor;
+  bool? isMonitor;
 
   /// This contains the value of the atsign initiated the connection
-  String initiatedBy;
+  String? initiatedBy;
 
   void acceptRequests(Function(String, InboundConnection) callback,
       Function(List<int>, InboundConnection) streamCallback);
 
-  Socket receiverSocket;
+  Socket? receiverSocket;
 }

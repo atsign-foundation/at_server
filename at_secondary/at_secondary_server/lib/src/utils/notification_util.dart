@@ -13,16 +13,16 @@ class NotificationUtil {
   /// Method to store notification in data store
   /// Accepts fromAtSign, forAtSign, key, Notification and Operation type,
   /// Inbound connection object as arguments. ttl is optional argument
-  static Future<String> storeNotification(
-      String fromAtSign,
-      String forAtSign,
-      String key,
+  static Future<String?> storeNotification(
+      String? fromAtSign,
+      String? forAtSign,
+      String? key,
       NotificationType notificationType,
-      OperationType operationType,
+      OperationType? operationType,
       {MessageType messageType = MessageType.key,
-      int ttl_ms,
-      String value,
-      NotificationStatus notificationStatus}) async {
+      int? ttl_ms,
+      String? value,
+      NotificationStatus? notificationStatus}) async {
     try {
       if (forAtSign == null) {
         return null;
