@@ -18,7 +18,8 @@ import 'package:at_commons/at_commons.dart';
 /// '10' - Last login datetime with PKAM
 /// Syntax: stats - List all the available metrics
 /// We can provide specific metrics id's as a comma separated list
-/// Ex- stats:1,2,3
+/// e.g. stats:1,2,3
+/// stats:10
 class Stats extends Verb {
   @override
   String name() => 'stats';

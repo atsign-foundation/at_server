@@ -7,6 +7,10 @@ import 'package:at_commons/at_commons.dart';
 /// A malformed request closes the @sign client connection.
 ///
 /// Syntax: update:[public/@sign]:key@[@sign] value
+/// e.g.
+/// update:public:phone@alice +1 123 456 000 - update public phone number of alice
+/// update:@bob:phone@alice +1 123 456 001 - update phone number of alice shared with bob
+/// update:@alice:phone@alice + 123 456 002 - update private phone number of alice
 class Update extends Verb {
   @override
   String name() => 'update';
