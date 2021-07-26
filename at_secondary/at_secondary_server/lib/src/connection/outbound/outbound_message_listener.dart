@@ -1,7 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -12,14 +10,14 @@ class OutboundMessageListener {
   OutboundClient client;
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
-  Queue _queue;
+  late Queue _queue;
 
   OutboundMessageListener(this.client);
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() {
-    var connection = client.outboundConnection;
+    var connection = client.outboundConnection!;
     connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
     _queue = Queue();
@@ -61,7 +59,7 @@ class OutboundMessageListener {
 
   /// Reads the response sent by remote socket from the queue.
   /// If there is no message in queue after [maxWaitMilliSeconds], return null
-  Future<String> read({int maxWaitMilliSeconds = 5000}) async {
+  Future<String?> read({int maxWaitMilliSeconds = 5000}) async {
     var result;
     //wait maxWaitMilliSeconds seconds for response from remote socket
     var loopCount = (maxWaitMilliSeconds / 50).round();

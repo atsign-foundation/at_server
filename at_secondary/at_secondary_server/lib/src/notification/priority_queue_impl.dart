@@ -17,17 +17,17 @@ class AtNotificationPriorityQueue {
   }
 
   /// Returns the [AtNotification] from the queue.
-  AtNotification removeNotification() {
+  AtNotification? removeNotification() {
     return _priorityQueue.removeFirst();
   }
 
   /// Returns the list of notification in the queue.
-  List<AtNotification> toList() {
+  List<AtNotification>? toList() {
     return _priorityQueue.toList();
   }
 
   /// Returns the size of the priority queue
-  int size() {
+  int? size() {
     return _priorityQueue.length;
   }
 
@@ -39,10 +39,10 @@ class AtNotificationPriorityQueue {
   /// Compares the priority of given two notifications.
   static int _comparePriority(AtNotification p1, AtNotification p2) {
     // If both notifications have same priority, then first come first serve.
-    var arg1 = p1.priority.index *
-        DateTime.now().difference(p1.notificationDateTime).inMilliseconds;
-    var arg2 = p2.priority.index *
-        DateTime.now().difference(p2.notificationDateTime).inMilliseconds;
+    var arg1 = p1.priority!.index *
+        DateTime.now().difference(p1.notificationDateTime!).inMilliseconds;
+    var arg2 = p2.priority!.index *
+        DateTime.now().difference(p2.notificationDateTime!).inMilliseconds;
     return arg2.compareTo(arg1);
   }
 }

@@ -6,10 +6,10 @@ import 'package:uuid/uuid.dart';
 /// Represents an [AtNotification] entry in keystore.
 class AtNotification {
   @HiveField(0)
-  final String _id;
+  final String? _id;
 
   @HiveField(1)
-  final String _fromAtSign;
+  final String? _fromAtSign;
 
   @HiveField(2)
   final _notificationDateTime;
@@ -33,13 +33,13 @@ class AtNotification {
   final _expiresAt;
 
   @HiveField(9)
-  NotificationPriority _priority;
+  NotificationPriority? priority;
 
   @HiveField(10)
-  NotificationStatus _notificationStatus;
+  NotificationStatus? notificationStatus;
 
   @HiveField(11)
-  int _retryCount;
+  int retryCount;
 
   @HiveField(12)
   final _strategy;
@@ -66,48 +66,42 @@ class AtNotification {
         _opType = atNotificationBuilder.opType,
         _messageType = atNotificationBuilder.messageType,
         _expiresAt = atNotificationBuilder.expiresAt,
-        _priority = atNotificationBuilder.priority,
-        _notificationStatus = atNotificationBuilder.notificationStatus,
-        _retryCount = atNotificationBuilder.retryCount,
+        priority = atNotificationBuilder.priority,
+        notificationStatus = atNotificationBuilder.notificationStatus,
+        retryCount = atNotificationBuilder.retryCount,
         _strategy = atNotificationBuilder.strategy,
         _notifier = atNotificationBuilder.notifier,
         _depth = atNotificationBuilder.depth,
         _atValue = atNotificationBuilder.atValue,
         _atMetadata = atNotificationBuilder.atMetaData;
 
-  String get id => _id;
+  String? get id => _id;
 
-  String get fromAtSign => _fromAtSign;
+  String? get fromAtSign => _fromAtSign;
 
-  DateTime get notificationDateTime => _notificationDateTime;
+  DateTime? get notificationDateTime => _notificationDateTime;
 
-  String get toAtSign => _toAtSign;
+  String? get toAtSign => _toAtSign;
 
-  String get notification => _notification;
+  String? get notification => _notification;
 
-  NotificationType get type => _type;
+  NotificationType? get type => _type;
 
-  OperationType get opType => _opType;
+  OperationType? get opType => _opType;
 
-  DateTime get expiresAt => _expiresAt;
+  DateTime? get expiresAt => _expiresAt;
 
-  String get atValue => _atValue;
+  String? get atValue => _atValue;
 
-  NotificationPriority get priority => _priority;
+  String? get notifier => _notifier;
 
-  int get retryCount => _retryCount;
+  int? get depth => _depth;
 
-  NotificationStatus get notificationStatus => _notificationStatus;
+  String? get strategy => _strategy;
 
-  String get notifier => _notifier;
+  MessageType? get messageType => _messageType;
 
-  int get depth => _depth;
-
-  String get strategy => _strategy;
-
-  MessageType get messageType => _messageType;
-
-  AtMetaData get atMetadata => _atMetadata;
+  AtMetaData? get atMetadata => _atMetadata;
 
   Map toJson() => {
         'id': _id,
@@ -118,9 +112,9 @@ class AtNotification {
         'type': _type,
         'opType': _opType,
         'messageType': _messageType,
-        'priority': _priority,
-        'notificationStatus': _notificationStatus,
-        'retryCount': _retryCount,
+        'priority': priority,
+        'notificationStatus': notificationStatus,
+        'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
@@ -131,22 +125,10 @@ class AtNotification {
 
   @override
   String toString() {
-    return 'AtNotification{id: ${_id},fromAtSign: ${_fromAtSign}, '
-        'notificationDateTime: ${_notificationDateTime}, '
-        'toAtSign:${_toAtSign}, notification:${_notification}, '
-        'type:${_type}, opType:${_opType}, expiresAt:${_expiresAt} : priority:${_priority} : notificationStatus:${notificationStatus} : atValue:${atValue}';
-  }
-
-  set priority(NotificationPriority notificationPriority) {
-    _priority = notificationPriority;
-  }
-
-  set notificationStatus(NotificationStatus notificationStatusNew) {
-    _notificationStatus = notificationStatusNew;
-  }
-
-  set retryCount(int value) {
-    _retryCount = value;
+    return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
+        'notificationDateTime: $_notificationDateTime, '
+        'toAtSign:$_toAtSign, notification:$_notification, '
+        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
   }
 }
 
@@ -163,7 +145,7 @@ enum MessageType { key, text }
 /// Class for registering [AtNotification] to the hive type adapter.
 class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   @override
-  final typeId = typeAdapterMap['AtNotificationAdapter'];
+  final int typeId = typeAdapterMap['AtNotificationAdapter'];
 
   @override
   AtNotification read(BinaryReader reader) {
@@ -173,23 +155,23 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
     };
 
     final atNotification = (AtNotificationBuilder()
-          ..id = fields[0] as String
-          ..fromAtSign = fields[1] as String
-          ..notificationDateTime = fields[2] as DateTime
-          ..toAtSign = fields[3] as String
-          ..notification = fields[4] as String
-          ..type = fields[5] as NotificationType
-          ..opType = fields[6] as OperationType
-          ..messageType = fields[7] as MessageType
-          ..expiresAt = fields[8] as DateTime
-          ..priority = fields[9] as NotificationPriority
-          ..notificationStatus = fields[10] as NotificationStatus
+          ..id = fields[0] as String?
+          ..fromAtSign = fields[1] as String?
+          ..notificationDateTime = fields[2] as DateTime?
+          ..toAtSign = fields[3] as String?
+          ..notification = fields[4] as String?
+          ..type = fields[5] as NotificationType?
+          ..opType = fields[6] as OperationType?
+          ..messageType = fields[7] as MessageType?
+          ..expiresAt = fields[8] as DateTime?
+          ..priority = fields[9] as NotificationPriority?
+          ..notificationStatus = fields[10] as NotificationStatus?
           ..retryCount = fields[11] as int
-          ..strategy = fields[12] as String
-          ..notifier = fields[13] as String
-          ..depth = fields[14] as int
-          ..atValue = fields[15] as String
-          ..atMetaData = fields[16] as AtMetaData)
+          ..strategy = fields[12] as String?
+          ..notifier = fields[13] as String?
+          ..depth = fields[14] as int?
+          ..atValue = fields[15] as String?
+          ..atMetaData = fields[16] as AtMetaData?)
         .build();
 
     return atNotification;
@@ -237,12 +219,12 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
 }
 
 /// class for representing [OperationType] enum to the hive type adapter
-class OperationTypeAdapter extends TypeAdapter<OperationType> {
+class OperationTypeAdapter extends TypeAdapter<OperationType?> {
   @override
-  final typeId = typeAdapterMap['OperationTypeAdapter'];
+  final int typeId = typeAdapterMap['OperationTypeAdapter'];
 
   @override
-  OperationType read(BinaryReader reader) {
+  OperationType? read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
         return OperationType.update;
@@ -254,7 +236,7 @@ class OperationTypeAdapter extends TypeAdapter<OperationType> {
   }
 
   @override
-  void write(BinaryWriter writer, OperationType obj) {
+  void write(BinaryWriter writer, OperationType? obj) {
     switch (obj) {
       case OperationType.update:
         writer.writeByte(0);
@@ -262,17 +244,19 @@ class OperationTypeAdapter extends TypeAdapter<OperationType> {
       case OperationType.delete:
         writer.writeByte(1);
         break;
+      default:
+        break;
     }
   }
 }
 
 ///class for representing [NotificationType] enum to the hive type adapter
-class NotificationTypeAdapter extends TypeAdapter<NotificationType> {
+class NotificationTypeAdapter extends TypeAdapter<NotificationType?> {
   @override
-  final typeId = typeAdapterMap['NotificationTypeAdapter'];
+  final int typeId = typeAdapterMap['NotificationTypeAdapter'];
 
   @override
-  NotificationType read(BinaryReader reader) {
+  NotificationType? read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
         return NotificationType.sent;
@@ -284,7 +268,7 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType> {
   }
 
   @override
-  void write(BinaryWriter writer, NotificationType obj) {
+  void write(BinaryWriter writer, NotificationType? obj) {
     switch (obj) {
       case NotificationType.sent:
         writer.writeByte(0);
@@ -292,17 +276,19 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType> {
       case NotificationType.received:
         writer.writeByte(1);
         break;
+      default:
+        break;
     }
   }
 }
 
 /// class for representing [NotificationStatus] enum to the hive type adapter
-class NotificationStatusAdapter extends TypeAdapter<NotificationStatus> {
+class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
   @override
-  final typeId = typeAdapterMap['NotificationStatusAdapter'];
+  final int typeId = typeAdapterMap['NotificationStatusAdapter'];
 
   @override
-  NotificationStatus read(BinaryReader reader) {
+  NotificationStatus? read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
         return NotificationStatus.delivered;
@@ -316,7 +302,7 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus> {
   }
 
   @override
-  void write(BinaryWriter writer, NotificationStatus obj) {
+  void write(BinaryWriter writer, NotificationStatus? obj) {
     switch (obj) {
       case NotificationStatus.delivered:
         writer.writeByte(0);
@@ -327,17 +313,19 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus> {
       case NotificationStatus.queued:
         writer.writeByte(2);
         break;
+      default:
+        break;
     }
   }
 }
 
 /// class for representing [NotificationStatus] enum to the hive type adapter
-class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority> {
+class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority?> {
   @override
-  final typeId = typeAdapterMap['NotificationPriorityAdapter'];
+  final int typeId = typeAdapterMap['NotificationPriorityAdapter'];
 
   @override
-  NotificationPriority read(BinaryReader reader) {
+  NotificationPriority? read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
         return NotificationPriority.dummy;
@@ -353,7 +341,7 @@ class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority> {
   }
 
   @override
-  void write(BinaryWriter writer, NotificationPriority obj) {
+  void write(BinaryWriter writer, NotificationPriority? obj) {
     switch (obj) {
       case NotificationPriority.dummy:
         writer.writeByte(0);
@@ -367,16 +355,18 @@ class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority> {
       case NotificationPriority.high:
         writer.writeByte(3);
         break;
+      default:
+        break;
     }
   }
 }
 
-class MessageTypeAdapter extends TypeAdapter<MessageType> {
+class MessageTypeAdapter extends TypeAdapter<MessageType?> {
   @override
   int get typeId => typeAdapterMap['MessageTypeAdapter'];
 
   @override
-  MessageType read(BinaryReader reader) {
+  MessageType? read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
         return MessageType.key;
@@ -388,7 +378,7 @@ class MessageTypeAdapter extends TypeAdapter<MessageType> {
   }
 
   @override
-  void write(BinaryWriter writer, MessageType obj) {
+  void write(BinaryWriter writer, MessageType? obj) {
     switch (obj) {
       case MessageType.key:
         writer.writeByte(0);
@@ -396,45 +386,47 @@ class MessageTypeAdapter extends TypeAdapter<MessageType> {
       case MessageType.text:
         writer.writeByte(1);
         break;
+      default:
+        break;
     }
   }
 }
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
-  String id = Uuid().v4();
+  String? id = Uuid().v4();
 
-  String fromAtSign;
+  String? fromAtSign;
 
-  DateTime notificationDateTime = DateTime.now();
+  DateTime? notificationDateTime = DateTime.now();
 
-  String toAtSign;
+  String? toAtSign;
 
-  String notification;
+  String? notification;
 
-  NotificationType type;
+  NotificationType? type;
 
-  OperationType opType;
+  OperationType? opType;
 
-  MessageType messageType = MessageType.key;
+  MessageType? messageType = MessageType.key;
 
-  DateTime expiresAt;
+  DateTime? expiresAt;
 
-  NotificationPriority priority = NotificationPriority.low;
+  NotificationPriority? priority = NotificationPriority.low;
 
-  NotificationStatus notificationStatus = NotificationStatus.queued;
+  NotificationStatus? notificationStatus = NotificationStatus.queued;
 
   int retryCount = 1;
 
-  String strategy = 'all';
+  String? strategy = 'all';
 
-  String notifier = 'system';
+  String? notifier = 'system';
 
-  int depth = 1;
+  int? depth = 1;
 
-  String atValue;
+  String? atValue;
 
-  AtMetaData atMetaData;
+  AtMetaData? atMetaData;
 
   AtNotification build() {
     return AtNotification._builder(this);

@@ -3,25 +3,25 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 
 class SecondaryPersistenceStore {
-  HiveKeystore _hiveKeystore;
-  HivePersistenceManager _hivePersistenceManager;
-  SecondaryKeyStoreManager _secondaryKeyStoreManager;
-  String _atSign;
+  late HiveKeystore _hiveKeystore;
+  HivePersistenceManager? _hivePersistenceManager;
+  SecondaryKeyStoreManager? _secondaryKeyStoreManager;
+  String? _atSign;
 
-  SecondaryPersistenceStore(String atSign) {
+  SecondaryPersistenceStore(String? atSign) {
     _atSign = atSign;
     _init();
   }
 
-  HiveKeystore getSecondaryKeyStore() {
+  HiveKeystore? getSecondaryKeyStore() {
     return _hiveKeystore;
   }
 
-  HivePersistenceManager getHivePersistenceManager() {
+  HivePersistenceManager? getHivePersistenceManager() {
     return _hivePersistenceManager;
   }
 
-  SecondaryKeyStoreManager getSecondaryKeyStoreManager() {
+  SecondaryKeyStoreManager? getSecondaryKeyStoreManager() {
     return _secondaryKeyStoreManager;
   }
 
@@ -30,6 +30,6 @@ class SecondaryPersistenceStore {
     _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager();
-    _secondaryKeyStoreManager.keyStore = _hiveKeystore;
+    _secondaryKeyStoreManager!.keyStore = _hiveKeystore;
   }
 }

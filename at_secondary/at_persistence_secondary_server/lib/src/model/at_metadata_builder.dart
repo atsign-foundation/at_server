@@ -11,16 +11,16 @@ class AtMetadataBuilder {
   /// ttr : Time to refresh of the key. If ttr is null, atMetadata's ttr is assigned to ttr.
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
   AtMetadataBuilder(
-      {String atSign,
-      AtMetaData newAtMetaData,
-      AtMetaData existingMetaData,
-      int ttl,
-      int ttb,
-      int ttr,
-      bool ccd,
-      bool isBinary,
-      bool isEncrypted,
-      String dataSignature}) {
+      {String? atSign,
+      AtMetaData? newAtMetaData,
+      AtMetaData? existingMetaData,
+      int? ttl,
+      int? ttb,
+      int? ttr,
+      bool? ccd,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -65,7 +65,7 @@ class AtMetadataBuilder {
     setDataSignature(dataSignature);
   }
 
-  void setTTL(int ttl, {int ttb}) {
+  void setTTL(int? ttl, {int? ttb}) {
     if (ttl != null) {
       atMetaData.ttl = ttl;
       atMetaData.expiresAt =
@@ -73,7 +73,7 @@ class AtMetadataBuilder {
     }
   }
 
-  void setTTB(int ttb) {
+  void setTTB(int? ttb) {
     if (ttb != null) {
       atMetaData.ttb = ttb;
       atMetaData.availableAt =
@@ -81,7 +81,7 @@ class AtMetadataBuilder {
     }
   }
 
-  void setTTR(int ttr) {
+  void setTTR(int? ttr) {
     if (ttr != null) {
       atMetaData.ttr = ttr;
       atMetaData.refreshAt = _getRefreshAt(currentUtcTime, ttr);
@@ -89,59 +89,49 @@ class AtMetadataBuilder {
   }
 
   void setCCD(bool ccd) {
-    if (ccd != null) {
-      atMetaData.isCascade = ccd;
-    }
+    atMetaData.isCascade = ccd;
   }
 
-  void setIsBinary(bool isBinary) {
+  void setIsBinary(bool? isBinary) {
     if (isBinary != null) {
       atMetaData.isBinary = isBinary;
     }
   }
 
-  void setIsEncrypted(bool isEncrypted) {
+  void setIsEncrypted(bool? isEncrypted) {
     if (isEncrypted != null) {
       atMetaData.isEncrypted = isEncrypted;
     }
   }
 
-  void setDataSignature(String dataSignature) {
+  void setDataSignature(String? dataSignature) {
     if (dataSignature != null) {
       atMetaData.dataSignature = dataSignature;
     }
   }
 
-  DateTime _getAvailableAt(int epochNow, int ttb) {
+  DateTime? _getAvailableAt(int epochNow, int ttb) {
+    var availableAt = epochNow + ttb;
+    return DateTime.fromMillisecondsSinceEpoch(availableAt).toUtc();
+  }
+
+  DateTime? _getExpiresAt(int epochNow, int ttl, {int? ttb}) {
+    var expiresAt = epochNow + ttl;
     if (ttb != null) {
-      var availableAt = epochNow + ttb;
-      return DateTime.fromMillisecondsSinceEpoch(availableAt).toUtc();
+      expiresAt = expiresAt + ttb;
     }
-    return null;
+    return DateTime.fromMillisecondsSinceEpoch(expiresAt).toUtc();
   }
 
-  DateTime _getExpiresAt(int epochNow, int ttl, {int ttb}) {
-    if (ttl != null) {
-      var expiresAt = epochNow + ttl;
-      if (ttb != null) {
-        expiresAt = expiresAt + ttb;
-      }
-      return DateTime.fromMillisecondsSinceEpoch(expiresAt).toUtc();
-    }
-    return null;
-  }
-
-  DateTime _getRefreshAt(DateTime today, int ttr) {
+  DateTime? _getRefreshAt(DateTime today, int ttr) {
     if (ttr == -1) {
       return null;
     }
-    if (ttr != null) {
-      return today.add(Duration(seconds: ttr));
-    }
-    return null;
+
+    return today.add(Duration(seconds: ttr));
   }
 
-  AtMetaData build() {
+  AtMetaData? build() {
     return atMetaData;
   }
 }

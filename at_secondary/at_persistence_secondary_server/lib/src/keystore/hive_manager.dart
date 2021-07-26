@@ -16,13 +16,13 @@ class HivePersistenceManager {
 
   final logger = AtSignLogger('HivePersistenceManager');
 
-  Box _box;
+  Box? _box;
 
-  Box get box => _box;
-  String _atsign;
+  Box? get box => _box;
+  String? _atsign;
 
-  String get atsign => _atsign;
-  String _boxName;
+  String? get atsign => _atsign;
+  late String _boxName;
   var _secret;
 
   HivePersistenceManager(this._atsign);
@@ -30,7 +30,6 @@ class HivePersistenceManager {
   Future<bool> init(String atSign, String storagePath) async {
     var success = false;
     try {
-      assert(storagePath != null && storagePath != '');
       if (_debug) {
         logger.finer('AtPersistence.init received storagePath: ' + storagePath);
       }
@@ -56,7 +55,7 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<Box> openVault(String atsign, {List<int> hiveSecret}) async {
+  Future<Box?> openVault(String atsign, {List<int>? hiveSecret}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
@@ -64,7 +63,6 @@ class HivePersistenceManager {
         logger.finer('AtPersistence.openVault received hiveSecret: ' +
             hiveSecret.toString());
       }
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase().replaceAll(' ', '');
       if (_debug) {
         logger.finer('AtPersistence.openVault received atsign: $atsign');
@@ -72,7 +70,7 @@ class HivePersistenceManager {
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
       var hiveBox = await Hive.openBox(_boxName,
-          encryptionCipher: HiveAesCipher(hiveSecret),
+          encryptionCipher: HiveAesCipher(hiveSecret!),
           compactionStrategy: (entries, deletedEntries) {
         return deletedEntries > 50;
       });
@@ -89,11 +87,10 @@ class HivePersistenceManager {
     return _box;
   }
 
-  Future<List<int>> _getHiveSecretFromFile(
+  Future<List<int>?> _getHiveSecretFromFile(
       String atsign, String storagePath) async {
-    List<int> secretAsUint8List;
+    List<int>? secretAsUint8List;
     try {
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase();
       if (_debug) {
         logger.finer('getHiveSecretFromFile fetching hiveSecretString for ' +
@@ -110,8 +107,8 @@ class HivePersistenceManager {
       var exists = File(filePath).existsSync();
       if (exists) {
         if (_debug) print('AtServer.getHiveSecretFromFile file found');
-        hiveSecretString = await File(filePath).readAsStringSync();
-        if (hiveSecretString == null) {
+        hiveSecretString = File(filePath).readAsStringSync();
+        if (hiveSecretString.isEmpty) {
           secretAsUint8List = _generatePersistenceSecret();
           hiveSecretString = String.fromCharCodes(secretAsUint8List);
           File(filePath).writeAsStringSync(hiveSecretString);
@@ -137,10 +134,10 @@ class HivePersistenceManager {
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(_atsign)
-          .getSecondaryKeyStore();
+          .getSecondaryPersistenceStore(_atsign)!
+          .getSecondaryKeyStore()!;
       hiveKeyStore.deleteExpiredKeys();
     });
   }
@@ -150,7 +147,7 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
-  void close() async {
-    await box.close();
+  Future<void> close() async {
+    await box!.close();
   }
 }

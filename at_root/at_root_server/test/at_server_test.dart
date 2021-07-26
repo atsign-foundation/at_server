@@ -12,7 +12,7 @@ void main() {
 
       expect(
           () => rootServerImpl.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException && e.message == 'redis host is not set')));
     });
 
@@ -24,7 +24,7 @@ void main() {
 
       expect(
           () => rootServerImpl.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException && e.message == 'redis port is not set')));
     });
 
@@ -37,7 +37,7 @@ void main() {
 
       expect(
           () => rootServerImpl.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException && e.message == 'redis auth is not set')));
     });
 
@@ -50,7 +50,7 @@ void main() {
 
       expect(
           () => rootServerImpl.start(),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is AtServerException &&
               e.message == 'server port is not set')));
     });

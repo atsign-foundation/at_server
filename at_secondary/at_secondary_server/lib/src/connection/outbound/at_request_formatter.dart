@@ -1,5 +1,5 @@
 class AtRequestFormatter {
-  static String createFromRequest(String atSign) {
+  static String createFromRequest(String? atSign) {
     return 'from:$atSign\n';
   }
 

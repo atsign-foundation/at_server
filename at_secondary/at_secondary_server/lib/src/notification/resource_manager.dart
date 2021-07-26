@@ -28,8 +28,8 @@ class ResourceManager {
   ///Runs for every configured number of seconds(5).
   void schedule() async {
     _isRunning = true;
-    String atSign;
-    Iterator notificationIterator;
+    String? atSign;
+    late Iterator notificationIterator;
     try {
       //1. Check how many outbound connections are free.
       var N = NotifyConnectionsPool.getInstance().getCapacity();
@@ -53,14 +53,14 @@ class ResourceManager {
       var errorList = [];
       logger.severe('Connection failed for $atSign : ${e.toString()}');
       AtNotificationMap.getInstance().quarantineMap[atSign] =
-          DateTime.now().add(Duration(seconds: quarantineDuration));
+          DateTime.now().add(Duration(seconds: quarantineDuration!));
       while (notificationIterator.moveNext()) {
         errorList.add(notificationIterator.current);
       }
-      _enqueueErrorList(errorList);
+      await _enqueueErrorList(errorList);
     } finally {
       //4. sleep for 5 seconds to refrain blocking main thread and call schedule again.
-      return Future.delayed(Duration(seconds: notificationJobFrequency))
+      return Future.delayed(Duration(seconds: notificationJobFrequency!))
           .then((value) => schedule());
     }
   }
@@ -68,7 +68,7 @@ class ResourceManager {
   /// Establish an outbound connection to [toAtSign]
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
-  Future<OutboundClient> _connect(String toAtSign) async {
+  Future<OutboundClient?> _connect(String? toAtSign) async {
     var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
@@ -79,6 +79,7 @@ class ResourceManager {
         }
       }
     } on Exception catch (e) {
+      outBoundClient.inboundConnection.getMetaData().isClosed = true;
       logger.finer('connect result: $e');
       throw ConnectionInvalidException('Connection failed');
     }
@@ -107,23 +108,24 @@ class ResourceManager {
       errorList.add(atNotification);
     } finally {
       //1. Adds errored notifications back to queue.
-      _enqueueErrorList(errorList);
+      await _enqueueErrorList(errorList);
 
       //2. Setting isStale on  outbound connection metadata to true to remove the connection from
       //   Notification Connection Pool.
-      outBoundClient.outboundConnection.metaData.isStale = true;
+      await outBoundClient.outboundConnection!.close();
     }
   }
 
   /// If the notification response is success, marks the status as [NotificationStatus.delivered]
   /// Else, marks the notification status as [NotificationStatus.queued] and reduce the priority and add back to queue.
   Future<void> _notifyResponseProcessor(
-      String response, AtNotification atNotification, List errorList) async {
+      String? response, AtNotification? atNotification, List errorList) async {
+    // If response is 'data:success', update the notification status to delivered and
+    // add update the key in notificationKeyStore.
     if (response == 'data:success') {
-      var notificationKeyStore = AtNotificationKeystore.getInstance();
-      var notifyEle = await notificationKeyStore.get(atNotification.id);
-      atNotification.notificationStatus = NotificationStatus.delivered;
-      await AtNotificationKeystore.getInstance().put(notifyEle.id, notifyEle);
+      atNotification?.notificationStatus = NotificationStatus.delivered;
+      await AtNotificationKeystore.getInstance()
+          .put(atNotification?.id, atNotification);
     } else {
       errorList.add(atNotification);
     }
@@ -158,7 +160,7 @@ class ResourceManager {
   }
 
   ///Adds the errored notifications back to queue.
-  void _enqueueErrorList(List errorList) {
+  Future<void> _enqueueErrorList(List errorList) async {
     if (errorList.isEmpty) {
       return;
     }
@@ -166,6 +168,10 @@ class ResourceManager {
     var maxRetries = AtSecondaryConfig.maxNotificationRetries;
     while (iterator.moveNext()) {
       var atNotification = iterator.current;
+      // Update the status to errored and persist the notification to keystore.
+      atNotification?.notificationStatus = NotificationStatus.errored;
+      await AtNotificationKeystore.getInstance()
+          .put(atNotification?.id, atNotification);
       // If number retries are equal to maximum number of notifications, notifications are not further processed
       // hence remove entries from waitTimeMap and quarantineMap
       if (atNotification.retryCount == maxRetries) {
@@ -173,9 +179,12 @@ class ResourceManager {
             .removeWaitTimeEntry(atNotification.toAtSign);
         AtNotificationMap.getInstance()
             .removeQuarantineEntry(atNotification.toAtSign);
+        logger.info(
+            'Failed to notify ${atNotification.id}. Maximum retries reached');
         continue;
       }
-      atNotification.notificationStatus = NotificationStatus.errored;
+      logger.info(
+          'Retrying to notify: ${atNotification.id} retry count: ${atNotification.retryCount}');
       QueueManager.getInstance().enqueue(atNotification);
     }
   }

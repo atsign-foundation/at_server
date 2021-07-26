@@ -19,11 +19,14 @@ enum MetricNames {
   SECONDARY_STORAGE_SIZE,
   MOST_VISITED_ATSIGN,
   MOST_VISITED_ATKEYS,
-  SECONDARY_SERVER_VERSION
+  SECONDARY_SERVER_VERSION,
+  LAST_LOGGEDIN_DATETIME,
+  DISK_SIZE,
+  LAST_PKAM
 }
 
-extension MetricClasses on MetricNames {
-  MetricProvider get name {
+extension MetricClasses on MetricNames? {
+  MetricProvider? get name {
     switch (this) {
       case MetricNames.INBOUND:
         return InboundMetricImpl.getInstance();
@@ -39,6 +42,12 @@ extension MetricClasses on MetricNames {
         return MostVisitedAtKeyMetricImpl.getInstance();
       case MetricNames.SECONDARY_SERVER_VERSION:
         return SecondaryServerVersion.getInstance();
+      case MetricNames.LAST_LOGGEDIN_DATETIME:
+        return LastLoggedInDatetimeMetricImpl.getInstance();
+      case MetricNames.DISK_SIZE:
+        return DiskSizeMetricImpl.getInstance();
+      case MetricNames.LAST_PKAM:
+        return LastPkamMetricImpl.getInstance();
       default:
         return null;
     }
@@ -52,7 +61,10 @@ final Map stats_map = {
   '4': MetricNames.SECONDARY_STORAGE_SIZE,
   '5': MetricNames.MOST_VISITED_ATSIGN,
   '6': MetricNames.MOST_VISITED_ATKEYS,
-  '7': MetricNames.SECONDARY_SERVER_VERSION
+  '7': MetricNames.SECONDARY_SERVER_VERSION,
+  '8': MetricNames.LAST_LOGGEDIN_DATETIME,
+  '9': MetricNames.DISK_SIZE,
+  '10': MetricNames.LAST_PKAM
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
@@ -60,7 +72,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
 
   var _regex;
 
-  StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  StatsVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -76,12 +88,12 @@ class StatsVerbHandler extends AbstractVerbHandler {
   Future<void> addStatToResult(id, result) async {
     logger.info('addStatToResult for id : $id, regex: $_regex');
     var metric = _getMetrics(id);
-    var name = metric.name.getName();
+    var name = metric.name!.getName();
     var value;
     if (id == '3' && _regex != null) {
-      value = metric.name.getMetrics(regex: _regex);
+      value = metric.name!.getMetrics(regex: _regex);
     } else {
-      value = await metric.name.getMetrics();
+      value = await metric.name!.getMetrics();
     }
     var stat = Stat(id, name, value);
     result.add(jsonEncode(stat));
@@ -93,7 +105,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
       var statID = verbParams[AT_STAT_ID];
@@ -110,7 +122,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
       var result = [];
       //Iterate through stats_id_list
       await Future.forEach(
-          stats_list, (element) => addStatToResult(element, result));
+          stats_list, (dynamic element) => addStatToResult(element, result));
       // Create response json
       var response_json = result.toString();
       response.data = response_json;
@@ -122,7 +134,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   }
 
   // get Metric based on ID
-  MetricNames _getMetrics(String key) {
+  MetricNames? _getMetrics(String key) {
     //use map and get name based on ID
     if (stats_map.containsKey(key)) {
       return stats_map[key];

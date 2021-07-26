@@ -4,9 +4,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 class AtSecurityContextImpl implements AtSecurityContext {
   static final AtSecurityContextImpl _singleton =
       AtSecurityContextImpl._internal();
-  final String _certChainPath = AtSecondaryConfig.certificateChainLocation;
-  final String _privateKeyPath = AtSecondaryConfig.privateKeyLocation;
-  final String _trustedCertificatePath =
+  final String? _certChainPath = AtSecondaryConfig.certificateChainLocation;
+  final String? _privateKeyPath = AtSecondaryConfig.privateKeyLocation;
+  final String? _trustedCertificatePath =
       AtSecondaryConfig.trustedCertificateLocation;
 
   factory AtSecurityContextImpl() {
@@ -17,22 +17,22 @@ class AtSecurityContextImpl implements AtSecurityContext {
 
   @override
   String privateKeyPath() {
-    return _privateKeyPath;
+    return _privateKeyPath!;
   }
 
   @override
   String publicKeyPath() {
-    return _certChainPath;
+    return _certChainPath!;
   }
 
   @override
   String trustedCertificatePath() {
-    return _trustedCertificatePath;
+    return _trustedCertificatePath!;
   }
 
   @override
   String bundle() {
     // TODO: implement bundle
-    return null;
+    return '';
   }
 }

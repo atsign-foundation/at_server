@@ -8,4 +8,6 @@
 - getEntries() renamed to getFirstNEntries in compaction strategy
 ## 1.0.1+3
 - Support multiple atsigns
-  Introduced batch verb for sync
+  Introduced batch verb for sync  
+## 2.0.0
+- Null safety upgrade

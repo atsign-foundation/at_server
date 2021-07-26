@@ -15,8 +15,8 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
-  Function(String, InboundConnection) onBufferEndCallBack;
-  Function(List<int>, InboundConnection) onStreamCallBack;
+  late Function(String, InboundConnection) onBufferEndCallBack;
+  late Function(List<int>, InboundConnection) onStreamCallBack;
 
   /// Listens to the underlying connection's socket
   void listen(callback, streamCallBack) {
@@ -52,7 +52,7 @@ class InboundMessageListener {
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
         if (command == '@exit') {
-          _finishedHandler();
+          await _finishedHandler();
           return;
         }
         _buffer.clear();
@@ -71,13 +71,13 @@ class InboundMessageListener {
   }
 
   /// Closes the [InboundConnection]
-  void _finishedHandler() async {
+  Future<void> _finishedHandler() async {
     await _closeConnection();
   }
 
   Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
-      connection.close();
+      await connection.close();
     }
   }
 }

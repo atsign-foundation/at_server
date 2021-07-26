@@ -1,12 +1,12 @@
 name: at_persistence_spec
-description: at_persistence_spec is the Specification for the persistence layer implementation of @protocol development.
-version: 1.0.1+3
+description: A Dart library containing abstract classes that defines what an implementation of the persistence layer is responsible for. This can be used to guide implementation of other persistence solutions for servers or SDKs as desired.
+version: 2.0.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_spec/index.html
 
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dev_dependencies:
-  pedantic: ^1.8.0
+  pedantic: ^1.11.0

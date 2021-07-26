@@ -8,7 +8,7 @@ class CommandLineParser {
 
   /// Parses [arguments], a list of command-line arguments, matches them against the
   /// flags and options defined by this parser, and returns the result.
-  ArgResults getParserResults(List<String> arguments) {
+  ArgResults getParserResults(List<String>? arguments) {
     var results;
     var parser = ArgParser();
     parser.addOption('at_sign',

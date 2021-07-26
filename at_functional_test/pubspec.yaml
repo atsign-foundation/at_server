@@ -12,12 +12,9 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: dev_env_staging
-      version: ^1.0.0+6
+  at_lookup: ^2.0.3
+  at_client: ^2.0.3
+  
 
 #dependency_overrides:
 #  at_lookup:

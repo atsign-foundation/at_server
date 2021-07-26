@@ -14,7 +14,7 @@ class NotifyStatus extends Verb {
   String syntax() => VerbSyntax.notifyStatus;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

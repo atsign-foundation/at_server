@@ -12,7 +12,7 @@ abstract class Verb {
   String usage();
 
   /// Returns name of the Verb this verb depends on
-  Verb dependsOn();
+  Verb? dependsOn();
 
   /// Returns whether a verb requires authentication
   bool requiresAuth();

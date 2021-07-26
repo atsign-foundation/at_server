@@ -5,6 +5,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
+  var metadata = InboundConnectionMetadata();
+
   static final DummyInboundConnection _singleton =
       DummyInboundConnection._internal();
 
@@ -19,7 +21,7 @@ class DummyInboundConnection implements InboundConnection {
       Function(List<int>, InboundConnection) streamCallback) {}
 
   @override
-  void close() {}
+  Future<void> close() async {}
 
   @override
   bool equals(InboundConnection connection) {
@@ -31,30 +33,31 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   AtConnectionMetaData getMetaData() {
-    return InboundConnectionMetadata()..fromAtSign = null;
+    metadata.fromAtSign = null;
+    return metadata;
   }
 
   @override
   Socket getSocket() {
-    return null;
+    throw ('not implemented');
   }
 
   @override
   bool isInValid() {
-    return false;
+    return metadata.isClosed;
   }
 
   @override
   void write(String data) {}
 
   @override
-  bool isMonitor;
+  bool? isMonitor;
 
   @override
-  String initiatedBy;
+  String? initiatedBy;
 
   bool isStream = false;
 
   @override
-  Socket receiverSocket;
+  Socket? receiverSocket;
 }

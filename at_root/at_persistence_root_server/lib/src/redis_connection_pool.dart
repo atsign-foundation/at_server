@@ -10,14 +10,14 @@ class RedisConnectionPool {
   final List<AtRedisConnection> _pooledConnections = [];
   final int _init_pool_size = 5;
   final int _max_pool_size = 15;
-  AtRedisConfig _atRedisConfig;
+  AtRedisConfig? _atRedisConfig;
   final logger = AtSignLogger('RedisConnectionPool');
 
-  Future<bool> init(AtRedisConfig atRedisConfig) async {
+  Future<bool> init(AtRedisConfig? atRedisConfig) async {
     _atRedisConfig = atRedisConfig;
     logger.info('initializing redis connection pool');
     for (var i = 0; i < _init_pool_size; i++) {
-      var conn = await create(atRedisConfig);
+      var conn = await create(atRedisConfig!);
       _pooledConnections.add(conn);
     }
     logger.info('completed init redis connection pool');
@@ -27,7 +27,7 @@ class RedisConnectionPool {
   Future<AtRedisConnection> getConnection() async {
     if (_pooledConnections.isEmpty) {
       if (_usedConnections.length < _max_pool_size) {
-        _pooledConnections.add(await create(_atRedisConfig));
+        _pooledConnections.add(await create(_atRedisConfig!));
       } else {
         throw Exception('Redis Max Pool Size reached');
       }
@@ -57,7 +57,7 @@ class RedisConnectionPool {
       if (e is SocketException) {
         logger.severe('SocketException connecting to redis: ${e.message}');
         throw DataStoreException('Redis connection failed',
-            vendorErrorCode: e.osError.errorCode, vendorException: e);
+            vendorErrorCode: e.osError!.errorCode, vendorException: e);
       } else if (e is RedisError) {
         logger.severe('Error connecting to redis: ${e.toString()}');
         throw DataStoreException(e.toString());

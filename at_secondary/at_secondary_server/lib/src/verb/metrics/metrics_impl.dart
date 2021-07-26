@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'dart:math';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -19,7 +19,7 @@ class InboundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     var connections = connectionMetrics.getInboundConnections().toString();
     return connections;
   }
@@ -41,7 +41,7 @@ class OutBoundMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     var connections = connectionMetrics.getOutboundConnections().toString();
     return connections;
   }
@@ -68,7 +68,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String getMetrics({String? regex}) {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
@@ -89,7 +89,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
 class SecondaryStorageMetricImpl implements MetricProvider {
   static final SecondaryStorageMetricImpl _singleton =
       SecondaryStorageMetricImpl._internal();
-  var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath);
+  var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath!);
 
   SecondaryStorageMetricImpl._internal();
 
@@ -98,7 +98,7 @@ class SecondaryStorageMetricImpl implements MetricProvider {
   }
 
   @override
-  int getMetrics({String regex}) {
+  int getMetrics({String? regex}) {
     var secondaryStorageSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
@@ -129,11 +129,11 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String regex}) async {
-    final length = AtSecondaryConfig.stats_top_visits;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedAtSigns(length));
+  Future<String> getMetrics({String? regex}) async {
+    final length = AtSecondaryConfig.stats_top_visits!;
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    return jsonEncode(atAccessLog?.mostVisitedAtSigns(length));
   }
 
   @override
@@ -153,11 +153,11 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String regex}) async {
-    final length = AtSecondaryConfig.stats_top_keys;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    return jsonEncode(atAccessLog.mostVisitedKeys(length));
+  Future<String> getMetrics({String? regex}) async {
+    final length = AtSecondaryConfig.stats_top_keys!;
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    return jsonEncode(atAccessLog?.mostVisitedKeys(length));
   }
 
   @override
@@ -177,12 +177,100 @@ class SecondaryServerVersion implements MetricProvider {
   }
 
   @override
-  String getMetrics({String regex}) {
+  String? getMetrics({String? regex}) {
     return AtSecondaryConfig.secondaryServerVersion;
   }
 
   @override
   String getName() {
     return 'secondaryServerVersion';
+  }
+}
+
+class LastLoggedInDatetimeMetricImpl implements MetricProvider {
+  static final LastLoggedInDatetimeMetricImpl _singleton =
+      LastLoggedInDatetimeMetricImpl._internal();
+
+  LastLoggedInDatetimeMetricImpl._internal();
+
+  factory LastLoggedInDatetimeMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var entry = atAccessLog!.getLastAccessLogEntry();
+    return entry.requestDateTime!.toUtc().toString();
+  }
+
+  @override
+  String getName() {
+    return 'LastLoggedInDatetime';
+  }
+}
+
+class DiskSizeMetricImpl implements MetricProvider {
+  static final DiskSizeMetricImpl _singleton = DiskSizeMetricImpl._internal();
+
+  DiskSizeMetricImpl._internal();
+
+  factory DiskSizeMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  String getMetrics({String? regex}) {
+    var storageLocation = Directory(AtSecondaryServerImpl.storagePath!);
+    var diskSize = 0;
+    //The listSync function returns the list of files in the hive storage location.
+    // In the loop iterating recursively into sub-directories and gets the size of each file using lengthSync
+    storageLocation.listSync(recursive: true).forEach((file) {
+      if (file is File) {
+        diskSize =
+            diskSize + File(file.path).lengthSync();
+      }
+    });
+    //Return total size
+    return formatBytes(diskSize, 2);
+  }
+
+  @override
+  String getName() {
+    return 'diskSize';
+  }
+
+  String formatBytes(int bytes, int decimals) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    var i = (log(bytes)/ log(1024)).floor();
+    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) +
+        ' ' +
+        suffixes[i];
+  }
+}
+
+class LastPkamMetricImpl implements MetricProvider {
+  static final LastPkamMetricImpl _singleton =
+  LastPkamMetricImpl._internal();
+
+  LastPkamMetricImpl._internal();
+
+  factory LastPkamMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var entry = atAccessLog!.getLastPkamAccessLogEntry();
+    return (entry!= null) ? entry.requestDateTime!.toUtc().toString() : 'Not Available';
+  }
+
+  @override
+  String getName() {
+    return 'LastPkam';
   }
 }
