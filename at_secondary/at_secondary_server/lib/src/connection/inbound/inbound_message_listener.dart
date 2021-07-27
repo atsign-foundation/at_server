@@ -34,7 +34,7 @@ class InboundMessageListener {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();
-      logger.info('Inbound connection is invalid');
+      logger.info('Inbound connection is invalid. Closing the connection');
       await GlobalExceptionHandler.getInstance().handle(
           ConnectionInvalidException('Connection is invalid'),
           atConnection: connection);
