@@ -5,7 +5,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
-  var metadata;
+  var metadata = InboundConnectionMetadata();
+
   static final DummyInboundConnection _singleton =
       DummyInboundConnection._internal();
 
@@ -31,8 +32,8 @@ class DummyInboundConnection implements InboundConnection {
   }
 
   @override
-  InboundConnectionMetadata getMetaData() {
-    metadata ??= InboundConnectionMetadata()..fromAtSign = null;
+  AtConnectionMetaData getMetaData() {
+    metadata.fromAtSign = null;
     return metadata;
   }
 
@@ -43,7 +44,7 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   bool isInValid() {
-    return false;
+    return metadata.isClosed;
   }
 
   @override

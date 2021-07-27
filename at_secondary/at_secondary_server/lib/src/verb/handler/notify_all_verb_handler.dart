@@ -47,6 +47,12 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var operation = SecondaryUtil().getOperationType(verbParams[AT_OPERATION]);
     var value = verbParams[AT_VALUE];
 
+    // If messageType is key, append the atSign to key. For messageType text,
+    // atSign is not appended to the key.
+    if (messageType == MessageType.key) {
+      key = '$key$atSign';
+    }
+
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
@@ -66,7 +72,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       var forAtSigns = forAtSignList.split(',');
       var forAtSignsSet = forAtSigns.toSet();
       for (var forAtSign in forAtSignsSet) {
-        var updated_key = '$forAtSign:$key$atSign';
+        var updated_key = '$forAtSign:$key';
         var atMetadata = AtMetaData()
           ..ttl = ttl_ms
           ..ttb = ttb_ms

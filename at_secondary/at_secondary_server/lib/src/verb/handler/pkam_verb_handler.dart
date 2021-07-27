@@ -8,6 +8,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:crypton/crypton.dart';
+import 'package:at_server_spec/src/connection/at_connection.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();

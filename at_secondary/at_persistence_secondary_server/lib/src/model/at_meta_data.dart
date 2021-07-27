@@ -52,12 +52,6 @@ class AtMetaData extends HiveObject {
   @HiveField(15)
   String? dataSignature;
 
-  @HiveField(16)
-  String? sharedKeyStatus;
-
-  @HiveField(17)
-  String? sharedBy;
-
   @override
   String toString() {
     return toJson().toString();
@@ -82,8 +76,6 @@ class AtMetaData extends HiveObject {
     map[IS_BINARY] = isBinary;
     map[IS_ENCRYPTED] = isEncrypted;
     map[PUBLIC_DATA_SIGNATURE] = dataSignature;
-    map[SHARED_KEY_STATUS] = sharedKeyStatus;
-    map['sharedBy'] = sharedBy;
     return map;
   }
 
@@ -128,8 +120,6 @@ class AtMetaData extends HiveObject {
       isBinary = json[IS_BINARY];
       isEncrypted = json[IS_ENCRYPTED];
       dataSignature = json[PUBLIC_DATA_SIGNATURE];
-      sharedKeyStatus = json[sharedKeyStatus];
-      sharedBy = json['sharedBy'];
     } catch (error) {
       print('AtMetaData.fromJson error: ' + error.toString());
     }
@@ -162,16 +152,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..isCascade = fields[11] as bool?
       ..availableAt = fields[12] as DateTime?
       ..isBinary = fields[13] as bool?
-      ..isEncrypted = fields[14] as bool?
-      ..dataSignature = fields[15] as String?
-      ..sharedKeyStatus = fields[16] as String?
-      ..sharedBy = fields[17];
+      ..isEncrypted = fields[14]
+      ..dataSignature = fields[15];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -203,10 +191,6 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(14)
       ..write(obj.isEncrypted)
       ..writeByte(15)
-      ..write(obj.dataSignature)
-      ..write(16)
-      ..write(obj.sharedKeyStatus)
-      ..writeByte(17)
-      ..write(obj.sharedBy);
+      ..write(obj.dataSignature);
   }
 }

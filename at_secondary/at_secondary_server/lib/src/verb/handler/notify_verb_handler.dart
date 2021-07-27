@@ -24,9 +24,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.contains('list') &&
-      !command.contains('status') &&
-      !command.contains('notify:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:list') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:status') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:all');
 
   @override
   Verb getVerb() {
@@ -54,11 +54,23 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var atValue = verbParams[AT_VALUE];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
-    var isPublic = key?.startsWith('public:');
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
+    // If strategy is null, default it to strategy all.
     strategy ??= 'all';
-    // If messageType is key, append atsign to the key
+    var notifier = verbParams[NOTIFIER];
+    // If strategy latest, notifier is mandatory.
+    // If notifier is null, throws InvalidSyntaxException.
+    if (strategy == 'latest' && notifier == null) {
+      throw InvalidSyntaxException(
+          'For Strategy latest, notifier cannot be null');
+    }
+    // If strategy is ALL, default the notifier to system.
+    if (strategy == 'all') {
+      notifier ??= SYSTEM;
+    }
+    // If messageType is key, append the atSign to key. For messageType text,
+    // atSign is not appended to the key.
     if (messageType == MessageType.key) {
       key = '$key$atSign';
     }
@@ -116,9 +128,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             ..priority =
                 SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
             ..atValue = atValue
-            ..notifier = verbParams[NOTIFIER]
+            ..notifier = notifier
             ..strategy = strategy
-            ..depth = _getIntParam(verbParams[LATEST_N])
+            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+            ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
+                ? _getIntParam(verbParams[LATEST_N])
+                : 1
             ..messageType = messageType
             ..notificationStatus = NotificationStatus.queued
             ..atMetaData = atMetadata
@@ -130,11 +145,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
-      // If key is public, remove the forAtSign from the key
-      if(isPublic!){
-        var start = key?.indexOf(':');
-        key = key!.substring(start! + 1);
-      }
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
@@ -157,8 +167,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttl: ttl_ms,
                 ttb: ttb_ms,
                 ttr: ttr_ms,
-                ccd: isCascade,
-                sharedBy: fromAtSign)
+                ccd: isCascade)
             .build();
         await _storeCachedKeys(key, metadata, atValue: atValue);
         response.data = 'data:success';

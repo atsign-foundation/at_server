@@ -39,6 +39,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
     var fileName = verbParams['fileName'];
     var fileLength = verbParams['length'];
     var namespace = verbParams['namespace'];
+    var startByte = verbParams['startByte'];
     streamId = streamId.trim();
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     switch (operation) {
@@ -65,10 +66,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
         }
         StreamManager.senderSocketMap[streamId]!
             .write('stream:done $streamId\n');
-        StreamManager.receiverSocketMap[streamId]!.getSocket().destroy();
-        StreamManager.senderSocketMap[streamId]!.getSocket().destroy();
-        StreamManager.receiverSocketMap.remove(streamId);
-        StreamManager.senderSocketMap.remove(streamId);
+        _cleanUp(streamId);
         break;
       case 'init':
         if (!atConnection.getMetaData().isAuthenticated &&
@@ -81,23 +79,35 @@ class StreamVerbHandler extends AbstractVerbHandler {
         fileName = fileName!.trim();
         logger.info('fileName:$fileName');
         logger.info('fileLength:$fileLength');
+        logger.info('startByte:$startByte');
         var streamKey = 'stream_id';
         if (namespace != null && namespace.isNotEmpty && namespace != 'null') {
           streamKey = '$streamKey.$namespace';
+        }
+        if (startByte != null && int.parse(startByte) > 0) {
+          _cleanUp(streamId);
         }
 
         var notificationKey =
             '@$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
 
-        _notify(receiver, AtSecondaryServerImpl.getInstance().currentAtSign,
-            notificationKey);
+        await _notify(receiver,
+            AtSecondaryServerImpl.getInstance().currentAtSign, notificationKey);
         StreamManager.senderSocketMap[streamId] = atConnection;
+        break;
+      case 'resume':
+        var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        //receiver = AtUtils.formatAtSign(receiver);
+        final sender = receiver;
+        var notificationKey = '@$sender:stream_resume $streamId:$startByte';
+        logger.finer('inside stream resume $notificationKey');
+        await _notify(receiver, currentAtSign, notificationKey);
         break;
     }
     response.isStream = true;
   }
 
-  void _notify(forAtSign, atSign, key) {
+  Future<void> _notify(forAtSign, atSign, key) async {
     if (forAtSign == null) {
       return;
     }
@@ -108,6 +118,21 @@ class StreamVerbHandler extends AbstractVerbHandler {
           ..notification = key
           ..opType = OperationType.update)
         .build();
-    NotificationManager.getInstance().notify(atNotification);
+    var notification_id =
+        await NotificationManager.getInstance().notify(atNotification);
+    logger.finer('notification_id : $notification_id');
+  }
+
+  void _cleanUp(String streamId) {
+    final receiverConnection = StreamManager.receiverSocketMap[streamId];
+    if (receiverConnection != null) {
+      receiverConnection.getSocket().destroy();
+    }
+    final senderConnection = StreamManager.senderSocketMap[streamId];
+    if (senderConnection != null) {
+      senderConnection.getSocket().destroy();
+    }
+    StreamManager.receiverSocketMap.remove(streamId);
+    StreamManager.senderSocketMap.remove(streamId);
   }
 }

@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -118,10 +119,12 @@ void main() {
       var command = 'notify:list:$date';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
-      var atConnection = DummyInboundConnection.getInstance();//InboundConnectionImpl(null, inBoundSessionId)
-      atConnection.getMetaData().fromAtSign = '@alice';
-      atConnection.getMetaData().isAuthenticated = true;
-      atConnection.getMetaData().sessionID = '123';
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
@@ -201,10 +204,12 @@ void main() {
       var command = 'notify:list:$fromDate:$toDate';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
-      var atConnection = DummyInboundConnection.getInstance();
-      atConnection.getMetaData().fromAtSign = '@alice';
-      atConnection.getMetaData().isAuthenticated = true;
-      atConnection.getMetaData().sessionID = '100';
+      var inBoundSessionId = '100';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);

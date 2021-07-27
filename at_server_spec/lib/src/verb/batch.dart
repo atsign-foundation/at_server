@@ -2,7 +2,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 
-/// #TODO add docs
+/// Batch verb is used for executing multiple verbs at a time.
+///
+/// syntax: batch:<json with commands>
 ///
 class Batch extends Verb {
   @override
