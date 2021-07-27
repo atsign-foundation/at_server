@@ -15,6 +15,7 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
+
   late Function(String, InboundConnection) onBufferEndCallBack;
   late Function(List<int>, InboundConnection) onStreamCallBack;
 
@@ -30,6 +31,18 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
+    // If connection is invalid, throws ConnectionInvalidException and closes the connection
+    try {
+      if (connection.isInValid()) {
+        throw ConnectionInvalidException('Connection is invalid');
+      }
+    } on ConnectionInvalidException {
+      _buffer.clear();
+      await GlobalExceptionHandler.getInstance().handle(
+          ConnectionInvalidException('Connection is invalid'),
+          atConnection: connection);
+      return;
+    }
     if (connection.getMetaData().isStream) {
       await onStreamCallBack(data, connection);
       return;
