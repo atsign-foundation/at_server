@@ -48,6 +48,8 @@ class InboundMessageListener {
       return;
     }
     var bufferOverflow = false;
+    // If buffer has capacity add data to buffer,
+    // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
       _buffer.append(data);
     } else {
@@ -64,6 +66,7 @@ class InboundMessageListener {
         command = command.trim();
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
+        // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();
           return;
