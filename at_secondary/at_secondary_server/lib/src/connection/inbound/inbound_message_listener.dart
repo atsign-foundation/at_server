@@ -32,12 +32,9 @@ class InboundMessageListener {
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
-    try {
-      if (connection.isInValid()) {
-        throw ConnectionInvalidException('Connection is invalid');
-      }
-    } on ConnectionInvalidException {
+    if (connection.isInValid()) {
       _buffer.clear();
+      logger.info('Inbound connection is invalid');
       await GlobalExceptionHandler.getInstance().handle(
           ConnectionInvalidException('Connection is invalid'),
           atConnection: connection);
