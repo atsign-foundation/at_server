@@ -16,7 +16,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':');
+      command.startsWith(getName(VerbEnum.sync) + ':') && !command.contains('sync:stream');
 
   @override
   Verb getVerb() {
@@ -42,7 +42,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
     if (regex != null && regex != 'null') {
       logger.finer('regex for sync : $regex');
       commit_changes
-          ?.removeWhere((entry) => !_isRegexMatches(entry.atKey!, regex));
+          ?.removeWhere((entry) => !isRegexMatches(entry.atKey!, regex));
     }
     var distinctKeys = <String>{};
     var syncResultList = [];
@@ -54,7 +54,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
       await Future.forEach(
           commit_changes,
           (dynamic entry) =>
-              _processEntry(entry, distinctKeys, syncResultList));
+              processEntry(entry, distinctKeys, syncResultList));
     }
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
@@ -62,16 +62,14 @@ class SyncVerbHandler extends AbstractVerbHandler {
     syncResultList.sort(
         (entry1, entry2) => entry1['commitId'].compareTo(entry2['commitId']));
     var result;
-
     if (syncResultList.isNotEmpty) {
       result = jsonEncode(syncResultList);
     }
-
     response.data = result;
     return;
   }
 
-  Future<void> _processEntry(entry, distinctKeys, syncResultList) async {
+  Future<void> processEntry(entry, distinctKeys, syncResultList) async {
     var isKeyLatest = distinctKeys.add(entry.atKey);
     var resultMap = entry.toJson();
     // update value only for latest entry for duplicate keys in the commit log
@@ -82,13 +80,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
       } else if (entry.operation == CommitOp.UPDATE_ALL ||
           entry.operation == CommitOp.UPDATE_META) {
         resultMap.putIfAbsent('value', () => value?.data);
-        _populateMetadata(value, resultMap);
+        populateMetadata(value, resultMap);
       }
       syncResultList.add(resultMap);
     }
   }
 
-  void _populateMetadata(value, resultMap) {
+  void populateMetadata(value, resultMap) {
     var metaDataMap = <String, dynamic>{};
     AtMetaData? metaData = value?.metaData;
     if (metaData != null) {
@@ -125,11 +123,12 @@ class SyncVerbHandler extends AbstractVerbHandler {
         metaDataMap.putIfAbsent(
             UPDATED_AT, () => metaData.updatedAt.toString());
       }
+
       resultMap.putIfAbsent('metadata', () => metaDataMap);
     }
   }
 
-  bool _isRegexMatches(String atKey, String regex) {
+  bool isRegexMatches(String atKey, String regex) {
     var result = false;
     if ((RegExp(regex).hasMatch(atKey)) ||
         atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
