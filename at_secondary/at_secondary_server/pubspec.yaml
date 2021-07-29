@@ -20,6 +20,16 @@ dependencies:
   at_lookup: ^2.0.3
   at_server_spec: ^2.0.3
 
+dependency_overrides:
+  at_utils:
+    path: ../../../at_tools/at_utils
+  at_commons:
+    path: ../../../at_tools/at_commons
+  at_persistence_secondary_server:
+    path: ../at_persistence_secondary_server
+  at_server_spec:
+    path: ../../at_server_spec
+
 dev_dependencies:
   test: ^1.17.3
   #  test_coverage: ^0.5.0

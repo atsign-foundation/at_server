@@ -11,5 +11,9 @@ environment:
 dependencies:
   at_commons: ^2.0.3
 
+dependency_overrides:
+  at_commons:
+    path: ../../at_tools/at_commons
+
 dev_dependencies:
   pedantic: ^1.11.0
