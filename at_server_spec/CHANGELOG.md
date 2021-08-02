@@ -8,3 +8,5 @@
 - at_commons version change
 ## 2.0.3
 - at_commons version change for stream resume
+## 2.0.4
+- dart doc changes for verbs

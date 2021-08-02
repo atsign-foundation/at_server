@@ -15,6 +15,7 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
+
   late Function(String, InboundConnection) onBufferEndCallBack;
   late Function(List<int>, InboundConnection) onStreamCallBack;
 
@@ -30,11 +31,22 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
+    // If connection is invalid, throws ConnectionInvalidException and closes the connection
+    if (connection.isInValid()) {
+      _buffer.clear();
+      logger.info('Inbound connection is invalid. Closing the connection');
+      await GlobalExceptionHandler.getInstance().handle(
+          ConnectionInvalidException('Connection is invalid'),
+          atConnection: connection);
+      return;
+    }
     if (connection.getMetaData().isStream) {
       await onStreamCallBack(data, connection);
       return;
     }
     var bufferOverflow = false;
+    // If buffer has capacity add data to buffer,
+    // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
       _buffer.append(data);
     } else {
@@ -51,6 +63,7 @@ class InboundMessageListener {
         command = command.trim();
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
+        // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();
           return;
