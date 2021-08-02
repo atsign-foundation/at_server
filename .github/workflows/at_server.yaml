@@ -14,7 +14,7 @@ on:
       - trunk
 
 jobs:
-  unit tests:
+  unit_tests:
     env:
       proot-working-directory: ./at_root/at_persistence_root_server
       root-working-directory: ./at_root/at_root_server
