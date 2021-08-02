@@ -318,7 +318,7 @@ jobs:
   # The jobs run's on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_tests 
+    needs: [ unit_tests, functional_tests, end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
@@ -394,7 +394,7 @@ jobs:
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_tests 
+    needs: [ unit_tests, functional_tests, end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
       working-directory: at_server
@@ -481,7 +481,7 @@ jobs:
       
   # Deploy root server image to cluster
   deploy_root_sever:
-    needs: [ unit_tests, functional_tests, end2end_tests 
+    needs: [ unit_tests, functional_tests, end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     runs-on: ubuntu-latest
     steps:
