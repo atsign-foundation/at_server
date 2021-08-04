@@ -209,13 +209,14 @@ void main() {
     print('llookup meta response : $response');
     expect(response, contains('"ttl":3000'));
 
-    ///LLOOKUP VERB - Before 10  seconds
+    ///LLOOKUP VERB - Before 3  seconds
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup verb response before 3 seconds : $response');
     expect(response, contains('data:3seconds'));
 
-    ///LLOOKUP VERB - After 10 seconds
+    ///LLOOKUP VERB - After 3 seconds
+    await Future.delayed(Duration(seconds: 1));
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup verb response after 3 seconds : $response');
@@ -229,21 +230,21 @@ void main() {
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    ///LLOOKUP VERB - Before 10 seconds
+    ///LLOOKUP VERB - Before 2 seconds
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
     response = await read();
     print('llookup verb response before 2 seconds : $response');
     expect(response, contains('data:null'));
 
-    ///LLOOKUP VERB - After 10 seconds
+    ///LLOOKUP VERB - After 2 seconds
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
     response = await read();
     print('llookup verb response after 2 seconds : $response');
     expect(response, contains('data:3289'));
 
     ///LLookup:META FOR TTB
+    await Future.delayed(Duration(seconds: 2));
     await socket_writer(_socket_first_atsign, 'llookup:meta:$second_atsign:auth-code$first_atsign');
-    // await Future.delayed(Duration(seconds: 5));
     response = await read();
     print('llookup meta verb response for ttb is : $response');
     expect(response, contains('"ttb":2000'));
