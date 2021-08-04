@@ -149,6 +149,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
 
+      // If key is public, remove forAtSign from key.
+      if (key!.contains('public:')) {
+        var index = key.indexOf(':');
+        key = key.substring(index + 1);
+      }
       var notifyKey = '$CACHED:$key';
       if (operation == 'delete') {
         await _removeCachedKey(notifyKey);
