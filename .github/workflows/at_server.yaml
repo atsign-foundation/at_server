@@ -231,7 +231,7 @@ jobs:
             atsigncompany/secondary:dess_cicd
             atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
           platforms: |
-            linux/arm64/v8
+            linux/amd64
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
@@ -451,7 +451,7 @@ jobs:
       - name: Create dess-arm64 label
         uses: appleboy/ssh-action@v0.1.4
         with:
-          host: "cicd1.atsign.wtf"
+          host: "arm64cicd.atsign.wtf"
           username: ubuntu
           key: ${{ secrets.CICD_SSH_KEY }}
           script: |
