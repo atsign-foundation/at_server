@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -82,7 +82,7 @@ class OutboundClient {
 
   Future<String> _findSecondary(toAtSign) async {
     var secondaryUrl =
-        await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort!);
+        await at_lookup.AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
