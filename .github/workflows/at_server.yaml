@@ -221,7 +221,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Builds and pushes the secondary server image to docker hub.
-      - name: Build and push secondary image for arm64
+      - name: Build and push secondary image for x64
         id: docker_build_secondary
         uses: docker/build-push-action@v2.6.1
         with:
