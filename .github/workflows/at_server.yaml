@@ -221,7 +221,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Builds and pushes the secondary server image to docker hub.
-      - name: Build and push secondary image for arm64
+      - name: Build and push secondary image for x64
         id: docker_build_secondary
         uses: docker/build-push-action@v2.6.1
         with:
@@ -231,7 +231,7 @@ jobs:
             atsigncompany/secondary:dess_cicd
             atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
           platforms: |
-            linux/arm64/v8
+            linux/amd64
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
@@ -451,7 +451,7 @@ jobs:
       - name: Create dess-arm64 label
         uses: appleboy/ssh-action@v0.1.4
         with:
-          host: "cicd1.atsign.wtf"
+          host: "arm64cicd.atsign.wtf"
           username: ubuntu
           key: ${{ secrets.CICD_SSH_KEY }}
           script: |
