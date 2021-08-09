@@ -10,10 +10,20 @@ import 'package:at_utils/at_logger.dart';
 
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
-/// The schedule job runs at a time interval specified in [notification][_timeInterval]
+/// The schedule job runs at a time interval specified in [notification][statsNotificationJobTimeInterval]
 /// in [config.yaml]. Defaults to 15 seconds.
 /// The [schedule] method is invoked during the server start-up and should be called only
 /// once.
+/// Sample JSON written to monitor connection.
+/// {
+///    "id":"c0d8a7d6-5689-476b-b5db-28b4f77e4663",
+///    "from":"@alice",
+///    "to":"@alice",
+///    "key":"statsNotification.monitorKey",
+///    "value":"11",
+///    "operation":"update",
+///    "epochMillis":1628512387184
+/// }
 class StatsNotificationService {
   static final StatsNotificationService _singleton =
       StatsNotificationService._internal();
@@ -25,19 +35,20 @@ class StatsNotificationService {
   }
 
   final _logger = AtSignLogger('StatsNotificationService');
-  final _timeInterval = AtSecondaryConfig.statsNotificationTimeInterval;
-  var _currentAtSign;
+  final String _currentAtSign =
+      AtSecondaryServerImpl.getInstance().currentAtSign;
   var _atCommitLog;
 
   /// Starts the [StatsNotificationService] and notifies the latest commitID
   /// to the active monitor connections.
-  /// The [_timeInterval] represents the time interval between the jobs.
+  /// The [AtSecondaryConfig.statsNotificationJobTimeInterval] represents the time interval between the jobs.
   void schedule() async {
-    _currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     _atCommitLog =
         await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
     while (true) {
-      await Future.delayed(Duration(seconds: _timeInterval), _schedule);
+      await Future.delayed(
+          Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
+          _schedule);
     }
   }
 
@@ -63,13 +74,14 @@ class StatsNotificationService {
                   .toUtc()
                   .difference(connection.getMetaData().lastAccessed!)
                   .inSeconds >=
-              _timeInterval) {
+              AtSecondaryConfig.statsNotificationJobTimeInterval) {
         //Construct a stats notification
         var atNotificationBuilder = AtNotificationBuilder()
           ..fromAtSign = _currentAtSign
           ..notification = 'statsNotification.monitorKey'
           ..toAtSign = _currentAtSign
           ..notificationDateTime = DateTime.now().toUtc()
+          ..opType = OperationType.update
           ..atValue = _atCommitLog!.lastCommittedSequenceNumber().toString();
         var notification = Notification(atNotificationBuilder.build());
         _logger.info(

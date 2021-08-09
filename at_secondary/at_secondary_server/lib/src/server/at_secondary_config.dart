@@ -65,7 +65,7 @@ class AtSecondaryConfig {
   static final bool _isForceRestart = false;
 
   //StatsNotificationService
-  static final int _statsNotificationTimeInterval = 15;
+  static final int _statsNotificationJobTimeInterval = 15;
 
   //version
   static final String? _secondaryServerVersion =
@@ -569,17 +569,17 @@ class AtSecondaryConfig {
     return _notificationJobFrequency;
   }
 
-  static int get statsNotificationTimeInterval {
-    var result = _getIntEnvVar('statsNotificationTimeInterval');
+  static int get statsNotificationJobTimeInterval {
+    var result = _getIntEnvVar('statsNotificationJobTimeInterval');
     if (result != null) {
       return result;
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['notification'] != null &&
-        ConfigUtil.getYaml()!['notification']['timeInterval'] != null) {
-      return ConfigUtil.getYaml()!['notification']['timeInterval'];
+        ConfigUtil.getYaml()!['notification']['statsNotificationJobTimeInterval'] != null) {
+      return ConfigUtil.getYaml()!['notification']['statsNotificationJobTimeInterval'];
     }
-    return _statsNotificationTimeInterval;
+    return _statsNotificationJobTimeInterval;
   }
 
   static int? _getIntEnvVar(String envVar) {
