@@ -96,7 +96,8 @@ notification:
   quarantineDuration: 10
   # The job frequency
   jobFrequency: 5
-  # The time interval(in seconds) to notify last commitID to monitor connections
+  # The time interval(in seconds) to notify latest commitID to monitor connections
+  # To disable to the feature, set to -1.
   statsNotificationJobTimeInterval: 15
 
 # At refresh Job to refresh the cached keys.

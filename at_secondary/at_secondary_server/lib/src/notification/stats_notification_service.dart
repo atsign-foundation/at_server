@@ -12,6 +12,7 @@ import 'package:at_utils/at_logger.dart';
 /// to the active monitor connections.
 /// The schedule job runs at a time interval specified in [notification][statsNotificationJobTimeInterval]
 /// in [config.yaml]. Defaults to 15 seconds.
+/// To disable the service, set [notification][statsNotificationJobTimeInterval] in [config.yaml] to -1.
 /// The [schedule] method is invoked during the server start-up and should be called only
 /// once.
 /// Sample JSON written to monitor connection.
@@ -45,6 +46,13 @@ class StatsNotificationService {
   void schedule() async {
     _atCommitLog =
         await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
+    // If set to -1, the feature is disabled. Do nothing.
+    if (AtSecondaryConfig.statsNotificationJobTimeInterval == -1) {
+      _logger.info('StatsNotificationService is disabled');
+      return;
+    }
+    // Setting while(true) to form an infinite loop.
+    // Runs the _schedule method as long as server is up and running.
     while (true) {
       await Future.delayed(
           Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
@@ -85,7 +93,7 @@ class StatsNotificationService {
           ..atValue = _atCommitLog!.lastCommittedSequenceNumber().toString();
         var notification = Notification(atNotificationBuilder.build());
         _logger.info(
-            'Writing stats notification to connection: SessionID${connection.getMetaData().sessionID}');
+            'writing stats notification to connection - SessionID: ${connection.getMetaData().sessionID}');
         connection
             .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
       }
