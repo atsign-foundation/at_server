@@ -64,6 +64,9 @@ class AtSecondaryConfig {
   //force restart
   static final bool _isForceRestart = false;
 
+  //StatsNotificationService
+  static final int _statsNotificationTimeInterval = 15;
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -564,6 +567,19 @@ class AtSecondaryConfig {
       return ConfigUtil.getYaml()!['notification']['jobFrequency'];
     }
     return _notificationJobFrequency;
+  }
+
+  static int get statsNotificationTimeInterval {
+    var result = _getIntEnvVar('statsNotificationTimeInterval');
+    if (result != null) {
+      return result;
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['notification'] != null &&
+        ConfigUtil.getYaml()!['notification']['timeInterval'] != null) {
+      return ConfigUtil.getYaml()!['notification']['timeInterval'];
+    }
+    return _statsNotificationTimeInterval;
   }
 
   static int? _getIntEnvVar(String envVar) {
