@@ -1,6 +1,7 @@
 name: at_functional_test
 description: A starting point for Dart libraries or applications.
-# version: 1.0.0
+version: 1.0.0
+publish_to: none
 # homepage: https://www.example.com
 
 environment:
@@ -17,7 +18,7 @@ dependencies:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: at_lookup
       ref: trunk
-      version: ^2.0.3
+      version: ^2.0.4
 
 #dependency_overrides:
 #  at_lookup:
