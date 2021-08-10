@@ -216,7 +216,7 @@ void main() {
     expect(response, contains('data:3seconds'));
 
     ///LLOOKUP VERB - After 3 seconds
-    await Future.delayed(Duration(seconds: 1));
+    await Future.delayed(Duration(seconds: 2));
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup verb response after 3 seconds : $response');
