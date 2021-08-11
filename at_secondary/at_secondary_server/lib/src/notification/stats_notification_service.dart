@@ -86,7 +86,7 @@ class StatsNotificationService {
         //Construct a stats notification
         var atNotificationBuilder = AtNotificationBuilder()
           ..fromAtSign = _currentAtSign
-          ..notification = 'statsNotification.monitorKey'
+          ..notification = 'statsNotification.$_currentAtSign'
           ..toAtSign = _currentAtSign
           ..notificationDateTime = DateTime.now().toUtc()
           ..opType = OperationType.update
