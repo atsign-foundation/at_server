@@ -44,13 +44,13 @@ class StatsNotificationService {
   /// to the active monitor connections.
   /// The [AtSecondaryConfig.statsNotificationJobTimeInterval] represents the time interval between the jobs.
   void schedule() async {
-    _atCommitLog =
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
     // If set to -1, the feature is disabled. Do nothing.
     if (AtSecondaryConfig.statsNotificationJobTimeInterval == -1) {
       _logger.info('StatsNotificationService is disabled');
       return;
     }
+    _atCommitLog =
+        await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
     // Setting while(true) to form an infinite loop.
     // Runs the _schedule method as long as server is up and running.
     while (true) {
