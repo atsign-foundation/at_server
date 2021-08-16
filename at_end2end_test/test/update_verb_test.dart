@@ -216,6 +216,7 @@ void main() {
     expect(response, contains('data:3seconds'));
 
     ///LLOOKUP VERB - After 3 seconds
+    //Waiting till the ttl time is up
     await Future.delayed(Duration(seconds: 2));
     await socket_writer(_socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
@@ -243,6 +244,7 @@ void main() {
     expect(response, contains('data:3289'));
 
     ///LLookup:META FOR TTB
+    //waiting till ttb time is up
     await Future.delayed(Duration(seconds: 2));
     await socket_writer(_socket_first_atsign, 'llookup:meta:$second_atsign:auth-code$first_atsign');
     response = await read();
