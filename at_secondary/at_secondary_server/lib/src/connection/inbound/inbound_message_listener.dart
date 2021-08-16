@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -92,5 +93,7 @@ class InboundMessageListener {
     if (!connection.isInValid()) {
       await connection.close();
     }
+    // Removes the connection from the InboundConnectionPool.
+    InboundConnectionPool.getInstance().remove(connection);
   }
 }
