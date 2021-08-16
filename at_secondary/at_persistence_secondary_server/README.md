@@ -4,4 +4,4 @@
 [![Pub Package](https://img.shields.io/pub/v/at_persistence_secondary_server)](https://pub.dev/packages/at_persistence_secondary_server)
 
 # at_persistence_secondary_server
-at_persistence_secondary_server is the Persistence layer implementation for @protocol secondary server.
+at_persistence_secondary_server is the persistence layer implementation for @protocol secondary server.
