@@ -132,7 +132,7 @@ class OutboundClient {
       var proof = cookieParams[3];
       var signedChallenge = SecondaryUtil.signChallenge(
           proof, AtSecondaryServerImpl.getInstance().signingKey);
-      SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+      await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
           AtSecondaryServerImpl.getInstance().currentAtSign);
 
       //4. Create pol request
