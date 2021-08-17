@@ -8,7 +8,8 @@ import 'package:crypton/crypton.dart';
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
 
-  static void saveCookie(String key, String value, String? atSign) {
+  static Future<void> saveCookie(
+      String key, String value, String? atSign) async {
     logger.finer('In Secondary Util saveCookie');
     logger.finer('saveCookie key : ' + key);
     logger.finer('signed challenge : ' + value);
@@ -21,7 +22,7 @@ class SecondaryUtil {
     var keystoreManager =
         secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
-    keyStore.put('public:$key', atData,
+    await keyStore.put('public:$key', atData,
         time_to_live: 60 * 1000); //expire in 1 min
   }
 
