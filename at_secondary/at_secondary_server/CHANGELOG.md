@@ -1,3 +1,5 @@
+## 2.0.6
+- Fix for hive box closed issue
 ## 2.0.5
 - Logs for hive box closed issue
 ## 2.0.4
