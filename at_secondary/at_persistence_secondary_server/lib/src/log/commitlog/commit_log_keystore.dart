@@ -34,11 +34,17 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
+    if (box != null && box!.isOpen) {
+      logger.info('Keystore initialized successfully');
+    }
   }
 
   /// Closes the [commitLogKeyStore] instance.
   Future<void> close() async {
     await box!.close();
+    if (!box!.isOpen) {
+      logger.info('Keystore closed successfully');
+    }
   }
 
   @override

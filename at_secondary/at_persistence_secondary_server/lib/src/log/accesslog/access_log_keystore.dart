@@ -25,6 +25,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     }
     box = await Hive.openBox(boxName);
     this.storagePath = storagePath;
+    if (box != null && box!.isOpen) {
+      logger.info('Keystore initialized successfully');
+    }
   }
 
   @override
@@ -212,7 +215,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   }
 
   ///Closes the [accessLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await box!.close();
+    if (!box!.isOpen) {
+      logger.info('Keystore closed successfully');
+    }
   }
 }
