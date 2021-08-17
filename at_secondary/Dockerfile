@@ -14,6 +14,7 @@ RUN \
   dart compile exe bin/main.dart -o secondary ; \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
+  mkdir -p $HOMEDIR/cacert ; \
   mkdir -p /archive ; \
   addgroup --gid $GROUP_ID atsign ; \
   useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
@@ -21,6 +22,7 @@ RUN \
   chown -R atsign:atsign $HOMEDIR ; \
   chown -R atsign:atsign /archive ; \
   cp config/config.yaml $HOMEDIR/config/ ; \
+  cp cacert/cacert.pem $HOMEDIR/cacert/ ; \
   cp pubspec.yaml $HOMEDIR/
 # Second stage of build FROM scratch
 FROM scratch

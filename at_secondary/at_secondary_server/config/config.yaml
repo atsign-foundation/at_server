@@ -20,7 +20,7 @@ security:
   useSSL: true
   certificateChainLocation: 'certs/fullchain.pem'
   privateKeyLocation: 'certs/privkey.pem'
-  trustedCertificateLocation: 'certs/cacert.pem'
+  trustedCertificateLocation: 'cacert/cacert.pem'
   clientCertificateRequired: true
 
 # The @Protocol storage configurations
