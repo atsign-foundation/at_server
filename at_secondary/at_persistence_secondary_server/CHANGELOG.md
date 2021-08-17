@@ -1,3 +1,5 @@
+## 2.0.5
+- logs for hive closed box issue
 ## 2.0.4
 - at_commons version change for last notification time in monitor
 ## 2.0.3

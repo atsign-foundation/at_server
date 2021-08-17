@@ -12,7 +12,7 @@ import 'package:hive/hive.dart';
 import 'secondary_persistence_store_factory.dart';
 
 class HivePersistenceManager {
-  final bool _debug = false;
+  final bool _debug = true;
 
   final logger = AtSignLogger('HivePersistenceManager');
 
@@ -59,10 +59,6 @@ class HivePersistenceManager {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
-      if (_debug) {
-        logger.finer('AtPersistence.openVault received hiveSecret: ' +
-            hiveSecret.toString());
-      }
       atsign = atsign.trim().toLowerCase().replaceAll(' ', '');
       if (_debug) {
         logger.finer('AtPersistence.openVault received atsign: $atsign');
