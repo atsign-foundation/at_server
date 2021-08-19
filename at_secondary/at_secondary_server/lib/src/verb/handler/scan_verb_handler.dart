@@ -46,7 +46,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData() as InboundConnectionMetadata;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var scanRegex = verbParams[AT_REGEX];
-
+    var pageId = verbParams['pageId'];
+    print('pageId : $pageId');
     // Throw UnAuthenticatedException.
     // When looking up keys of another atsign and connection is not authenticated,
     if (forAtSign != null && !atConnectionMetadata.isAuthenticated) {
@@ -60,12 +61,19 @@ class ScanVerbHandler extends AbstractVerbHandler {
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
-        response.data =
-            await _getExternalKeys(forAtSign, scanRegex, atConnection);
+        if (pageId == null) {
+          response.data =
+              await _getExternalKeys(forAtSign, scanRegex, atConnection);
+        } else {
+          var keysString =
+              await _getExternalKeys(forAtSign, scanRegex, atConnection);
+          response.data =
+              _prepareExternalKeysResponse(int.parse(pageId), keysString);
+        }
+        print('external keys : ${response.data}');
       } else {
         String keyString;
-        var keys =
-            keyStore!.getKeys(regex: scanRegex) as List<String?>;
+        var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
         keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces
         keyString = keyString.replaceFirst(RegExp(r'^\['), '');
@@ -77,7 +85,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
             ? response.data?.split(',')
             : [];
         logger.finer('keysArray : $keysArray, ${keysArray?.length}');
-        response.data = json.encode(keysArray);
+        print('keysArray : ${keysArray.runtimeType}');
+        if (pageId == null) {
+          response.data = keyString;
+        } else {
+          response.data =
+              _prepareLocalKeysResponse(int.parse(pageId), keysArray);
+        }
       }
     } on Exception catch (e) {
       response.isError = true;
@@ -104,6 +118,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
     }
     var scanResult =
         await outBoundClient.scan(handshake: handShake, regex: scanRegex);
+    print(
+        'scan result in _getExternalKeys : $scanResult, ${scanResult.runtimeType}');
     return scanResult;
   }
 
@@ -123,7 +139,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
           key.toString().startsWith('privatekey:') ||
           key.toString().startsWith('public:_') ||
           key.toString().startsWith('private:'));
-      keyString = keys.toString();
+      // keyString = keys.toString();
+      keyString = jsonEncode(keys);
     } else {
       //When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
@@ -133,17 +150,66 @@ class ScanVerbHandler extends AbstractVerbHandler {
                     .startsWith('${atConnectionMetadata.fromAtSign}:') ==
                 false) ||
             test.toString().startsWith('public:_'));
-        keyString = keys
-            .toString()
+        // keyString = keys
+        //     .toString()
+        //     .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+        keyString = jsonEncode(keys)
             .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
       } else {
         // When pol is not performed, display only public keys
         keys.removeWhere((test) =>
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
-        keyString = keys.toString().replaceAll('public:', '');
+        // keyString = keys.toString().replaceAll('public:', '');
+        keyString = jsonEncode(keys).replaceAll('public:', '');
       }
     }
+    print('keys type : ${keys.runtimeType}');
     return keyString;
+  }
+
+  String? _prepareExternalKeysResponse(int pageId, String? keyString) {
+    if (keyString == null || keyString.isEmpty) {
+      return keyString;
+    }
+    var result = <String, dynamic>{};
+    print('keysString in _prepareExternalKeysResponse: $keyString');
+    keyString = keyString.replaceFirst('data:', '');
+    var keys = jsonDecode(keyString);
+    var start_index = (pageId - 1) * 10;
+    if (start_index < keys.length) {
+      var end_index = (start_index + 10 > keys.length)
+          ? keys.length - 1
+          : (start_index + 10);
+      result['keys'] = jsonEncode(keys.sublist(start_index, end_index));
+    } else {
+      result['keys'] = jsonEncode([]);
+    }
+    result['totalPages'] =
+        ((keys.length) / 10).toInt() + ((keys.length) % 10 > 0 ? 1 : 0);
+    result['keysPerPage'] = 10;
+    result['pageId'] = pageId;
+    return jsonEncode(result);
+  }
+
+  String? _prepareLocalKeysResponse(int pageId, List<dynamic>? keys) {
+    var result = <String, dynamic>{};
+    if (keys == null || keys.isEmpty) {
+      return null;
+    }
+    var start_index = (pageId - 1) * 10;
+    if (start_index < keys.length) {
+      var end_index = (start_index + 10 > keys.length)
+          ? keys.length - 1
+          : (start_index + 10);
+      result['keys'] = jsonEncode(keys.sublist(start_index, end_index));
+    } else {
+      result['keys'] = jsonEncode([]);
+    }
+    result['totalPages'] =
+        (keys.length) ~/ 10 + ((keys.length) % 10 > 0 ? 1 : 0);
+    result['keysPerPage'] = 10;
+    result['pageId'] = pageId;
+    return jsonEncode(result);
   }
 }
