@@ -85,6 +85,7 @@ class StatsNotificationService {
               AtSecondaryConfig.statsNotificationJobTimeInterval) {
         //Construct a stats notification
         var atNotificationBuilder = AtNotificationBuilder()
+          ..id = '-1'
           ..fromAtSign = _currentAtSign
           ..notification = 'statsNotification.$_currentAtSign'
           ..toAtSign = _currentAtSign
