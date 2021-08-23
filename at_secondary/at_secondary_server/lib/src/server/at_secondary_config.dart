@@ -9,7 +9,7 @@ class AtSecondaryConfig {
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
   static final String _privateKeyLocation = 'certs/privkey.pem';
-  static final String _trustedCertificateLocation = 'certs/cacert.pem';
+  static final String _trustedCertificateLocation = 'cacert/cacert.pem';
 
   //Secondary Storage
   static String? _storagePath = 'storage/hive';
