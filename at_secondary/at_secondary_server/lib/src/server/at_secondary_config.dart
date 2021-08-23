@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
@@ -476,7 +477,8 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml()!['log'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['log'] != null &&
         ConfigUtil.getYaml()!['log']['trace'] != null) {
       return ConfigUtil.getYaml()!['log']['trace'];
     }
@@ -514,7 +516,8 @@ class AtSecondaryConfig {
     if (_envVars.containsKey('rootServerUrl')) {
       return _envVars['rootServerUrl'];
     }
-    if (ConfigUtil.getYaml()!['root_server'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['root_server'] != null &&
         ConfigUtil.getYaml()!['root_server']['url'] != null) {
       return ConfigUtil.getYaml()!['root_server']['url'];
     }
@@ -526,7 +529,8 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getBoolEnvVar('forceRestart');
     }
-    if (ConfigUtil.getYaml()!['certificate_expiry'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['certificate_expiry'] != null &&
         ConfigUtil.getYaml()!['certificate_expiry']['force_restart'] != null) {
       return ConfigUtil.getYaml()!['certificate_expiry']['force_restart'];
     }
@@ -538,7 +542,8 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('maxNotificationRetries');
     }
-    if (ConfigUtil.getYaml()!['notification'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['notification'] != null &&
         ConfigUtil.getYaml()!['notification']['max_retries'] != null) {
       return ConfigUtil.getYaml()!['notification']['max_retries'];
     }
@@ -550,7 +555,8 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationQuarantineDuration');
     }
-    if (ConfigUtil.getYaml()!['notification'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['notification'] != null &&
         ConfigUtil.getYaml()!['notification']['quarantineDuration'] != null) {
       return ConfigUtil.getYaml()!['notification']['quarantineDuration'];
     }
@@ -562,7 +568,8 @@ class AtSecondaryConfig {
     if (result != null) {
       return _getIntEnvVar('notificationJobFrequency');
     }
-    if (ConfigUtil.getYaml()!['notification'] != null &&
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['notification'] != null &&
         ConfigUtil.getYaml()!['notification']['jobFrequency'] != null) {
       return ConfigUtil.getYaml()!['notification']['jobFrequency'];
     }
@@ -576,8 +583,11 @@ class AtSecondaryConfig {
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['notification'] != null &&
-        ConfigUtil.getYaml()!['notification']['statsNotificationJobTimeInterval'] != null) {
-      return ConfigUtil.getYaml()!['notification']['statsNotificationJobTimeInterval'];
+        ConfigUtil.getYaml()!['notification']
+                ['statsNotificationJobTimeInterval'] !=
+            null) {
+      return ConfigUtil.getYaml()!['notification']
+          ['statsNotificationJobTimeInterval'];
     }
     return _statsNotificationJobTimeInterval;
   }
