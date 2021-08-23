@@ -26,6 +26,7 @@ class InboundMessageListener {
     onBufferEndCallBack = callback;
     connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
+    connection.getSocket().done.onError((error, stackTrace) => (_errorHandler(error)));
     connection.getMetaData().isListening = true;
   }
 
