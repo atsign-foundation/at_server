@@ -17,7 +17,7 @@ class SyncStreamVerbHandler extends SyncVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':');
+      command.startsWith(getName(VerbEnum.sync) + ':') && !command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
