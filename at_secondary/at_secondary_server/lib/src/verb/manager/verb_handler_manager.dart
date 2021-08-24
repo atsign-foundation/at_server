@@ -19,7 +19,6 @@ import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_from_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -88,7 +87,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler((keyStore)));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
-    _verbHandlers.add(SyncStreamVerbHandler(keyStore));
     _verbHandlers.add(SyncFromVerbHandler(keyStore));
     return _verbHandlers;
   }
