@@ -22,7 +22,7 @@ class CommandLineParser {
     parser.addOption('redis_auth',
         abbr: 'a', help: 'Authorization to access Redis server');
     try {
-      if (arguments != null && arguments.isNotEmpty) {
+      if (arguments.isNotEmpty) {
         results = parser.parse(arguments);
         if (results.options.length != parser.options.length) {
           throw ArgParserException('Invalid Arguments \n' + parser.usage);

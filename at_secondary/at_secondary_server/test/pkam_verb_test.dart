@@ -1,10 +1,11 @@
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
@@ -26,7 +27,7 @@ void main() {
     var regex = verb.syntax();
     expect(
         () => getVerbParam(regex, command),
-        throwsA(predicate((e) =>
+        throwsA(predicate((dynamic e) =>
             e is InvalidSyntaxException && e.message == 'Syntax Exception')));
   });
 
@@ -59,13 +60,13 @@ void main() {
   tearDown(() async => await tearDownFunc());
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager?> setUpFunc(storageDir) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@alice', storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
@@ -76,6 +77,6 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
-    await Directory('test/hive/').deleteSync(recursive: true);
+    Directory('test/hive/').deleteSync(recursive: true);
   }
 }

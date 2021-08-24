@@ -1,21 +1,20 @@
 import 'dart:collection';
-import 'dart:convert';
 import 'dart:io';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
 
 void main() async {
   var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  late var keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
@@ -56,7 +55,7 @@ void main() async {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -86,7 +85,7 @@ void main() async {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
@@ -107,8 +106,9 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -122,9 +122,10 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      expect(response.data.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.split(':')[2], isNotNull);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -161,9 +162,10 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data.startsWith('data:$inBoundSessionId@alice'), true);
-      expect(response.data.split(':')[2], isNotNull);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.split(':')[2], isNotNull);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -243,20 +245,21 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice');
+      .getSecondaryPersistenceStore('@alice')!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager();
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init('@alice', storageDir);
   await persistenceManager.openVault('@alice');
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager();
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-  await AtConfig(
+  AtConfig(
       AtCommitLogManagerImpl.getInstance()
           .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
       AtSecondaryServerImpl.getInstance().currentAtSign);
@@ -265,14 +268,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   return keyStoreManager;
 }
 
-void tearDownFunc() async {
+Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
-    await Directory('test/hive').deleteSync(recursive: true);
+    Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }

@@ -1,5 +1,9 @@
-![image alt <](./.github/@developersmall.png) 
+<img src="https://atsign.dev/assets/img/@dev.png?sanitize=true">
+
 ### Now for a little internet optimism
+
+[![Build Status](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml/badge.svg?branch=trunk)](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml)
+[![GitHub License](https://img.shields.io/badge/license-BSD3-blue.svg)](./LICENSE)
 
 # at_server
 The at_server repo contains the core software implementation of the @protocol.

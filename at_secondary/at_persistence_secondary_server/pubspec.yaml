@@ -1,42 +1,42 @@
 name: at_persistence_secondary_server
-description: at_persistence_secondary_server is the Persistence layer implementation for @protocol secondary server.
-version: 1.0.1+4
+description: A Dart library with the implementation classes for the persistence layer of the secondary server.
+version: 2.0.6
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/at_docs-dev_env/at_persistence_secondary_server/index.html
 
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  path: ^1.6.0
-  utf7: ^0.2.1
-  hive: ^1.3.0
-  cron: ^0.2.2
-  crypto: ^2.1.4
-  uuid: ^2.0.2
+  path: ^1.8.0
+  hive: ^2.0.4
+  cron: ^0.3.0
+  crypto: ^3.0.1
+  uuid: ^3.0.4
+  at_persistence_spec: ^2.0.0
+  at_utils: ^2.0.4
+  at_commons: ^2.0.4
+  at_utf7: ^1.0.0
+
+dependency_overrides:
   at_persistence_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_persistence/at_persistence_spec
-      ref: dev_env_staging
-      version: ^1.0.1+3
-
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_utils
-      ref: dev_env_staging
-      version: ^1.0.1+4
-
-#dependency_overrides:
-#  at_persistence_spec:
-#    path: ../../../at_server/at_persistence/at_persistence_spec
+    path: ../../at_persistence/at_persistence_spec
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_persistence/at_persistence_spec
+#      ref: trunk
 #  at_utils:
-#    path: ../../../at_tools/at_utils
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
 #  at_commons:
-#    path: ../../../at_tools/at_commons
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
 
 dev_dependencies:
-  pedantic: ^1.8.0
-  test: ^1.6.0
+  pedantic: ^1.11.0
+  test: ^1.17.1

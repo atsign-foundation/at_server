@@ -18,6 +18,7 @@ import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -25,7 +26,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
-  static List<VerbHandler> _verbHandlers = _loadVerbHandlers();
+  late List<VerbHandler> _verbHandlers;
 
   static final DefaultVerbHandlerManager _singleton =
       DefaultVerbHandlerManager._internal();
@@ -36,11 +37,16 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     return _singleton;
   }
 
+  /// Initializing verb handlers
+  void init() {
+    _verbHandlers = _loadVerbHandlers();
+  }
+
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
   ///@param - utf8EncodedCommand: command in UTF-8 format.
   ///@return - VerbHandler: returns the appropriate verb handler.
   @override
-  VerbHandler getVerbHandler(String utf8EncodedCommand) {
+  VerbHandler? getVerbHandler(String utf8EncodedCommand) {
     for (var handler in _verbHandlers) {
       if (handler.accept(utf8EncodedCommand)) {
         if (handler is MonitorVerbHandler) {
@@ -52,13 +58,13 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     return null;
   }
 
-  static List<VerbHandler> _loadVerbHandlers() {
+  List<VerbHandler> _loadVerbHandlers() {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(
-                AtSecondaryServerImpl.getInstance().currentAtSign);
+                AtSecondaryServerImpl.getInstance().currentAtSign)!;
     var keyStore =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager().getKeyStore();
+        secondaryPersistenceStore.getSecondaryKeyStoreManager()!.getKeyStore();
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
@@ -81,6 +87,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler((keyStore)));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
+    _verbHandlers.add(SyncStreamVerbHandler(keyStore));
     return _verbHandlers;
   }
 }

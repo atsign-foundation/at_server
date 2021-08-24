@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -34,7 +33,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var ttl_ms;
     var ttb_ms;
@@ -43,16 +42,22 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var forAtSignList = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
     atSign = AtUtils.formatAtSign(atSign);
-    var key = verbParams[AT_KEY];
+    var key = verbParams[AT_KEY]!;
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var operation = SecondaryUtil().getOperationType(verbParams[AT_OPERATION]);
     var value = verbParams[AT_VALUE];
+
+    // If messageType is key, append the atSign to key. For messageType text,
+    // atSign is not appended to the key.
+    if (messageType == MessageType.key) {
+      key = '$key$atSign';
+    }
 
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]));
+        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
           ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
@@ -60,14 +65,14 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
 
-    var resultMap = Map<String, String>();
+    var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
     if (forAtSignList != null && forAtSignList.isNotEmpty) {
       var forAtSigns = forAtSignList.split(',');
       var forAtSignsSet = forAtSigns.toSet();
       for (var forAtSign in forAtSignsSet) {
-        var updated_key = '${forAtSign}:${key}${atSign}';
+        var updated_key = '$forAtSign:$key';
         var atMetadata = AtMetaData()
           ..ttl = ttl_ms
           ..ttb = ttb_ms

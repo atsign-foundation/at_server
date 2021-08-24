@@ -16,7 +16,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
   static Delete delete = Delete();
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
 
-  DeleteVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  DeleteVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -28,10 +28,13 @@ class DeleteVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  HashMap<String, String> parse(String command) {
+  HashMap<String, String?> parse(String command) {
     var verbParams = super.parse(command);
     if (command.contains('public:')) {
       verbParams.putIfAbsent('isPublic', () => 'true');
+    }
+    if (command.contains('cached:')) {
+      verbParams.putIfAbsent('isCached', () => 'true');
     }
     return verbParams;
   }
@@ -39,28 +42,30 @@ class DeleteVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
     deleteKey = verbParams[AT_KEY];
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
-      deleteKey = '$deleteKey${atSign}';
+      deleteKey = '$deleteKey$atSign';
     }
     if (verbParams[FOR_AT_SIGN] != null) {
-      deleteKey =
-          '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:${deleteKey}';
+      deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
     }
+    if (verbParams['isCached'] == 'true') {
+      deleteKey = 'cached:$deleteKey';
+    }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
     if (deleteKey == AT_CRAM_SECRET) {
-      await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
+      await keyStore!.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
-    var result = await keyStore.remove(deleteKey);
+    var result = await keyStore!.remove(deleteKey);
     response.data = result?.toString();
     logger.finer('delete success. delete key: $deleteKey');
     try {
@@ -74,7 +79,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
       atSign = AtUtils.formatAtSign(atSign);
 
       // send notification to other secondary is AUTO_NOTIFY is enabled
-      if (AUTO_NOTIFY && (forAtSign != atSign)) {
+      if (AUTO_NOTIFY! && (forAtSign != atSign)) {
         try {
           _notify(forAtSign, atSign, key,
               SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
@@ -93,7 +98,7 @@ class DeleteVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null) {
       return null;
     }
-    key = '${forAtSign}:${key}${atSign}';
+    key = '$forAtSign:$key$atSign';
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign

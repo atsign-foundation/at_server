@@ -20,12 +20,12 @@ class FromVerbHandler extends AbstractVerbHandler {
   static From from = From();
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
-  static final bool clientCertificateRequired =
+  static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
 
-  FromVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  FromVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
-  var atConfigInstance;
+  late var atConfigInstance;
 
   @override
   bool accept(String command) =>
@@ -39,17 +39,18 @@ class FromVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     atConfigInstance = AtConfig(
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
         currentAtSign);
     atConnection.initiatedBy = currentAtSign;
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = verbParams[AT_SIGN];
     fromAtSign = AtUtils.formatAtSign(fromAtSign);
-    fromAtSign = AtUtils.fixAtSign(fromAtSign);
+    fromAtSign = AtUtils.fixAtSign(fromAtSign!);
     var atData = AtData();
     var keyPrefix = (fromAtSign == currentAtSign) ? 'private:' : 'public:';
     var responsePrefix = (fromAtSign == currentAtSign) ? 'data:' : 'proof:';
@@ -64,16 +65,16 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
-        clientCertificateRequired) {
+        clientCertificateRequired!) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
-      logger.finer('_verifyFromAtSign result : ${result}');
+      logger.finer('_verifyFromAtSign result : $result');
       if (!result) {
         throw UnAuthenticatedException('Certificate Verification Failed');
       }
     }
 
     //store key with private/public prefix, sessionId and fromAtSign
-    await keyStore.put(
+    await keyStore!.put(
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign', atData,
         time_to_live: 60 * 1000); //expire in 1 min
     response.data =
@@ -86,10 +87,10 @@ class FromVerbHandler extends AbstractVerbHandler {
       atConnectionMetadata.from = true;
       atConnectionMetadata.fromAtSign = fromAtSign;
     }
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog.insert(fromAtSign, from.name());
+      await atAccessLog?.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }
@@ -100,25 +101,25 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
     var secondaryUrl =
-        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort);
+        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
-          'No secondary url found for atsign: ${fromAtSign}');
+          'No secondary url found for atsign: $fromAtSign');
     }
-    logger.finer('_verifyFromAtSign secondayUrl : ${secondaryUrl}');
+    logger.finer('_verifyFromAtSign secondayUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
-    SecureSocket secSocket = atConnection.getSocket();
-    logger.finer('secSocket : ${secSocket}');
+    var secSocket = atConnection.getSocket() as SecureSocket;
+    logger.finer('secSocket : $secSocket');
     var CN = secSocket.peerCertificate;
-    logger.finer('CN : ${CN}');
+    logger.finer('CN : $CN');
     if (CN == null) {
       logger.finer(
           'CN is null.stream flag ${atConnection.getMetaData().isStream}');
       return atConnection.getMetaData().isStream;
     }
 
-    if (clientCertificateRequired) {
+    if (clientCertificateRequired!) {
       var result = _verifyClientCerts(CN, host);
       return result;
     }
@@ -135,15 +136,16 @@ class FromVerbHandler extends AbstractVerbHandler {
     var x509Pem = cn.pem;
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
-    var subjectAlternativeName = data.subjectAlternativNames;
-    logger.finer('SAN: ${subjectAlternativeName}');
+    var subjectAlternativeName = data.subjectAlternativNames!;
+    logger.finer('SAN: $subjectAlternativeName');
     if (subjectAlternativeName.contains(host)) {
       return true;
     }
-    var commonName = data.subject['2.5.4.3'];
-    logger.finer('CN: ${commonName}');
+    var commonName = data.subject['2.5.4.3']!;
+    logger.finer('CN: $commonName');
     if (commonName.contains(host)) {
       return true;
     }
+    return false;
   }
 }

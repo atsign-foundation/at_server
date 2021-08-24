@@ -14,8 +14,8 @@ class NotificationManager implements NotificationManagerSpec {
   }
 
   @override
-  Future<String> notify(AtNotification atNotification) async {
-    if (atNotification.notifier == null || atNotification.notifier.isEmpty) {
+  Future<String?> notify(AtNotification atNotification) async {
+    if (atNotification.notifier == null || atNotification.notifier!.isEmpty) {
       throw InvalidSyntaxException('Invalid Request Error');
     }
 
@@ -23,11 +23,12 @@ class NotificationManager implements NotificationManagerSpec {
       var notificationId = await _storeNotificationInQueue(atNotification);
       return notificationId;
     }
+    return null;
   }
 
   ///Stores the AtNotification Object to Queue.
   ///Returns the AtNotification id.
-  Future<String> _storeNotificationInQueue(
+  Future<String?> _storeNotificationInQueue(
       AtNotification atNotification) async {
     // Adding notification to hive key-store.
     await AtNotificationKeystore.getInstance()
@@ -42,7 +43,7 @@ class NotificationManager implements NotificationManagerSpec {
   }
 
   @override
-  Future<NotificationStatus> getStatus(String notificationId) async {
+  Future<NotificationStatus?> getStatus(String? notificationId) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var notificationResponse = await notificationKeyStore.get(notificationId);
     if (notificationResponse != null) {

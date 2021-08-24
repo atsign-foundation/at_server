@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -22,15 +22,15 @@ class OutboundClient {
   static final _rootPort = AtSecondaryConfig.rootServerPort;
   InboundConnection inboundConnection;
 
-  OutboundConnection outboundConnection;
+  OutboundConnection? outboundConnection;
 
-  String toAtSign;
+  String? toAtSign;
 
   bool isConnectionCreated = false;
 
   bool isHandShakeDone = false;
 
-  OutboundMessageListener messageListener;
+  late OutboundMessageListener messageListener;
 
   OutboundClient(this.inboundConnection, this.toAtSign);
 
@@ -81,11 +81,11 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
-    var secondaryUrl =
-        await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort);
+    var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
+        toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
-          'No secondary url found for atsign: ${toAtSign}');
+          'No secondary url found for atsign: $toAtSign');
     }
     return secondaryUrl;
   }
@@ -115,15 +115,15 @@ class OutboundClient {
     }
     try {
       //1. create from request
-      await outboundConnection.write(AtRequestFormatter.createFromRequest(
+      outboundConnection!.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof
       var fromResult = await messageListener.read();
       logger.info('fromResult : $fromResult');
-      if (fromResult == null || fromResult == "") {
+      if (fromResult == null || fromResult == '') {
         throw HandShakeException(
-            'no response received for From:${toAtSign} command');
+            'no response received for From:$toAtSign command');
       }
 
       //3. Save cookie
@@ -132,27 +132,27 @@ class OutboundClient {
       var proof = cookieParams[3];
       var signedChallenge = SecondaryUtil.signChallenge(
           proof, AtSecondaryServerImpl.getInstance().signingKey);
-      SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+      await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
           AtSecondaryServerImpl.getInstance().currentAtSign);
 
       //4. Create pol request
-      await outboundConnection.write(AtRequestFormatter.createPolRequest());
+      outboundConnection!.write(AtRequestFormatter.createPolRequest());
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
       logger.finer('handShakeResult: $handShakeResult');
       if (handShakeResult == null) {
-        outboundConnection.close();
+        await outboundConnection!.close();
         throw HandShakeException('no response received for pol command');
       }
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      if (handShakeResult.startsWith('${currentAtSign}@')) {
+      if (handShakeResult.startsWith('$currentAtSign@')) {
         result = true;
       }
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } on Exception catch (e) {
-      outboundConnection.close();
+      await outboundConnection!.close();
       throw HandShakeException(e.toString());
     }
     return result;
@@ -166,21 +166,21 @@ class OutboundClient {
   /// Throws a [UnAuthorizedException] if lookup if invoked with handshake=true and without a successful handshake
   /// Throws a [LookupException] if there is exception during lookup
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
-  Future<String> lookUp(String key, {bool handshake = true}) async {
+  Future<String?> lookUp(String key, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
-      logger.finer('writing to outbound connection: ${lookUpRequest}');
-      await outboundConnection.write(lookUpRequest);
+      logger.finer('writing to outbound connection: $lookUpRequest');
+      outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
-      throw OutBoundConnectionInvalidException('Outbound connectin invalid');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var lookupResult = await messageListener.read();
     if (lookupResult != null) {
@@ -190,7 +190,7 @@ class OutboundClient {
     return lookupResult;
   }
 
-  Future<String> scan({bool handshake = true, String regex}) async {
+  Future<String?> scan({bool handshake = true, String? regex}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a outbound scan');
@@ -201,10 +201,10 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
-      logger.finer('writing to outbound connection: ${scanRequest}');
-      await outboundConnection.write(scanRequest);
+      logger.finer('writing to outbound connection: $scanRequest');
+      outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
@@ -223,23 +223,23 @@ class OutboundClient {
   /// @param key - key to be looked up
   /// @returns result of the plookup returned by the secondary
   /// Throws a [LookupException] if there is exception during lookup
-  Future<String> plookUp(String key) async {
+  Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
     return result;
   }
 
   void close() {
     if (outboundConnection != null) {
-      outboundConnection.close();
+      outboundConnection!.close();
     }
   }
 
   bool isInValid() {
     return inboundConnection.isInValid() ||
-        (outboundConnection != null && outboundConnection.isInValid());
+        (outboundConnection != null && outboundConnection!.isInValid());
   }
 
-  Future<String> notify(String key, {bool handshake = true}) async {
+  Future<String?> notify(String key, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
@@ -247,9 +247,9 @@ class OutboundClient {
     try {
       var notificationRequest = 'notify:$key\n';
       logger.info('notificationRequest : $notificationRequest');
-      await outboundConnection.write(notificationRequest);
+      outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
@@ -262,7 +262,7 @@ class OutboundClient {
     return notifyResult;
   }
 
-  Future<List> notifyList(String atSign, {bool handshake = true}) async {
+  Future<List>? notifyList(String? atSign, {bool handshake = true}) async {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -277,7 +277,7 @@ class OutboundClient {
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {
-      outboundConnection.close();
+      outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {

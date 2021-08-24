@@ -1,9 +1,11 @@
-import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
-import 'package:at_utils/at_logger.dart';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 ///Listener class for messages received by [InboundConnection]
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
@@ -14,8 +16,9 @@ class InboundMessageListener {
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
-  Function(String, InboundConnection) onBufferEndCallBack;
-  Function(List<int>, InboundConnection) onStreamCallBack;
+
+  late Function(String, InboundConnection) onBufferEndCallBack;
+  late Function(List<int>, InboundConnection) onStreamCallBack;
 
   /// Listens to the underlying connection's socket
   void listen(callback, streamCallBack) {
@@ -29,11 +32,22 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
+    // If connection is invalid, throws ConnectionInvalidException and closes the connection
+    if (connection.isInValid()) {
+      _buffer.clear();
+      logger.info('Inbound connection is invalid. Closing the connection');
+      await GlobalExceptionHandler.getInstance().handle(
+          ConnectionInvalidException('Connection is invalid'),
+          atConnection: connection);
+      return;
+    }
     if (connection.getMetaData().isStream) {
       await onStreamCallBack(data, connection);
       return;
     }
     var bufferOverflow = false;
+    // If buffer has capacity add data to buffer,
+    // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
       _buffer.append(data);
     } else {
@@ -46,12 +60,13 @@ class InboundMessageListener {
     try {
       if (!bufferOverflow && _buffer.isEnd()) {
         //decode only when end of buffer is reached
-        var command = utf8.decode(_buffer.message);
+        var command = utf8.decode(_buffer.getData());
         command = command.trim();
         logger.finer(
             'command received: $command sessionID:${connection.getMetaData().sessionID}');
+        // if command is '@exit', close the connection.
         if (command == '@exit') {
-          _finishedHandler();
+          await _finishedHandler();
           return;
         }
         _buffer.clear();
@@ -64,19 +79,21 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  void _errorHandler(error) async {
+  Future<void> _errorHandler(error) async {
     logger.severe(error.toString());
     await _closeConnection();
   }
 
   /// Closes the [InboundConnection]
-  void _finishedHandler() async {
+  Future<void> _finishedHandler() async {
     await _closeConnection();
   }
 
-  void _closeConnection() async {
+  Future<void> _closeConnection() async {
     if (!connection.isInValid()) {
       await connection.close();
     }
+    // Removes the connection from the InboundConnectionPool.
+    InboundConnectionPool.getInstance().remove(connection);
   }
 }

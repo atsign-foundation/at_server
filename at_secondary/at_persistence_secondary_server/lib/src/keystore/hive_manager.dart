@@ -12,17 +12,17 @@ import 'package:hive/hive.dart';
 import 'secondary_persistence_store_factory.dart';
 
 class HivePersistenceManager {
-  final bool _debug = false;
+  final bool _debug = true;
 
   final logger = AtSignLogger('HivePersistenceManager');
 
-  LazyBox _box;
+  LazyBox? _box;
 
-  LazyBox get box => _box;
-  String _atsign;
+  LazyBox? get box => _box;
+  String? _atsign;
 
-  String get atsign => _atsign;
-  String _boxName;
+  String? get atsign => _atsign;
+  late String _boxName;
   var _secret;
 
   HivePersistenceManager(this._atsign);
@@ -30,7 +30,6 @@ class HivePersistenceManager {
   Future<bool> init(String atSign, String storagePath) async {
     var success = false;
     try {
-      assert(storagePath != null && storagePath != '');
       if (_debug) {
         logger.finer('AtPersistence.init received storagePath: ' + storagePath);
       }
@@ -56,23 +55,18 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<LazyBox> openVault(String atsign, {List<int> hiveSecret}) async {
+  Future<LazyBox?> openVault(String atsign, {List<int>? hiveSecret}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
-      if (_debug) {
-        logger.finer('AtPersistence.openVault received hiveSecret: ' +
-            hiveSecret.toString());
-      }
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase().replaceAll(' ', '');
       if (_debug) {
         logger.finer('AtPersistence.openVault received atsign: $atsign');
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      // ignore: omit_local_variable_types
-      var hiveBox = await Hive.openLazyBox(_boxName, encryptionKey: hiveSecret,
+      var hiveBox = await Hive.openLazyBox(_boxName,
+          encryptionCipher: HiveAesCipher(hiveSecret!),
           compactionStrategy: (entries, deletedEntries) {
         return deletedEntries > 50;
       });
@@ -80,6 +74,9 @@ class HivePersistenceManager {
       if (_debug) {
         logger.finer(
             'AtPersistence.openVault opened Hive box:' + _box.toString());
+      }
+      if (_box!.isOpen) {
+        logger.info('KeyStore initialized successfully');
       }
     } on Exception catch (exception) {
       logger.severe('AtPersistence.openVault exception: $exception');
@@ -89,11 +86,10 @@ class HivePersistenceManager {
     return _box;
   }
 
-  Future<List<int>> _getHiveSecretFromFile(
+  Future<List<int>?> _getHiveSecretFromFile(
       String atsign, String storagePath) async {
-    List<int> secretAsUint8List;
+    List<int>? secretAsUint8List;
     try {
-      assert(atsign != null && atsign != '');
       atsign = atsign.trim().toLowerCase();
       if (_debug) {
         logger.finer('getHiveSecretFromFile fetching hiveSecretString for ' +
@@ -110,8 +106,8 @@ class HivePersistenceManager {
       var exists = File(filePath).existsSync();
       if (exists) {
         if (_debug) print('AtServer.getHiveSecretFromFile file found');
-        hiveSecretString = await File(filePath).readAsStringSync();
-        if (hiveSecretString == null) {
+        hiveSecretString = File(filePath).readAsStringSync();
+        if (hiveSecretString.isEmpty) {
           secretAsUint8List = _generatePersistenceSecret();
           hiveSecretString = String.fromCharCodes(secretAsUint8List);
           File(filePath).writeAsStringSync(hiveSecretString);
@@ -137,10 +133,10 @@ class HivePersistenceManager {
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/${runFrequencyMins} * * * *'), () async {
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(this._atsign)
-          .getSecondaryKeyStore();
+          .getSecondaryPersistenceStore(_atsign)!
+          .getSecondaryKeyStore()!;
       await hiveKeyStore.deleteExpiredKeys();
     });
   }
@@ -150,7 +146,10 @@ class HivePersistenceManager {
   }
 
   /// Closes the secondary keystore.
-  void close() async {
-    await box.close();
+  Future<void> close() async {
+    await box!.close();
+    if (!_box!.isOpen) {
+      logger.info('Hive Keystore closed successfully');
+    }
   }
 }

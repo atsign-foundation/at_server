@@ -1,0 +1,28 @@
+FROM atsigncompany/buildimage
+ENV HOMEDIR=/atsign
+ENV USER_ID=1024
+ENV GROUP_ID=1024
+WORKDIR /app
+COPY . .
+RUN \
+  cd at_persistence_secondary_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  cd ../at_secondary_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  mkdir -p $HOMEDIR/storage ; \
+  mkdir -p $HOMEDIR/config ; \
+  mkdir -p /archive ; \
+  addgroup --gid $GROUP_ID atsign ; \
+  useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
+  --home $HOMEDIR atsign ; \
+  chown -R atsign:atsign $HOMEDIR ; \
+  chown -R atsign:atsign /archive ; \
+  chmod -R 755 /usr/lib/dart/ ; \
+  chmod -R 755 /root/ ; \
+  cp config/config.yaml $HOMEDIR/config/ ; \
+  cp pubspec.yaml $HOMEDIR/
+WORKDIR /atsign
+USER atsign
+ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/app/at_secondary_server/bin/main.dart"]

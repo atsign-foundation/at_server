@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
@@ -13,16 +13,16 @@ class NotificationUtil {
   /// Method to store notification in data store
   /// Accepts fromAtSign, forAtSign, key, Notification and Operation type,
   /// Inbound connection object as arguments. ttl is optional argument
-  static Future<String> storeNotification(
-      String fromAtSign,
-      String forAtSign,
-      String key,
+  static Future<String?> storeNotification(
+      String? fromAtSign,
+      String? forAtSign,
+      String? key,
       NotificationType notificationType,
-      OperationType operationType,
+      OperationType? operationType,
       {MessageType messageType = MessageType.key,
-      int ttl_ms,
-      String value,
-      NotificationStatus notificationStatus}) async {
+      int? ttl_ms,
+      String? value,
+      NotificationStatus? notificationStatus}) async {
     try {
       if (forAtSign == null) {
         return null;
@@ -46,12 +46,12 @@ class NotificationUtil {
       logger.severe(
           'exception while storing notification : ${exception.toString()}');
     }
+    return null;
   }
 
   /// Load the notification into the map to notify on server start-up.
-  static void loadNotificationMap() async {
+  static Future<void> loadNotificationMap() async {
     var _notificationLog = AtNotificationKeystore.getInstance();
-    var notificationMap = AtNotificationMap.getInstance();
     if (_notificationLog.isEmpty()) {
       return;
     }
@@ -59,9 +59,8 @@ class NotificationUtil {
     values.forEach((element) {
       //_notificationLog.getValues().forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.
-      if (element.type == NotificationType.sent &&
-          element.notificationStatus == NotificationStatus.queued) {
-        notificationMap.add(element);
+      if (element.type == NotificationType.sent) {
+        QueueManager.getInstance().enqueue(element);
       }
     });
   }

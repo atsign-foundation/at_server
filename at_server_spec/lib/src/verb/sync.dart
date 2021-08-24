@@ -1,9 +1,11 @@
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 
-/// The "sync" verb is used to fetch all the changes after a given commit sequence number from the commit log on the server
-///
-/// Syntax: sync:<from_commit_seq>
+/// The "sync" verb is used to fetch all the keys after a given commit sequence number from the commit log on the server
+/// Optionally pass a regex to fetch only keys that match the regex
+/// Syntax: sync:<from_commit_seq>:<regex>
+/// e.g. sync: 10
+/// sync:10:.wavi
 class Sync extends Verb {
   @override
   String name() => 'sync';
@@ -12,7 +14,7 @@ class Sync extends Verb {
   String syntax() => VerbSyntax.sync;
 
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

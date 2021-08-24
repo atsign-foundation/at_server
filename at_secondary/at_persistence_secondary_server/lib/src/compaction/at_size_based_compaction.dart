@@ -2,10 +2,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class SizeBasedCompaction implements AtCompactionStrategy {
-  int sizeInKB;
-  int compactionPercentage;
+  late int sizeInKB;
+  int? compactionPercentage;
 
-  SizeBasedCompaction(int size, int compactionPercentage) {
+  SizeBasedCompaction(int size, int? compactionPercentage) {
     sizeInKB = size;
     this.compactionPercentage = compactionPercentage;
   }
@@ -16,8 +16,8 @@ class SizeBasedCompaction implements AtCompactionStrategy {
     if (isRequired) {
       var totalKeys = atLogType.entriesCount();
       if (totalKeys > 0) {
-        var N = (totalKeys * (compactionPercentage / 100)).toInt();
-        var keysToDelete = await atLogType.getFirstNEntries(N);
+        var N = (totalKeys * (compactionPercentage! / 100)).toInt();
+        var keysToDelete = atLogType.getFirstNEntries(N);
         atLogType.delete(keysToDelete);
       }
     }

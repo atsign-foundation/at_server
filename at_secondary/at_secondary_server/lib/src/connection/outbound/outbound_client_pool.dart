@@ -3,27 +3,29 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// Pool to hold [OutboundClient]
 class OutboundClientPool {
-  int _size;
+  int? _size;
 
-  List<OutboundClient> _clients;
+  late List<OutboundClient> _clients;
 
-  void init(int size) {
+  void init(int? size) {
     _size = size;
     _clients = [];
   }
 
   bool hasCapacity() {
-    return _clients.length < _size;
+    return _clients.length < _size!;
   }
 
   void add(OutboundClient outBoundClient) => _clients.add(outBoundClient);
 
-  OutboundClient get(String toAtSign, InboundConnection inboundConnection) {
+  OutboundClient? get(String? toAtSign, InboundConnection inboundConnection,
+      {bool isHandShake = true}) {
     //TODO should clearInvalid moved to a cron ?
     // e.g. 10 outbound clients are created. There are no calls to get(..) for a long time. these
     // clients will remain in the pool
     for (var client in _clients) {
       if (client.toAtSign == toAtSign &&
+          client.isHandShakeDone == isHandShake &&
           client.inboundConnection.equals(inboundConnection)) {
         return client;
       }
@@ -56,7 +58,7 @@ class OutboundClientPool {
     return count;
   }
 
-  int getCapacity() {
+  int? getCapacity() {
     return _size;
   }
 

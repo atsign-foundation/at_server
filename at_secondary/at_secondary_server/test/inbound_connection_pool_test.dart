@@ -1,9 +1,10 @@
 import 'dart:io';
+
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 
 void main() async {
   setUp(() {
@@ -93,11 +94,11 @@ void main() async {
 }
 
 class MockInBoundConnectionImpl extends InboundConnectionImpl {
-  MockInBoundConnectionImpl(Socket socket, String sessionId)
+  MockInBoundConnectionImpl(Socket? socket, String sessionId)
       : super(socket, sessionId);
 
   @override
-  void close() {
+  Future<void> close() async {
     print('closing mock connection');
     getMetaData().isClosed = true;
   }

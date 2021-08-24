@@ -1,13 +1,14 @@
 import 'dart:io';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Base class for common socket operations
 abstract class BaseConnection extends AtConnection {
-  final Socket _socket;
-  AtConnectionMetaData metaData;
-  var logger;
+  final Socket? _socket;
+  late AtConnectionMetaData metaData;
+  late var logger;
 
   BaseConnection(this._socket) {
     logger = AtSignLogger(runtimeType.toString());
@@ -19,11 +20,11 @@ abstract class BaseConnection extends AtConnection {
   }
 
   @override
-  void close() async {
+  Future<void> close() async {
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
-      await _socket.close();
+      await _socket!.close();
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {
@@ -37,7 +38,7 @@ abstract class BaseConnection extends AtConnection {
 
   @override
   Socket getSocket() {
-    return _socket;
+    return _socket!;
   }
 
   @override

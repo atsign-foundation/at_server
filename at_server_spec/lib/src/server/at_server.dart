@@ -5,7 +5,7 @@ abstract class AtServer {
 
   /// Stops the server. Calling this method on an already stopped server has no effect.
   /// @throws [AtServerException] if the server cannot be stopped
-  void stop();
+  Future<void> stop();
 
   /// Returns status of the server
   /// @return true is the server is running.

@@ -3,13 +3,13 @@ import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.d
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
 class AtCommitLog implements AtLogType {
   var logger = AtSignLogger('AtCommitLog');
 
-  var _commitLogKeyStore;
+  late var _commitLogKeyStore;
 
   AtCommitLog(CommitLogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
@@ -18,7 +18,7 @@ class AtCommitLog implements AtLogType {
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
   /// returns the sequence number corresponding to the new commit
   /// throws [DataStoreException] if there is an exception writing to hive box
-  Future<int> commit(String key, CommitOp operation) async {
+  Future<int?> commit(String key, CommitOp operation) async {
     if (key.startsWith(RegExp('private:|privatekey:|public:_'))) {
       // do not add private key and keys with public_ to commit log.
       return -1;
@@ -40,7 +40,7 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry
-  Future<CommitEntry> getEntry(int sequenceNumber) async {
+  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
     try {
       var commitEntry = await _commitLogKeyStore.get(sequenceNumber);
       return commitEntry;
@@ -54,7 +54,8 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  Future<List<CommitEntry>> getChanges(int sequenceNumber, String regex) async {
+  Future<List<CommitEntry>> getChanges(
+      int? sequenceNumber, String? regex) async {
     var changes = <CommitEntry>[];
     try {
       changes =
@@ -64,6 +65,9 @@ class AtCommitLog implements AtLogType {
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
+    }
+    if (changes == null) {
+      return [];
     }
     return changes;
   }
@@ -85,25 +89,25 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Returns the latest committed sequence number
-  int lastCommittedSequenceNumber() {
+  int? lastCommittedSequenceNumber() {
     return _commitLogKeyStore.lastCommittedSequenceNumber();
   }
 
   /// Returns the latest committed sequence number with regex
-  Future<int> lastCommittedSequenceNumberWithRegex(String regex) async {
+  Future<int>? lastCommittedSequenceNumberWithRegex(String regex) async {
     return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
-  Future<CommitEntry> lastSyncedEntry() async {
+  Future<CommitEntry>? lastSyncedEntry() async {
     return await _commitLogKeyStore.lastSyncedEntry();
   }
 
-  Future<CommitEntry> lastSyncedEntryWithRegex(String regex) async {
+  Future<CommitEntry>? lastSyncedEntryWithRegex(String regex) async {
     return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
-  int firstCommittedSequenceNumber() {
+  int? firstCommittedSequenceNumber() {
     return _commitLogKeyStore.firstCommittedSequenceNumber();
   }
 
@@ -119,7 +123,7 @@ class AtCommitLog implements AtLogType {
   /// @return List of first 'N' keys from the log
   @override
   Future<List> getFirstNEntries(int N) async {
-    var entries = [];
+    List<dynamic>? entries = [];
     try {
       entries = await _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
@@ -129,7 +133,7 @@ class AtCommitLog implements AtLogType {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries;
+    return entries!;
   }
 
   /// Removes the expired keys from the log.
@@ -145,7 +149,7 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Closes the [CommitLogKeyStore] instance.
-  void close() async {
+  Future<void> close() async {
     await _commitLogKeyStore.close();
   }
 }

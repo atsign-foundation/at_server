@@ -42,7 +42,7 @@ void main() {
     test('send null as arguments', () async {
       List<String> arguments = [];
       expect(() => CommandLineParser().getParserResults(arguments),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
 
     test('Miss one argument', () async {
@@ -53,7 +53,7 @@ void main() {
         '6379'
       ];
       expect(() => CommandLineParser().getParserResults(arguments),
-          throwsA(predicate((e) => e is ArgParserException)));
+          throwsA(predicate((dynamic e) => e is ArgParserException)));
     });
   });
 }

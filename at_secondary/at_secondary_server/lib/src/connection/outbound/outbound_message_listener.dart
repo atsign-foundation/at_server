@@ -1,23 +1,23 @@
 import 'dart:collection';
-import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
-import 'package:at_commons/at_commons.dart';
-import 'package:at_utils/at_logger.dart';
 import 'dart:convert';
+import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 ///Listener class for messages received by [OutboundClient]
 class OutboundMessageListener {
   OutboundClient client;
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
-  Queue _queue;
+  late Queue _queue;
 
   OutboundMessageListener(this.client);
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() {
-    var connection = client.outboundConnection;
+    var connection = client.outboundConnection!;
     connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
     _queue = Queue();
@@ -41,7 +41,7 @@ class OutboundMessageListener {
       } else if (data.length > 1 && data.first == 64 && data.last == 64) {
         // pol responses do not end with '\n'. Add \n for buffer completion
         _buffer.append(data);
-        _buffer.getData().add(10);
+        _buffer.addByte(10);
       } else {
         _buffer.append(data);
       }
@@ -50,7 +50,7 @@ class OutboundMessageListener {
       throw BufferOverFlowException('Buffer overflow on outbound connection');
     }
     if (_buffer.isEnd()) {
-      result = utf8.decode(_buffer.message);
+      result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
       _queue.addFirst(result);
@@ -59,7 +59,7 @@ class OutboundMessageListener {
 
   /// Reads the response sent by remote socket from the queue.
   /// If there is no message in queue after [maxWaitMilliSeconds], return null
-  Future<String> read({int maxWaitMilliSeconds = 5000}) async {
+  Future<String?> read({int maxWaitMilliSeconds = 5000}) async {
     var result;
     //wait maxWaitMilliSeconds seconds for response from remote socket
     var loopCount = (maxWaitMilliSeconds / 50).round();
@@ -93,9 +93,9 @@ class OutboundMessageListener {
     await _closeClient();
   }
 
-  void _closeClient() async {
+  Future<void> _closeClient() async {
     if (!client.isInValid()) {
-      await client.close();
+      client.close();
     }
   }
 }

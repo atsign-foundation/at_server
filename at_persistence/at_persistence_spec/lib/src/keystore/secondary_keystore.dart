@@ -13,5 +13,5 @@ abstract class SecondaryKeyStore<K, V, T>
   ///@param - String : This is an optional parameter that accepts the regular expression
   /// and returns keys that finds the match
   /// @return - List<K> : Returns list of keys
-  List<K> getKeys({String regex});
+  List<K> getKeys({String? regex});
 }

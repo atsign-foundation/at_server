@@ -5,17 +5,17 @@ import 'package:at_server_spec/src/server/at_server.dart';
 /// Contains methods to start, stop and server the requests.
 abstract class AtSecondaryServer implements AtServer {
   /// Sets the executor for the requests to the server
-  setExecutor(VerbExecutor executor);
+  void setExecutor(VerbExecutor executor);
 
   /// Sets Verb handler to be used by the server
-  setVerbHandlerManager(VerbHandlerManager handlerManager);
+  void setVerbHandlerManager(VerbHandlerManager handlerManager);
 
   /// Returns various connection metrics
   ConnectionMetrics getMetrics();
 
   /// Sets the server context
   /// @param context - context for this server to start
-  setServerContext(AtServerContext context);
+  void setServerContext(AtServerContext context);
 }
 
 ///

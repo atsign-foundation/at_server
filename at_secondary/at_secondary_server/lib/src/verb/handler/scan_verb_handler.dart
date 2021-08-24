@@ -1,14 +1,15 @@
 import 'dart:collection';
 import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 /// ScanVerbHandler class is used to process scan verb
 /// Scan verb will return all the possible keys you can lookup
@@ -16,7 +17,7 @@ import 'package:at_commons/at_commons.dart';
 class ScanVerbHandler extends AbstractVerbHandler {
   static Scan scan = Scan();
 
-  ScanVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   /// Verifies whether command is accepted or not
   /// @param - command: Input to scan verb
@@ -39,9 +40,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var scanRegex = verbParams[AT_REGEX];
 
@@ -62,7 +64,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         String keyString;
-        List<String> keys = keyStore.getKeys(regex: scanRegex);
+        var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
         keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces
         keyString = keyString.replaceFirst(RegExp(r'^\['), '');
@@ -70,10 +72,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
         keyString = keyString.replaceAll(', ', ',');
         response.data = keyString;
         logger.finer('response.data : ${response.data}');
-        var keysArray = (response.data != null && response.data.isNotEmpty)
-            ? (response.data?.split(','))
+        var keysArray = (response.data != null && response.data!.isNotEmpty)
+            ? response.data?.split(',')
             : [];
-        logger.finer('keysArray : ${keysArray}, ${keysArray.length}');
+        logger.finer('keysArray : $keysArray, ${keysArray?.length}');
         response.data = json.encode(keysArray);
       }
     } on Exception catch (e) {
@@ -88,11 +90,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// @param - scanRegex : The regular expression to filter the keys
   /// @param - atConnection : The inbound connection
   /// @return - Future<String> : The another atsign keys returned.
-  Future<String> _getExternalKeys(String forAtSign, String scanRegex,
+  Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
     var outBoundClient =
-        OutboundClientManager.getInstance().getClient(forAtSign, atConnection);
+        OutboundClientManager.getInstance().getClient(forAtSign, atConnection)!;
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {
@@ -109,7 +111,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// @param - List<String>: List of keys from the secondary persistent store
   /// @return - String: Returns the keys of current atsign
   String _getLocalKeys(
-      InboundConnectionMetadata atConnectionMetadata, List<String> keys) {
+      InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
     var keyString;
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys

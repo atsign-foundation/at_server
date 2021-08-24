@@ -27,11 +27,11 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var notificationId = verbParams['notificationId'];
 
-    var notificationManager = await NotificationManager.getInstance();
+    var notificationManager = NotificationManager.getInstance();
     var status = await notificationManager.getStatus(notificationId);
     response.data = status.toString().split('.').last;
   }

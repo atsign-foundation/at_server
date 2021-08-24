@@ -1,20 +1,20 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
-import 'package:utf7/utf7.dart';
+import 'package:at_utf7/at_utf7.dart';
 import 'at_meta_data.dart';
 
-@HiveType()
+@HiveType(typeId: 0)
 class AtData extends HiveObject {
   @HiveField(0)
-  String data;
+  String? data;
 
   @HiveField(1)
-  AtMetaData metaData;
+  AtMetaData? metaData;
 
   @override
   String toString() {
-    return 'AtData{data: ${data}, metaData: ${metaData.toString()}';
+    return 'AtData{data: $data, metaData: ${metaData.toString()}';
   }
 
   Map toJson() {
@@ -22,7 +22,7 @@ class AtData extends HiveObject {
     Map map = {};
     map['key'] = Utf7.decode(key);
     map['data'] = data;
-    map['metaData'] = metaData.toJson();
+    map['metaData'] = metaData!.toJson();
     return map;
   }
 
@@ -35,7 +35,7 @@ class AtData extends HiveObject {
 
 class AtDataAdapter extends TypeAdapter<AtData> {
   @override
-  final typeId = typeAdapterMap['AtDataAdapter'];
+  final int typeId = typeAdapterMap['AtDataAdapter'];
 
   @override
   AtData read(BinaryReader reader) {
@@ -44,8 +44,8 @@ class AtDataAdapter extends TypeAdapter<AtData> {
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return AtData()
-      ..data = fields[0] as String
-      ..metaData = fields[1] as AtMetaData;
+      ..data = fields[0] as String?
+      ..metaData = fields[1] as AtMetaData?;
   }
 
   @override

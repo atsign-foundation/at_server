@@ -11,14 +11,14 @@ import 'verb.dart';
 ///
 /// **view syntax**: block:show.
 /// ```
-/// Example:
+/// e.g.
 ///   1. config:block:add:@alice @bob //adds @alice, @bob into block list.
 ///   2. config:block:remove:@alice //removes @alice from block list.
 ///   3. config:block:show //displays block list @signs.
 /// ```
 class Config extends Verb {
   @override
-  Verb dependsOn() {
+  Verb? dependsOn() {
     return null;
   }
 

@@ -30,7 +30,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -50,7 +50,7 @@ void main() {
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
-          throwsA(predicate((e) =>
+          throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
@@ -59,11 +59,12 @@ void main() {
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager();
+      defaultVerbHandlerManager.init();
 
       expect(
           () => defaultVerbExecutor.execute(
               command, inbound, defaultVerbHandlerManager),
-          throwsA(predicate((e) => e is InvalidSyntaxException)));
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test scan verb with forAtSign and regular expression', () {
