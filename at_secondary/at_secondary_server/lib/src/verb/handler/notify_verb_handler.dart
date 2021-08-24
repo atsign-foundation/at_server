@@ -110,10 +110,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
 
       var atMetadata = AtMetaData();
-      // If operation type is update, when value and ttr to cache a key
+      // If operation type is update, set value and ttr to cache a key
       // If operation type is delete, set ttr when not null to delete the cached key.
-      if (opType == OperationType.update && ttr_ms != null && atValue != null ||
-          opType == OperationType.delete && ttr_ms != null) {
+      if ((opType == OperationType.update && ttr_ms != null && atValue != null) ||
+          (opType == OperationType.delete && ttr_ms != null)) {
         atMetadata.ttr = ttr_ms;
         atMetadata.isCascade = isCascade;
       }
