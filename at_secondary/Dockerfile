@@ -22,13 +22,14 @@ RUN \
   chown -R atsign:atsign $HOMEDIR ; \
   chown -R atsign:atsign /archive ; \
   cp config/config.yaml $HOMEDIR/config/ ; \
-  cp cacert/cacert.pem /etc/cacert/ ; \
+  cp cacert/cacert.pem /etc/cacert ; \
   cp pubspec.yaml $HOMEDIR/
 # Second stage of build FROM scratch
 FROM scratch
 COPY --from=buildimage /runtime/ /
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
+COPY --from=buildimage /etc/cacert /etc/cacert
 COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /usr/local/at/
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
