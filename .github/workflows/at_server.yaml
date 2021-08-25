@@ -208,6 +208,10 @@ jobs:
         with:
           sdk: stable
 
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.2.0
 
@@ -271,6 +275,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -329,6 +337,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
       - name: Get branch name
