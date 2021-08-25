@@ -13,6 +13,7 @@ RUN \
   dart pub update ; \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
+  mkdir -p /etc/cacert ; \
   mkdir -p /archive ; \
   addgroup --gid $GROUP_ID atsign ; \
   useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
@@ -22,6 +23,7 @@ RUN \
   chmod -R 755 /usr/lib/dart/ ; \
   chmod -R 755 /root/ ; \
   cp config/config.yaml $HOMEDIR/config/ ; \
+  cp cacert/cacert.pem /etc/cacert ; \
   cp pubspec.yaml $HOMEDIR/
 WORKDIR /atsign
 USER atsign
