@@ -46,8 +46,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData() as InboundConnectionMetadata;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var scanRegex = verbParams[AT_REGEX];
-    var pageId = verbParams['pageId'];
-    print('pageId : $pageId');
+    var page = verbParams[PAGE];
     // Throw UnAuthenticatedException.
     // When looking up keys of another atsign and connection is not authenticated,
     if (forAtSign != null && !atConnectionMetadata.isAuthenticated) {
@@ -61,14 +60,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
-        if (pageId == null) {
+        if (page == null) {
           response.data =
               await _getExternalKeys(forAtSign, scanRegex, atConnection);
         } else {
           var keysString =
               await _getExternalKeys(forAtSign, scanRegex, atConnection);
           response.data =
-              _prepareExternalKeysResponse(int.parse(pageId), keysString);
+              _prepareExternalKeysResponse(int.parse(page), keysString);
         }
         print('external keys : ${response.data}');
       } else {
@@ -86,11 +85,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
             : [];
         logger.finer('keysArray : $keysArray, ${keysArray?.length}');
         print('keysArray : ${keysArray.runtimeType}');
-        if (pageId == null) {
+        if (page == null) {
           response.data = keyString;
         } else {
           response.data =
-              _prepareLocalKeysResponse(int.parse(pageId), keysArray);
+              _prepareLocalKeysResponse(int.parse(page), keysArray);
         }
       }
     } on Exception catch (e) {
@@ -168,7 +167,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return keyString;
   }
 
-  String? _prepareExternalKeysResponse(int pageId, String? keyString) {
+  String? _prepareExternalKeysResponse(int page, String? keyString) {
     if (keyString == null || keyString.isEmpty) {
       return keyString;
     }
@@ -176,7 +175,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     print('keysString in _prepareExternalKeysResponse: $keyString');
     keyString = keyString.replaceFirst('data:', '');
     var keys = jsonDecode(keyString);
-    var start_index = (pageId - 1) * 10;
+    var start_index = (page - 1) * 10;
     if (start_index < keys.length) {
       var end_index = (start_index + 10 > keys.length)
           ? keys.length - 1
@@ -188,16 +187,16 @@ class ScanVerbHandler extends AbstractVerbHandler {
     result['totalPages'] =
         ((keys.length) / 10).toInt() + ((keys.length) % 10 > 0 ? 1 : 0);
     result['keysPerPage'] = 10;
-    result['pageId'] = pageId;
+    result['currentPage'] = page;
     return jsonEncode(result);
   }
 
-  String? _prepareLocalKeysResponse(int pageId, List<dynamic>? keys) {
+  String? _prepareLocalKeysResponse(int page, List<dynamic>? keys) {
     var result = <String, dynamic>{};
     if (keys == null || keys.isEmpty) {
       return null;
     }
-    var start_index = (pageId - 1) * 10;
+    var start_index = (page - 1) * 10;
     if (start_index < keys.length) {
       var end_index = (start_index + 10 > keys.length)
           ? keys.length - 1
@@ -209,7 +208,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     result['totalPages'] =
         (keys.length) ~/ 10 + ((keys.length) % 10 > 0 ? 1 : 0);
     result['keysPerPage'] = 10;
-    result['pageId'] = pageId;
+    result['currentPage'] = page;
     return jsonEncode(result);
   }
 }
