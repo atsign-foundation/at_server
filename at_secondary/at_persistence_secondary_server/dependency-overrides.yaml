@@ -3,14 +3,14 @@ at_persistence_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_persistence/at_persistence_spec
-    ref: sync_pagination
+    ref: trunk
 at_utils:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_utils
-    ref: sync_pagination
+    ref: trunk
 at_commons:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_commons
-    ref: sync_pagination
+    ref: trunk
