@@ -235,7 +235,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
           .finer('startKey: $startKey all commit log entries: ${box!.values}');
       if (limit != null) {
         box!.values.forEach((element) {
-          if (element.commitId >= startKey &&
+          if (element.key >= startKey &&
               _isRegexMatches(element.atKey, regexString) &&
               changes.length <= limit) {
             changes.add(element);

@@ -32,7 +32,9 @@ class SyncFromVerbHandler extends SyncVerbHandler {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var fromCommitSequence = int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!);
-    var limit = int.parse(verbParams['limit']!);
+    // sync commitId starts from 0, hence sync entries will be one extra to limit number.
+    // to match sync entries to limit number subtract 1 from limit
+    var limit = int.parse(verbParams['limit']!) - 1;
     var syncEntriesMap = {};
 
     // Iterates to get the entries from commit log.
@@ -49,10 +51,10 @@ class SyncFromVerbHandler extends SyncVerbHandler {
           fromCommitSequence = entry['commitId'];
         }
       });
-      limit = int.parse(verbParams['limit']!) - syncEntriesMap.length;
+      limit = (int.parse(verbParams['limit']!) - 1) - syncEntriesMap.length;
       return itr.isNotEmpty &&
           limit < atCommitLog!.entriesCount() &&
-          syncEntriesMap.length < (int.parse(verbParams['limit']!));
+          syncEntriesMap.length < (int.parse(verbParams['limit']!) - 1);
     });
     // Sort the syncEntriesMap on commitId's in descending order.
     var sortedList = syncEntriesMap.values.toList()
