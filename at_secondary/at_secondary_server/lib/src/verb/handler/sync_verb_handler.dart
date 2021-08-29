@@ -16,7 +16,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':') && !command.contains('sync:stream');
+      command.startsWith(getName(VerbEnum.sync) + ':') &&
+      !command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -53,7 +54,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
     if (commit_changes != null) {
       await Future.forEach(
           commit_changes,
-          (dynamic entry) =>
+          (CommitEntry entry) =>
               processEntry(entry, distinctKeys, syncResultList));
     }
     logger.finer(
