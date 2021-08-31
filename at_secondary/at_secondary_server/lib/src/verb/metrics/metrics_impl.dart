@@ -69,10 +69,10 @@ class LastCommitIDMetricImpl implements MetricProvider {
 
   @override
   Future<String> getMetrics({String? regex}) async {
-    logger.finer('In commitID getMetrics...regex : ${regex}');
+    logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
-      lastCommitID = await _atCommitLog
+      lastCommitID = _atCommitLog
           .lastCommittedSequenceNumberWithRegex(regex)
           .toString();
       return lastCommitID;
@@ -200,7 +200,7 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
@@ -262,7 +262,7 @@ class LastPkamMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastPkamAccessLogEntry();
     return (entry != null)

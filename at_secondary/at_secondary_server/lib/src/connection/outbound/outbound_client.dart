@@ -277,7 +277,7 @@ class OutboundClient {
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {
-      outboundConnection!.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {

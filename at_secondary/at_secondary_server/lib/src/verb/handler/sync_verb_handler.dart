@@ -51,10 +51,8 @@ class SyncVerbHandler extends AbstractVerbHandler {
     commit_changes
         .sort((entry1, entry2) => entry2.commitId!.compareTo(entry1.commitId!));
     // for each latest key entry in commit log, get the value
-    if (commit_changes != null) {
-      await Future.forEach(commit_changes,
-          (dynamic entry) => processEntry(entry, distinctKeys, syncResultList));
-    }
+    await Future.forEach(commit_changes,
+        (dynamic entry) => processEntry(entry, distinctKeys, syncResultList));
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
