@@ -49,6 +49,7 @@ class StatsNotificationService {
       _logger.info('StatsNotificationService is disabled');
       return;
     }
+    _logger.info('StatsNotificationService is enabled');
     _atCommitLog =
         await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
     // Setting while(true) to form an infinite loop.
@@ -61,12 +62,7 @@ class StatsNotificationService {
   }
 
   Future<void> _schedule() async {
-    _logger.info('StatsNotificationService started');
-    try {
-      await _writeStatsToMonitor();
-    } finally {
-      _logger.info('StatsNotificationService completed');
-    }
+    await _writeStatsToMonitor();
   }
 
   Future<void> _writeStatsToMonitor() async {

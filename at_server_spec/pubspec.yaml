@@ -11,5 +11,12 @@ environment:
 dependencies:
   at_commons: ^2.0.4
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: trunk
+
 dev_dependencies:
   pedantic: ^1.11.0

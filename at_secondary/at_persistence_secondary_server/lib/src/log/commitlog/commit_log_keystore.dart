@@ -224,7 +224,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
   Future<List<CommitEntry>> getChanges(int sequenceNumber,
-      {String? regex}) async {
+      {String? regex, int? limit}) async {
     var changes = <CommitEntry>[];
     var regexString = (regex != null) ? regex : '';
     var values = await _getValues();
@@ -234,7 +234,17 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      logger.finer('startKey: ${startKey} all commit log entries: ${values}');
+      logger.finer('startKey: $startKey all commit log entries: $values');
+      if (limit != null) {
+    values.forEach((element) {
+          if (element.key >= startKey &&
+              _isRegexMatches(element.atKey, regexString) &&
+              changes.length <= limit) {
+            changes.add(element);
+          }
+        });
+        return changes;
+      }
       values.forEach((f) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {

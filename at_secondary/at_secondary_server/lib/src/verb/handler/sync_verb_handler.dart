@@ -17,7 +17,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.sync) + ':') &&
-      !command.contains('sync:stream');
+      !command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -51,8 +51,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
     commit_changes
         .sort((entry1, entry2) => entry2.commitId!.compareTo(entry1.commitId!));
     // for each latest key entry in commit log, get the value
-    await Future.forEach(commit_changes,
-        (dynamic entry) => processEntry(entry, distinctKeys, syncResultList));
+    if (commit_changes != null) {
+      await Future.forEach(
+          commit_changes,
+          (CommitEntry entry) =>
+              processEntry(entry, distinctKeys, syncResultList));
+    }
+
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
