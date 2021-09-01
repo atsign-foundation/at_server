@@ -11,7 +11,7 @@ import 'package:at_utils/at_logger.dart';
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
 /// The schedule job runs at a time interval specified in [notification][statsNotificationJobTimeInterval]
-/// in [config.yaml]. Defaults to 15 seconds.
+/// in [config.yaml]. Defaults to 2 Minutes.
 /// To disable the service, set [notification][statsNotificationJobTimeInterval] in [config.yaml] to -1.
 /// The [schedule] method is invoked during the server start-up and should be called only
 /// once.
@@ -56,7 +56,7 @@ class StatsNotificationService {
     // Runs the _schedule method as long as server is up and running.
     while (true) {
       await Future.delayed(
-          Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
+          Duration(minutes: AtSecondaryConfig.statsNotificationJobTimeInterval),
           _schedule);
     }
   }
