@@ -148,6 +148,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
+      logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttl_ms, value: atValue);
@@ -210,9 +211,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     atData.data = atValue;
     atData.metaData = atMetaData;
     await keyStore!.put(notifyKey, atData);
+    logger.info('Cached $notifyKey');
   }
 
   Future<void> _updateMetadata(String notifyKey, AtMetaData? atMetaData) async {
+    logger.info('Updating the metadata of $notifyKey');
     await keyStore!.putMeta(notifyKey, atMetaData);
   }
 
@@ -222,6 +225,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var metadata = await keyStore!.getMeta(key);
     if (metadata != null && metadata.isCascade) {
       await keyStore!.remove(key);
+      logger.info('Removed cached key $key');
     }
   }
 

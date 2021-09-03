@@ -231,8 +231,6 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      logger
-          .finer('startKey: $startKey all commit log entries: ${box!.values}');
       if (limit != null) {
         box!.values.forEach((element) {
           if (element.key >= startKey &&
