@@ -64,8 +64,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         String keyString;
-        var keys =
-            keyStore!.getKeys(regex: scanRegex) as List<String?>;
+        var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
         keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces
         keyString = keyString.replaceFirst(RegExp(r'^\['), '');

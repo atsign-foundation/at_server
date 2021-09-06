@@ -1,3 +1,5 @@
+## 3.0.0
+- Sync Pagination feature
 ## 2.0.7
 - Reinitialize hive boxes on certs reload
 ## 2.0.6
