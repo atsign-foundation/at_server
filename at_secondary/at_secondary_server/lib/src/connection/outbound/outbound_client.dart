@@ -81,8 +81,8 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
-    var secondaryUrl =
-        await at_lookup.AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort!);
+    var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
+        toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
