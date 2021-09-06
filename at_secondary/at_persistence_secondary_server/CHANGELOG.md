@@ -1,3 +1,5 @@
+## 3.0.0
+- Sync pagination feature
 ## 2.0.6
 - fix for hive closed box issue
 ## 2.0.5
