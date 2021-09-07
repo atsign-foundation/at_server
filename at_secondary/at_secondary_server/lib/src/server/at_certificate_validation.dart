@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:cron/cron.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -57,12 +59,12 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    childIsolateReceivePort.listen((message) {
-      var filePath = message;
-      var directory = Directory(filePath);
-      var fileSystemEvent = directory.watch(events: FileSystemEvent.create);
-      fileSystemEvent.listen((event) {
-        if (event.path == filePath + 'restart') {
+    childIsolateReceivePort.listen((filePath) {
+      var file = File(filePath + 'restart');
+      var cron = Cron();
+      // Run the cron job once in a day.
+      cron.schedule(Schedule.parse('*/5 * * * * *'), () {
+        if (file.existsSync()) {
           mainIsolateSendPort.send(true);
         }
       });
