@@ -69,7 +69,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
           response.data =
               _prepareExternalKeysResponse(int.parse(page), keysString);
         }
-        print('external keys : ${response.data}');
       } else {
         String keyString;
         var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
@@ -84,7 +83,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
             ? response.data?.split(',')
             : [];
         logger.finer('keysArray : $keysArray, ${keysArray?.length}');
-        print('keysArray : ${keysArray.runtimeType}');
         if (page == null) {
           response.data = keyString;
         } else {
@@ -117,8 +115,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
     }
     var scanResult =
         await outBoundClient.scan(handshake: handShake, regex: scanRegex);
-    print(
-        'scan result in _getExternalKeys : $scanResult, ${scanResult.runtimeType}');
     return scanResult;
   }
 
@@ -149,9 +145,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
                     .startsWith('${atConnectionMetadata.fromAtSign}:') ==
                 false) ||
             test.toString().startsWith('public:_'));
-        // keyString = keys
-        //     .toString()
-        //     .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
         keyString = jsonEncode(keys)
             .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
       } else {
@@ -159,7 +152,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
         keys.removeWhere((test) =>
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
-        // keyString = keys.toString().replaceAll('public:', '');
         keyString = jsonEncode(keys).replaceAll('public:', '');
       }
     }
@@ -171,24 +163,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
     if (keyString == null || keyString.isEmpty) {
       return keyString;
     }
-    var result = <String, dynamic>{};
-    print('keysString in _prepareExternalKeysResponse: $keyString');
     keyString = keyString.replaceFirst('data:', '');
     var keys = jsonDecode(keyString);
-    var start_index = (page - 1) * 10;
-    if (start_index < keys.length) {
-      var end_index = (start_index + 10 > keys.length)
-          ? keys.length - 1
-          : (start_index + 10);
-      result['keys'] = jsonEncode(keys.sublist(start_index, end_index));
-    } else {
-      result['keys'] = jsonEncode([]);
-    }
-    result['totalPages'] =
-        ((keys.length) / 10).toInt() + ((keys.length) % 10 > 0 ? 1 : 0);
-    result['keysPerPage'] = 10;
-    result['currentPage'] = page;
-    return jsonEncode(result);
+    return _prepareLocalKeysResponse(page, keys);
   }
 
   String? _prepareLocalKeysResponse(int page, List<dynamic>? keys) {
