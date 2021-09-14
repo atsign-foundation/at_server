@@ -15,6 +15,8 @@ import 'package:at_utils/at_logger.dart';
 /// To disable the service, set [notification][statsNotificationJobTimeInterval] in [config.yaml] to -1.
 /// The [schedule] method is invoked during the server start-up and should be called only
 /// once.
+/// NOTE: THE CHANGE IN TIME INTERVAL AFFECTS THE SYNC PERFORMANCE.
+/// The at_client_sdk gets the latest commit of server via the stats notification service.
 /// Sample JSON written to monitor connection.
 /// {
 ///    "id":"c0d8a7d6-5689-476b-b5db-28b4f77e4663",
