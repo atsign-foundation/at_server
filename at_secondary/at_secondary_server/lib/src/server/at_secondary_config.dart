@@ -66,7 +66,7 @@ class AtSecondaryConfig {
   static final bool _isForceRestart = false;
 
   //StatsNotificationService
-  static final int _statsNotificationJobTimeInterval = 2;
+  static final int _statsNotificationJobTimeInterval = 5;
 
   //version
   static final String? _secondaryServerVersion =

@@ -97,7 +97,7 @@ notification:
   # The job frequency
   jobFrequency: 5
   # The time interval(in seconds) to notify last commitID to monitor connections
-  statsNotificationJobTimeInterval: 2
+  statsNotificationJobTimeInterval: 5
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
