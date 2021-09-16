@@ -21,7 +21,7 @@ class AtCertificateValidationJob {
   static final AtCertificateValidationJob _singleton =
       AtCertificateValidationJob._internal();
 
-  var logger = AtSignLogger('AtCertificationValidation');
+  static final logger = AtSignLogger('AtCertificationValidation');
   var restartFile = 'restart';
   var filePath = AtSecondaryConfig.certificateChainLocation;
   var isCertificateExpired = false;
@@ -60,14 +60,17 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
+    var cron = Cron();
+    // Generates a random number between 0 to 11
+    var certsJobHour = Random().nextInt(11);
+    logger.info(
+        'Certificates reload job scheduled to run at $certsJobHour hours and ${certsJobHour + 12} hours');
     childIsolateReceivePort.listen((filePath) {
       var file = File(filePath + 'restart');
-      var cron = Cron();
-      // Generates a random number between 0 to 11
-      var certsJobHour = Random().nextInt(11);
       // Run the cron job twice a day.
-      cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
+      cron.schedule(Schedule(seconds: [certsJobHour, certsJobHour + 12]), () {
         if (file.existsSync()) {
+          logger.info('Restart file found. Initializing secondary server restart process');
           mainIsolateSendPort.send(true);
         }
       });
