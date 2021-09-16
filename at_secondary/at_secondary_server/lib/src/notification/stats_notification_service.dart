@@ -11,7 +11,7 @@ import 'package:at_utils/at_logger.dart';
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
 /// The schedule job runs at a time interval specified in [notification][statsNotificationJobTimeInterval]
-/// in [config.yaml]. Defaults to 2 Minutes.
+/// in [config.yaml]. Defaults to 15 Seconds.
 /// To disable the service, set [notification][statsNotificationJobTimeInterval] in [config.yaml] to -1.
 /// The [schedule] method is invoked during the server start-up and should be called only
 /// once.
@@ -51,14 +51,15 @@ class StatsNotificationService {
       _logger.info('StatsNotificationService is disabled');
       return;
     }
-    _logger.info('StatsNotificationService is enabled');
+    _logger.info(
+        'StatsNotificationService is enabled. Runs every ${AtSecondaryConfig.statsNotificationJobTimeInterval} seconds');
     _atCommitLog =
         await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
     // Setting while(true) to form an infinite loop.
     // Runs the _schedule method as long as server is up and running.
     while (true) {
       await Future.delayed(
-          Duration(minutes: AtSecondaryConfig.statsNotificationJobTimeInterval),
+          Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
           _schedule);
     }
   }
@@ -91,8 +92,6 @@ class StatsNotificationService {
           ..opType = OperationType.update
           ..atValue = _atCommitLog!.lastCommittedSequenceNumber().toString();
         var notification = Notification(atNotificationBuilder.build());
-        _logger.info(
-            'writing stats notification to connection - SessionID: ${connection.getMetaData().sessionID}');
         connection
             .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
       }
