@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
+
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:cron/cron.dart';
 
 ///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
 /// 1. Replace the old certificates with new certificates in the certs location.
@@ -18,7 +21,7 @@ class AtCertificateValidationJob {
   static final AtCertificateValidationJob _singleton =
       AtCertificateValidationJob._internal();
 
-  var logger = AtSignLogger('AtCertificationValidation');
+  static final logger = AtSignLogger('AtCertificationValidation');
   var restartFile = 'restart';
   var filePath = AtSecondaryConfig.certificateChainLocation;
   var isCertificateExpired = false;
@@ -57,12 +60,17 @@ class AtCertificateValidationJob {
     var childIsolateReceivePort = ReceivePort();
     var mainIsolateSendPort = commList[0];
     mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    childIsolateReceivePort.listen((message) {
-      var filePath = message;
-      var directory = Directory(filePath);
-      var fileSystemEvent = directory.watch(events: FileSystemEvent.create);
-      fileSystemEvent.listen((event) {
-        if (event.path == filePath + 'restart') {
+    var cron = Cron();
+    // Generates a random number between 0 to 11
+    var certsJobHour = Random().nextInt(11);
+    logger.info(
+        'Certificates reload job scheduled to run at $certsJobHour hours and ${certsJobHour + 12} hours');
+    childIsolateReceivePort.listen((filePath) {
+      var file = File(filePath + 'restart');
+      // Run the cron job twice a day.
+      cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
+        if (file.existsSync()) {
+          logger.info('Restart file found. Initializing secondary server restart process');
           mainIsolateSendPort.send(true);
         }
       });
