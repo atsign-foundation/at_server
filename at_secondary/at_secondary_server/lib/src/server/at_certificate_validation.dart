@@ -68,7 +68,7 @@ class AtCertificateValidationJob {
     childIsolateReceivePort.listen((filePath) {
       var file = File(filePath + 'restart');
       // Run the cron job twice a day.
-      cron.schedule(Schedule(seconds: [certsJobHour, certsJobHour + 12]), () {
+      cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
         if (file.existsSync()) {
           logger.info('Restart file found. Initializing secondary server restart process');
           mainIsolateSendPort.send(true);
