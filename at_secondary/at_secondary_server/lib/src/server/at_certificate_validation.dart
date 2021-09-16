@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -62,8 +63,10 @@ class AtCertificateValidationJob {
     childIsolateReceivePort.listen((filePath) {
       var file = File(filePath + 'restart');
       var cron = Cron();
-      // Run the cron job once in a day.
-      cron.schedule(Schedule.parse('*/5 * * * * *'), () {
+      // Generates a random number between 0 to 11
+      var certsJobHour = Random().nextInt(11);
+      // Run the cron job twice a day.
+      cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
         if (file.existsSync()) {
           mainIsolateSendPort.send(true);
         }
