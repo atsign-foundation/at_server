@@ -34,7 +34,7 @@ class SyncVerbHandler extends AbstractVerbHandler {
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var regex = verbParams[AT_REGEX];
     var commit_changes =
-        atCommitLog?.getChanges(int.parse(commit_sequence), regex);
+        atCommitLog?.getChanges(int.parse(commit_sequence), regex!);
     logger.finer(
         'number of changes since commitId: $commit_sequence is ${commit_changes?.length}');
     commit_changes?.removeWhere((entry) =>
@@ -47,11 +47,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
     }
     var distinctKeys = <String>{};
     var syncResultList = [];
-    //sort log by commitId descending
-    commit_changes?.sort(
-        (entry1, entry2) => entry2.commitId!.compareTo(entry1.commitId!));
     // for each latest key entry in commit log, get the value
     if (commit_changes != null) {
+      //sort log by commitId descending
+      commit_changes
+          .sort((entry1, entry2) => entry2.commitId.compareTo(entry1.commitId));
       await Future.forEach(
           commit_changes,
           (CommitEntry entry) =>
