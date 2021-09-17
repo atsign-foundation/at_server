@@ -70,7 +70,8 @@ class AtCertificateValidationJob {
       // Run the cron job twice a day.
       cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
         if (file.existsSync()) {
-          logger.info('Restart file found. Initializing secondary server restart process');
+          logger.info(
+              'Restart file found. Initializing secondary server restart process');
           mainIsolateSendPort.send(true);
         }
       });
