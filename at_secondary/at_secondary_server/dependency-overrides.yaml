@@ -8,12 +8,12 @@ at_utils:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_utils
-    ref: config_changes
+    ref: trunk
 at_commons:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_commons
-    ref: config_changes
+    ref: trunk
 at_persistence_secondary_server:
   git:
     url: https://github.com/atsign-foundation/at_server.git
