@@ -75,7 +75,7 @@ class SyncFromVerbHandler extends SyncVerbHandler {
     var distinctKeys = <String>{};
     //sort log by commitId descending
     commit_changes?.sort((CommitEntry entry1, CommitEntry entry2) =>
-        sort(entry2.commitId, entry1.commitId));
+        sort(entry1.commitId, entry2.commitId));
     // Remove the entries with commit id is null.
     commit_changes?.removeWhere((element) {
       if (element.commitId == null) {
