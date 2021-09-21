@@ -48,8 +48,17 @@ class SyncVerbHandler extends AbstractVerbHandler {
     var distinctKeys = <String>{};
     var syncResultList = [];
     //sort log by commitId descending
-    commit_changes?.sort(
-        (entry1, entry2) => entry2.commitId!.compareTo(entry1.commitId!));
+    commit_changes
+        ?.sort((entry1, entry2) => sort(entry1.commitId, entry2.commitId));
+    // Remove the entries with commit id is null.
+    commit_changes?.removeWhere((element) {
+      if (element.commitId == null) {
+        logger.severe(
+            '${element.atKey} commitId is null. Ignoring the commit entry');
+        return true;
+      }
+      return false;
+    });
     // for each latest key entry in commit log, get the value
     if (commit_changes != null) {
       await Future.forEach(
@@ -68,6 +77,13 @@ class SyncVerbHandler extends AbstractVerbHandler {
     }
     response.data = result;
     return;
+  }
+
+  int sort(commitId1, commitId2) {
+    if (commitId1 == null && commitId2 == null) return 0;
+    if (commitId1 == null && commitId2 != null) return -1;
+    if (commitId1 != null && commitId2 == null) return 1;
+    return commitId2.compareTo(commitId1);
   }
 
   Future<void> processEntry(entry, distinctKeys, syncResultList) async {
