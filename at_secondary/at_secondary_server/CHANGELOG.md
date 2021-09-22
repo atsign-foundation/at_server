@@ -1,3 +1,5 @@
+## 3.0.1
+- Fix null aware issue in sync verb handlers
 ## 3.0.0
 - Sync Pagination feature
 ## 2.0.7
