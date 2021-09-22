@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
@@ -554,4 +555,8 @@ dynamic getConfigFromYaml(List<String> args) {
     throw ElementNotFoundException('Element Not Found in yaml');
   }
   return value;
+}
+
+class ElementNotFoundException extends AtException {
+  ElementNotFoundException(message) : super(message);
 }
