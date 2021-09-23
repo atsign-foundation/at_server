@@ -4,6 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -68,7 +69,8 @@ class StatsNotificationService {
     await writeStatsToMonitor();
   }
 
-  Future<void> writeStatsToMonitor({String? latestCommitID}) async {
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
     latestCommitID ??= _atCommitLog!.lastCommittedSequenceNumber().toString();
     // Gets the list of active connections.
     var connectionsList = InboundConnectionPool.getInstance().getConnections();
@@ -90,7 +92,7 @@ class StatsNotificationService {
           ..notification = 'statsNotification.$_currentAtSign'
           ..toAtSign = _currentAtSign
           ..notificationDateTime = DateTime.now().toUtc()
-          ..opType = OperationType.update
+          ..opType = SecondaryUtil.getOperationType(operationType)
           ..atValue = latestCommitID;
         var notification = Notification(atNotificationBuilder.build());
         connection

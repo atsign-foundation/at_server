@@ -44,7 +44,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY]!;
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
-    var operation = SecondaryUtil().getOperationType(verbParams[AT_OPERATION]);
+    var operation = SecondaryUtil.getOperationType(verbParams[AT_OPERATION]);
     var value = verbParams[AT_VALUE];
 
     // If messageType is key, append the atSign to key. For messageType text,

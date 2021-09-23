@@ -83,7 +83,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var operation = verbParams[AT_OPERATION];
     var opType;
     if (operation != null) {
-      opType = SecondaryUtil().getOperationType(operation);
+      opType = SecondaryUtil.getOperationType(operation);
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -166,7 +166,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (operation == 'delete') {
         cachedKeyCommitId = await _removeCachedKey(notifyKey);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId);
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -187,7 +187,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         cachedKeyCommitId =
             await _storeCachedKeys(key, metadata, atValue: atValue);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId);
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -203,7 +203,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId);
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -248,11 +248,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   ///Sends the latest commitId to the StatsNotificationService
-  Future<void> _writeStats(dynamic cachedKeyCommitId) async {
+  Future<void> _writeStats(
+      int? cachedKeyCommitId, String? operationType) async {
     try {
       if (cachedKeyCommitId != null) {
-        await StatsNotificationService.getInstance()
-            .writeStatsToMonitor(latestCommitID: '$cachedKeyCommitId');
+        await StatsNotificationService.getInstance().writeStatsToMonitor(
+            latestCommitID: '$cachedKeyCommitId', operationType: operationType);
       }
     } on Exception catch (exception) {
       logger.info('Exception in writing stats ${exception.toString()}');
