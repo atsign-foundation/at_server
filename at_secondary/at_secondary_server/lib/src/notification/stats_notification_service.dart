@@ -4,6 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -65,36 +66,45 @@ class StatsNotificationService {
   }
 
   Future<void> _schedule() async {
-    await _writeStatsToMonitor();
+    await writeStatsToMonitor();
   }
 
-  Future<void> _writeStatsToMonitor() async {
-    // Gets the list of active connections.
-    var connectionsList = InboundConnectionPool.getInstance().getConnections();
-    // Iterates on the list of active connections.
-    await Future.forEach(connectionsList, (InboundConnection connection) async {
-      // If a monitor connection is stale for 15 seconds,
-      // Writes the lastCommitID to the monitor connection
-      if (connection.isMonitor != null &&
-          connection.isMonitor! &&
-          DateTime.now()
-                  .toUtc()
-                  .difference(connection.getMetaData().lastAccessed!)
-                  .inSeconds >=
-              AtSecondaryConfig.statsNotificationJobTimeInterval) {
-        //Construct a stats notification
-        var atNotificationBuilder = AtNotificationBuilder()
-          ..id = '-1'
-          ..fromAtSign = _currentAtSign
-          ..notification = 'statsNotification.$_currentAtSign'
-          ..toAtSign = _currentAtSign
-          ..notificationDateTime = DateTime.now().toUtc()
-          ..opType = OperationType.update
-          ..atValue = _atCommitLog!.lastCommittedSequenceNumber().toString();
-        var notification = Notification(atNotificationBuilder.build());
-        connection
-            .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
-      }
-    });
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
+    try {
+      latestCommitID ??= _atCommitLog!.lastCommittedSequenceNumber().toString();
+      // Gets the list of active connections.
+      var connectionsList =
+          InboundConnectionPool.getInstance().getConnections();
+      // Iterates on the list of active connections.
+      await Future.forEach(connectionsList,
+          (InboundConnection connection) async {
+        // If a monitor connection is stale for 15 seconds,
+        // Writes the lastCommitID to the monitor connection
+        if (connection.isMonitor != null &&
+            connection.isMonitor! &&
+            DateTime.now()
+                    .toUtc()
+                    .difference(connection.getMetaData().lastAccessed!)
+                    .inSeconds >=
+                AtSecondaryConfig.statsNotificationJobTimeInterval) {
+          //Construct a stats notification
+          var atNotificationBuilder = AtNotificationBuilder()
+            ..id = '-1'
+            ..fromAtSign = _currentAtSign
+            ..notification = 'statsNotification.$_currentAtSign'
+            ..toAtSign = _currentAtSign
+            ..notificationDateTime = DateTime.now().toUtc()
+            ..opType = SecondaryUtil.getOperationType(operationType)
+            ..atValue = latestCommitID;
+          var notification = Notification(atNotificationBuilder.build());
+          connection.write(
+              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+        }
+      });
+    } on Exception catch (exception) {
+      _logger.severe(
+          'Exception occurred when writing stats ${exception.toString()}');
+    }
   }
 }

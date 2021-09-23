@@ -9,7 +9,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -18,7 +18,7 @@ import 'package:at_utils/at_utils.dart';
 // UpdateVerbHandler is used to process update verb
 // update can be used to update the public/private keys
 // Ex: update:public:email@alice alice@atsign.com \n
-class UpdateVerbHandler extends AbstractVerbHandler {
+class UpdateVerbHandler extends ChangeVerbHandler {
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
@@ -54,6 +54,8 @@ class UpdateVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
     var updateParams = _getUpdateParams(verbParams);
 
     try {
