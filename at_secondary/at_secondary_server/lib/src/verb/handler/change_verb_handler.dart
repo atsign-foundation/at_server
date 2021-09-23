@@ -7,6 +7,8 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// Responsible for sending the latest commitId to the StatsNotificationService.
+/// The verbHandlers responsible for generating change in keystore should extend this
+/// verbHandler to write the commitId to SDK.
 abstract class ChangeVerbHandler extends AbstractVerbHandler {
   ChangeVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
