@@ -250,13 +250,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Sends the latest commitId to the StatsNotificationService
   Future<void> _writeStats(
       int? cachedKeyCommitId, String? operationType) async {
-    try {
-      if (cachedKeyCommitId != null) {
-        await StatsNotificationService.getInstance().writeStatsToMonitor(
-            latestCommitID: '$cachedKeyCommitId', operationType: operationType);
-      }
-    } on Exception catch (exception) {
-      logger.info('Exception in writing stats ${exception.toString()}');
+    if (cachedKeyCommitId != null) {
+      await StatsNotificationService.getInstance().writeStatsToMonitor(
+          latestCommitID: '$cachedKeyCommitId', operationType: operationType);
     }
   }
 }
