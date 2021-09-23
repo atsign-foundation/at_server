@@ -65,10 +65,11 @@ class StatsNotificationService {
   }
 
   Future<void> _schedule() async {
-    await _writeStatsToMonitor();
+    await writeStatsToMonitor();
   }
 
-  Future<void> _writeStatsToMonitor() async {
+  Future<void> writeStatsToMonitor({String? latestCommitID}) async {
+    latestCommitID ??= _atCommitLog!.lastCommittedSequenceNumber().toString();
     // Gets the list of active connections.
     var connectionsList = InboundConnectionPool.getInstance().getConnections();
     // Iterates on the list of active connections.
@@ -90,7 +91,7 @@ class StatsNotificationService {
           ..toAtSign = _currentAtSign
           ..notificationDateTime = DateTime.now().toUtc()
           ..opType = OperationType.update
-          ..atValue = _atCommitLog!.lastCommittedSequenceNumber().toString();
+          ..atValue = latestCommitID;
         var notification = Notification(atNotificationBuilder.build());
         connection
             .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
