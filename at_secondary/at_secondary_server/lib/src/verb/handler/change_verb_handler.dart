@@ -12,7 +12,7 @@ abstract class ChangeVerbHandler extends AbstractVerbHandler {
 
   Response? _responseInternal;
 
-  /// Delegates call to the
+  /// Delegates call to the [AbstractVerbHandler] to process the verb and call [StatsNotificationService]
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
     await super.process(command, atConnection);
@@ -25,6 +25,7 @@ abstract class ChangeVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  /// Sets [Response] to [_responseInternal]
   @override
   Future<void> processVerb(
       Response response,
