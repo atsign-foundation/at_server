@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -228,8 +229,7 @@ class DiskSizeMetricImpl implements MetricProvider {
     // In the loop iterating recursively into sub-directories and gets the size of each file using lengthSync
     storageLocation.listSync(recursive: true).forEach((file) {
       if (file is File) {
-        diskSize =
-            diskSize + File(file.path).lengthSync();
+        diskSize = diskSize + File(file.path).lengthSync();
       }
     });
     //Return total size
@@ -244,7 +244,7 @@ class DiskSizeMetricImpl implements MetricProvider {
   String formatBytes(int bytes, int decimals) {
     if (bytes <= 0) return '0 B';
     const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    var i = (log(bytes)/ log(1024)).floor();
+    var i = (log(bytes) / log(1024)).floor();
     return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) +
         ' ' +
         suffixes[i];
@@ -252,8 +252,7 @@ class DiskSizeMetricImpl implements MetricProvider {
 }
 
 class LastPkamMetricImpl implements MetricProvider {
-  static final LastPkamMetricImpl _singleton =
-  LastPkamMetricImpl._internal();
+  static final LastPkamMetricImpl _singleton = LastPkamMetricImpl._internal();
 
   LastPkamMetricImpl._internal();
 
@@ -266,7 +265,9 @@ class LastPkamMetricImpl implements MetricProvider {
     AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastPkamAccessLogEntry();
-    return (entry!= null) ? entry.requestDateTime!.toUtc().toString() : 'Not Available';
+    return (entry != null)
+        ? entry.requestDateTime!.toUtc().toString()
+        : 'Not Available';
   }
 
   @override

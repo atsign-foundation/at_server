@@ -1,3 +1,9 @@
+## 3.0.1
+- Fix null aware issue in sync verb handlers
+## 3.0.0
+- Sync Pagination feature
+## 2.0.7
+- Reinitialize hive boxes on certs reload
 ## 2.0.6
 - Fix for hive box closed issue
 ## 2.0.5

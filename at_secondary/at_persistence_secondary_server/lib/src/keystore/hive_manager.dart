@@ -75,7 +75,7 @@ class HivePersistenceManager {
         logger.finer(
             'AtPersistence.openVault opened Hive box:' + _box.toString());
       }
-      if(_box!.isOpen){
+      if (_box!.isOpen) {
         logger.info('KeyStore initialized successfully');
       }
     } on Exception catch (exception) {
@@ -148,7 +148,7 @@ class HivePersistenceManager {
   /// Closes the secondary keystore.
   Future<void> close() async {
     await box!.close();
-    if(!_box!.isOpen){
+    if (!_box!.isOpen) {
       logger.info('Hive Keystore closed successfully');
     }
   }

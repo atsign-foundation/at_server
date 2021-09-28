@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -143,7 +144,7 @@ class SecondaryUtil {
     }
   }
 
-  OperationType getOperationType(String? type) {
+  static OperationType getOperationType(String? type) {
     if (type == null) {
       return OperationType.update;
     }

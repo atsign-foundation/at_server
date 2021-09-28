@@ -11,8 +11,8 @@ environment:
 
 dependencies:
   at_persistence_spec: ^2.0.0
-  at_utils: ^2.0.4
-  at_commons: ^2.0.4
+  at_utils: ^3.0.0
+  at_commons: ^3.0.0
   redis: ^2.0.0
 
 dev_dependencies:

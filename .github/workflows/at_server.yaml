@@ -155,7 +155,7 @@ jobs:
         run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
 
       - name: Build docker image
-        uses: docker/build-push-action@v2.6.1
+        uses: docker/build-push-action@v2.7.0
         with:
           file: at_functional_test/lib/Dockerfile
           context: at_functional_test/lib/
@@ -208,11 +208,15 @@ jobs:
         with:
           sdk: stable
 
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.5.1
+        uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.10.0
@@ -223,7 +227,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.6.1
+        uses: docker/build-push-action@v2.7.0
         with:
           push: true
           context: at_secondary
@@ -271,6 +275,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -279,7 +287,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.5.1
+        uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.10.0
@@ -304,7 +312,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push for trunk branch
         id: docker_build_trunk
-        uses: docker/build-push-action@v2.6.1
+        uses: docker/build-push-action@v2.7.0
         with:
           push: true
           context: at_functional_test/lib/
@@ -317,9 +325,9 @@ jobs:
 
   # This job run's on trigger event 'push' to trunk branch.
   # The job builds the staging version of secondary server image and pushes to docker hub.
-  # The jobs run's on completion of 'run_end2end_tests' job.
+  # The job runs on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
-    # Runs only after functional tests are completed.
+    # Runs only after full test suite has completed.
     needs: [ unit_tests, functional_tests, end2end_tests ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
@@ -330,6 +338,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -338,7 +350,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.5.1
+        uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.10.0
@@ -376,7 +388,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.6.1
+        uses: docker/build-push-action@v2.7.0
         with:
           push: true
           context: at_secondary
@@ -390,6 +402,86 @@ jobs:
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
+
+  # This job run's on trigger event 'push' to trunk branch.
+  # The job builds the staging version of observable secondary server image and pushes to docker hub.
+  # The job runs on completion of 'run_end2end_tests' job.
+  push_staging_observable_secondary_image:
+    # Runs only after full test suite has completed.
+    needs: [ unit_tests, functional_tests, end2end_tests ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
+    environment: staging
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Place run number into version within pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+
+      # Extract branch for docker tag
+      - name: Get branch name
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.6.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.10.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Setup python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # Install python packages
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install jproperties ruamel.yaml argparse
+
+      # Generates the config.yaml for staging environment
+      - name: Generates configuration file
+        working-directory: at_secondary/at_secondary_server/config
+        run: |
+          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
+          chmod +x generate_config.py
+          python3 generate_config.py -e environment
+
+      # Gets the secondary server binary generated from the above "secondary" job.
+      - name: Get secondary server
+        uses: actions/download-artifact@v2
+        with:
+          name: secondary-server
+          path: at_secondary/at_secondary_server
+
+      # Builds and pushes the secondary server image to docker hub.
+      - name: Build and push secondary image for amd64 and arm64
+        id: docker_build_observable_secondary
+        uses: docker/build-push-action@v2.7.0
+        with:
+          push: true
+          file: ./at_secondary/Dockerfile.observe
+          context: at_secondary
+          tags: |
+            atsigncompany/secondary:dev_obs
+            atsigncompany/secondary:dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest of secondary server
+        run: echo ${{ steps.docker_build_observable_secondary.outputs.digest }}
 
   # The below jobs run's on completion of 'run_end2end_tests' job.
   # This job run's on trigger event 'push' and when a release is tagged.
@@ -413,7 +505,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.5.1
+        uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.10.0
@@ -431,7 +523,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.6.1
+        uses: docker/build-push-action@v2.7.0
         with:
           push: true
           context: at_secondary
