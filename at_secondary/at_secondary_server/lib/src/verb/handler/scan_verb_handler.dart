@@ -84,10 +84,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
             : [];
         logger.finer('keysArray : $keysArray, ${keysArray?.length}');
         if (page == null) {
-          response.data = keyString;
+          response.data = keysArray.toString();
         } else {
-          response.data =
+          var pageResult =
               _prepareLocalKeysResponse(int.parse(page), keysArray);
+          response.data = pageResult?.split(',').toString();
         }
       }
     } on Exception catch (e) {
@@ -155,7 +156,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
         keyString = jsonEncode(keys).replaceAll('public:', '');
       }
     }
-    print('keys type : ${keys.runtimeType}');
     return keyString;
   }
 
@@ -178,14 +178,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
       var end_index = (start_index + 10 > keys.length)
           ? keys.length - 1
           : (start_index + 10);
-      result['keys'] = jsonEncode(keys.sublist(start_index, end_index));
+      result['keys'] = keys.sublist(start_index, end_index);
     } else {
-      result['keys'] = jsonEncode([]);
+      result['keys'] = [];
     }
     result['totalPages'] =
         (keys.length) ~/ 10 + ((keys.length) % 10 > 0 ? 1 : 0);
     result['keysPerPage'] = 10;
     result['currentPage'] = page;
-    return jsonEncode(result);
+    return result.toString();
   }
 }
