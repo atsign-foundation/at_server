@@ -3,7 +3,7 @@ at_persistence_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_persistence/at_persistence_spec
-    ref: sync_stream_changes
+    ref: trunk
 at_utils:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
@@ -13,14 +13,14 @@ at_commons:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
     path: at_commons
-    ref: scan_with_pagination
+    ref: trunk
 at_persistence_secondary_server:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_secondary/at_persistence_secondary_server
-    ref: sync_stream_changes
+    ref: trunk
 at_server_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_server_spec
-    ref: sync_stream_changes
+    ref: trunk

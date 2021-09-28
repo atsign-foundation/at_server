@@ -40,8 +40,6 @@ class DefaultResponseHandlerManager implements ResponseHandlerManager {
       return _streamHandler;
     } else if (verb is NotifyAll) {
       return _notifyAllHandler;
-    } else if (verb is SyncStream) {
-      return _syncStreamHandler;
     }
     return _defaultHandler;
   }
