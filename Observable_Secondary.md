@@ -67,6 +67,34 @@ http://buzz.lb.atsign.zone:13124/TUyGYPx5FtI=
 
 The same URL can be used in [Dart DevTools](https://dart.dev/tools/dart-devtools).
 
+## To return it back to normal
+
+### Switch back to the regular image
+
+```bash
+sudo docker service update --image \
+reg.buzz.do-sf2.atsign.zone/atsigncompany/secondary:dev_env \
+$MYSECONDARY
+```
+
+### Return to usual memory limit
+
+```bash
+sudo docker service update --limit-memory 50M $MYSECONDARY
+```
+
+### Remove additional port map
+
+```bash
+sudo docker service update --publish-rm 8181 $MYSECONDARY
+```
+
+### Check that secondary is responsive
+
+```bash
+~cconstab/seccheck/checksecondary.expect $MYPORT
+```
+
 ## Some other useful commands
 
 ### Get the container ID
