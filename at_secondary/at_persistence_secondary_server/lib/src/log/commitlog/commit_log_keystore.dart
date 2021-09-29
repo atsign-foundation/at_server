@@ -1,4 +1,6 @@
+import 'dart:collection';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
@@ -13,6 +15,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   Box? box;
   String? storagePath;
   final _currentAtSign;
+  final _commitLogCacheMap = <String, CommitEntry>{};
 
   CommitLogKeyStore(this._currentAtSign);
 
@@ -37,6 +40,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     if (box != null && box!.isOpen) {
       logger.info('Keystore initialized successfully');
     }
+    // Cache the latest commitId of each key.
+    _commitLogCacheMap.addAll(_getCommitIdMap());
   }
 
   /// Closes the [commitLogKeyStore] instance.
@@ -70,6 +75,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         commitEntry!.commitId = internalKey;
         // update entry with commitId
         await box!.put(internalKey, commitEntry);
+        // update the commitId in cache commitMap.
+        _updateCacheLog(commitEntry.atKey!, commitEntry);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -267,5 +274,50 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
       result = true;
     }
     return result;
+  }
+
+  /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
+  /// Called in init method of commitLog to initialize on server start-up.
+  Map<String, CommitEntry> _getCommitIdMap() {
+    var keyMap = <String, CommitEntry>{};
+    box!.values.forEach((entry) {
+      // If keyMap contains the key, update the commitId in the map with greater commitId.
+      if (keyMap.containsKey(entry.atKey)) {
+        keyMap[entry.atKey]!.commitId =
+            max(keyMap[entry.atKey]!.commitId!, entry.commitId);
+      } else {
+        keyMap[entry.atKey] = entry;
+      }
+    });
+    return keyMap;
+  }
+
+  /// Updates the commitId of the key.
+  void _updateCacheLog(String key, CommitEntry commitEntry) {
+    _commitLogCacheMap[key] = commitEntry;
+  }
+
+  /// Returns the latest commitEntry of the key.
+  CommitEntry? getLatestCommitEntry(String key) {
+    if (_commitLogCacheMap.containsKey(key)) {
+      return _commitLogCacheMap[key]!;
+    }
+  }
+
+  /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
+  Iterator getEntries(int commitId, {String regex = '.*'}) {
+    // Sorts the keys by commitId in ascending order.
+    var sortedKeys = _commitLogCacheMap.keys.toList()
+      ..sort((k1, k2) => _commitLogCacheMap[k1]!
+          .commitId!
+          .compareTo(_commitLogCacheMap[k2]!.commitId!));
+
+    var sortedMap = LinkedHashMap.fromIterable(sortedKeys,
+        key: (k) => k, value: (k) => _commitLogCacheMap[k]);
+    // Remove the keys that does not match regex or commitId of the key
+    // less than the commitId specified in the argument.
+    sortedMap.removeWhere((key, value) =>
+        !_isRegexMatches(key, regex) || value!.commitId! < commitId);
+    return sortedMap.entries.iterator;
   }
 }

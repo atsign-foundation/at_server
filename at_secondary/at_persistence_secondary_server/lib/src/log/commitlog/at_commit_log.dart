@@ -148,8 +148,22 @@ class AtCommitLog implements AtLogType {
     return _commitLogKeyStore.getSize();
   }
 
+  /// Returns the latest commitEntry of the key.
+  CommitEntry? getLatestCommitEntry(String key) {
+    return _commitLogKeyStore.getLatestCommitEntry(key);
+  }
+
   /// Closes the [CommitLogKeyStore] instance.
   Future<void> close() async {
     await _commitLogKeyStore.close();
+  }
+
+  /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
+  Iterator getEntries(int commitId, {String? regex}) {
+    // If regex is null or isEmpty set regex to match all keys
+    if (regex == null || regex.isEmpty) {
+      regex = '.*';
+    }
+    return _commitLogKeyStore.getEntries(commitId, regex: regex);
   }
 }
