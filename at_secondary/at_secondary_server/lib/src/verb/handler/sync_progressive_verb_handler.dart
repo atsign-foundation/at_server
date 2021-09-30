@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -30,16 +31,19 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var syncResponse = [];
-    var syncBuffer = ByteBuffer(capacity: 5242880);
+    var syncBuffer = ByteBuffer(capacity: AtSecondaryConfig.syncBufferSize);
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var itr = atCommitLog!
-        .getEntries(int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1, regex: verbParams['regex']);
+    var itr = atCommitLog!.getEntries(
+        int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
+        regex: verbParams['regex']);
     // Iterates on all the elements in iterator
     // Loop breaks when the [syncBuffer] reaches the limit.
-    while (itr.moveNext()) {
+    // and when syncResponse length equals the [AtSecondaryConfig.syncPageLimit]
+    while (itr.moveNext() &&
+        syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
       keyStoreEntry.key = itr.current.key;
       keyStoreEntry.commitId = itr.current.value.commitId;

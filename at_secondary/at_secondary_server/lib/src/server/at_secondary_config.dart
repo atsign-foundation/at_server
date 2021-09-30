@@ -69,6 +69,10 @@ class AtSecondaryConfig {
   //StatsNotificationService
   static final int _statsNotificationJobTimeInterval = 15;
 
+  //Sync Configurations
+  static final int _syncBufferSize = 5242880;
+  static final int _syncPageLimit = 100;
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -518,6 +522,30 @@ class AtSecondaryConfig {
           ['notification', 'statsNotificationJobTimeInterval']);
     } on ElementNotFoundException {
       return _statsNotificationJobTimeInterval;
+    }
+  }
+
+  static int get syncBufferSize {
+    var result = _getIntEnvVar('syncBufferSize');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['sync', 'bufferSize']);
+    } on ElementNotFoundException {
+      return _syncBufferSize;
+    }
+  }
+
+  static int get syncPageLimit {
+    var result = _getIntEnvVar('syncPageLimit');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['sync', 'pageLimit']);
+    } on ElementNotFoundException {
+      return _syncPageLimit;
     }
   }
 
