@@ -103,6 +103,31 @@ class SyncVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  void logResponse(String response) {
+    try {
+      var parsedResponse = '';
+      final responseJson = jsonDecode(response);
+      for (var syncRecord in responseJson) {
+        if (syncRecord['metadata'] != null &&
+            syncRecord['metadata']['isBinary'] != null &&
+            syncRecord['metadata']['isBinary'] == 'true') {
+          final newRecord = {};
+          newRecord['atKey'] = syncRecord['atKey'];
+          newRecord['operation'] = syncRecord['operation'];
+          newRecord['commitId'] = syncRecord['commitId'];
+          newRecord['metadata'] = syncRecord['metadata'];
+          parsedResponse += newRecord.toString();
+        } else {
+          parsedResponse += syncRecord.toString();
+        }
+      }
+      logger.finer('sync response: $parsedResponse');
+    } on Exception catch (e, trace) {
+      logger.severe('exception logging sync response: ${e.toString()}');
+      logger.severe(trace);
+    }
+  }
+
   void populateMetadata(value, resultMap) {
     var metaDataMap = <String, dynamic>{};
     AtMetaData? metaData = value?.metaData;
