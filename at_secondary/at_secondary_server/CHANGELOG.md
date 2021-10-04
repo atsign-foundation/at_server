@@ -1,3 +1,5 @@
+## 3.0.2
+- Remove logging of binary data in server logs
 ## 3.0.1
 - Fix null aware issue in sync verb handlers
 ## 3.0.0
