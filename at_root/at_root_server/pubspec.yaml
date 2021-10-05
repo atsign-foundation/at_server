@@ -25,5 +25,5 @@ dependencies:
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
   test_cov: ^1.0.1
-  pedantic: ^1.11.0
+  lints: ^1.0.1
   test: ^1.17.3
