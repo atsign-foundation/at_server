@@ -12,7 +12,7 @@ void main() {
   Socket _socket;
 
   test('checking for test environment readiness', () async {
-    var root_server = ConfigUtil.getYaml()['root_server']['url'];
+    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
     await Future.delayed(Duration(seconds: 10));
     _socket = await secure_socket_connection(root_server, atsign_port);
     if (_socket != null) {

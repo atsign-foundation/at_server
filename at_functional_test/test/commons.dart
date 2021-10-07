@@ -63,7 +63,7 @@ Future<void> prepare(Socket socket, String atsign) async {
   var response = await read();
   print('From verb response $response');
   response = response.replaceAll('data:', '');
-  //var pkam_digest = generatePKAMDigest(atsign, response);
+  // var pkam_digest = generatePKAMDigest(atsign, response);
   var cram = getDigest(atsign, response);
 
   // PKAM VERB

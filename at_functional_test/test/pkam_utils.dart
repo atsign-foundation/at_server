@@ -1,23 +1,24 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:crypton/crypton.dart';
 
 import 'at_demo_data.dart';
 
-String generatePKAMDigest(String atsign, String challenge) {
+Future<String> generatePKAMDigest(String atsign, String? challenge) async {
   var privateKey = pkamPrivateKeyMap[atsign];
-  privateKey = privateKey.trim();
+  privateKey = privateKey!.trim();
   var key = RSAPrivateKey.fromString(privateKey);
-  challenge = challenge.trim();
-  var sign = key.createSHA256Signature(utf8.encode(challenge));
+  challenge = challenge!.trim();
+  var sign = key.createSHA256Signature(utf8.encode(challenge) as Uint8List);
   return base64Encode(sign);
 }
 
 /// Returns the digest of the user.
 String getDigest(String atsign, String key) {
   var secret = cramKeyMap[atsign];
-  secret = secret.trim();
+  secret = secret!.trim();
   var challenge = key;
   challenge = challenge.trim();
   var combo = '$secret$challenge';

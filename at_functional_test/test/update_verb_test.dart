@@ -7,40 +7,40 @@ import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
   var first_atsign =
-      ConfigUtil.getYaml()['first_atsign_server']['first_atsign_name'];
+      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
   var second_atsign =
-      ConfigUtil.getYaml()['second_atsign_server']['second_atsign_name'];
+      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
-  Socket _socket_first_atsign;
-  Socket _socket_second_atsign;
+  Socket? _socket_first_atsign;
+  Socket? _socket_second_atsign;
 
   //Establish the client socket connection
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
     var first_atsign_port =
-        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_port'];
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-    var second_atsign_server = ConfigUtil.getYaml()['root_server']['url'];
+    var second_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
     var second_atsign_port =
-        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_port'];
+        ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
 
     // socket connection for first atsign
     _socket_first_atsign =
         await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign);
-    await prepare(_socket_first_atsign, first_atsign);
+    socket_listener(_socket_first_atsign!);
+    await prepare(_socket_first_atsign!, first_atsign);
 
     //Socket connection for second atsign
     _socket_second_atsign = await secure_socket_connection(
         second_atsign_server, second_atsign_port);
-    socket_listener(_socket_second_atsign);
-    await prepare(_socket_second_atsign, second_atsign);
+    socket_listener(_socket_second_atsign!);
+    await prepare(_socket_second_atsign!, second_atsign);
   });
 
   test('update-llookup verb with public key', () async {
     /// UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:location$first_atsign Hyderabad');
+        _socket_first_atsign!, 'update:public:location$first_atsign Hyderabad');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -48,7 +48,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:location$first_atsign');
+        _socket_first_atsign!, 'llookup:public:location$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:Hyderabad'));
@@ -56,7 +56,7 @@ void main() {
 
   test('update-llookup with private key', () async {
     /// UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:$second_atsign:country$first_atsign India');
     var response = await read();
     print('update verb response $response');
@@ -65,13 +65,13 @@ void main() {
 
     ///LLOOKUP VERB - with @sign returns value
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:country$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:country$first_atsign');
     response = await read();
     print('llookup verb response with private key in llookup verb: $response');
     expect(response, contains('data:India'));
 
     ///LLOOKUP VERB - with out @sign does not return value.
-    await socket_writer(_socket_first_atsign, 'llookup:country$first_atsign');
+    await socket_writer(_socket_first_atsign!, 'llookup:country$first_atsign');
     response = await read();
     print(
         'llookup verb response without private key in llookup verb: $response');
@@ -81,7 +81,7 @@ void main() {
   test('update verb with special characters', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:passcode$first_atsign @!ice^&##');
+        _socket_first_atsign!, 'update:public:passcode$first_atsign @!ice^&##');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -89,7 +89,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:passcode$first_atsign');
+        _socket_first_atsign!, 'llookup:public:passcode$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:@!ice^&##'));
@@ -98,7 +98,7 @@ void main() {
   test('update verb with unicode characters', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:unicode$first_atsign U+0026');
+        _socket_first_atsign!, 'update:public:unicode$first_atsign U+0026');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -106,7 +106,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:unicode$first_atsign');
+        _socket_first_atsign!, 'llookup:public:unicode$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:U+0026'));
@@ -114,7 +114,7 @@ void main() {
 
   test('update verb with spaces ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:public:message$first_atsign Hey Hello! welcome to the tests');
     var response = await read();
     print('update verb response : $response');
@@ -123,7 +123,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:message$first_atsign');
+        _socket_first_atsign!, 'llookup:public:message$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:Hey Hello! welcome to the tests'));
@@ -132,7 +132,7 @@ void main() {
   test('updating same key with different values and doing a llookup ',
       () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:public:message$first_atsign Hey Hello! welcome to the tests');
     var response = await read();
     print('update verb response : $response');
@@ -141,12 +141,12 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:message$first_atsign');
+        _socket_first_atsign!, 'llookup:public:message$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:Hey Hello! welcome to the tests'));
 
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:public:message$first_atsign Hope you are doing good');
     response = await read();
     print('update verb response : $response');
@@ -155,7 +155,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:message$first_atsign');
+        _socket_first_atsign!, 'llookup:public:message$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:Hope you are doing good'));
@@ -164,7 +164,7 @@ void main() {
   test('update verb without value should throw a error ', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:key-1$first_atsign');
+        _socket_first_atsign!, 'update:public:key-1$first_atsign');
     var response = await read();
     print('update verb response : $response');
     expect(response, contains('Invalid syntax'));
@@ -173,7 +173,7 @@ void main() {
   test('update verb by passing emoji as value ', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:emoji$first_atsign 🦄');
+        _socket_first_atsign!, 'update:public:emoji$first_atsign 🦄');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -181,7 +181,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:emoji$first_atsign');
+        _socket_first_atsign!, 'llookup:public:emoji$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:🦄'));
@@ -190,7 +190,7 @@ void main() {
   test('update verb by passing japanese input as value ', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:japanese$first_atsign "パーニマぱーにま"');
+        _socket_first_atsign!, 'update:public:japanese$first_atsign "パーニマぱーにま"');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -198,7 +198,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:public:japanese$first_atsign');
+        _socket_first_atsign!, 'llookup:public:japanese$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:"パーニマぱーにま"'));
@@ -206,7 +206,7 @@ void main() {
 
   test('update verb by sharing a cached key ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:ttr:-1:$second_atsign:yt$first_atsign john');
     var response = await read();
     print('update verb response : $response');
@@ -215,7 +215,7 @@ void main() {
 
     ///LLOOKUP VERB in the same secondary
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:yt$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:yt$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:john'));
@@ -223,7 +223,7 @@ void main() {
     //LOOKUP VERB in the shared secondary
     await Future.delayed(Duration(seconds: 15));
     await socket_writer(
-        _socket_second_atsign, 'llookup:cached:$second_atsign:yt$first_atsign');
+        _socket_second_atsign!, 'llookup:cached:$second_atsign:yt$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:john'));
@@ -232,7 +232,7 @@ void main() {
   test('update verb by passing 2 @ symbols ', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:public:country@$first_atsign USA');
+        _socket_first_atsign!, 'update:public:country@$first_atsign USA');
     var response = await read();
     print('update verb response : $response');
     assert(response.contains('Invalid syntax'));
@@ -241,7 +241,7 @@ void main() {
   test('update-llookup for private key for an emoji atsign ', () async {
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign, 'update:@🦄:emoji.name$first_atsign unicorn');
+        _socket_first_atsign!, 'update:@🦄:emoji.name$first_atsign unicorn');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -249,7 +249,7 @@ void main() {
 
     ///LLOOKUP VERB
     await socket_writer(
-        _socket_first_atsign, 'llookup:@🦄:emoji.name$first_atsign');
+        _socket_first_atsign!, 'llookup:@🦄:emoji.name$first_atsign');
     response = await read();
     print('llookup verb response : $response');
     expect(response, contains('data:unicorn'));
@@ -257,7 +257,7 @@ void main() {
 
   test('update-llookup for ttl ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:ttl:3000:$second_atsign:offer$first_atsign 3seconds');
     var response = await read();
     print('update verb response : $response');
@@ -266,21 +266,22 @@ void main() {
 
     ///LLOOKUP:META verb
     await socket_writer(
-        _socket_first_atsign, 'llookup:meta:$second_atsign:offer$first_atsign');
+        _socket_first_atsign!, 'llookup:meta:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup meta response : $response');
     expect(response, contains('"ttl":3000'));
 
     ///LLOOKUP VERB - Before 10  seconds
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup verb response before 3 seconds : $response');
     expect(response, contains('data:3seconds'));
 
     ///LLOOKUP VERB - After 10 seconds
+    await Future.delayed(Duration(seconds: 1));
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:offer$first_atsign');
     response = await read();
     print('llookup verb response after 3 seconds : $response');
     expect(response, contains('data:null'));
@@ -288,7 +289,7 @@ void main() {
 
   test('update-llookup for ttb ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
+    await socket_writer(_socket_first_atsign!,
         'update:ttb:2000:$second_atsign:auth-code$first_atsign 3289');
     var response = await read();
     print('update verb response : $response');
@@ -297,20 +298,21 @@ void main() {
 
     ///LLOOKUP VERB - Before 10 seconds
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:auth-code$first_atsign');
     response = await read();
     print('llookup verb response before 2 seconds : $response');
     expect(response, contains('data:null'));
 
     ///LLOOKUP VERB - After 10 seconds
     await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
+        _socket_first_atsign!, 'llookup:$second_atsign:auth-code$first_atsign');
     response = await read();
     print('llookup verb response after 2 seconds : $response');
     expect(response, contains('data:3289'));
 
     ///LLookup:META FOR TTB
-    await socket_writer(_socket_first_atsign,
+    await Future.delayed(Duration(seconds: 2));
+    await socket_writer(_socket_first_atsign!,
         'llookup:meta:$second_atsign:auth-code$first_atsign');
     // await Future.delayed(Duration(seconds: 5));
     response = await read();
@@ -321,7 +323,7 @@ void main() {
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign.destroy();
-    _socket_second_atsign.destroy();
+    _socket_first_atsign!.destroy();
+    _socket_second_atsign!.destroy();
   });
 }

@@ -4,7 +4,7 @@ description: A starting point for Dart libraries or applications.
 # homepage: https://www.example.com
 
 environment:
-  sdk: '>=2.10.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
   at_demo_data:
@@ -12,16 +12,27 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup: ^2.0.3
-  at_client: ^2.0.3
+  at_lookup: ^3.0.3 
+  at_client: ^3.0.3 
   
 
-#dependency_overrides:
+# dependency_overrides:
+#  at_client:
+#   git:
+#       url: https://github.com/atsign-foundation/at_client_sdk.git
+#       path: at_client
+#       ref: trunk
 #  at_lookup:
-#    path: ../../at_libraries/at_lookup
-#  at_utils:
-#    path: ../../at_tools/at_utils
+#    git:
+#       url: https://github.com/atsign-foundation/at_libraries.git
+#       path: at_lookup
+#       ref: trunk
+#  at_utils: 
+#     git:
+#       url: https://github.com/atsign-foundation/at_tools.git
+#       path: at_utils
+#       ref: trunk
 
 dev_dependencies:
   pedantic: ^1.9.0
-  test: ^1.14.4
+  test: ^1.17.12
