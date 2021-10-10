@@ -149,7 +149,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = _getBox().keys.length;
-    return totalKeys!;
+    return totalKeys;
   }
 
   /// Gets the first 'N' keys from the logs

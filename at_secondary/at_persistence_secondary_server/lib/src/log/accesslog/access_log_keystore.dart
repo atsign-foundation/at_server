@@ -83,7 +83,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = _getBox().keys.length;
-    return totalKeys!;
+    return totalKeys;
   }
 
   /// Returns the list of expired keys.
