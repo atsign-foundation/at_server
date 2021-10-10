@@ -75,7 +75,16 @@ class SyncFromVerbHandler extends SyncVerbHandler {
     var distinctKeys = <String>{};
     //sort log by commitId descending
     commit_changes?.sort((CommitEntry entry1, CommitEntry entry2) =>
-        entry2.commitId!.compareTo(entry1.commitId!));
+        sort(entry1.commitId, entry2.commitId));
+    // Remove the entries with commit id is null.
+    commit_changes?.removeWhere((element) {
+      if (element.commitId == null) {
+        logger.severe(
+            '${element.atKey} commitId is null. Ignoring the commit entry');
+        return true;
+      }
+      return false;
+    });
     // for each latest key entry in commit log, get the value
     if (commit_changes != null) {
       await Future.forEach(commit_changes,

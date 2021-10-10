@@ -15,7 +15,6 @@ abstract class BaseResponseHandler implements ResponseHandler {
 
   @override
   Future<void> process(AtConnection connection, Response response) async {
-    logger.finer('Got response: $response');
     var result = response.data;
     try {
       if (response.isError || response.isStream) {
