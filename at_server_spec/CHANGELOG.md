@@ -1,3 +1,5 @@
+## 3.0.0
+- Sync pagination feature
 ## 2.0.5
 - at_commons version change for last notification time in monitor
 ## 2.0.4
