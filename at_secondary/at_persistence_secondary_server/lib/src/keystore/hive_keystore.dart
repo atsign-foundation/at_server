@@ -29,7 +29,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.box?.get(hive_key);
+      value = await persistenceManager.getBox().get(hive_key);
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
@@ -95,7 +95,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             dataSignature: dataSignature);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
-        await persistenceManager.box?.put(hive_key, hive_value);
+        await persistenceManager.getBox().put(hive_key, hive_value);
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -157,7 +157,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
 
     try {
-      await persistenceManager.box?.put(hive_key, hive_data);
+      await persistenceManager.getBox().put(hive_key, hive_data);
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -174,7 +174,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> remove(String key) async {
     var result;
     try {
-      await persistenceManager.box?.delete(Utf7.encode(key));
+      await persistenceManager.getBox().delete(Utf7.encode(key));
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
     } on Exception catch (exception) {
@@ -248,13 +248,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     var encodedKeys;
 
     try {
-      if (persistenceManager.box != null) {
+      if (persistenceManager.getBox() != null) {
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
-          encodedKeys = persistenceManager.box.keys
+          encodedKeys = persistenceManager
+              .getBox()
+              .keys
               .where((element) => Utf7.decode(element).contains(RegExp(regex)));
         } else {
-          encodedKeys = persistenceManager.box.keys.toList();
+          encodedKeys = persistenceManager.getBox().keys.toList();
         }
         encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
       }
@@ -276,7 +278,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<AtMetaData?> getMeta(String key) async {
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      var value = await persistenceManager.box?.get(hive_key);
+      var value = await persistenceManager.getBox().get(hive_key);
       if (value != null) {
         return value.metaData;
       }
@@ -306,7 +308,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         version = 0;
       }
       metadata.version = version;
-      await persistenceManager.box?.put(hive_key, value);
+      await persistenceManager.getBox().put(hive_key, value);
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -338,7 +340,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       newData.metaData?.version = version;
 
-      await persistenceManager.box?.put(hive_key, newData);
+      await persistenceManager.getBox().put(hive_key, newData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
     } on HiveError catch (error) {
@@ -351,7 +353,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   ///Restarts the hive box.
   Future<void> _restartHiveBox(Error e) async {
     // If hive box closed, reopen the box.
-    if (e is HiveError && !persistenceManager.box?.isOpen) {
+    if (e is HiveError && !persistenceManager.getBox().isOpen) {
       logger.info('Hive box closed. Restarting the hive box');
       await persistenceManager.openVault(persistenceManager.atsign!);
     }
