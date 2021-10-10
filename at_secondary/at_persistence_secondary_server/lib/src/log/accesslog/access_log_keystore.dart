@@ -11,21 +11,21 @@ export 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
-  LazyBox? box;
   String? storagePath;
   final _currentAtSign;
+  late String _boxName;
 
   AccessLogKeyStore(this._currentAtSign);
 
   Future<void> init(String storagePath) async {
-    var boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    box = await Hive.openLazyBox(boxName);
+    await Hive.openLazyBox(_boxName);
     this.storagePath = storagePath;
-    if (box != null && box!.isOpen) {
+    if (_getBox().isOpen) {
       logger.info('Keystore initialized successfully');
     }
   }
@@ -34,7 +34,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   Future add(AccessLogEntry? accessLogEntry) async {
     var result;
     try {
-      result = await box!.add(accessLogEntry);
+      result = await _getBox().add(accessLogEntry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
@@ -48,7 +48,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future<AccessLogEntry?> get(int key) async {
     try {
-      var accessLogEntry = await box!.get(key);
+      var accessLogEntry = await _getBox().get(key);
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
@@ -62,7 +62,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future remove(int key) async {
     try {
-      await box!.delete(key);
+      await _getBox().delete(key);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
@@ -82,7 +82,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   int entriesCount() {
     int? totalKeys = 0;
-    totalKeys = box?.keys.length;
+    totalKeys = _getBox().keys.length;
     return totalKeys!;
   }
 
@@ -90,7 +90,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   /// @param expiryInDays - The count of days after which the keys expires
   /// @return List<dynamic> - The list of expired keys.
   @override
-  Future<List> getExpired(int expiryInDays) async {
+  Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
     var now = DateTime.now().toUtc();
     var accessLogMap = await _toMap();
@@ -111,7 +111,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   List getFirstNEntries(int N) {
     var entries = [];
     try {
-      entries = box!.keys.toList().take(N).toList();
+      entries = _getBox().keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -228,10 +228,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
 
   Future<Map>? _toMap() async {
     var accessLogMap = {};
-    var keys = box!.keys;
+    var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await box!.get(key);
+      value = await _getBox().get(key);
       accessLogMap.putIfAbsent(key, () => value);
     });
     return accessLogMap;
@@ -239,6 +239,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
 
   ///Closes the [accessLogKeyStore] instance.
   void close() async {
-    await box!.close();
+    await _getBox().close();
+  }
+
+  LazyBox _getBox() {
+    return Hive.lazyBox(_boxName);
   }
 }

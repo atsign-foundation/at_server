@@ -16,9 +16,6 @@ class HivePersistenceManager {
 
   final logger = AtSignLogger('HivePersistenceManager');
 
-  LazyBox? _box;
-
-  LazyBox? get box => _box;
   String? _atsign;
 
   String? get atsign => _atsign;
@@ -55,7 +52,7 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<LazyBox?> openVault(String atsign, {List<int>? hiveSecret}) async {
+  Future<void> openVault(String atsign, {List<int>? hiveSecret}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
@@ -65,17 +62,15 @@ class HivePersistenceManager {
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      var hiveBox = await Hive.openLazyBox(_boxName,
+      await Hive.openLazyBox(_boxName,
           encryptionCipher: HiveAesCipher(hiveSecret!),
           compactionStrategy: (entries, deletedEntries) {
         return deletedEntries > 50;
       });
-      _box = hiveBox;
       if (_debug) {
-        logger.finer(
-            'AtPersistence.openVault opened Hive box:' + _box.toString());
+        logger.finer('AtPersistence.openVault opened Hive box:$_boxName');
       }
-      if (_box!.isOpen) {
+      if (_getBox().isOpen) {
         logger.info('KeyStore initialized successfully');
       }
     } on Exception catch (exception) {
@@ -83,7 +78,6 @@ class HivePersistenceManager {
     } catch (error) {
       logger.severe('AtPersistence().openVault error: $error');
     }
-    return _box;
   }
 
   Future<List<int>?> _getHiveSecretFromFile(
@@ -147,9 +141,17 @@ class HivePersistenceManager {
 
   /// Closes the secondary keystore.
   Future<void> close() async {
-    await box!.close();
-    if (!_box!.isOpen) {
+    await _getBox().close();
+    if (!_getBox().isOpen) {
       logger.info('Hive Keystore closed successfully');
     }
+  }
+
+  LazyBox _getBox() {
+    return Hive.lazyBox(_boxName);
+  }
+
+  LazyBox getBox() {
+    return Hive.lazyBox(_boxName);
   }
 }

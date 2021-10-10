@@ -11,16 +11,16 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   AtNotificationKeystore._internal();
 
+  late String _boxName;
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
-
-  late LazyBox _box;
 
   bool _register = false;
 
   Future<void> init(storagePath, boxName) async {
     Hive.init(storagePath);
+    _boxName = boxName;
     if (!_register) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
@@ -33,11 +33,11 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       }
       _register = true;
     }
-    _box = await Hive.openLazyBox(boxName);
+    await Hive.openLazyBox(boxName);
   }
 
   bool isEmpty() {
-    return _box.isEmpty;
+    return _getBox().isEmpty;
   }
 
   /// Returns a list of atNotification sorted on notification date time.
@@ -52,7 +52,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   @override
   Future<AtNotification?> get(key) async {
-    return await _box.get(key);
+    return await _getBox().get(key);
   }
 
   @override
@@ -64,7 +64,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       bool? isBinary,
       bool? isEncrypted,
       String? dataSignature}) async {
-    await _box.put(key, value);
+    await _getBox().put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
@@ -82,14 +82,15 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   @override
-  Future<bool> deleteExpiredKeys() {
-    throw UnimplementedError();
+  Future<bool> deleteExpiredKeys() async {
+    // TODO: implement deleteExpiredKeys
+    return Future.value(false);
   }
 
   @override
-  Future<List> getExpiredKeys() {
+  Future<List<dynamic>> getExpiredKeys() async {
     // TODO: implement getExpiredKeys
-    throw UnimplementedError();
+    return <dynamic>[];
   }
 
   @override
@@ -97,15 +98,15 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     var keys = <String>[];
     var encodedKeys;
 
-    if (_box.keys.isEmpty) {
+    if (_getBox().keys.isEmpty) {
       return [];
     }
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {
-      encodedKeys = _box.keys.where(
+      encodedKeys = _getBox().keys.where(
           (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
     } else {
-      encodedKeys = _box.keys.toList();
+      encodedKeys = _getBox().keys.toList();
     }
     encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
     return encodedKeys;
@@ -132,21 +133,25 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   @override
   Future remove(key) async {
     assert(key != null);
-    await _box.delete(key);
+    await _getBox().delete(key);
   }
 
   Future<void> close() async {
-    await _box.close();
+    await _getBox().close();
   }
 
   Future<Map>? _toMap() async {
     var notificationLogMap = {};
-    var keys = _box.keys;
+    var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await _box.get(key);
+      value = await _getBox().get(key);
       notificationLogMap.putIfAbsent(key, () => value);
     });
     return notificationLogMap;
+  }
+
+  LazyBox _getBox() {
+    return Hive.lazyBox(_boxName);
   }
 }
