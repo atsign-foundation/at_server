@@ -127,7 +127,7 @@ class HivePersistenceManager {
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     var cron = Cron();
-    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+    cron.schedule(Schedule.parse('*/1 * * * *'), () async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)!
           .getSecondaryKeyStore()!;
