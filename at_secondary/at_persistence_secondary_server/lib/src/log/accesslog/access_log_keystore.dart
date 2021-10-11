@@ -11,21 +11,21 @@ export 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
-  Box? box;
   String? storagePath;
   final _currentAtSign;
+  late String _boxName;
 
   AccessLogKeyStore(this._currentAtSign);
 
   Future<void> init(String storagePath) async {
-    var boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    box = await Hive.openBox(boxName);
+    await Hive.openLazyBox(_boxName);
     this.storagePath = storagePath;
-    if (box != null && box!.isOpen) {
+    if (_getBox().isOpen) {
       logger.info('Keystore initialized successfully');
     }
   }
@@ -34,7 +34,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   Future add(AccessLogEntry? accessLogEntry) async {
     var result;
     try {
-      result = await box!.add(accessLogEntry);
+      result = await _getBox().add(accessLogEntry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
@@ -48,7 +48,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future<AccessLogEntry?> get(int key) async {
     try {
-      var accessLogEntry = await box!.get(key);
+      var accessLogEntry = await _getBox().get(key);
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
@@ -62,7 +62,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future remove(int key) async {
     try {
-      await box!.delete(key);
+      await _getBox().delete(key);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
@@ -82,18 +82,19 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   int entriesCount() {
     int? totalKeys = 0;
-    totalKeys = box?.keys.length;
-    return totalKeys!;
+    totalKeys = _getBox().keys.length;
+    return totalKeys;
   }
 
   /// Returns the list of expired keys.
   /// @param expiryInDays - The count of days after which the keys expires
   /// @return List<dynamic> - The list of expired keys.
   @override
-  List<dynamic> getExpired(int expiryInDays) {
+  Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
     var now = DateTime.now().toUtc();
-    box!.toMap().forEach((key, value) {
+    var accessLogMap = await _toMap();
+    accessLogMap!.forEach((key, value) {
       if (value.requestDateTime != null &&
           value.requestDateTime
               .isBefore(now.subtract(Duration(days: expiryInDays)))) {
@@ -110,7 +111,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   List getFirstNEntries(int N) {
     var entries = [];
     try {
-      entries = box!.keys.toList().take(N).toList();
+      entries = _getBox().keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -145,10 +146,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   ///The functions returns the top [length] visited atSign's.
   ///@param - length : The maximum number of atsign's to return
   ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
-  Map mostVisitedAtSigns(int length) {
+  Future<Map> mostVisitedAtSigns(int length) async {
     var atSignMap = {};
-
-    box!.toMap().forEach((key, value) {
+    var accessLogMap = await _toMap();
+    accessLogMap!.forEach((key, value) {
       //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
       if (value.verbName == 'pol') {
         atSignMap.containsKey(value.fromAtSign)
@@ -156,6 +157,15 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
             : atSignMap[value.fromAtSign] = 1;
       }
     });
+
+    // box.toMap().forEach((key, value) {
+    //   //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
+    //   if (value.verbName == 'pol') {
+    //     atSignMap.containsKey(value.fromAtSign)
+    //         ? atSignMap[value.fromAtSign] = atSignMap[value.fromAtSign] + 1
+    //         : atSignMap[value.fromAtSign] = 1;
+    //   }
+    // });
     // Iterate over the atKeys map and sort the keys on value
     var sortedKeys = atSignMap.keys.toList(growable: false)
       ..sort((k1, k2) => atSignMap[k2].compareTo(atSignMap[k1]));
@@ -175,10 +185,10 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   ///@param length : The recent number of keys to fetch
   ///@return Map : Returns a key value pair. Key is the atsign key looked up and
   ///value is number of times the key is looked up.
-  Map mostVisitedKeys(int length) {
+  Future<Map> mostVisitedKeys(int length) async {
     var atKeys = {};
-
-    box!.toMap().forEach((key, value) {
+    var accessLogMap = await _toMap();
+    accessLogMap!.forEach((key, value) {
       //Verify the record in access entry is of from verb. To ignore the records of lookup(s)
       if (value.verbName == 'lookup' && value.lookupKey != null) {
         atKeys.containsKey(value.lookupKey)
@@ -202,23 +212,37 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   }
 
   ///Get last [AccessLogEntry] entry.
-  AccessLogEntry? getLastEntry() {
-    return box!.values.last;
+  Future<AccessLogEntry?> getLastEntry() async {
+    var accessLogMap = await _toMap();
+    return accessLogMap!.values.last;
   }
 
   ///Get last [AccessLogEntry] entry.
-  AccessLogEntry? getLastPkamEntry() {
-    var items = box!.values.toList();
+  Future<AccessLogEntry?> getLastPkamEntry() async {
+    var accessLogMap = await _toMap();
+    var items = accessLogMap!.values.toList();
     items.removeWhere((item) => (item.verbName != 'pkam'));
     items.sort((a, b) => a.requestDateTime.compareTo(b.requestDateTime));
     return (items.isNotEmpty) ? items.last : null;
   }
 
+  Future<Map>? _toMap() async {
+    var accessLogMap = {};
+    var keys = _getBox().keys;
+    var value;
+    await Future.forEach(keys, (key) async {
+      value = await _getBox().get(key);
+      accessLogMap.putIfAbsent(key, () => value);
+    });
+    return accessLogMap;
+  }
+
   ///Closes the [accessLogKeyStore] instance.
-  Future<void> close() async {
-    await box!.close();
-    if (!box!.isOpen) {
-      logger.info('Keystore closed successfully');
-    }
+  void close() async {
+    await _getBox().close();
+  }
+
+  LazyBox _getBox() {
+    return Hive.lazyBox(_boxName);
   }
 }

@@ -262,7 +262,7 @@ class OutboundClient {
     return notifyResult;
   }
 
-  List<dynamic>? notifyList(String? atSign, {bool handshake = true}) {
+  Future<List>? notifyList(String? atSign, {bool handshake = true}) async {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -270,14 +270,14 @@ class OutboundClient {
     }
     try {
       var notificationKeyStore = AtNotificationKeystore.getInstance();
-      notifyResult = notificationKeyStore.getValues();
+      notifyResult = await notificationKeyStore.getValues();
       if (notifyResult != null) {
         notifyResult.retainWhere((element) =>
             element.type == NotificationType.sent &&
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {
-      outboundConnection!.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {

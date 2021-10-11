@@ -3,7 +3,7 @@ at_persistence_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_persistence/at_persistence_spec
-    ref: trunk
+    ref: Hive_LazyBox_Impl
 at_utils:
   git:
     url: https://github.com/atsign-foundation/at_tools.git
@@ -18,9 +18,9 @@ at_persistence_secondary_server:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_secondary/at_persistence_secondary_server
-    ref: trunk
+    ref: Hive_LazyBox_Impl
 at_server_spec:
   git:
     url: https://github.com/atsign-foundation/at_server.git
     path: at_server_spec
-    ref: trunk
+    ref: Hive_LazyBox_Impl

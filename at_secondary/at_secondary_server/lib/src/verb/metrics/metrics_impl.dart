@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
+import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
@@ -69,12 +69,13 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  String getMetrics({String? regex}) {
+  Future<String> getMetrics({String? regex}) async {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
-      lastCommitID =
-          _atCommitLog.lastCommittedSequenceNumberWithRegex(regex).toString();
+      lastCommitID = _atCommitLog
+          .lastCommittedSequenceNumberWithRegex(regex)
+          .toString();
       return lastCommitID;
     }
     lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
@@ -134,7 +135,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_visits!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    return jsonEncode(atAccessLog?.mostVisitedAtSigns(length));
+    return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
   }
 
   @override
@@ -158,7 +159,7 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_keys!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    return jsonEncode(atAccessLog?.mostVisitedKeys(length));
+    return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
   }
 
   @override
@@ -200,7 +201,7 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
@@ -262,7 +263,7 @@ class LastPkamMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    AtAccessLog? atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = atAccessLog!.getLastPkamAccessLogEntry();
     return (entry != null)

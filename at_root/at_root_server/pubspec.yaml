@@ -22,6 +22,14 @@ dependencies:
   at_utils: ^3.0.0
   at_commons: ^3.0.0
 
+dependency_overrides:
+  at_server_spec:
+    path: ../../../at_server/at_server_spec
+  at_persistence_root_server:
+    path: ../../../at_server/at_root/at_persistence_root_server
+#  at_commons:
+#    path: ../../../at_tools/at_commons
+
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
   test_cov: ^1.0.1

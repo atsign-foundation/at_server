@@ -374,7 +374,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         'notifications_' +
             AtUtils.getShaForAtSign(serverContext!.currentAtSign!));
     // Loads the notifications into Map.
-    NotificationUtil.loadNotificationMap();
+    await NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
@@ -417,7 +417,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var signingPrivateKey = await keyStore
         .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
     signingKey = signingPrivateKey?.data;
-    keyStore.deleteExpiredKeys();
+    await keyStore.deleteExpiredKeys();
   }
 
   @override
