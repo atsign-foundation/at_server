@@ -1,8 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
-import 'package:hive/hive.dart';
 import 'package:at_utf7/at_utf7.dart';
+import 'package:hive/hive.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore implements SecondaryKeyStore {
@@ -137,7 +137,9 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   Future<void> close() async {
-    await _getBox().close();
+    if(_getBox().isOpen) {
+      await _getBox().close();
+    }
   }
 
   Future<Map>? _toMap() async {
