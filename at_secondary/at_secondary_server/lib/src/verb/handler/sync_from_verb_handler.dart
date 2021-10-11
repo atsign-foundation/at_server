@@ -66,7 +66,7 @@ class SyncFromVerbHandler extends SyncVerbHandler {
       atCommitLog, int fromCommitSequence, String? regex, int limit) async {
     var syncResultList = [];
     var commitChanges =
-        atCommitLog?.getChanges(fromCommitSequence, regex, limit: limit);
+        await atCommitLog?.getChanges(fromCommitSequence, regex, limit: limit);
 
     commitChanges?.removeWhere((entry) =>
         entry.atKey!.startsWith('privatekey:') ||

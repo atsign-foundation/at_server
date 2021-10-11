@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:math';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
@@ -203,7 +203,7 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
   Future<String?> getMetrics({String? regex}) async {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    var entry = atAccessLog!.getLastAccessLogEntry();
+    var entry = await atAccessLog!.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
 
@@ -265,7 +265,7 @@ class LastPkamMetricImpl implements MetricProvider {
   Future<String?> getMetrics({String? regex}) async {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    var entry = atAccessLog!.getLastPkamAccessLogEntry();
+    var entry = await atAccessLog!.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()
         : 'Not Available';
