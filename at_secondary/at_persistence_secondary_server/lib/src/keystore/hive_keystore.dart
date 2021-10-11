@@ -7,9 +7,9 @@ import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:at_utf7/at_utf7.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final logger = AtSignLogger('HiveKeystore');
@@ -216,11 +216,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     var expiredKeys = <String>[];
     try {
       var now = DateTime.now().toUtc();
-      if (persistenceManager.box != null) {
-        var keys = persistenceManager.box.keys;
+      if (persistenceManager.getBox() != null) {
+        var keys = persistenceManager.getBox().keys;
         var expired;
         await Future.forEach(keys, (key) async {
-          var value = await persistenceManager.box.get(key);
+          var value = await persistenceManager.getBox().get(key);
           if (value.metaData?.expiresAt != null &&
               value.metaData.expiresAt.isBefore(now)) {
             expired.add(key);

@@ -96,7 +96,7 @@ class AtConfig {
     var value;
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.box?.get(hive_key);
+      value = await persistenceManager.getBox()?.get(hive_key);
       return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');
@@ -136,7 +136,7 @@ class AtConfig {
     }
     logger.finest('hive key:$configKey');
     logger.finest('hive value:$newData');
-    await persistenceManager.box?.put(configKey, newData);
+    await persistenceManager.getBox()?.put(configKey, newData);
     await _commitLog.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
