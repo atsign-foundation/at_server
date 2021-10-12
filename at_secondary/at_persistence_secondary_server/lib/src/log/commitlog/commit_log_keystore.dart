@@ -1,4 +1,6 @@
+import 'dart:collection';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
@@ -39,7 +41,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
       logger.info('Keystore initialized successfully');
     }
     // Cache the latest commitId of each key.
-    _commitLogCacheMap.addAll(_getCommitIdMap());
+    _commitLogCacheMap.addAll(await _getCommitIdMap());
   }
 
   /// Closes the [commitLogKeyStore] instance.
@@ -70,6 +72,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         commitEntry!.commitId = internalKey;
         // update entry with commitId
         await _getBox().put(internalKey, commitEntry);
+        // update the commitId in cache commitMap.
+        _updateCacheLog(commitEntry.atKey!, commitEntry);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -276,9 +280,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
   /// Called in init method of commitLog to initialize on server start-up.
-  Map<String, CommitEntry> _getCommitIdMap() {
+  Future<Map<String, CommitEntry>> _getCommitIdMap() async{
     var keyMap = <String, CommitEntry>{};
-    box!.values.forEach((entry) {
+    var values = await _getValues();
+    values.forEach((entry) {
       // If keyMap contains the key, update the commitId in the map with greater commitId.
       if (keyMap.containsKey(entry.atKey)) {
         keyMap[entry.atKey]!.commitId =
