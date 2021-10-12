@@ -28,29 +28,29 @@ class SyncVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection? atConnection) async {
-    var commit_sequence = verbParams[AT_FROM_COMMIT_SEQUENCE]!;
+    var commitSequence = verbParams[AT_FROM_COMMIT_SEQUENCE]!;
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var regex = verbParams[AT_REGEX];
-    var commit_changes =
-        atCommitLog?.getChanges(int.parse(commit_sequence), regex);
+    var commitChanges =
+        await atCommitLog!.getChanges(int.parse(commitSequence), regex);
     logger.finer(
-        'number of changes since commitId: $commit_sequence is ${commit_changes?.length}');
-    commit_changes?.removeWhere((entry) =>
+        'number of changes since commitId: $commitSequence is ${commitChanges.length}');
+    commitChanges.removeWhere((entry) =>
         entry.atKey!.startsWith('privatekey:') ||
         entry.atKey!.startsWith('private:'));
     if (regex != null && regex != 'null') {
       logger.finer('regex for sync : $regex');
-      commit_changes
-          ?.removeWhere((entry) => !isRegexMatches(entry.atKey!, regex));
+      commitChanges
+          .removeWhere((entry) => !isRegexMatches(entry.atKey!, regex));
     }
     var distinctKeys = <String>{};
     var syncResultList = [];
     //sort log by commitId descending
-    commit_changes
-        ?.sort((entry1, entry2) => sort(entry1.commitId, entry2.commitId));
+    commitChanges
+        .sort((entry1, entry2) => sort(entry1.commitId, entry2.commitId));
     // Remove the entries with commit id is null.
-    commit_changes?.removeWhere((element) {
+    commitChanges.removeWhere((element) {
       if (element.commitId == null) {
         logger.severe(
             '${element.atKey} commitId is null. Ignoring the commit entry');
@@ -59,12 +59,11 @@ class SyncVerbHandler extends AbstractVerbHandler {
       return false;
     });
     // for each latest key entry in commit log, get the value
-    if (commit_changes != null) {
-      await Future.forEach(
-          commit_changes,
-          (CommitEntry entry) =>
-              processEntry(entry, distinctKeys, syncResultList));
-    }
+    await Future.forEach(
+        commitChanges,
+        (CommitEntry entry) =>
+            processEntry(entry, distinctKeys, syncResultList));
+
     logger.finer(
         'number of changes after removing old entries: ${syncResultList.length}');
     //sort the result by commitId ascending
@@ -99,6 +98,31 @@ class SyncVerbHandler extends AbstractVerbHandler {
         populateMetadata(value, resultMap);
       }
       syncResultList.add(resultMap);
+    }
+  }
+
+  void logResponse(String response) {
+    try {
+      var parsedResponse = '';
+      final responseJson = jsonDecode(response);
+      for (var syncRecord in responseJson) {
+        if (syncRecord['metadata'] != null &&
+            syncRecord['metadata']['isBinary'] != null &&
+            syncRecord['metadata']['isBinary'] == 'true') {
+          final newRecord = {};
+          newRecord['atKey'] = syncRecord['atKey'];
+          newRecord['operation'] = syncRecord['operation'];
+          newRecord['commitId'] = syncRecord['commitId'];
+          newRecord['metadata'] = syncRecord['metadata'];
+          parsedResponse += newRecord.toString();
+        } else {
+          parsedResponse += syncRecord.toString();
+        }
+      }
+      logger.finer('sync response: $parsedResponse');
+    } on Exception catch (e, trace) {
+      logger.severe('exception logging sync response: ${e.toString()}');
+      logger.severe(trace);
     }
   }
 

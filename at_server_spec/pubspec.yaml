@@ -19,4 +19,4 @@ dependencies:
 #      ref: trunk
 
 dev_dependencies:
-  pedantic: ^1.11.0
+  lints: ^1.0.1

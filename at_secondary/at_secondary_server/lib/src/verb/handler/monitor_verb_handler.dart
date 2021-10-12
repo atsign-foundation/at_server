@@ -115,7 +115,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     // Get all received notifications
     var allReceivedNotifications = <Notification>[];
     var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var keyList = notificationKeyStore.getValues();
+    var keyList = await notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
         (element) => _fetchNotificationEntry(

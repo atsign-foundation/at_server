@@ -11,7 +11,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   }
 
   @override
-  void performCompaction(AtLogType atLogType) {
+  Future<void> performCompaction(AtLogType atLogType) async {
     var isRequired = _isCompactionRequired(atLogType);
     if (isRequired) {
       var totalKeys = atLogType.entriesCount();

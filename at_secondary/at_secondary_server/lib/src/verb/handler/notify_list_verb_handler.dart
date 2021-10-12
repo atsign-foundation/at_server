@@ -81,7 +81,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param Future<List> : Returns a list of received notifications of the current atsign.
   Future<List> _getReceivedNotification(List responseList) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var keyList = notificationKeyStore.getValues();
+    var keyList = notificationKeyStore.getKeys();
     await Future.forEach(
         keyList,
         (dynamic element) => _fetchNotificationEntries(
@@ -92,10 +92,10 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Fetches the notification entries for the given atsign.
   void _fetchNotificationEntries(
       element, responseList, notificationKeyStore) async {
-    var notificationEntry = await notificationKeyStore.get(element.id);
+    var notificationEntry = await notificationKeyStore.get(element);
     if (notificationEntry != null &&
         notificationEntry.type == NotificationType.received) {
-      responseList.add(Notification(element));
+      responseList.add(Notification(notificationEntry));
     }
   }
 
@@ -113,7 +113,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       var connectResult = await outBoundClient.connect();
       logger.finer('connect result: $connectResult');
     }
-    var sentNotifications = outBoundClient.notifyList(fromAtSign)!;
+    var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
     sentNotifications.forEach((element) {
       responseList.add(Notification(element));
     });

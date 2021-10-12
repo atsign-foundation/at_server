@@ -64,19 +64,19 @@ class SyncFromVerbHandler extends SyncVerbHandler {
   Future<Iterable<dynamic>> _process(
       atCommitLog, int fromCommitSequence, String? regex, int limit) async {
     var syncResultList = [];
-    var commit_changes =
-        atCommitLog?.getChanges(fromCommitSequence, regex, limit: limit);
+    var commitChanges =
+        await atCommitLog?.getChanges(fromCommitSequence, regex, limit: limit);
 
-    commit_changes?.removeWhere((entry) =>
+    commitChanges?.removeWhere((entry) =>
         entry.atKey!.startsWith('privatekey:') ||
         entry.atKey!.startsWith('private:'));
 
     var distinctKeys = <String>{};
     //sort log by commitId descending
-    commit_changes?.sort((CommitEntry entry1, CommitEntry entry2) =>
+    commitChanges?.sort((CommitEntry entry1, CommitEntry entry2) =>
         sort(entry1.commitId, entry2.commitId));
     // Remove the entries with commit id is null.
-    commit_changes?.removeWhere((element) {
+    commitChanges?.removeWhere((element) {
       if (element.commitId == null) {
         logger.severe(
             '${element.atKey} commitId is null. Ignoring the commit entry');
@@ -85,8 +85,8 @@ class SyncFromVerbHandler extends SyncVerbHandler {
       return false;
     });
     // for each latest key entry in commit log, get the value
-    if (commit_changes != null) {
-      await Future.forEach(commit_changes,
+    if (commitChanges != null) {
+      await Future.forEach(commitChanges,
           (dynamic entry) => processEntry(entry, distinctKeys, syncResultList));
     }
     Iterable itr = syncResultList;

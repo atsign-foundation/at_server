@@ -432,6 +432,7 @@ void main() {
       while (atsignIterator.moveNext()) {
         expect(atsignIterator.current, '@alice');
       }
+      AtNotificationMap.getInstance().clear();
     });
 
     test(
@@ -482,8 +483,8 @@ void main() {
       while (atsignIterator.moveNext()) {
         expect(atsignIterator.current, '@bob');
       }
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
   group('A group of tests on notification strategy - all', () {
     test(
@@ -542,8 +543,8 @@ void main() {
       }
       expect('124', atNotificationList[0].id);
       expect('123', atNotificationList[1].id);
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
   group('A group of test cases on notification strategy - latest', () {
     test('A test case to verify only the latest notification is stored', () {
@@ -597,6 +598,7 @@ void main() {
         atNotificationList.add(itr.current);
       }
       expect('124', atNotificationList[0].id);
+      AtNotificationMap.getInstance().clear();
     });
 
     test('When latest N, when N = 2', () {
@@ -673,6 +675,7 @@ void main() {
       }
       expect('124', atNotificationList[0].id);
       expect('125', atNotificationList[1].id);
+      AtNotificationMap.getInstance().clear();
     });
 
     test(
@@ -751,12 +754,13 @@ void main() {
       expect('123', atNotificationList[0].id);
       expect('124', atNotificationList[1].id);
       expect('125', atNotificationList[2].id);
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+  AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;

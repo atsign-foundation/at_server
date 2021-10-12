@@ -1,6 +1,4 @@
-import 'dart:collection';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
@@ -12,15 +10,15 @@ import 'package:hive/hive.dart';
 class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   var logger = AtSignLogger('CommitLogKeyStore');
   bool enableCommitId = true;
-  Box? box;
   String? storagePath;
   final _currentAtSign;
+  late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
 
   CommitLogKeyStore(this._currentAtSign);
 
   Future<void> init(String storagePath) async {
-    var boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    _boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
     if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
@@ -31,13 +29,13 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    box = await Hive.openBox(boxName,
+    await Hive.openLazyBox(_boxName,
         compactionStrategy: (entries, deletedEntries) {
       return deletedEntries > 1;
     });
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
-    if (box != null && box!.isOpen) {
+    if (_getBox().isOpen) {
       logger.info('Keystore initialized successfully');
     }
     // Cache the latest commitId of each key.
@@ -46,16 +44,13 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Closes the [commitLogKeyStore] instance.
   Future<void> close() async {
-    await box!.close();
-    if (!box!.isOpen) {
-      logger.info('Keystore closed successfully');
-    }
+    await _getBox().close();
   }
 
   @override
   Future<CommitEntry?> get(int commitId) async {
     try {
-      var commitEntry = await box!.get(commitId);
+      var commitEntry = await _getBox().get(commitId);
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception get entry:${e.toString()}');
@@ -69,14 +64,12 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   Future<int> add(CommitEntry? commitEntry) async {
     var internalKey;
     try {
-      internalKey = await box!.add(commitEntry);
+      internalKey = await _getBox().add(commitEntry);
       //set the hive generated key as commit id
       if (enableCommitId) {
         commitEntry!.commitId = internalKey;
         // update entry with commitId
-        await box!.put(internalKey, commitEntry);
-        // update the commitId in cache commitMap.
-        _updateCacheLog(commitEntry.atKey!, commitEntry);
+        await _getBox().put(internalKey, commitEntry);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -91,7 +84,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   Future update(int commitId, CommitEntry? commitEntry) async {
     try {
       commitEntry!.commitId = commitId;
-      await box!.put(commitEntry.key, commitEntry);
+      await _getBox().put(commitEntry.key, commitEntry);
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -104,7 +97,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   Future remove(int commitId) async {
     try {
-      await box!.delete(commitId);
+      await _getBox().delete(commitId);
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -115,13 +108,15 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns the latest committed sequence number
   int? lastCommittedSequenceNumber() {
-    var lastCommittedSequenceNum = box!.keys.isNotEmpty ? box!.keys.last : null;
+    var lastCommittedSequenceNum =
+        _getBox().keys.isNotEmpty ? _getBox().keys.last : null;
     return lastCommittedSequenceNum;
   }
 
   /// Returns the latest committed sequence number with regex
-  int? lastCommittedSequenceNumberWithRegex(String regex) {
-    var lastCommittedEntry = box!.values.lastWhere(
+  Future<int>? lastCommittedSequenceNumberWithRegex(String regex) async {
+    var values = await _getValues();
+    var lastCommittedEntry = values.lastWhere(
         (entry) => (_isRegexMatches(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
@@ -129,16 +124,17 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     return lastCommittedSequenceNum;
   }
 
-  CommitEntry? lastSyncedEntry({String? regex}) {
+  Future<CommitEntry>? lastSyncedEntry({String? regex}) async {
     var lastSyncedEntry;
+    var values = await _getValues();
     if (regex != null) {
-      lastSyncedEntry = box!.values.lastWhere(
+      lastSyncedEntry = values.lastWhere(
           (entry) =>
               (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
           orElse: () => null);
     } else {
-      lastSyncedEntry = box!.values
-          .lastWhere((entry) => entry.commitId != null, orElse: () => null);
+      lastSyncedEntry = values.lastWhere((entry) => entry.commitId != null,
+          orElse: () => null);
     }
     return lastSyncedEntry;
   }
@@ -146,7 +142,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   /// Returns the first committed sequence number
   int? firstCommittedSequenceNumber() {
     var firstCommittedSequenceNum =
-        box!.keys.isNotEmpty ? box!.keys.first : null;
+        _getBox().keys.isNotEmpty ? _getBox().keys.first : null;
     return firstCommittedSequenceNum;
   }
 
@@ -155,8 +151,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   int entriesCount() {
     int? totalKeys = 0;
-    totalKeys = box?.keys.length;
-    return totalKeys!;
+    totalKeys = _getBox().keys.length;
+    return totalKeys;
   }
 
   /// Gets the first 'N' keys from the logs
@@ -166,7 +162,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   List getFirstNEntries(int N) {
     var entries = [];
     try {
-      entries = box!.keys.toList().take(N).toList();
+      entries = _getBox().keys.toList().take(N).toList();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -182,7 +178,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   void delete(dynamic expiredKeys) {
     if (expiredKeys.isNotEmpty) {
-      box!.deleteAll(expiredKeys);
+      _getBox().deleteAll(expiredKeys);
     }
   }
 
@@ -202,13 +198,13 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   }
 
   @override
-  List getExpired(int expiryInDays) {
+  Future<List<dynamic>> getExpired(int expiryInDays) async {
     // TODO: implement getExpired
     return [];
   }
 
-  List getDuplicateEntries() {
-    var commitLogMap = box!.toMap();
+  Future<List> getDuplicateEntries() async {
+    var commitLogMap = await _toMap();
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
@@ -228,18 +224,20 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int sequenceNumber,
-      {String? regex, int? limit}) {
+  Future<List<CommitEntry>> getChanges(int sequenceNumber,
+      {String? regex, int? limit}) async {
     var changes = <CommitEntry>[];
     var regexString = (regex != null) ? regex : '';
+    var values = await _getValues();
     try {
-      var keys = box!.keys;
-      if (keys.isEmpty) {
+      var keys = _getBox().keys;
+      if (keys == null || keys.isEmpty) {
         return changes;
       }
       var startKey = sequenceNumber + 1;
+      logger.finer('startKey: $startKey all commit log entries: $values');
       if (limit != null) {
-        box!.values.forEach((element) {
+        values.forEach((element) {
           if (element.key >= startKey &&
               _isRegexMatches(element.atKey, regexString) &&
               changes.length <= limit) {
@@ -248,7 +246,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         });
         return changes;
       }
-      box!.values.forEach((f) {
+      values.forEach((f) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {
             changes.add(f);
@@ -319,5 +317,25 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     sortedMap.removeWhere((key, value) =>
         !_isRegexMatches(key, regex) || value!.commitId! < commitId);
     return sortedMap.entries.iterator;
+  }
+
+  Future<List> _getValues() async {
+    var commitLogMap = await _toMap();
+    return commitLogMap.values.toList();
+  }
+
+  LazyBox _getBox() {
+    return Hive.lazyBox(_boxName);
+  }
+
+  Future<Map> _toMap() async {
+    var commitLogMap = {};
+    var keys = _getBox().keys;
+    var value;
+    await Future.forEach(keys, (key) async {
+      value = await _getBox().get(key);
+      commitLogMap.putIfAbsent(key, () => value);
+    });
+    return commitLogMap;
   }
 }
