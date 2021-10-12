@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
@@ -15,9 +14,9 @@ class SyncVerbHandler extends AbstractVerbHandler {
   SyncVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
-  bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.sync) + ':') &&
-      !command.startsWith('sync:from');
+  bool accept(String command) => false;
+      // command.startsWith(getName(VerbEnum.sync) + ':') &&
+      // !command.startsWith('sync:from');
 
   @override
   Verb getVerb() {

@@ -107,3 +107,10 @@ refreshJob:
 certificate_expiry:
   # Force restart secondary server.
   force_restart: false
+
+# Sync Configurations
+sync:
+  # Represents the size of buffer for each batch.
+  bufferSize: 5242880
+  # Represents the numbers of keys to send in each batch.
+  pageLimit: 100
