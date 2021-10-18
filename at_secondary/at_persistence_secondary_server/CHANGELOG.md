@@ -1,3 +1,5 @@
+## 3.0.1
+Change Hive box type to lazy box
 ## 3.0.0
 - Sync pagination feature
 ## 2.0.6

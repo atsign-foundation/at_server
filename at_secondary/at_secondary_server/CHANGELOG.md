@@ -1,5 +1,7 @@
-## 3.0.2
+## 3.0.3
 - Change Hive box type to lazy box
+## 3.0.2
+- Remove logging of binary data
 ## 3.0.1
 - Fix null aware issue in sync verb handlers
 ## 3.0.0
