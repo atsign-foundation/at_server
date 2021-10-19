@@ -283,15 +283,20 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   Future<Map<String, CommitEntry>> _getCommitIdMap() async{
     var keyMap = <String, CommitEntry>{};
     var values = await _getValues();
-    values.forEach((entry) {
-      // If keyMap contains the key, update the commitId in the map with greater commitId.
-      if (keyMap.containsKey(entry.atKey)) {
-        keyMap[entry.atKey]!.commitId =
-            max(keyMap[entry.atKey]!.commitId!, entry.commitId);
-      } else {
-        keyMap[entry.atKey] = entry;
+    for (var value in values) {
+      if (value.commitId == null) {
+        logger.severe(
+            'CommitID is null for ${value.atKey}. Skipping updating entry to commitLogCacheMap');
+        continue;
       }
-    });
+      // If keyMap contains the key, update the commitId in the map with greater commitId.
+      if (keyMap.containsKey(value.atKey)) {
+        keyMap[value.atKey]!.commitId =
+            max(keyMap[value.atKey]!.commitId!, value.commitId);
+      } else {
+        keyMap[value.atKey] = value;
+      }
+    }
     return keyMap;
   }
 
