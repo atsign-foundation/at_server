@@ -1,3 +1,5 @@
+## 3.0.4
+- Fix NPE in commit log keystore.
 ## 3.0.3
 - Change Hive box type to lazy box
 ## 3.0.2
