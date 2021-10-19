@@ -286,7 +286,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     for (var value in values) {
       if (value.commitId == null) {
         logger.severe(
-            'CommitID is null for ${value.atKey}. Skipping updating entry to commitLogCacheMap');
+            'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
         continue;
       }
       // If keyMap contains the key, update the commitId in the map with greater commitId.
