@@ -280,7 +280,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
   /// Called in init method of commitLog to initialize on server start-up.
-  Future<Map<String, CommitEntry>> _getCommitIdMap() async{
+  Future<Map<String, CommitEntry>> _getCommitIdMap() async {
     var keyMap = <String, CommitEntry>{};
     var values = await _getValues();
     for (var value in values) {
