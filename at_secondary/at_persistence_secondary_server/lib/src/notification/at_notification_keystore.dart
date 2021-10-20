@@ -137,7 +137,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
   }
 
   Future<void> close() async {
-    if(_getBox().isOpen) {
+    if (_getBox().isOpen) {
       await _getBox().close();
     }
   }

@@ -1,3 +1,5 @@
+## 3.0.3
+- Fix for sync bug in commit log
 ## 3.0.2
 - Add null check in commitLog KeyStore
 ## 3.0.1

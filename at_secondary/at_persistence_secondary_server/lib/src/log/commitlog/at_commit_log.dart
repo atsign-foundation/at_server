@@ -54,8 +54,8 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  Future<List<CommitEntry>> getChanges(
-      int? sequenceNumber, String? regex, {int? limit}) async {
+  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+      {int? limit}) async {
     var changes;
     try {
       changes = _commitLogKeyStore.getChanges(sequenceNumber,
