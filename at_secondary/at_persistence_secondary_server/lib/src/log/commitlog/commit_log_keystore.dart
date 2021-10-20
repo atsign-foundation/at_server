@@ -118,7 +118,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   }
 
   /// Returns the latest committed sequence number with regex
-  Future<int>? lastCommittedSequenceNumberWithRegex(String regex) async {
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
     var values = await _getValues();
     var lastCommittedEntry = values.lastWhere(
         (entry) => (_isRegexMatches(entry.atKey, regex)),
@@ -128,7 +128,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     return lastCommittedSequenceNum;
   }
 
-  Future<CommitEntry>? lastSyncedEntry({String? regex}) async {
+  Future<CommitEntry?> lastSyncedEntry({String? regex}) async {
     var lastSyncedEntry;
     var values = await _getValues();
     if (regex != null) {
