@@ -94,15 +94,15 @@ class AtCommitLog implements AtLogType {
   }
 
   /// Returns the latest committed sequence number with regex
-  Future<int>? lastCommittedSequenceNumberWithRegex(String regex) async {
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
     return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
-  Future<CommitEntry>? lastSyncedEntry() async {
+  Future<CommitEntry?> lastSyncedEntry() async {
     return await _commitLogKeyStore.lastSyncedEntry();
   }
 
-  Future<CommitEntry>? lastSyncedEntryWithRegex(String regex) async {
+  Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
     return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
