@@ -1,3 +1,5 @@
+## 3.0.5
+- Uptake latest persistence - remove compaction strategy
 ## 3.0.4
 - Fix NPE in commit log keystore.
 ## 3.0.3
