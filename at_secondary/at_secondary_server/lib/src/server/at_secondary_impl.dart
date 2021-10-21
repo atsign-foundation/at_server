@@ -296,7 +296,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer('inside _executeVerbCallBack: $command');
+//    logger.finer('inside _executeVerbCallBack: $command');
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);

@@ -5,7 +5,7 @@ root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
-  url: 'root.atsign.org'
+  url: 'vip.ve.atsign.zone'
 
 # The @Protocol application log configurations
 log:
@@ -18,9 +18,9 @@ security:
   # When [useSSL] is set to true, the secondary server starts in secure mode. On setting useSSL to true, the [certificateChainLocation] and
   # [privateKeyLocation] should be populated with the path's to respective certificates.
   useSSL: true
-  certificateChainLocation: 'certs/fullchain.pem'
-  privateKeyLocation: 'certs/privkey.pem'
-  trustedCertificateLocation: '/etc/cacert/cacert.pem'
+  certificateChainLocation: '/home/murali/work/2021/@/certs/venv/root/fullchain.pem'
+  privateKeyLocation: '/home/murali/work/2021/@/certs/venv/root/privkey.pem'
+  trustedCertificateLocation: '/home/murali/work/2021/@/certs/venv/root/cacert.pem'
   clientCertificateRequired: true
 
 # The @Protocol storage configurations

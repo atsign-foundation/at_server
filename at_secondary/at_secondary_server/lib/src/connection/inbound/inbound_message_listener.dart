@@ -66,8 +66,8 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.finer(
-            'command received: $command sessionID:${connection.getMetaData().sessionID}');
+//        logger.finer(
+//            'command received: $command sessionID:${connection.getMetaData().sessionID}');
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();

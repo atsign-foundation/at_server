@@ -95,7 +95,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             dataSignature: dataSignature);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
-        await persistenceManager.getBox().put(hive_key, hive_value);
+//        logger.finest('hive value:$hive_value');
+        await persistenceManager.box?.put(hive_key, hive_value);
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {

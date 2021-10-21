@@ -21,6 +21,8 @@ import 'package:at_utils/at_utils.dart';
 class UpdateVerbHandler extends ChangeVerbHandler {
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
   static Update update = Update();
+  static int totalInserts = 0;
+  static int totalTime = 0;
 
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
@@ -112,6 +114,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..dataSignature = dataSignature;
 
       // update the key in data store
+      final startTime = DateTime.now();
       var result = await keyStore!.put(key, atData,
           time_to_live: ttl_ms,
           time_to_born: ttb_ms,
@@ -120,6 +123,10 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           isBinary: isBinary,
           isEncrypted: isEncrypted,
           dataSignature: dataSignature);
+      totalInserts++;
+      final endTime = DateTime.now();
+      totalTime += endTime.difference(startTime).inMilliseconds;
+      print('total inserts $totalInserts - totalTime $totalTime');
       response.data = result?.toString();
       if (AUTO_NOTIFY!) {
         _notify(

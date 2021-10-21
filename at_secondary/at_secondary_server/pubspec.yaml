@@ -22,30 +22,58 @@ dependencies:
 
 dependency_overrides:
   at_persistence_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_persistence/at_persistence_spec
-      ref: trunk
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_utils
-      ref: trunk
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: trunk
+    path: ../../at_persistence/at_persistence_spec
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_persistence/at_persistence_spec
+#      ref: trunk
+#  at_utils:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
+#  at_persistence_secondary_server:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_secondary/at_persistence_secondary_server
+#      ref: trunk
+#  at_server_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_server_spec
+#      ref: trunk
   at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: trunk
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_server_spec
-      ref: trunk
+    path: ../at_persistence_secondary_server
+#  at_persistence_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_persistence/at_persistence_spec
+#      ref: trunk
+#  at_utils:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
+#  at_persistence_secondary_server:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_secondary/at_persistence_secondary_server
+#      ref: trunk
+#  at_server_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_server_spec
+#      ref: trunk
 
 dev_dependencies:
   test: ^1.17.3

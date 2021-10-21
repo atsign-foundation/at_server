@@ -112,7 +112,7 @@ class ResourceManager {
 
       //2. Setting isStale on  outbound connection metadata to true to remove the connection from
       //   Notification Connection Pool.
-      await outBoundClient.outboundConnection!.close();
+//      await outBoundClient.outboundConnection!.close();
     }
   }
 

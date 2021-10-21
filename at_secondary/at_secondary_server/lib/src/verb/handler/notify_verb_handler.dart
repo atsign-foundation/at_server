@@ -19,6 +19,8 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
+  static int totalNotifications =0;
+  static int totalTimeTaken = 0;
 
   NotifyVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
@@ -43,6 +45,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var cachedKeyCommitId;
+    print('totalTime: ${totalTimeTaken}');
+    totalNotifications++;
+    final startTime = DateTime.now();
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -149,6 +154,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var notificationId =
           await NotificationManager.getInstance().notify(atNotification);
       response.data = notificationId;
+      final endTime = DateTime.now();
+      totalTimeTaken += endTime.difference(startTime).inMilliseconds;
+//      if(totalNotifications % 500 ==0) {
+      print('total notification sent: $totalNotifications totalTime: ${totalTimeTaken}');
+//      }
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
