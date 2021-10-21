@@ -31,10 +31,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    await Hive.openLazyBox(_boxName,
-        compactionStrategy: (entries, deletedEntries) {
-      return deletedEntries > 1;
-    });
+    await Hive.openLazyBox(_boxName);
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
     if (_getBox().isOpen) {
@@ -280,7 +277,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
   /// Called in init method of commitLog to initialize on server start-up.
-  Future<Map<String, CommitEntry>> _getCommitIdMap() async{
+  Future<Map<String, CommitEntry>> _getCommitIdMap() async {
     var keyMap = <String, CommitEntry>{};
     var values = await _getValues();
     values.forEach((entry) {
