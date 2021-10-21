@@ -1,3 +1,5 @@
+## 3.0.4
+- Remove compaction strategy
 ## 3.0.3
 - Fix for sync bug in commit log
 ## 3.0.2

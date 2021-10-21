@@ -63,12 +63,9 @@ class HivePersistenceManager {
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
       await Hive.openLazyBox(_boxName,
-          encryptionCipher: HiveAesCipher(hiveSecret!),
-          compactionStrategy: (entries, deletedEntries) {
-        return deletedEntries > 50;
-      });
+          encryptionCipher: HiveAesCipher(hiveSecret!));
       if (_debug) {
-        logger.finer('AtPersistence.openVault opened Hive box:$_boxName');
+        logger.finer('AtPersistence.openVault opened Hive box:_boxName');
       }
       if (_getBox().isOpen) {
         logger.info('KeyStore initialized successfully');

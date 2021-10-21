@@ -31,10 +31,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    await Hive.openLazyBox(_boxName,
-        compactionStrategy: (entries, deletedEntries) {
-      return deletedEntries > 1;
-    });
+    await Hive.openLazyBox(_boxName);
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
     if (_getBox().isOpen) {
