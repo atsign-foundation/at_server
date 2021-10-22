@@ -62,7 +62,7 @@ class HivePersistenceManager {
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      await Hive.openLazyBox(_boxName,
+      await Hive.openBox(_boxName,
           encryptionCipher: HiveAesCipher(hiveSecret!));
       if (_debug) {
         logger.finer('AtPersistence.openVault opened Hive box:_boxName');
@@ -144,11 +144,11 @@ class HivePersistenceManager {
     }
   }
 
-  LazyBox _getBox() {
-    return Hive.lazyBox(_boxName);
+  Box _getBox() {
+    return Hive.box(_boxName);
   }
 
-  LazyBox getBox() {
-    return Hive.lazyBox(_boxName);
+  Box getBox() {
+    return Hive.box(_boxName);
   }
 }

@@ -31,7 +31,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    await Hive.openLazyBox(_boxName);
+    await Hive.openBox(_boxName);
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
     if (_getBox().isOpen) {
@@ -331,8 +331,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     return commitLogMap.values.toList();
   }
 
-  LazyBox _getBox() {
-    return Hive.lazyBox(_boxName);
+  Box _getBox() {
+    return Hive.box(_boxName);
   }
 
   Future<Map> _toMap() async {
