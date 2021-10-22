@@ -33,7 +33,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       }
       _register = true;
     }
-    await Hive.openLazyBox(boxName);
+    await Hive.openBox(boxName);
   }
 
   bool isEmpty() {
@@ -153,7 +153,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     return notificationLogMap;
   }
 
-  LazyBox _getBox() {
-    return Hive.lazyBox(_boxName);
+  Box _getBox() {
+    return Hive.box(_boxName);
   }
 }

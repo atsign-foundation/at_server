@@ -23,7 +23,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    await Hive.openLazyBox(_boxName);
+    await Hive.openBox(_boxName);
     this.storagePath = storagePath;
     if (_getBox().isOpen) {
       logger.info('Keystore initialized successfully');
@@ -242,7 +242,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     await _getBox().close();
   }
 
-  LazyBox _getBox() {
-    return Hive.lazyBox(_boxName);
+  Box _getBox() {
+    return Hive.box(_boxName);
   }
 }
