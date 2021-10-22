@@ -1,3 +1,5 @@
+## 3.0.6
+- Rollback hive lazy box
 ## 3.0.5
 - Uptake latest persistence - remove compaction strategy
 ## 3.0.4
