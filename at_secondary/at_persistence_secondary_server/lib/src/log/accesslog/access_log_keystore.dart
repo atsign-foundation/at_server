@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
@@ -9,7 +10,7 @@ import 'package:hive/hive.dart';
 
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 
-class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
+class AccessLogKeyStore with HiveBase implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
   String? storagePath;
   final _currentAtSign;
@@ -17,13 +18,15 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
 
   AccessLogKeyStore(this._currentAtSign);
 
-  Future<void> init(String storagePath) async {
+  @override
+  Future<void> init(String storagePath,{bool isLazy=false}) async {
+    super.isLazy = isLazy;
     _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    await Hive.openBox(_boxName);
+    super.openBox(_boxName);
     this.storagePath = storagePath;
     if (_getBox().isOpen) {
       logger.info('Keystore initialized successfully');
@@ -48,7 +51,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future<AccessLogEntry?> get(int key) async {
     try {
-      var accessLogEntry = await _getBox().get(key);
+      var accessLogEntry = await (super.isLazy
+          ? (_getBox() as LazyBox).get(key)
+          : (_getBox() as Box).get(key));
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
@@ -231,7 +236,9 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await _getBox().get(key);
+      value = await (super.isLazy
+          ? (_getBox() as LazyBox).get(key)
+          : (_getBox() as Box).get(key));
       accessLogMap.putIfAbsent(key, () => value);
     });
     return accessLogMap;
@@ -242,7 +249,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     await _getBox().close();
   }
 
-  Box _getBox() {
-    return Hive.box(_boxName);
+  BoxBase _getBox() {
+    return super.getBox(_boxName);
   }
 }

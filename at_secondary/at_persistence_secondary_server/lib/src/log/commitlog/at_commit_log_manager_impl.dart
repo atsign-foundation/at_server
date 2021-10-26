@@ -23,7 +23,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
     if (!_commitLogMap.containsKey(atSign)) {
       var commitLogKeyStore = CommitLogKeyStore(atSign);
       commitLogKeyStore.enableCommitId = enableCommitId;
-      await commitLogKeyStore.init(commitLogPath!);
+      await commitLogKeyStore.openBox(commitLogPath!);
       _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
     }
     return _commitLogMap[atSign];

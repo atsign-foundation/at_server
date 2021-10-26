@@ -3,25 +3,28 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
-class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
+class CommitLogKeyStore
+    with HiveBase
+    implements LogKeyStore<int, CommitEntry?> {
   var logger = AtSignLogger('CommitLogKeyStore');
   bool enableCommitId = true;
   String? storagePath;
   final _currentAtSign;
   late String _boxName;
-  late bool _isLazy;
   final _commitLogCacheMap = <String, CommitEntry>{};
 
   CommitLogKeyStore(this._currentAtSign);
 
+  @override
   Future<void> init(String storagePath, {bool isLazy = false}) async {
-    _isLazy = isLazy;
+    super.isLazy = isLazy;
     _boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
@@ -33,11 +36,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    if (_isLazy) {
-      await Hive.openBox(_boxName);
-    } else {
-      await Hive.openLazyBox(_boxName);
-    }
+    super.openBox(_boxName);
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
     if (_getBox().isOpen) {
@@ -55,7 +54,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   Future<CommitEntry?> get(int commitId) async {
     try {
-      var commitEntry = await (_isLazy
+      var commitEntry = await (super.isLazy
           ? (_getBox() as LazyBox).get(commitId)
           : (_getBox() as Box).get(commitId));
       return commitEntry;
@@ -340,10 +339,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   }
 
   BoxBase _getBox() {
-    if (_isLazy) {
-      return Hive.lazyBox(_boxName);
-    }
-    return Hive.box(_boxName);
+    return super.getBox(_boxName);
   }
 
   Future<Map> _toMap() async {
@@ -351,7 +347,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await (_isLazy
+      value = await (super.isLazy
           ? (_getBox() as LazyBox).get(key)
           : (_getBox() as Box).get(key));
       commitLogMap.putIfAbsent(key, () => value);
