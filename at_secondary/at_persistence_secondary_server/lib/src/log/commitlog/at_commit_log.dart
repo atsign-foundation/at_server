@@ -90,7 +90,7 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the latest committed sequence number
   int? lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.lastCommittedSequenceNumber();
+    return _commitLogKeyStore.latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex

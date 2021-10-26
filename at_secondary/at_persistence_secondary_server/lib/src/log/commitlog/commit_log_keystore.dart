@@ -16,6 +16,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   final _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
+  int latestCommitId = -1;
 
   CommitLogKeyStore(this._currentAtSign);
 
@@ -38,7 +39,11 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
       logger.info('Keystore initialized successfully');
     }
     // Cache the latest commitId of each key.
-    _commitLogCacheMap.addAll(await _getCommitIdMap());
+    // Add entries to commitLogCacheMap when initialized from at_secondary_server
+    // and refrain for at_client_sdk.
+    if (enableCommitId) {
+      _commitLogCacheMap.addAll(await _getCommitIdMap());
+    }
   }
 
   /// Closes the [commitLogKeyStore] instance.
@@ -71,6 +76,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         await _getBox().put(internalKey, commitEntry);
         // update the commitId in cache commitMap.
         _updateCacheLog(commitEntry.atKey!, commitEntry);
+        if (commitEntry.commitId != null &&
+            commitEntry.commitId! > latestCommitId) {
+          latestCommitId = commitEntry.commitId!;
+        }
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -292,6 +301,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
             max(keyMap[value.atKey]!.commitId!, value.commitId);
       } else {
         keyMap[value.atKey] = value;
+      }
+      // update the latest commit id
+      if (value.commitId > latestCommitId) {
+        latestCommitId = value.commitId;
       }
     }
     return keyMap;
