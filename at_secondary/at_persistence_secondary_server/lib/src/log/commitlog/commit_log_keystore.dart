@@ -15,11 +15,13 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   String? storagePath;
   final _currentAtSign;
   late String _boxName;
+  late bool _isLazy;
   final _commitLogCacheMap = <String, CommitEntry>{};
 
   CommitLogKeyStore(this._currentAtSign);
 
-  Future<void> init(String storagePath) async {
+  Future<void> init(String storagePath, {bool isLazy = false}) async {
+    _isLazy = isLazy;
     _boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
     Hive.init(storagePath);
 
@@ -31,7 +33,11 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     }
 
     this.storagePath = storagePath;
-    await Hive.openBox(_boxName);
+    if (_isLazy) {
+      await Hive.openBox(_boxName);
+    } else {
+      await Hive.openLazyBox(_boxName);
+    }
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     logger.finer('last committed sequence: $lastCommittedSequenceNum');
     if (_getBox().isOpen) {
@@ -49,7 +55,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   @override
   Future<CommitEntry?> get(int commitId) async {
     try {
-      var commitEntry = await _getBox().get(commitId);
+      var commitEntry = await (_isLazy
+          ? (_getBox() as LazyBox).get(commitId)
+          : (_getBox() as Box).get(commitId));
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception get entry:${e.toString()}');
@@ -331,7 +339,10 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     return commitLogMap.values.toList();
   }
 
-  Box _getBox() {
+  BoxBase _getBox() {
+    if (_isLazy) {
+      return Hive.lazyBox(_boxName);
+    }
     return Hive.box(_boxName);
   }
 
@@ -340,7 +351,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
     var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await _getBox().get(key);
+      value = await (_isLazy
+          ? (_getBox() as LazyBox).get(key)
+          : (_getBox() as Box).get(key));
       commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;

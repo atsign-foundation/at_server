@@ -21,11 +21,14 @@ class HivePersistenceManager {
   String? get atsign => _atsign;
   late String _boxName;
   var _secret;
+  late bool _isLazy;
 
   HivePersistenceManager(this._atsign);
 
-  Future<bool> init(String atSign, String storagePath) async {
+  Future<bool> init(String atSign, String storagePath,
+      {bool isLazy = false}) async {
     var success = false;
+    _isLazy = isLazy;
     try {
       if (_debug) {
         logger.finer('AtPersistence.init received storagePath: ' + storagePath);
@@ -52,7 +55,8 @@ class HivePersistenceManager {
     return success;
   }
 
-  Future<void> openVault(String atsign, {List<int>? hiveSecret}) async {
+  Future<void> openVault(String atsign,
+      {List<int>? hiveSecret, bool isLazy = false}) async {
     try {
       // assert(hiveSecret != null);
       hiveSecret ??= _secret;
@@ -62,13 +66,18 @@ class HivePersistenceManager {
       }
       _atsign = atsign;
       _boxName = AtUtils.getShaForAtSign(atsign);
-      await Hive.openBox(_boxName,
-          encryptionCipher: HiveAesCipher(hiveSecret!));
+      if (_isLazy) {
+        await Hive.openLazyBox(_boxName,
+            encryptionCipher: HiveAesCipher(hiveSecret!));
+      } else {
+        await Hive.openBox(_boxName,
+            encryptionCipher: HiveAesCipher(hiveSecret!));
+      }
       if (_debug) {
         logger.finer('AtPersistence.openVault opened Hive box:_boxName');
       }
       if (_getBox().isOpen) {
-        logger.info('KeyStore initialized successfully');
+        logger.info('KeyStore initialized successfully.');
       }
     } on Exception catch (exception) {
       logger.severe('AtPersistence.openVault exception: $exception');
@@ -144,11 +153,17 @@ class HivePersistenceManager {
     }
   }
 
-  Box _getBox() {
+  BoxBase _getBox() {
+    if (_isLazy) {
+      return Hive.lazyBox(_boxName);
+    }
     return Hive.box(_boxName);
   }
 
-  Box getBox() {
+  BoxBase getBox() {
+    if (_isLazy) {
+      return Hive.lazyBox(_boxName);
+    }
     return Hive.box(_boxName);
   }
 }
