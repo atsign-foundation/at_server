@@ -16,7 +16,9 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
   final _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
-  int latestCommitId = -1;
+  int _latestCommitId = -1;
+
+  int get latestCommitId => _latestCommitId;
 
   CommitLogKeyStore(this._currentAtSign);
 
@@ -77,8 +79,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         // update the commitId in cache commitMap.
         _updateCacheLog(commitEntry.atKey!, commitEntry);
         if (commitEntry.commitId != null &&
-            commitEntry.commitId! > latestCommitId) {
-          latestCommitId = commitEntry.commitId!;
+            commitEntry.commitId! > _latestCommitId) {
+          _latestCommitId = commitEntry.commitId!;
         }
       }
     } on Exception catch (e) {
@@ -105,7 +107,7 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
 
   /// Remove
   @override
-  Future remove(int commitId) async {
+  Future<void> remove(int commitId) async {
     try {
       await _getBox().delete(commitId);
     } on Exception catch (e) {
@@ -303,8 +305,8 @@ class CommitLogKeyStore implements LogKeyStore<int, CommitEntry?> {
         keyMap[value.atKey] = value;
       }
       // update the latest commit id
-      if (value.commitId > latestCommitId) {
-        latestCommitId = value.commitId;
+      if (value.commitId > _latestCommitId) {
+        _latestCommitId = value.commitId;
       }
     }
     return keyMap;
