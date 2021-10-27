@@ -177,21 +177,6 @@ class CommitLogKeyStore
   }
 
   @override
-  int getSize() {
-    var logSize = 0;
-    var logLocation = Directory(storagePath!);
-
-    if (storagePath != null) {
-      //The listSync function returns the list of files in the commit log storage location.
-      // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
-      logLocation.listSync().forEach((element) {
-        logSize = logSize + File(element.path).lengthSync();
-      });
-    }
-    return logSize ~/ 1024;
-  }
-
-  @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     // TODO: implement getExpired
     return [];
