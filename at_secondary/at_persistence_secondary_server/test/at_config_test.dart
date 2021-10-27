@@ -13,8 +13,7 @@ void main() async {
   test('test for adding data to blocklist', () async {
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     var result = await atConfigInstance.addToBlockList(data);
     expect(result, 'success');
@@ -22,8 +21,7 @@ void main() async {
 
   test('test for fetching blocklist', () async {
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
@@ -33,8 +31,7 @@ void main() async {
 
   test('test for removing blocklist data', () async {
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     var data = {'@alice', '@bob'};
     await atConfigInstance.addToBlockList(data);
@@ -45,8 +42,7 @@ void main() async {
   test('test for removing non existing data from blocklist', () async {
     var data = {'@alice', '@bob'};
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     await atConfigInstance.addToBlockList(data);
     var removeData = {'@colin'};
@@ -57,8 +53,7 @@ void main() async {
   test('test for removing empty data', () async {
     var removeData = <String>{};
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList(removeData),
         throwsA(predicate((dynamic e) => e is AssertionError)));
@@ -66,8 +61,7 @@ void main() async {
 
   test('test for removing null data', () async {
     var atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(_getShaForAtsign('@test_user_1')),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
         '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList({}),
         throwsA(predicate((dynamic e) => e is AssertionError)));
@@ -82,14 +76,12 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(_getShaForAtsign('@test_user_1'),
-          commitLogPath: storageDir);
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@test_user_1', storageDir);
-  await persistenceManager.openVault('@test_user_1');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
@@ -104,9 +96,4 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/hive/').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }

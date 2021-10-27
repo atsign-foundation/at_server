@@ -1,16 +1,20 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:at_utf7/at_utf7.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
-class AtNotificationKeystore implements SecondaryKeyStore {
+class AtNotificationKeystore
+    with HiveBase<AtNotification?>
+    implements SecondaryKeyStore {
   static final AtNotificationKeystore _singleton =
       AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
-
+  late String currentAtSign;
   late String _boxName;
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
@@ -18,9 +22,9 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   bool _register = false;
 
-  Future<void> init(storagePath, boxName) async {
-    Hive.init(storagePath);
-    _boxName = boxName;
+  @override
+  Future<void> initialize() async {
+    _boxName = 'notifications_' + AtUtils.getShaForAtSign(currentAtSign);
     if (!_register) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
@@ -33,7 +37,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
       }
       _register = true;
     }
-    await Hive.openBox(boxName);
+    await super.openBox(_boxName);
   }
 
   bool isEmpty() {
@@ -52,7 +56,7 @@ class AtNotificationKeystore implements SecondaryKeyStore {
 
   @override
   Future<AtNotification?> get(key) async {
-    return await _getBox().get(key);
+    return await getValue(key);
   }
 
   @override
@@ -136,24 +140,18 @@ class AtNotificationKeystore implements SecondaryKeyStore {
     await _getBox().delete(key);
   }
 
-  Future<void> close() async {
-    if (_getBox().isOpen) {
-      await _getBox().close();
-    }
-  }
-
   Future<Map>? _toMap() async {
     var notificationLogMap = {};
     var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await _getBox().get(key);
+      value = await getValue(key);
       notificationLogMap.putIfAbsent(key, () => value);
     });
     return notificationLogMap;
   }
 
-  Box _getBox() {
-    return Hive.box(_boxName);
+  BoxBase _getBox() {
+    return super.getBox();
   }
 }

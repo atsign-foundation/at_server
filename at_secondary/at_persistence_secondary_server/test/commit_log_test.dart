@@ -14,8 +14,8 @@ void main() async {
   group('A group of commit log test', () {
     setUp(() async => await setUpFunc(storageDir));
     test('test single insert', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       var hiveKey =
           await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
       var committedEntry = await (commitLogInstance.getEntry(hiveKey));
@@ -25,8 +25,8 @@ void main() async {
       commitLogInstance = null;
     });
     test('test multiple insert', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
           await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
@@ -39,8 +39,8 @@ void main() async {
     });
 
     test('test get entry ', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       var key_1 =
           await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var committedEntry = await (commitLogInstance?.getEntry(key_1));
@@ -51,8 +51,8 @@ void main() async {
     });
 
     test('test entries since commit Id', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var key_2 =
@@ -71,8 +71,8 @@ void main() async {
     });
 
     test('test last sequence number called once', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
 
@@ -81,8 +81,8 @@ void main() async {
     });
 
     test('test last sequence number called multiple times', () async {
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(_getShaForAtsign('@alice')));
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
 
@@ -128,13 +128,12 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(_getShaForAtsign('@alice'), commitLogPath: storageDir);
+      .getCommitLog('@alice', commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@alice', storageDir);
-  await persistenceManager.openVault('@alice');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
@@ -150,9 +149,4 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }

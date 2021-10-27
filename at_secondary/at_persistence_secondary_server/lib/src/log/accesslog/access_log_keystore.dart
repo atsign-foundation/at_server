@@ -11,7 +11,7 @@ import 'package:hive/hive.dart';
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AccessLogKeyStore
-    with HiveBase
+    with HiveBase<AccessLogEntry?>
     implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
 
@@ -27,7 +27,7 @@ class AccessLogKeyStore
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    super.openBox(_boxName);
+    await super.openBox(_boxName);
   }
 
   @override

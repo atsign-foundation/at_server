@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
@@ -11,11 +10,10 @@ import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 class CommitLogKeyStore
-    with HiveBase
+    with HiveBase<CommitEntry?>
     implements LogKeyStore<int, CommitEntry?> {
   final _logger = AtSignLogger('CommitLogKeyStore');
   bool enableCommitId = true;
-  String? storagePath;
   final _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
@@ -31,7 +29,7 @@ class CommitLogKeyStore
     if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
       Hive.registerAdapter(CommitOpAdapter());
     }
-    super.openBox(_boxName);
+    await super.openBox(_boxName);
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
