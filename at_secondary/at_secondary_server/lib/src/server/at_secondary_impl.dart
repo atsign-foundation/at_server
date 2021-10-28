@@ -380,7 +380,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
-    await manager.openVault(serverContext!.currentAtSign!);
     manager.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     var atData = AtData();

@@ -168,16 +168,21 @@ class CommitLogKeyStore
   /// Removes the expired keys from the log.
   /// @param - expiredKeys : The expired keys to remove
   @override
-  void delete(dynamic expiredKeys) {
+  Future<void> delete(dynamic expiredKeys) async {
     if (expiredKeys.isNotEmpty) {
-      _getBox().deleteAll(expiredKeys);
+      await _getBox().deleteAll(expiredKeys);
     }
   }
 
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
-    // TODO: implement getExpired
-    return [];
+    final dupEntries = await getDuplicateEntries();
+    print('commit log entries to delete: $dupEntries');
+    dupEntries.forEach((key) async {
+      print(await get(key));
+    });
+
+  return dupEntries;
   }
 
   Future<List> getDuplicateEntries() async {

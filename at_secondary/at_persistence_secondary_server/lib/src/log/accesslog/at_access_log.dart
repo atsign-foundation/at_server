@@ -58,8 +58,8 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  void delete(expiredKeys) {
-    _accessLogKeyStore.delete(expiredKeys);
+  Future<void> delete(expiredKeys) async {
+    await _accessLogKeyStore.delete(expiredKeys);
   }
 
   @override

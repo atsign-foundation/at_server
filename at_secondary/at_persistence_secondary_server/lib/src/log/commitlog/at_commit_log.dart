@@ -139,8 +139,8 @@ class AtCommitLog implements AtLogType {
   /// Removes the expired keys from the log.
   /// @param - expiredKeys : The expired keys to remove
   @override
-  void delete(dynamic expiredKeys) {
-    _commitLogKeyStore.delete(expiredKeys);
+  Future<void> delete(dynamic expiredKeys) async {
+    await _commitLogKeyStore.delete(expiredKeys);
   }
 
   @override

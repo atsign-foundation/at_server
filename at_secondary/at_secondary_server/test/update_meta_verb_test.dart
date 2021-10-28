@@ -195,8 +195,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getCommitLog('@kevin', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@kevin', storageDir);
-  await persistenceManager.openVault('@kevin');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
