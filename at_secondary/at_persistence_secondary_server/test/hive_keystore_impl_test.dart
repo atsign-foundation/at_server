@@ -186,7 +186,7 @@ void main() async {
 
 Future<void> tearDownFunc() async {
   await Hive.deleteBoxFromDisk('commit_log_@test_user_1');
-  await Hive.deleteBoxFromDisk('@test_user_1');
+  await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
 }
 
 Future<void> setUpFunc(storageDir) async {
@@ -194,8 +194,11 @@ Future<void> setUpFunc(storageDir) async {
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
-  await persistenceManager
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  await persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
+}
+
+String _getShaForAtsign(String atsign) {
+  var bytes = utf8.encode(atsign);
+  return sha256.convert(bytes).toString();
 }
