@@ -369,10 +369,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize notification storage
     var notificationInstance = AtNotificationKeystore.getInstance();
-    await notificationInstance.init(
-        notificationStoragePath,
-        'notifications_' +
-            AtUtils.getShaForAtSign(serverContext!.currentAtSign!));
+    notificationInstance.currentAtSign = serverContext!.currentAtSign!;
+    await notificationInstance.init(notificationStoragePath!);
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
 
@@ -381,8 +379,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(serverContext!.currentAtSign!, storagePath!);
-    await manager.openVault(serverContext!.currentAtSign!);
+    await manager.init(storagePath!);
     manager.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     var atData = AtData();

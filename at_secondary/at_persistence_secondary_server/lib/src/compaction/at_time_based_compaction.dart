@@ -20,7 +20,8 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     if (expiredKeys.isEmpty) {
       return;
     }
+    print('performing compaction');
     // Delete expired keys
-    atLogType.delete(expiredKeys);
+    //atLogType.delete(expiredKeys);
   }
 }

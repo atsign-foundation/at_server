@@ -350,7 +350,7 @@ void main() {
   group('A group of notify verb test', () {
     setUp(() async => await setUpFunc(storageDir));
     test(
-        'A test cases to verify enqueuing error notifications increments retry count',
+        'A test case to verify enqueuing error notifications increments retry count',
         () async {
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
@@ -766,8 +766,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@test_user_1', storageDir);
-  await persistenceManager.openVault('@test_user_1');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var keyStoreManager =
@@ -778,8 +777,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
-  await notificationInstance.init(
-      storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  notificationInstance.currentAtSign = '@test_user_1';
+  await notificationInstance.init(storageDir);
   return keyStoreManager;
 }
 

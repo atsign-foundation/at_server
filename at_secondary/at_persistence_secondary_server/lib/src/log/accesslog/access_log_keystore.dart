@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
@@ -9,25 +10,24 @@ import 'package:hive/hive.dart';
 
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 
-class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
+class AccessLogKeyStore
+    with HiveBase<AccessLogEntry?>
+    implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
-  String? storagePath;
+
   final _currentAtSign;
   late String _boxName;
 
   AccessLogKeyStore(this._currentAtSign);
 
-  Future<void> init(String storagePath) async {
+  @override
+  Future<void> initialize() async {
     _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
-    Hive.init(storagePath);
+
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
     }
-    await Hive.openBox(_boxName);
-    this.storagePath = storagePath;
-    if (_getBox().isOpen) {
-      logger.info('Keystore initialized successfully');
-    }
+    await super.openBox(_boxName);
   }
 
   @override
@@ -48,7 +48,7 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
   @override
   Future<AccessLogEntry?> get(int key) async {
     try {
-      var accessLogEntry = await _getBox().get(key);
+      var accessLogEntry = await getValue(key);
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
@@ -120,21 +120,6 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
           'Hive error adding to access log:${e.toString()}');
     }
     return entries;
-  }
-
-  @override
-  int getSize() {
-    var logSize = 0;
-    var logLocation = Directory(storagePath!);
-
-    if (storagePath != null) {
-      //The listSync function returns the list of files in the commit log storage location.
-      // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
-      logLocation.listSync().forEach((element) {
-        logSize = logSize + File(element.path).lengthSync();
-      });
-    }
-    return logSize ~/ 1024;
   }
 
   @override
@@ -231,18 +216,13 @@ class AccessLogKeyStore implements LogKeyStore<int, AccessLogEntry?> {
     var keys = _getBox().keys;
     var value;
     await Future.forEach(keys, (key) async {
-      value = await _getBox().get(key);
+      value = await getValue(key);
       accessLogMap.putIfAbsent(key, () => value);
     });
     return accessLogMap;
   }
 
-  ///Closes the [accessLogKeyStore] instance.
-  void close() async {
-    await _getBox().close();
-  }
-
-  Box _getBox() {
-    return Hive.box(_boxName);
+  BoxBase _getBox() {
+    return super.getBox();
   }
 }
