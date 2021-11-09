@@ -18,7 +18,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
       if (totalKeys > 0) {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
-        await atLogType.delete(keysToDelete);
+        atLogType.delete(keysToDelete);
       }
     }
   }
