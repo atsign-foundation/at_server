@@ -1,3 +1,5 @@
+## 2.0.5
+- upgrade persistence spec version
 ## 2.0.4
 - dependency upgrade in pubspec for at_commons, at_utils, at_server_spec
 ## 2.0.3
