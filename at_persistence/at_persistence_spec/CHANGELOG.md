@@ -1,3 +1,5 @@
+## 2.0.2
+- Support for Hive lazy and in memory boxes 
 ## 2.0.1
 - Change Hive box type to lazy box
 ## 2.0.0
