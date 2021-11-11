@@ -1,3 +1,5 @@
+## 3.0.6
+- Support for Hive lazy and in memory boxes
 ## 3.0.5
 - Rollback hive lazy box
 ## 3.0.4
