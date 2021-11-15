@@ -502,6 +502,10 @@ jobs:
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
+      - name: Place canary version into pubspec.yaml
+        working-directory: at_secondary/at_secondary_server
+        run: sed -i "s/version\:.*/version\:\ ${GITHUB_REF#refs/tags/}/" pubspec.yaml
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1.2.0
 
