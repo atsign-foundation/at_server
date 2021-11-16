@@ -1,3 +1,6 @@
+## 3.0.7
+- reduce compaction interval to 12 hrs
+- compaction delete bug fix
 ## 3.0.6
 - Rollback hive lazy box
 ## 3.0.5
