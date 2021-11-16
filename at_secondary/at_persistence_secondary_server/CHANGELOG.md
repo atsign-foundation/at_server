@@ -1,3 +1,6 @@
+## 3.0.7
+- compaction delete bug fix
+- reduce compaction frequency to 12 hours
 ## 3.0.6
 - Support for Hive lazy and in memory boxes
 ## 3.0.5
