@@ -21,7 +21,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
         _logger.finer(
-            'performing size compaction: Number of expired keys: ${keysToDelete.length}');
+            'performing size compaction for ${atLogType}: Number of expired keys: ${keysToDelete.length}');
         await atLogType.delete(keysToDelete);
       }
     }
