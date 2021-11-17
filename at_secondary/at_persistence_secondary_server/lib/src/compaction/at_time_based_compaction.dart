@@ -24,7 +24,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
       return;
     }
     _logger.finer(
-        'performing time compaction: Number of expired keys: ${expiredKeys.length}');
+        'performing time compaction for $atLogType: Number of expired keys: ${expiredKeys.length}');
     // Delete expired keys
     atLogType.delete(expiredKeys);
   }
