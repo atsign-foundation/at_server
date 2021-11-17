@@ -11,7 +11,7 @@ class AtSecondaryConfig {
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
   static final String _privateKeyLocation = 'certs/privkey.pem';
-  static final String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
+  static final String _trustedCertificateLocation = 'cacert/cacert.pem';
 
   //Secondary Storage
   static String? _storagePath = 'storage/hive';
@@ -75,8 +75,7 @@ class AtSecondaryConfig {
 
   //version
   static final String? _secondaryServerVersion =
-      (ConfigUtil.getPubspecConfig() != null &&
-              ConfigUtil.getPubspecConfig()!['version'] != null)
+      (ConfigUtil.getPubspecConfig() != null && ConfigUtil.getPubspecConfig()!['version'] != null)
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
@@ -162,8 +161,7 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(
-          ['access_log_compaction', 'compactionPercentage']);
+      return getConfigFromYaml(['access_log_compaction', 'compactionPercentage']);
     } on ElementNotFoundException {
       return _accessLogCompactionPercentage;
     }
@@ -175,8 +173,7 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(
-          ['access_log_compaction', 'compactionFrequencyMins']);
+      return getConfigFromYaml(['access_log_compaction', 'compactionFrequencyMins']);
     } on ElementNotFoundException {
       return _accessLogCompactionFrequencyMins;
     }
@@ -212,8 +209,7 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(
-          ['commit_log_compaction', 'compactionPercentage']);
+      return getConfigFromYaml(['commit_log_compaction', 'compactionPercentage']);
     } on ElementNotFoundException {
       return _commitLogCompactionPercentage;
     }
@@ -225,8 +221,7 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(
-          ['commit_log_compaction', 'compactionFrequencyMins']);
+      return getConfigFromYaml(['commit_log_compaction', 'compactionFrequencyMins']);
     } on ElementNotFoundException {
       return _commitLogCompactionFrequencyMins;
     }
@@ -518,8 +513,7 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(
-          ['notification', 'statsNotificationJobTimeInterval']);
+      return getConfigFromYaml(['notification', 'statsNotificationJobTimeInterval']);
     } on ElementNotFoundException {
       return _statsNotificationJobTimeInterval;
     }
