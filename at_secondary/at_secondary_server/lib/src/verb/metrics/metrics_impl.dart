@@ -277,7 +277,8 @@ class LastPkamMetricImpl implements MetricProvider {
 }
 
 class CommitLogCompactionStats implements MetricProvider {
-  static final CommitLogCompactionStats _singleton = CommitLogCompactionStats._internal();
+  static final CommitLogCompactionStats _singleton =
+      CommitLogCompactionStats._internal();
 
   CommitLogCompactionStats._internal();
 
@@ -292,7 +293,9 @@ class CommitLogCompactionStats implements MetricProvider {
             AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
     var atData = await keyStore!.get('privatekey:commitLogCompactionStats');
-    return atData!.data!;
+    if (atData != null && atData.data != null) {
+      return atData.data;
+    }
   }
 
   @override
@@ -302,7 +305,8 @@ class CommitLogCompactionStats implements MetricProvider {
 }
 
 class AccessLogCompactionStats implements MetricProvider {
-  static final AccessLogCompactionStats _singleton = AccessLogCompactionStats._internal();
+  static final AccessLogCompactionStats _singleton =
+      AccessLogCompactionStats._internal();
 
   AccessLogCompactionStats._internal();
 
@@ -314,10 +318,12 @@ class AccessLogCompactionStats implements MetricProvider {
   getMetrics({String? regex}) async {
     var keyStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(
-        AtSecondaryServerImpl.getInstance().currentAtSign)!
+            AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
     var atData = await keyStore!.get('privatekey:accessLogCompactionStats');
-    return atData!.data!;
+    if (atData != null && atData.data != null) {
+      return atData.data;
+    }
   }
 
   @override
