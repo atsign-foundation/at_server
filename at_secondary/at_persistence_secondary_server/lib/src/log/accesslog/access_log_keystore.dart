@@ -73,8 +73,10 @@ class AccessLogKeyStore
   }
 
   @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
+  void delete(expiredKeys) async {
+    if (expiredKeys.isNotEmpty) {
+      await _getBox().deleteAll(expiredKeys);
+    }
   }
 
   /// Returns the total number of keys
