@@ -132,56 +132,6 @@ class AtNotification {
   }
 }
 
-class NotificationStats {
-  final int? total;
-  final int? sent;
-  final int? received;
-  final int? pending;
-  final int? failed;
-  final int? success;
-  final int? update;
-  final int? delete;
-
-  NotificationStats({
-    this.total,
-    this.sent,
-    this.received,
-    this.pending,
-    this.failed,
-    this.success,
-    this.update,
-    this.delete,
-  });
-
-  factory NotificationStats.fromJson(Map<String, dynamic> json) {
-    return NotificationStats(
-        total: json['total'] as int,
-        sent: json['sent'] as int,
-        received: json['received'] as int,
-        pending: json['pending'] as int,
-        failed: json['failed'] as int,
-        success: json['success'] as int,
-        update: json['delete'] as int,
-        delete: json['delete'] as int);
-  }
-
-  Map toJson() => {
-        'total': total ?? 0,
-        'sent': sent ?? 0,
-        'received': received ?? 0,
-        'pending': pending ?? 0,
-        'failed': failed ?? 0,
-        'success': success ?? 0,
-        'update': update ?? 0,
-        'delete': delete ?? 0,
-      };
-
-  @override
-  String toString() {
-    return '{total: $total, "type": {"sent": $sent,"recieved": $received},"status": {"delivered": $success,"errored": $failed,"queued": $pending},"operations":{"update":$update,"delete":$delete}}';
-  }
-}
-
 enum NotificationStatus { delivered, errored, queued }
 
 enum NotificationType { sent, received }
