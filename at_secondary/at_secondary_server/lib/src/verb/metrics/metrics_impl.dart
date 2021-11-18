@@ -286,7 +286,7 @@ class NotificationsMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    Map<String, dynamic> _metrics = <String, dynamic>{
+    Map<String, dynamic> _metricsMap = <String, dynamic>{
       "total": 0,
       "type": <String, int>{
         "sent": 0,
@@ -304,8 +304,14 @@ class NotificationsMetricImpl implements MetricProvider {
       "messageType": <String, int>{
         "key": 0,
         "text": 0,
-      }
+      },
+      "createdOn": 0,
     };
+    _metricsMap = await getNotificationStats(_metricsMap);
+    return _metricsMap.toString();
+  }
+
+  Future<Map<String, dynamic>> getNotificationStats(Map<String, dynamic> _metrics) async {
     AtNotificationKeystore notificationKeystore = AtNotificationKeystore.getInstance();
     List notificationsList = await notificationKeystore.getValues();
     _metrics['total'] = notificationsList.length;
@@ -334,7 +340,8 @@ class NotificationsMetricImpl implements MetricProvider {
         _metrics['messageType']['text']++;
       }
     }
-    return _metrics.toString();
+    _metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
+    return _metrics;
   }
 
   @override

@@ -28,3 +28,4 @@ doc/api/
 certs
 storage
 *.lock
+*/hive/

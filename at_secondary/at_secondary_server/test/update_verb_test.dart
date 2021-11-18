@@ -635,7 +635,7 @@ void main() {
   tearDown(() async => await tearDownFunc());
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(

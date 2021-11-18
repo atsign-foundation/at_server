@@ -6,7 +6,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -15,7 +14,7 @@ import 'package:test/test.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+  late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler = NotifyListVerbHandler(null);
@@ -64,18 +63,15 @@ void main() {
       var verb = NotifyList();
       var command = 'notif:list';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
   group('A group of tests on date time', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('A test to verify from date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -123,11 +119,9 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
-        ..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(
-          response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       expect('125', result[0]['id']);
       expect('@test_user_1', result[0]['from']);
@@ -136,8 +130,7 @@ void main() {
     });
 
     test('A test to verify from and to date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -177,8 +170,7 @@ void main() {
       var notification3 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 1))
+            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
             ..notification = 'key-3'
             ..type = NotificationType.received
@@ -197,10 +189,8 @@ void main() {
       await AtNotificationKeystore.getInstance().put('122', notification2);
       await AtNotificationKeystore.getInstance().put('123', notification3);
       var verb = NotifyList();
-      var fromDate =
-          DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
-      var toDate =
-          DateTime.now().subtract(Duration(days: 1)).toString().split(' ')[0];
+      var fromDate = DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
+      var toDate = DateTime.now().subtract(Duration(days: 1)).toString().split(' ')[0];
       var command = 'notify:list:$fromDate:$toDate';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
@@ -208,11 +198,9 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
-        ..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(
-          response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       expect('121', result[0]['id']);
       expect('@test_user_1', result[0]['from']);
@@ -228,20 +216,17 @@ void main() {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
+  var secondaryPersistenceStore =
+      SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@test_user_1')!;
+  var persistenceManager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
-  hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
+  hiveKeyStore.commitLog =
+      await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1', commitLogPath: storageDir);
+  await AtAccessLogManagerImpl.getInstance().getAccessLog('@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
   notificationInstance.currentAtSign = '@test_user_1';
   await notificationInstance.init(storageDir);
