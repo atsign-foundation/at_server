@@ -275,3 +275,53 @@ class LastPkamMetricImpl implements MetricProvider {
     return 'LastPkam';
   }
 }
+
+class CommitLogCompactionStats implements MetricProvider {
+  static final CommitLogCompactionStats _singleton = CommitLogCompactionStats._internal();
+
+  CommitLogCompactionStats._internal();
+
+  factory CommitLogCompactionStats.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  getMetrics({String? regex}) async {
+    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(
+            AtSecondaryServerImpl.getInstance().currentAtSign)!
+        .getSecondaryKeyStore();
+    var atData = await keyStore!.get('privatekey:commitLogCompactionStats');
+    return atData!.data!;
+  }
+
+  @override
+  String getName() {
+    return 'CommitLogCompactionStats';
+  }
+}
+
+class AccessLogCompactionStats implements MetricProvider {
+  static final AccessLogCompactionStats _singleton = AccessLogCompactionStats._internal();
+
+  AccessLogCompactionStats._internal();
+
+  factory AccessLogCompactionStats.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  getMetrics({String? regex}) async {
+    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(
+        AtSecondaryServerImpl.getInstance().currentAtSign)!
+        .getSecondaryKeyStore();
+    var atData = await keyStore!.get('privatekey:accessLogCompactionStats');
+    return atData!.data!;
+  }
+
+  @override
+  String getName() {
+    return 'AccessLogCompactionStats';
+  }
+}

@@ -12,6 +12,7 @@ import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
+import 'package:at_secondary/src/server/at_compaction_observer_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
@@ -149,7 +150,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         commitLogCompactionPercentage!,
         commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig);
+        .scheduleCompactionJob(atCommitLogCompactionConfig, AtCompactionObserverImpl());
 
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
@@ -159,7 +160,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionPercentage!,
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
-        .scheduleCompactionJob(atAccessLogCompactionConfig);
+        .scheduleCompactionJob(atAccessLogCompactionConfig, AtCompactionObserverImpl());
 
     // Refresh Cached Keys
     var random = Random();
