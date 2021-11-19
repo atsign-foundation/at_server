@@ -150,7 +150,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         commitLogCompactionPercentage!,
         commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig, AtCompactionObserverImpl());
+        .scheduleCompactionJob(atCommitLogCompactionConfig, AtCompactionObserverImpl(_commitLog));
 
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
@@ -160,7 +160,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionPercentage!,
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
-        .scheduleCompactionJob(atAccessLogCompactionConfig, AtCompactionObserverImpl());
+        .scheduleCompactionJob(atAccessLogCompactionConfig, AtCompactionObserverImpl(_accessLog));
 
     // Refresh Cached Keys
     var random = Random();

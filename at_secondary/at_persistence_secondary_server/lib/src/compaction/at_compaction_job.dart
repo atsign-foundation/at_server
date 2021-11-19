@@ -16,9 +16,9 @@ class AtCompactionJob {
     _cron = Cron();
     _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var compactionService = AtCompactionService.getInstance();
-      atCompactionObserver.start(atLogType);
+      atCompactionObserver.start();
       await compactionService.executeCompaction(atCompactionConfig, atLogType);
-      await atCompactionObserver.end(atLogType);
+      await atCompactionObserver.end();
     });
   }
 
