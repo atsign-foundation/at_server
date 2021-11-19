@@ -3,9 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
-import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
@@ -136,7 +134,7 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_visits!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    return (await atAccessLog?.mostVisitedAtSigns(length)).toString();
+    return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
   }
 
   @override
@@ -160,7 +158,7 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
     final length = AtSecondaryConfig.stats_top_keys!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    return (await atAccessLog?.mostVisitedKeys(length)).toString();
+    return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
   }
 
   @override
@@ -248,13 +246,13 @@ class DiskSizeMetricImpl implements MetricProvider {
     if (bytes <= 0) {
       storageData['size'] = '0';
       storageData['unit'] = 'B';
-      return storageData.toString();
+      return jsonEncode(storageData);
     }
     const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     var i = (log(bytes) / log(1024)).floor();
     storageData['size'] = ((bytes / pow(1024, i)).toStringAsFixed(decimals));
     storageData['units'] = suffixes[i];
-    return storageData.toString();
+    return jsonEncode(storageData);
   }
 }
 
@@ -318,7 +316,7 @@ class NotificationsMetricImpl implements MetricProvider {
       "createdOn": 0,
     };
     _metricsMap = await getNotificationStats(_metricsMap);
-    return _metricsMap.toString();
+    return jsonEncode(_metricsMap);
   }
 
   Future<Map<String, dynamic>> getNotificationStats(Map<String, dynamic> _metrics) async {

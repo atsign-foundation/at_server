@@ -222,7 +222,7 @@ void main() {
       expect('@bob', result[1]['to']);
       expect('key-2', result[1]['key']);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }
 

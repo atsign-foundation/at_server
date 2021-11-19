@@ -232,7 +232,7 @@ void main() {
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'India');
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }
 

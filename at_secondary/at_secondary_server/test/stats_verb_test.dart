@@ -246,6 +246,6 @@ void main() {
       expect(_metricsMap['messageType']['text'], 1);
       expect(_metricsMap['createdOn'] is int, true);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }

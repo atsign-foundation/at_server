@@ -380,7 +380,7 @@ void main() {
       expect('key-1', atNotification.notification);
       expect(1, atNotification.retryCount);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests to compute notifications wait time', () {

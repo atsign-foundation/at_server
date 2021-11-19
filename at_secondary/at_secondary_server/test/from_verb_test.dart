@@ -184,7 +184,7 @@ void main() async {
       var response = Response();
       expect(
           () async =>
-              verbHandler.processVerb(response, verbParams, atConnection),
+              await verbHandler.processVerb(response, verbParams, atConnection),
           throwsA(isA<BlockedConnectionException>()));
     });
 
@@ -236,7 +236,7 @@ void main() async {
     });*/
   });
 
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => await tearDownFunc());
 
   if (Directory(storageDir).existsSync()) {
     Directory(storageDir).deleteSync(recursive: true);

@@ -632,7 +632,7 @@ void main() {
       expect(localLookUpResponse_ttl.data, null);
     });
   });
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => await tearDownFunc());
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {

@@ -182,7 +182,7 @@ void main() {
           localLookUpResponse1, localLookVerbParam, atConnection);
       expect(localLookUpResponse1.data, null);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }
 

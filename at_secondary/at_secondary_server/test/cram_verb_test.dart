@@ -108,7 +108,7 @@ void main() async {
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
-          () async => verbHandler.processVerb(
+          () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
       expect(connectionMetadata.isAuthenticated, false);
@@ -133,13 +133,13 @@ void main() async {
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(
-          () async => verbHandler.processVerb(
+          () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
       expect(connectionMetadata.isAuthenticated, false);
     });
   });
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => await tearDownFunc());
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {

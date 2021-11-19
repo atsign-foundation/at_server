@@ -77,7 +77,7 @@ void main() async {
       expect(paramsMap['regex'], 'me');
     });
   });
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => await tearDownFunc());
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
