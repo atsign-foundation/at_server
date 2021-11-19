@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/src/at_constants.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -20,11 +19,9 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
   late var keyStoreManager;
-
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
       var verb = Notify();
@@ -35,7 +32,6 @@ void main() {
       expect(paramsMap[AT_SIGN], 'colin');
       expect(paramsMap[FOR_AT_SIGN], 'colin');
     });
-
     test('test notify for different atsign', () {
       var verb = Notify();
       var command = 'notify:notifier:persona:@bob:email@colin';
@@ -46,7 +42,6 @@ void main() {
       expect(paramsMap[AT_SIGN], 'colin');
     });
   });
-
   group('A group of notify accept tests', () {
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
@@ -54,28 +49,24 @@ void main() {
       var result = handler.accept(command);
       expect(result, true);
     });
-
     test('test notify command accept test for different atsign', () {
       var command = 'notify:@bob:location@colin';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, true);
     });
-
     test('test notify command accept negative test without WhomToNotify', () {
       var command = 'notify location@colin';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, false);
     });
-
     test('test notify command accept negative test without from AtSign', () {
       var command = 'notify:@colin:location';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, true);
     });
-
     test('test notify command accept negative test without what to notify', () {
       var command = 'notify:@bob:@colin';
       var handler = NotifyVerbHandler(null);
@@ -83,14 +74,15 @@ void main() {
       expect(result, true);
     });
   });
-
   group('A group of notify verb regex - invalid syntax', () {
     test('test notify without whom to notify', () {
       var verb = Notify();
       var command = 'notify:location@alice ';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify key- no from atsign', () {
@@ -101,29 +93,34 @@ void main() {
       expect(params['forAtSign'], 'colin');
       expect(params['atKey'], 'location');
     });
-
     test('test notify with only key', () {
       var verb = Notify();
       var command = 'notify:location';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify key- invalid keyword', () {
       var verb = Notify();
       var command = 'notification:@colin:location@alice';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify verb - no key', () {
       var verb = Notify();
       var command = 'notify:@colin:@alice';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test notify verb - invalid ttl value', () {
@@ -132,7 +129,9 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '0');
-      expect(() => notifyVerb.processVerb(notifyResponse, notifyVerbParams, inboundConnection),
+      expect(
+          () => notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
@@ -142,7 +141,9 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '0');
-      expect(() => notifyVerb.processVerb(notifyResponse, notifyVerbParams, inboundConnection),
+      expect(
+          () => notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
@@ -152,20 +153,24 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
-      expect(() => notifyVerb.processVerb(notifyResponse, notifyVerbParams, inboundConnection),
+      expect(
+          () => notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid command', () {
       var command = 'notify:location@alice';
       AbstractVerbHandler handler = NotifyVerbHandler(null);
-      expect(() => handler.parse(command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
       var command = 'notify:update:ttr:1000:ccd:test:location@alice';
       AbstractVerbHandler handler = NotifyVerbHandler(null);
-      expect(() => handler.parse(command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
   });
 
@@ -180,7 +185,6 @@ void main() {
       expect(paramsMap[FOR_AT_SIGN], 'bob');
       expect(paramsMap[AT_SIGN], 'alice');
     });
-
     test('notify verb and value with mixed case', () {
       var verb = Notify();
       var command = 'NoTiFy:notifier:persona:@bob:location@alice';
@@ -194,7 +198,8 @@ void main() {
 
     test('notify verb with cascade delete is true', () {
       var verb = Notify();
-      var command = 'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location@alice';
+      var command =
+          'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location@alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -208,7 +213,8 @@ void main() {
 
     test('notify verb with cascade delete is false', () {
       var verb = Notify();
-      var command = 'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location@alice';
+      var command =
+          'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location@alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -220,7 +226,6 @@ void main() {
       expect(paramsMap[AT_SIGN], 'alice');
     });
   });
-
   group('A group of hive related test cases', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('test notify handler with update operation', () async {
@@ -245,8 +250,10 @@ void main() {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      await cramVerbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+      await cramVerbHandler.processVerb(
+          cramResponse, cramVerbParams, atConnection);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
@@ -257,12 +264,14 @@ void main() {
       notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atKey', () => 'phone');
-      await notifyVerbHandler.processVerb(notifyResponse, notifyVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(
+          notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
       var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
-      await notifyListVerbHandler.processVerb(notifyListResponse, notifyListVerbParams, atConnection);
+      await notifyListVerbHandler.processVerb(
+          notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
@@ -270,7 +279,6 @@ void main() {
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'update');
     });
-
     test('test notify handler with delete operation', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
@@ -293,8 +301,10 @@ void main() {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      await cramVerbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+      await cramVerbHandler.processVerb(
+          cramResponse, cramVerbParams, atConnection);
+      var connectionMetadata =
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Notify Verb
@@ -305,12 +315,14 @@ void main() {
       notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atKey', () => 'phone');
-      await notifyVerbHandler.processVerb(notifyResponse, notifyVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(
+          notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
       var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
-      await notifyListVerbHandler.processVerb(notifyListResponse, notifyListVerbParams, atConnection);
+      await notifyListVerbHandler.processVerb(
+          notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
@@ -318,12 +330,14 @@ void main() {
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'delete');
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of notify verb test', () {
-    setUp(() async => setUpFunc(storageDir));
-    test('A test case to verify enqueuing error notifications increments retry count', () async {
+    setUp(() async => await setUpFunc(storageDir));
+    test(
+        'A test case to verify enqueuing error notifications increments retry count',
+        () async {
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@test_user_1'
@@ -356,11 +370,14 @@ void main() {
   });
 
   group('A group of tests to compute notifications wait time', () {
-    test('A test to compute notifications with equal delay, @sign with highest priority is dequeued', () {
+    test(
+        'A test to compute notifications with equal delay, @sign with highest priority is dequeued',
+        () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 4))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 4))
             ..toAtSign = '@bob'
             ..notification = 'key-1'
             ..type = NotificationType.sent
@@ -374,11 +391,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 4))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 4))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -392,7 +409,6 @@ void main() {
             ..notifier = 'location'
             ..depth = 2)
           .build();
-
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -403,11 +419,14 @@ void main() {
       AtNotificationMap.getInstance().clear();
     });
 
-    test('A test to verify lowest atsign with highest waiting time gets out than highest priority', () {
+    test(
+        'A test to verify lowest atsign with highest waiting time gets out than highest priority',
+        () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 10))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 10))
             ..toAtSign = '@bob'
             ..notification = 'key-1'
             ..type = NotificationType.sent
@@ -421,11 +440,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -439,7 +458,6 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -451,12 +469,14 @@ void main() {
     });
   });
   group('A group of tests on notification strategy - all', () {
-    test('A test case to verify notifications with strategy all with equal priorities are stored as per the wait time',
+    test(
+        'A test case to verify notifications with strategy all with equal priorities are stored as per the wait time',
         () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 1))
             ..toAtSign = '@bob'
             ..notification = 'key-1'
             ..type = NotificationType.sent
@@ -470,11 +490,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(minutes: 2))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(minutes: 2))
             ..toAtSign = '@bob'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -488,7 +508,6 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -526,7 +545,6 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -544,7 +562,6 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -561,12 +578,12 @@ void main() {
       expect('124', atNotificationList[0].id);
       AtNotificationMap.getInstance().clear();
     });
-
     test('When latest N, when N = 2', () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 3))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 3))
             ..toAtSign = '@bob'
             ..notification = 'key-1'
             ..type = NotificationType.sent
@@ -580,11 +597,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 2)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 2))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 2))
             ..toAtSign = '@bob'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -598,11 +615,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 2)
           .build();
-
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
             ..notification = 'key-3'
             ..type = NotificationType.sent
@@ -617,7 +634,6 @@ void main() {
             ..depth = 2)
           .build();
       var notificationMap = AtNotificationMap.getInstance();
-
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
       notificationMap.add(atNotification3);
@@ -636,11 +652,14 @@ void main() {
       AtNotificationMap.getInstance().clear();
     });
 
-    test('Change in notifierId should increase the queue size and retain the old notifications as per priority', () {
+    test(
+        'Change in notifierId should increase the queue size and retain the old notifications as per priority',
+        () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 3))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 3))
             ..toAtSign = '@bob'
             ..notification = 'key-1'
             ..type = NotificationType.sent
@@ -654,11 +673,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
-
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 2))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 2))
             ..toAtSign = '@bob'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -672,11 +691,11 @@ void main() {
             ..notifier = 'persona'
             ..depth = 3)
           .build();
-
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
             ..notification = 'key-3'
             ..type = NotificationType.sent

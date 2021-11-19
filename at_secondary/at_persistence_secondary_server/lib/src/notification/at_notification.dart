@@ -150,7 +150,9 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   @override
   AtNotification read(BinaryReader reader) {
     final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read()};
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read()
+    };
 
     final atNotification = (AtNotificationBuilder()
           ..id = fields[0] as String?

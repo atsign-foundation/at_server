@@ -51,16 +51,20 @@ void main() {
       var verb = Stats();
       var command = 'staats';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats key with regex - invalid keyword', () {
       var verb = Stats();
       var command = 'stats:2:me';
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats verb - upper case', () {
@@ -76,8 +80,10 @@ void main() {
       var command = 'st ats';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
-      expect(() => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(
+          () => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test stats verb - invalid syntax', () {
@@ -86,7 +92,9 @@ void main() {
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager();
       defaultVerbHandlerManager.init();
-      expect(() => defaultVerbExecutor.execute(command, inbound, defaultVerbHandlerManager),
+      expect(
+          () => defaultVerbExecutor.execute(
+              command, inbound, defaultVerbHandlerManager),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
     });
   });

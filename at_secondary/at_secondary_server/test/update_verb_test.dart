@@ -636,12 +636,12 @@ void main() {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
+      .getCommitLog(atsign ?? '@alice', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
@@ -652,7 +652,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
+      .getAccessLog(atsign ?? '@alice', accessLogPath: storageDir);
   return keyStoreManager;
 }
 
