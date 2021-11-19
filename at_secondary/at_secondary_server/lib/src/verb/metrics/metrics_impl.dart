@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -292,7 +293,7 @@ class CommitLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
-    var atData = await keyStore!.get('privatekey:commitLogCompactionStats');
+    var atData = await keyStore!.get(commitLogCompactionKey);
     if (atData != null && atData.data != null) {
       return atData.data;
     }
@@ -320,7 +321,7 @@ class AccessLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
-    var atData = await keyStore!.get('privatekey:accessLogCompactionStats');
+    var atData = await keyStore!.get(accessLogCompactionKey);
     if (atData != null && atData.data != null) {
       return atData.data;
     }

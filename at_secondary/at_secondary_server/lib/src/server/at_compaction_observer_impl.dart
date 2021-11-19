@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -34,8 +35,8 @@ class AtCompactionObserverImpl implements AtCompactionObserver {
           .add(Duration(minutes: _getCompactionFrequencyMins()));
     if (atData != null && atData.data != null) {
       var previousRun = (jsonDecode(atData.data))['previousRun'];
-      if (previousRun != null) {
-        compactionStats.previousRun = DateTime.parse(previousRun);
+      if (previousRun != null && previousRun != 'null') {
+        compactionStats.previousRun = DateTime.parse(previousRun).toUtc();
       }
     }
     var value = AtData()..data = jsonEncode(compactionStats);
@@ -72,10 +73,10 @@ class AtCompactionObserverImpl implements AtCompactionObserver {
 
   String _getKey() {
     if (atLogType is AtCommitLog) {
-      return 'privatekey:commitLogCompactionStats';
+      return commitLogCompactionKey;
     }
     if (atLogType is AtAccessLog) {
-      return 'privatekey:accessLogCompactionStats';
+      return accessLogCompactionKey;
     }
     return '';
   }
