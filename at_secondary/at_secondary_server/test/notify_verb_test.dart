@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/src/at_constants.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -19,9 +20,11 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
   late var keyStoreManager;
+
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
       var verb = Notify();
@@ -32,6 +35,7 @@ void main() {
       expect(paramsMap[AT_SIGN], 'colin');
       expect(paramsMap[FOR_AT_SIGN], 'colin');
     });
+
     test('test notify for different atsign', () {
       var verb = Notify();
       var command = 'notify:notifier:persona:@bob:email@colin';
@@ -42,6 +46,7 @@ void main() {
       expect(paramsMap[AT_SIGN], 'colin');
     });
   });
+
   group('A group of notify accept tests', () {
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
@@ -49,24 +54,28 @@ void main() {
       var result = handler.accept(command);
       expect(result, true);
     });
+
     test('test notify command accept test for different atsign', () {
       var command = 'notify:@bob:location@colin';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, true);
     });
+
     test('test notify command accept negative test without WhomToNotify', () {
       var command = 'notify location@colin';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, false);
     });
+
     test('test notify command accept negative test without from AtSign', () {
       var command = 'notify:@colin:location';
       var handler = NotifyVerbHandler(null);
       var result = handler.accept(command);
       expect(result, true);
     });
+
     test('test notify command accept negative test without what to notify', () {
       var command = 'notify:@bob:@colin';
       var handler = NotifyVerbHandler(null);
@@ -74,6 +83,7 @@ void main() {
       expect(result, true);
     });
   });
+
   group('A group of notify verb regex - invalid syntax', () {
     test('test notify without whom to notify', () {
       var verb = Notify();
@@ -93,6 +103,7 @@ void main() {
       expect(params['forAtSign'], 'colin');
       expect(params['atKey'], 'location');
     });
+
     test('test notify with only key', () {
       var verb = Notify();
       var command = 'notify:location';
@@ -185,6 +196,7 @@ void main() {
       expect(paramsMap[FOR_AT_SIGN], 'bob');
       expect(paramsMap[AT_SIGN], 'alice');
     });
+
     test('notify verb and value with mixed case', () {
       var verb = Notify();
       var command = 'NoTiFy:notifier:persona:@bob:location@alice';
@@ -226,6 +238,7 @@ void main() {
       expect(paramsMap[AT_SIGN], 'alice');
     });
   });
+
   group('A group of hive related test cases', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('test notify handler with update operation', () async {
@@ -279,6 +292,7 @@ void main() {
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'update');
     });
+
     test('test notify handler with delete operation', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
@@ -391,6 +405,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -409,6 +424,7 @@ void main() {
             ..notifier = 'location'
             ..depth = 2)
           .build();
+
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -440,6 +456,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
@@ -458,6 +475,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -490,6 +508,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -508,6 +527,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -545,6 +565,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -562,6 +583,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var notificationMap = AtNotificationMap.getInstance();
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
@@ -578,6 +600,7 @@ void main() {
       expect('124', atNotificationList[0].id);
       AtNotificationMap.getInstance().clear();
     });
+
     test('When latest N, when N = 2', () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
@@ -597,6 +620,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 2)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -615,6 +639,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 2)
           .build();
+
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
             ..fromAtSign = '@test_user_1'
@@ -634,6 +659,7 @@ void main() {
             ..depth = 2)
           .build();
       var notificationMap = AtNotificationMap.getInstance();
+
       notificationMap.add(atNotification1);
       notificationMap.add(atNotification2);
       notificationMap.add(atNotification3);
@@ -673,6 +699,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 1)
           .build();
+
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
             ..fromAtSign = '@test_user_1'
@@ -691,6 +718,7 @@ void main() {
             ..notifier = 'persona'
             ..depth = 3)
           .build();
+
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
             ..fromAtSign = '@test_user_1'

@@ -73,7 +73,7 @@ void main() {
   group('A group of tests on date time', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('A test to verify from date', () async {
-      var notifyListVerbHandler = 
+      var notifyListVerbHandler =
           NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
@@ -126,7 +126,7 @@ void main() {
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
-        response, verbParams, atConnection);
+          response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       expect('125', result[0]['id']);
       expect('@test_user_1', result[0]['from']);
@@ -135,7 +135,7 @@ void main() {
     });
 
     test('A test to verify from and to date', () async {
-      var notifyListVerbHandler = 
+      var notifyListVerbHandler =
           NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
@@ -176,7 +176,8 @@ void main() {
       var notification3 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now().subtract(Duration(seconds: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
             ..notification = 'key-3'
             ..type = NotificationType.received

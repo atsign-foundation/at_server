@@ -175,7 +175,8 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(['access_log_compaction', 'compactionFrequencyMins']);
+      return getConfigFromYaml(
+          ['access_log_compaction', 'compactionFrequencyMins']);
     } on ElementNotFoundException {
       return _accessLogCompactionFrequencyMins;
     }
