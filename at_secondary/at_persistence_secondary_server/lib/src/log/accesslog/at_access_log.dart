@@ -64,7 +64,9 @@ class AtAccessLog implements AtLogType {
 
   @override
   int entriesCount() {
-    return _accessLogKeyStore.entriesCount();
+    final count = _accessLogKeyStore.entriesCount();
+    print('entriesCount: $count');
+    return count;
   }
 
   @override

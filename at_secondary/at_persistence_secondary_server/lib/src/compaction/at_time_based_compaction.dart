@@ -23,13 +23,16 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     if (expiredKeys.isEmpty) {
       return;
     }
+    final bc = atLogType.entriesCount();
     _logger.finer(
-        'Number of entries in $atLogType before time compaction - ${atLogType.getSize()}');
+        'Number of entries in $atLogType before time compaction - ${bc}');
+
     _logger.finer(
         'performing time compaction for $atLogType: Number of expired/duplicate keys: ${expiredKeys.length}');
     // Delete expired keys
     await atLogType.delete(expiredKeys);
+    final ac = atLogType.entriesCount();
     _logger.finer(
-        'Number of entries in $atLogType after time compaction - ${atLogType.getSize()}');
+        'Number of entries in $atLogType after time compaction - ${ac}');
   }
 }
