@@ -309,10 +309,8 @@ class NotificationsMetricImpl implements MetricProvider {
     return jsonEncode(_metricsMap);
   }
 
-  void _get(var notifications, Map _metrics, {required String key, required String value}) {
-    if (_asString(notifications.toJson()[key]) == value) {
-      _metrics[key][value]++;
-    }
+  bool _check(var notifications, String key, String? value) {
+    return _asString(notifications.toJson()[key]) == value;
   }
 
   Future<Map<String, dynamic>> getNotificationStats(Map<String, dynamic> _metrics) async {
@@ -320,38 +318,28 @@ class NotificationsMetricImpl implements MetricProvider {
     List notificationsList = await notificationKeystore.getValues();
     _metrics['total'] = notificationsList.length;
     for (var notifications in notificationsList) {
-      _get(notifications, _metrics, key: 'type', value: 'sent');
-      _get(notifications, _metrics, key: 'type', value: 'received');
-      _get(notifications, _metrics, key: 'status', value: 'delivered');
-      _get(notifications, _metrics, key: 'status', value: 'failed');
-      _get(notifications, _metrics, key: 'status', value: 'queued');
-      _get(notifications, _metrics, key: 'operations', value: 'update');
-      _get(notifications, _metrics, key: 'operations', value: 'delete');
-      _get(notifications, _metrics, key: 'messageType', value: 'key');
-      _get(notifications, _metrics, key: 'messageType', value: 'text');
-      // if (_asString(notifications.toJson()['type']) == 'sent') {
-      //   _metrics['type']['sent']++;
-      // } else if (_asString(notifications.toJson()['type']) == 'received') {
-      //   _metrics['type']['received']++;
-      // }
-      // if (_asString(notifications.toJson()['notificationStatus']) == 'delivered') {
-      //   _metrics['status']['delivered']++;
-      // } else if (_asString(notifications.toJson()['notificationStatus']) == 'errored') {
-      //   _metrics['status']['failed']++;
-      // } else if (_asString(notifications.toJson()['notificationStatus']) == 'queued' ||
-      //     notifications.toJson()['notificationStatus'] == null) {
-      //   _metrics['status']['queued']++;
-      // }
-      // if (_asString(notifications.toJson()['opType']) == 'update') {
-      //   _metrics['operations']['update']++;
-      // } else if (_asString(notifications.toJson()['opType']) == 'delete') {
-      //   _metrics['operations']['delete']++;
-      // }
-      // if (_asString(notifications.toJson()['messageType']) == 'key') {
-      //   _metrics['messageType']['key']++;
-      // } else if (_asString(notifications.toJson()['messageType']) == 'text') {
-      //   _metrics['messageType']['text']++;
-      // }
+      if (_check(notifications, 'type', 'sent')) {
+        _metrics['type']['sent']++;
+      } else if (_check(notifications, 'type', 'received')) {
+        _metrics['type']['received']++;
+      }
+      if (_check(notifications, 'notificationStatus', 'delivered')) {
+        _metrics['status']['delivered']++;
+      } else if (_check(notifications, 'notificationStatus', 'errored')) {
+        _metrics['status']['failed']++;
+      } else if (_check(notifications, 'notificationStatus', 'queued') || _check(notifications, 'status', null)) {
+        _metrics['status']['queued']++;
+      }
+      if (_check(notifications, 'opType', 'update')) {
+        _metrics['operations']['update']++;
+      } else if (_check(notifications, 'opType', 'delete')) {
+        _metrics['operations']['delete']++;
+      }
+      if (_check(notifications, 'messageType', 'key')) {
+        _metrics['messageType']['key']++;
+      } else if (_check(notifications, 'messageType', 'text')) {
+        _metrics['messageType']['text']++;
+      }
     }
     _metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
     return _metrics;
