@@ -57,7 +57,7 @@ void main() {
     print('result : $result');
     expect(result, true);
   });
-  tearDown(() async => await tearDownFunc());
+  tearDown(() async => tearDownFunc());
 }
 
 Future<SecondaryKeyStoreManager?> setUpFunc(storageDir) async {

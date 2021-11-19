@@ -318,11 +318,11 @@ void main() {
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'delete');
     });
-    tearDown(() async => await tearDownFunc());
+    tearDown(() async => tearDownFunc());
   });
 
   group('A group of notify verb test', () {
-    setUp(() async => await setUpFunc(storageDir));
+    setUp(() async => setUpFunc(storageDir));
     test('A test case to verify enqueuing error notifications increments retry count', () async {
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
@@ -736,7 +736,7 @@ Future<void> tearDownFunc() async {
   AtNotificationMap.getInstance().clear();
   await AtNotificationKeystore.getInstance().close();
   if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+    await Directory('test/hive').delete(recursive: true);
   }
 }
 

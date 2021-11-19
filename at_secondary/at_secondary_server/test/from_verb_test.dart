@@ -184,7 +184,7 @@ void main() async {
       var response = Response();
       expect(
           () async =>
-              await verbHandler.processVerb(response, verbParams, atConnection),
+              verbHandler.processVerb(response, verbParams, atConnection),
           throwsA(isA<BlockedConnectionException>()));
     });
 

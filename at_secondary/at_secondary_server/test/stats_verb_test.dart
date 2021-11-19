@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -110,31 +109,31 @@ void main() {
 
     test('the value of the notificationStats', () async {
       Map<String, dynamic> _metricsMap = <String, dynamic>{
-        "total": 0,
-        "type": <String, int>{
-          "sent": 0,
-          "received": 0,
+        'total': 0,
+        'type': <String, int>{
+          'sent': 0,
+          'received': 0,
         },
-        "status": <String, int>{
-          "delivered": 0,
-          "failed": 0,
-          "queued": 0,
+        'status': <String, int>{
+          'delivered': 0,
+          'failed': 0,
+          'queued': 0,
         },
-        "operations": <String, int>{
-          "update": 0,
-          "delete": 0,
+        'operations': <String, int>{
+          'update': 0,
+          'delete': 0,
         },
-        "messageType": <String, int>{
-          "key": 0,
-          "text": 0,
+        'messageType': <String, int>{
+          'key': 0,
+          'text': 0,
         },
-        "createdOn": 0,
+        'createdOn': 0,
       };
       var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager!.getKeyStore());
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(Duration(days: 1))
+            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -151,7 +150,7 @@ void main() {
       var testNotification2 = (AtNotificationBuilder()
             ..id = '1032'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(Duration(days: 1))
+            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.received
@@ -168,7 +167,7 @@ void main() {
       var testNotification3 = (AtNotificationBuilder()
             ..id = '1033'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(Duration(days: 1))
+            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -185,7 +184,7 @@ void main() {
       var testNotification4 = (AtNotificationBuilder()
             ..id = '1034'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(Duration(days: 1))
+            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.received
@@ -227,9 +226,6 @@ void main() {
       await notifyListVerbHandler.processVerb(response, verbParams3, atConnection);
       await notifyListVerbHandler.processVerb(response, verbParams4, atConnection);
       _metricsMap = await NotificationsMetricImpl.getInstance().getNotificationStats(_metricsMap);
-      _metricsMap.remove('createdOn');
-      print(_metricsMap.toString() ==
-          "{total: 4, type: {sent: 2, received: 2}, status: {delivered: 1, failed: 1, queued: 2}, operations: {update: 3, delete: 1}, messageType: {key: 3, text: 1}}");
       expect(_metricsMap['total'], 4);
       expect(_metricsMap['type']['sent'], 2);
       expect(_metricsMap['type']['received'], 2);
@@ -240,7 +236,8 @@ void main() {
       expect(_metricsMap['operations']['delete'], 1);
       expect(_metricsMap['messageType']['key'], 3);
       expect(_metricsMap['messageType']['text'], 1);
+      expect(_metricsMap['createdOn'] is int, true);
     });
-    // tearDown(() async => await tearDownFunc());
+    tearDown(() async => tearDownFunc());
   });
 }

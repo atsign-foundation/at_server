@@ -256,7 +256,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
   final notificationStore = AtNotificationKeystore.getInstance();
   notificationStore.currentAtSign = '@test_user_1';
-  notificationStore.init(storageDir);
+  await notificationStore.init(storageDir);
   return keyStoreManager;
 }
 

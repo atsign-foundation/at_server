@@ -94,7 +94,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       await outBoundClient.connect(handshake: false);
     }
     // call lookup with the query. Added operation as all to get key's value and metadata for caching
-    return await outBoundClient.lookUp('all:$query', handshake: false);
+    return outBoundClient.lookUp('all:$query', handshake: false);
   }
 
   /// Caches the key.
