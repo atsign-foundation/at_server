@@ -1,3 +1,9 @@
+## 3.0.8
+- reduce compaction interval to 12 hrs
+- compaction delete bug fix
+## 3.0.7
+- Commit log compaction
+- Commit log will use in memory hive box. Other keystores will use lazy boxes.
 ## 3.0.6
 - Rollback hive lazy box
 ## 3.0.5

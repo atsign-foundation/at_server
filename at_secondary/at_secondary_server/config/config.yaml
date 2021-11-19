@@ -56,7 +56,7 @@ connection:
 # The @Protocol commit log compaction job configurations.
 commit_log_compaction:
   # The frequent time interval (in minutes) to initiate the commit log compaction job service.
-  compactionFrequencyMins: 1440
+  compactionFrequencyMins: 720
   # The percentage of logs to remove through the commit log compaction job service.
   compactionPercentage: 20
   # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.

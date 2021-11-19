@@ -17,6 +17,9 @@ class CommitLogKeyStore
   final _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
+  int _latestCommitId = -1;
+
+  int get latestCommitId => _latestCommitId;
 
   CommitLogKeyStore(this._currentAtSign);
 
@@ -34,7 +37,11 @@ class CommitLogKeyStore
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
     // Cache the latest commitId of each key.
-    _commitLogCacheMap.addAll(await _getCommitIdMap());
+    // Add entries to commitLogCacheMap when initialized from at_secondary_server
+    // and refrain for at_client_sdk.
+    if (enableCommitId) {
+      _commitLogCacheMap.addAll(await _getCommitIdMap());
+    }
   }
 
   @override
@@ -62,6 +69,10 @@ class CommitLogKeyStore
         await _getBox().put(internalKey, commitEntry);
         // update the commitId in cache commitMap.
         _updateCacheLog(commitEntry.atKey!, commitEntry);
+        if (commitEntry.commitId != null &&
+            commitEntry.commitId! > _latestCommitId) {
+          _latestCommitId = commitEntry.commitId!;
+        }
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -87,7 +98,7 @@ class CommitLogKeyStore
 
   /// Remove
   @override
-  Future remove(int commitId) async {
+  Future<void> remove(int commitId) async {
     try {
       await _getBox().delete(commitId);
     } on Exception catch (e) {
@@ -177,12 +188,10 @@ class CommitLogKeyStore
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     final dupEntries = await getDuplicateEntries();
-    print('commit log entries to delete: $dupEntries');
-    dupEntries.forEach((key) async {
-      print(await get(key));
-    });
 
-  return dupEntries;
+    _logger.finer('commit log entries to delete: $dupEntries');
+
+    return dupEntries;
   }
 
   Future<List> getDuplicateEntries() async {
@@ -273,6 +282,10 @@ class CommitLogKeyStore
             max(keyMap[value.atKey]!.commitId!, value.commitId);
       } else {
         keyMap[value.atKey] = value;
+      }
+      // update the latest commit id
+      if (value.commitId > _latestCommitId) {
+        _latestCommitId = value.commitId;
       }
     }
     return keyMap;
