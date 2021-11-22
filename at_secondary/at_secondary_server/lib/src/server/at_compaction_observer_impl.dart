@@ -47,28 +47,41 @@ class AtCompactionObserverImpl implements AtCompactionObserver {
   /// entries before the compaction.
   @override
   void start() {
-    compactionStartTimeInEpoch = DateTime.now().toUtc().millisecondsSinceEpoch;
-    sizeBeforeCompaction = atLogType.getSize();
+    try {
+      compactionStartTimeInEpoch =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      sizeBeforeCompaction = atLogType.getSize();
+    } on Exception catch (e) {
+      _logger.severe(
+          'Exception in capturing the compaction start metrics. ${e.toString()}');
+    }
   }
 
   /// Invokes when compaction process ends. Records the compaction end time and
   /// entries after the compaction.
   @override
   Future<void> end() async {
-    int compactionEndTimeInEpoch =
-        DateTime.now().toUtc().millisecondsSinceEpoch;
-    var compactionStats = CompactionStats()
-      ..previousRun =
-          DateTime.fromMillisecondsSinceEpoch(compactionEndTimeInEpoch)
-      ..duration = DateTime.fromMillisecondsSinceEpoch(compactionEndTimeInEpoch)
-          .difference(
-              DateTime.fromMillisecondsSinceEpoch(compactionStartTimeInEpoch))
-      ..keysBeforeCompaction = sizeBeforeCompaction
-      ..keysAfterCompaction = atLogType.getSize()
-      ..nextRun = DateTime.fromMillisecondsSinceEpoch(compactionEndTimeInEpoch)
-          .add(Duration(minutes: _getCompactionFrequencyMins()));
-    await keyStore!
-        .put(_getKey(), AtData()..data = jsonEncode(compactionStats));
+    try {
+      int compactionEndTimeInEpoch =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      var compactionStats = CompactionStats()
+        ..previousRun =
+            DateTime.fromMillisecondsSinceEpoch(compactionEndTimeInEpoch)
+        ..duration = DateTime.fromMillisecondsSinceEpoch(
+                compactionEndTimeInEpoch)
+            .difference(
+                DateTime.fromMillisecondsSinceEpoch(compactionStartTimeInEpoch))
+        ..keysBeforeCompaction = sizeBeforeCompaction
+        ..keysAfterCompaction = atLogType.getSize()
+        ..nextRun =
+            DateTime.fromMillisecondsSinceEpoch(compactionEndTimeInEpoch)
+                .add(Duration(minutes: _getCompactionFrequencyMins()));
+      await keyStore!
+          .put(_getKey(), AtData()..data = jsonEncode(compactionStats));
+    } on Exception catch (e) {
+      _logger.severe(
+          'Exception in capturing the compaction end metrics ${e.toString()}');
+    }
   }
 
   String _getKey() {

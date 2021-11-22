@@ -294,9 +294,11 @@ class CommitLogCompactionStats implements MetricProvider {
             AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
     var atData = await keyStore!.get(commitLogCompactionKey);
-    if (atData != null && atData.data != null) {
-      return atData.data;
+    //If atData is null, return empty JSON
+    if (atData == null && atData!.data == null) {
+      return jsonEncode({});
     }
+    return atData.data;
   }
 
   @override
@@ -322,9 +324,11 @@ class AccessLogCompactionStats implements MetricProvider {
             AtSecondaryServerImpl.getInstance().currentAtSign)!
         .getSecondaryKeyStore();
     var atData = await keyStore!.get(accessLogCompactionKey);
-    if (atData != null && atData.data != null) {
-      return atData.data;
+    // if atData is null, return empty json.
+    if (atData == null && atData!.data == null) {
+      return jsonEncode({});
     }
+    return atData.data;
   }
 
   @override
