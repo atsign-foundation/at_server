@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
@@ -74,16 +73,9 @@ class AccessLogKeyStore
 
   @override
   void delete(expiredKeys) async {
-    expiredKeys.forEach((key) {
-      print('access log key: $key, contains: ${_getBox().containsKey(key)}');
-    });
-    final beforeDeletion = await _toMap();
-    print('before deletion ${beforeDeletion!.entries}');
     if (expiredKeys.isNotEmpty) {
       await _getBox().deleteAll(expiredKeys);
     }
-    final afterDeletion = await _toMap();
-    print('after deletion ${afterDeletion!.entries}');
   }
 
   /// Returns the total number of keys
@@ -92,11 +84,6 @@ class AccessLogKeyStore
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = _getBox().keys.length;
-    print('entries count');
-    _getBox().keys.forEach((element) async {
-      print('key :$element value : ${await get(element)}');
-    });
-    print('totalkeys: $totalKeys');
     return totalKeys;
   }
 
