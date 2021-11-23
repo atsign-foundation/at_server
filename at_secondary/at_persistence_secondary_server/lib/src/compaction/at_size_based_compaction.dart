@@ -20,13 +20,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
       if (totalKeys > 0) {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
-        _logger.finer(
-            'Number of entries in $atLogType before size compaction - ${atLogType.getSize()}');
-        _logger.finer(
-            'performing size compaction for ${atLogType}: Number of expired keys: ${keysToDelete.length}');
         await atLogType.delete(keysToDelete);
-        _logger.finer(
-            'Number of entries in $atLogType after size compaction - ${atLogType.getSize()}');
       }
     }
   }
