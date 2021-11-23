@@ -23,7 +23,7 @@ enum MetricNames {
   SECONDARY_SERVER_VERSION,
   LAST_LOGGEDIN_DATETIME,
   DISK_SIZE,
-  LAST_PKAM,
+  LAST_AUTH_TIME,
   NOTIFICATION_COUNT
 }
 
@@ -48,7 +48,7 @@ extension MetricClasses on MetricNames? {
         return LastLoggedInDatetimeMetricImpl.getInstance();
       case MetricNames.DISK_SIZE:
         return DiskSizeMetricImpl.getInstance();
-      case MetricNames.LAST_PKAM:
+      case MetricNames.LAST_AUTH_TIME:
         return LastPkamMetricImpl.getInstance();
       case MetricNames.NOTIFICATION_COUNT:
         return NotificationsMetricImpl.getInstance();
@@ -68,7 +68,7 @@ final Map stats_map = {
   '7': MetricNames.SECONDARY_SERVER_VERSION,
   '8': MetricNames.LAST_LOGGEDIN_DATETIME,
   '9': MetricNames.DISK_SIZE,
-  '10': MetricNames.LAST_PKAM,
+  '10': MetricNames.LAST_AUTH_TIME,
   '11': MetricNames.NOTIFICATION_COUNT
 };
 
@@ -109,9 +109,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   // Input : Response, verbParams, AtConnection
   @override
   Future<void> processVerb(
-      Response response,
-      HashMap<String, String?> verbParams,
-      InboundConnection atConnection) async {
+      Response response, HashMap<String, String?> verbParams, InboundConnection atConnection) async {
     try {
       var statID = verbParams[AT_STAT_ID];
       _regex = verbParams[AT_REGEX];
@@ -126,8 +124,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
       }
       var result = [];
       //Iterate through stats_id_list
-      await Future.forEach(
-          stats_list, (dynamic element) => addStatToResult(element, result));
+      await Future.forEach(stats_list, (dynamic element) => addStatToResult(element, result));
       // Create response json
       var response_json = result.toString();
       response.data = response_json;
