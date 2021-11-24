@@ -50,6 +50,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var ttl_ms;
     var ttb_ms;
     var ttr_ms;
+    var ttln_ms;
     var isCascade;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
@@ -87,6 +88,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+      ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
         ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
@@ -106,7 +108,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue);
+            value: atValue, ttln_ms: ttln_ms);
         response.data = notificationId;
         return;
       }
@@ -155,7 +157,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttl_ms, value: atValue);
+          ttl_ms: ttln_ms, value: atValue);
 
       // If key is public, remove forAtSign from key.
       if (key!.contains('public:')) {

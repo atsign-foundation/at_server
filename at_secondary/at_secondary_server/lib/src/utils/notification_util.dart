@@ -29,16 +29,22 @@ class NotificationUtil {
       }
       forAtSign = AtUtils.formatAtSign(forAtSign);
       fromAtSign = AtUtils.formatAtSign(fromAtSign);
-      var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = fromAtSign
-            ..toAtSign = forAtSign
-            ..notification = key
-            ..type = notificationType
-            ..opType = operationType
-            ..messageType = messageType
-            ..atValue = value
-            ..notificationStatus = notificationStatus)
-          .build();
+      final notificationBuilder = AtNotificationBuilder()
+        ..fromAtSign = fromAtSign
+        ..toAtSign = forAtSign
+        ..notification = key
+        ..type = notificationType
+        ..opType = operationType
+        ..messageType = messageType
+        ..atValue = value
+        ..notificationStatus = notificationStatus;
+      if (ttl_ms != null) {
+        notificationBuilder.ttl = ttl_ms;
+        notificationBuilder.expiresAt =
+            DateTime.now().add(Duration(milliseconds: ttl_ms));
+      }
+
+      var atNotification = notificationBuilder.build();
       var notificationKeyStore = AtNotificationKeystore.getInstance();
       await notificationKeyStore.put(atNotification.id, atNotification);
       return atNotification.id;
