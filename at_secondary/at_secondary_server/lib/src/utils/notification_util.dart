@@ -41,7 +41,7 @@ class NotificationUtil {
       if (ttl_ms != null) {
         notificationBuilder.ttl = ttl_ms;
         notificationBuilder.expiresAt =
-            DateTime.now().add(Duration(milliseconds: ttl_ms));
+            DateTime.now().toUtc().add(Duration(milliseconds: ttl_ms));
       }
 
       var atNotification = notificationBuilder.build();

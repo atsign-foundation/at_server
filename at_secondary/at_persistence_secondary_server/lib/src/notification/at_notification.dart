@@ -137,6 +137,10 @@ class AtNotification {
         'toAtSign:$_toAtSign, notification:$_notification, '
         'type:$_type, opType:$_opType, ttl: $_ttl, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
   }
+
+  bool isExpired() {
+    return _expiresAt != null && _expiresAt.isBefore(DateTime.now().toUtc());
+  }
 }
 
 enum NotificationStatus { delivered, errored, queued, expired }

@@ -47,6 +47,9 @@ class NotificationManager implements NotificationManagerSpec {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var notificationResponse = await notificationKeyStore.get(notificationId);
     if (notificationResponse != null) {
+      if (notificationResponse.isExpired()) {
+        notificationResponse.notificationStatus = NotificationStatus.expired;
+      }
       return notificationResponse.notificationStatus;
     }
     return null;
