@@ -4,6 +4,7 @@ import 'package:at_persistence_secondary_server/src/notification/at_notification
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
@@ -19,6 +20,8 @@ class AtNotificationKeystore
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
+
+  final _logger = AtSignLogger('AtNotificationKeystore');
 
   bool _register = false;
 
@@ -87,14 +90,51 @@ class AtNotificationKeystore
 
   @override
   Future<bool> deleteExpiredKeys() async {
-    // TODO: implement deleteExpiredKeys
-    return Future.value(false);
+    var result = true;
+    try {
+      var expiredKeys = await getExpiredKeys();
+      if (expiredKeys.isNotEmpty) {
+        expiredKeys.forEach((element) {
+          remove(element);
+        });
+        result = true;
+      }
+    } on Exception catch (e) {
+      result = false;
+      _logger.severe('Exception in deleteExpired keys: ${e.toString()}');
+      throw DataStoreException(
+          'exception in deleteExpiredKeys: ${e.toString()}');
+    } on HiveError catch (error) {
+      _logger.severe('HiveKeystore get error: $error');
+      throw DataStoreException(error.message);
+    }
+    return result;
   }
 
   @override
   Future<List<dynamic>> getExpiredKeys() async {
-    // TODO: implement getExpiredKeys
-    return <dynamic>[];
+    var expiredKeys = <String>[];
+    try {
+      var now = DateTime.now().toUtc();
+      var keys = _getBox().keys;
+      var expired = [];
+      await Future.forEach(keys, (key) async {
+        var value = await get(key);
+        if (value != null &&
+            value.expiresAt != null &&
+            value.expiresAt!.isBefore(now)) {
+          expired.add(key);
+        }
+      });
+      expired.forEach((key) => expiredKeys.add(Utf7.encode(key)));
+    } on Exception catch (e) {
+      _logger.severe('exception in hive get expired keys:${e.toString()}');
+      throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
+    } on HiveError catch (error) {
+      _logger.severe('HiveKeystore get error: $error');
+      throw DataStoreException(error.message);
+    }
+    return expiredKeys;
   }
 
   @override
@@ -138,6 +178,17 @@ class AtNotificationKeystore
   Future remove(key) async {
     assert(key != null);
     await _getBox().delete(key);
+  }
+
+  void scheduleKeyExpireTask(int runFrequencyMins) {
+    _logger.finest('scheduleKeyExpireTask starting cron job.');
+    var cron = Cron();
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(currentAtSign)!
+          .getSecondaryKeyStore()!;
+      await hiveKeyStore.deleteExpiredKeys();
+    });
   }
 
   Future<Map>? _toMap() async {

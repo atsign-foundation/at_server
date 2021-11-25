@@ -108,7 +108,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue, ttln_ms: ttln_ms);
+            value: atValue, ttl_ms: ttln_ms);
         response.data = notificationId;
         return;
       }

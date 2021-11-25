@@ -373,6 +373,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationInstance.init(notificationStoragePath!);
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
+    notificationInstance.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
