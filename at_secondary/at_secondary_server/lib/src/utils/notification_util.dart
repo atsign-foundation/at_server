@@ -1,9 +1,9 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:cron/cron.dart';
 
 /// Util class for Notifications
 class NotificationUtil {
@@ -68,6 +68,16 @@ class NotificationUtil {
       if (element.type == NotificationType.sent) {
         QueueManager.getInstance().enqueue(element);
       }
+    });
+  }
+
+  static void scheduleKeyExpireTask(int runFrequencyMins, String currentAtSign) {
+    var cron = Cron();
+    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(currentAtSign)!
+          .getSecondaryKeyStore()!;
+      await hiveKeyStore.deleteExpiredKeys();
     });
   }
 }

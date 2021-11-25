@@ -4,7 +4,6 @@ import 'package:at_persistence_secondary_server/src/notification/at_notification
 import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
@@ -178,17 +177,6 @@ class AtNotificationKeystore
   Future remove(key) async {
     assert(key != null);
     await _getBox().delete(key);
-  }
-
-  void scheduleKeyExpireTask(int runFrequencyMins) {
-    _logger.finest('scheduleKeyExpireTask starting cron job.');
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(currentAtSign)!
-          .getSecondaryKeyStore()!;
-      await hiveKeyStore.deleteExpiredKeys();
-    });
   }
 
   Future<Map>? _toMap() async {
