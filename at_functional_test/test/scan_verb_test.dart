@@ -6,34 +6,34 @@ import 'package:test/test.dart';
 import 'commons.dart';
 
 void main() {
-  var first_atsign = '@bob🛠';
-  var first_atsign_port = 25003;
+  var firstAtSign = '@bob🛠';
+  var firstAtSignPort = 25003;
 
-  Socket _socket_first_atsign;
+  Socket socketFirstAtSign;
 
   test('Scan verb after authentication', () async {
-    var root_server = ConfigUtil.getYaml()['root_server']['url'];
-    _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
-    socket_listener(_socket_first_atsign);
-    await prepare(_socket_first_atsign, first_atsign);
+    var rootServer = ConfigUtil.getYaml()['root_server']['url'];
+    socketFirstAtSign =
+        await secureSocketConnection(rootServer, firstAtSignPort);
+    socketListener(socketFirstAtSign);
+    await prepare(socketFirstAtSign, firstAtSign);
 
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:location$first_atsign California');
+    await socketWriter(
+        socketFirstAtSign, 'update:public:location$firstAtSign California');
     var response = await read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign, 'scan');
+    await socketWriter(socketFirstAtSign, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(response, contains('"public:location$first_atsign"'));
+    expect(response, contains('"public:location$firstAtSign"'));
   });
 
   tearDown(() {
     //Closing the client socket connection
-    _socket_first_atsign.destroy();
+    socketFirstAtSign.destroy();
   });
 }

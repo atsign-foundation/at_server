@@ -14,14 +14,14 @@ void main() {
   test('checking for test environment readiness', () async {
     var root_server = ConfigUtil.getYaml()['root_server']['url'];
     await Future.delayed(Duration(seconds: 10));
-    _socket = await secure_socket_connection(root_server, atsign_port);
+    _socket = await secureSocketConnection(root_server, atsign_port);
     if (_socket != null) {
       print('connection established');
     }
-    socket_listener(_socket);
+    socketListener(_socket);
     var response;
     while (response == null || response == 'data:null\n') {
-      await socket_writer(_socket, 'lookup:signing_publickey$atsign');
+      await socketWriter(_socket, 'lookup:signing_publickey$atsign');
       response = await read();
       print('waiting for signing public key response : $response');
       await Future.delayed(Duration(seconds: 5));

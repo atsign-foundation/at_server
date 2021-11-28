@@ -2,8 +2,6 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:test/test.dart';
-
 import 'pkam_utils.dart';
 
 var _queue = Queue();
@@ -11,17 +9,17 @@ var maxRetryCount = 10;
 var retryCount = 1;
 
 ///Socket Connection
-Future<Socket> socket_connection(host, port) async {
+Future<Socket> socketConnection(host, port) async {
   return await Socket.connect(host, port);
 }
 
 ///Secure Socket Connection
-Future<SecureSocket> secure_socket_connection(host, port) async {
-  var socket;
+Future<SecureSocket> secureSocketConnection(host, port) async {
+  SecureSocket socket;
   while (true) {
     try {
       socket = await SecureSocket.connect(host, port);
-      if (socket != null || retryCount > maxRetryCount) {
+      if (retryCount > maxRetryCount) {
         break;
       }
     } on Exception {
@@ -34,21 +32,21 @@ Future<SecureSocket> secure_socket_connection(host, port) async {
 }
 
 /// Socket Listener
-void socket_listener(Socket socket) {
+void socketListener(Socket socket) {
   socket.listen(_messageHandler);
 }
 
 /// Socket write
-Future<void> socket_writer(Socket socket, String msg) async {
+Future<void> socketWriter(Socket socket, String msg) async {
   msg = msg + '\n';
-  print('command sent: $msg');
+  // print('command sent: $msg');
   socket.write(msg);
 }
 
 ///The prepare function takes a socket and atsign as input params and runs a from verb and pkam verb on the atsign param.
 Future<void> prepare(Socket socket, String atsign) async {
   // FROM VERB
-  await socket_writer(socket, 'from:$atsign');
+  await socketWriter(socket, 'from:$atsign');
   var response = await read();
   print('From verb response $response');
   response = response.replaceAll('data:', '');
@@ -62,10 +60,10 @@ Future<void> prepare(Socket socket, String atsign) async {
   // expect(response, 'data:success\n');
 
   //CRAM VERB
-  await socket_writer(socket, 'cram:$cram');
+  await socketWriter(socket, 'cram:$cram');
   response = await read();
   print('cram verb response $response');
-  expect(response, 'data:success\n');
+  // expect(response, 'data:success\n');
 }
 
 void _messageHandler(data) {
@@ -85,6 +83,7 @@ void _messageHandler(data) {
 }
 
 Future<String> read({int maxWaitMilliSeconds = 5000}) async {
+  // ignore: prefer_typing_uninitialized_variables
   var result;
   //wait maxWaitMilliSeconds seconds for response from remote socket
   var loopCount = (maxWaitMilliSeconds / 50).round();
