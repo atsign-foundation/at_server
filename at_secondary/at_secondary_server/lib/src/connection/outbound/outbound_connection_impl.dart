@@ -4,7 +4,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:uuid/uuid.dart';
 
 class OutboundConnectionImpl extends OutboundConnection {
-  static int? outbound_idle_time =
+  static int? outboundIdleTime =
       AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
 
   OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket) {
@@ -24,7 +24,7 @@ class OutboundConnectionImpl extends OutboundConnection {
   }
 
   bool _isIdle() {
-    return _getIdleTimeMillis() > outbound_idle_time!;
+    return _getIdleTimeMillis() > outboundIdleTime!;
   }
 
   @override

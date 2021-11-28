@@ -14,8 +14,7 @@ class InboundConnectionImpl extends BaseConnection
   /// This contains the value of the atsign initiated the connection
   @override
   String? initiatedBy;
-  static int? inbound_idle_time =
-      AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
+  static int? inboundIdleTime = AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
 
   InboundConnectionImpl(Socket? socket, String? sessionId) : super(socket) {
     metaData = InboundConnectionMetadata()
@@ -53,7 +52,7 @@ class InboundConnectionImpl extends BaseConnection
   /// Returns true if the client's idle time is greater than configured idle time.
   /// false otherwise
   bool _isIdle() {
-    return _getIdleTimeMillis() > inbound_idle_time!;
+    return _getIdleTimeMillis() > inboundIdleTime!;
   }
 
   @override
