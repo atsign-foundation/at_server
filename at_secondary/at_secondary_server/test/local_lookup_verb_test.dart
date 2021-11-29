@@ -17,6 +17,7 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
+  // String thisTestFileName = 'local_lookup_verb_test.dart';
   group('A group of local_lookup verb tests', () {
     test('test lookup key-value', () {
       var verb = LocalLookup();
@@ -75,7 +76,7 @@ void main() {
       var command = 'llookup:@b0b:location@colin';
       var handler = LocalLookupVerbHandler(null);
       var result = handler.accept(command);
-      print('result : $result');
+      // print('result : $result');
       expect(result, true);
     });
 
@@ -93,53 +94,70 @@ void main() {
       var verb = LocalLookup();
       var command = 'llookup:@🦄:email🎠';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test llookup invalid atsign', () {
       var verb = LocalLookup();
       var command = 'llookup:email@bob@';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test local_lookup key- no for atSign', () {
       var verb = LocalLookup();
       var command = 'llookup:location';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test local_lookup key- invalid keyword', () {
       var verb = LocalLookup();
       var command = 'llokup:location@alice';
       var regex = verb.syntax();
-      expect(
-          () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
   group('A group of hive related unit test', () {
-    var storageDir = Directory.current.path + '/test/hive';
-    late var keyStoreManager;
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    late final SecondaryKeyStoreManager keyStoreManager;
+    var testDataStoragePath = Directory.current.path + '/test/hive/local_lookup_verb_test';
+
+    setUpAll(() async {
+      // print(thisTestFileName + ' setUpAll starting');
+
+      var atSignForTests = '@test_user_1';
+
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignForTests;
+
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)!;
+
+      var commitLogInstance = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSignForTests, commitLogPath: testDataStoragePath);
+
+      await secondaryPersistenceStore.getHivePersistenceManager()!.init(testDataStoragePath);
+
+      secondaryPersistenceStore.getSecondaryKeyStore()!.commitLog = commitLogInstance;
+
+      await AtAccessLogManagerImpl.getInstance().getAccessLog(atSignForTests, accessLogPath: testDataStoragePath);
+
+      keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+
+      // print(thisTestFileName + ' setUpAll complete');
+    });
+
+    tearDownAll(() async {
+      if (Directory(testDataStoragePath).existsSync()) {
+        // print(thisTestFileName + ' tearDownAll removing data from ' + testDataStoragePath);
+        await Directory(testDataStoragePath).delete(recursive: true);
+      }
+      // print(thisTestFileName + ' tearDownAll complete');
+    });
 
     test('test local lookup with private key', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      secretData.data = 'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
@@ -157,10 +175,8 @@ void main() {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      await cramVerbHandler.processVerb(
-          cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+      await cramVerbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
+      var connectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -170,24 +186,21 @@ void main() {
       updateVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
       updateVerbParams.putIfAbsent(AT_VALUE, () => '1234');
-      await updateVerbHandler.processVerb(
-          updateResponse, updateVerbParams, atConnection);
+      await updateVerbHandler.processVerb(updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@test_user_1');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'phone');
-      await localLookupVerbHandler.processVerb(
-          localLookUpResponse, localLookVerbParam, atConnection);
+      await localLookupVerbHandler.processVerb(localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, '1234');
     });
 
     test('test local lookup with public key', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      secretData.data = 'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
@@ -205,10 +218,8 @@ void main() {
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
       var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
-      await cramVerbHandler.processVerb(
-          cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+      await cramVerbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
+      var connectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -219,8 +230,7 @@ void main() {
       updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'India');
       updateVerbParams.putIfAbsent('isPublic', () => 'true');
-      await updateVerbHandler.processVerb(
-          updateResponse, updateVerbParams, atConnection);
+      await updateVerbHandler.processVerb(updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
@@ -228,46 +238,8 @@ void main() {
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@test_user_1');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       localLookVerbParam.putIfAbsent('isPublic', () => 'true');
-      await localLookupVerbHandler.processVerb(
-          localLookUpResponse, localLookVerbParam, atConnection);
+      await localLookupVerbHandler.processVerb(localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'India');
     });
-    tearDown(() async => tearDownFunc());
   });
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
-  final notificationStore = await AtNotificationKeystore.getInstance();
-  notificationStore.currentAtSign = '@test_user_1';
-  notificationStore.init(storageDir);
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }
