@@ -78,7 +78,6 @@ class CommitLogKeyStore
           _latestCommitId = commitEntry.commitId!;
         }
         await commitLogCompactionServices.informChange(commitEntry);
-        //commitEntry.atKey!, internalKey);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
