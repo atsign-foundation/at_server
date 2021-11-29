@@ -14,10 +14,12 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
+String testDataStoragePath = Directory.current.path + '/test/hive/cram_verb_test';
+
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+
   late var keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  setUp(() async => keyStoreManager = await setUpFunc(testDataStoragePath));
   group('A group of cram verb regex test', () {
     test('test from correct syntax with digest', () {
       var verb = Cram();
@@ -162,8 +164,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+  if (Directory(testDataStoragePath).existsSync()) {
+    Directory(testDataStoragePath).deleteSync(recursive: true);
   }
 }
