@@ -345,7 +345,7 @@ class CommitLogKeyStore
     return commitLogMap;
   }
 
-  AtList? getCommitEntries(var key) {
+  CompactionSortedList? getCommitEntries(var key) {
     return commitLogCompactionServices.getCommitKeys(key);
   }
 

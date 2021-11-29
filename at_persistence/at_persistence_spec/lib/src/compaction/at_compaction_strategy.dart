@@ -35,5 +35,7 @@ abstract class AtCompactionStrategy {
 
 /// The abstract class for Observing the [AtLogType] compaction.
 abstract class AtCompactionLogObserver {
-  Future<void> informChange(int keysCompacted);
+  /// Informs the observers when compaction is completed.
+  /// [keysCompacted] represents the number of keys compacted
+  Future<void> informCompletion(int keysCompacted);
 }

@@ -168,7 +168,7 @@ class AtCommitLog implements AtLogType {
     return _commitLogKeyStore.getEntries(commitId, regex: regex);
   }
 
-  AtList getCommitLogKey(String key) {
+  CompactionSortedList getCommitLogKey(String key) {
     return _commitLogKeyStore.getCommitEntries(key);
   }
 

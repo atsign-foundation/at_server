@@ -1,9 +1,13 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/compaction_service.dart';
 
+/// Class implementing the [CompactionService].
+/// On server start-up initializes the [_commitLogEntriesMap] with keys of [CommitEntry] from [CommitLogKeyStore].
+/// Further, on adding the entry to [CommitLogKeyStore] check's if the compaction threshold reaches.
+/// If yes, compacts the [CommitLogKeyStore].
 class CommitLogCompactionService implements CompactionService {
   late CommitLogKeyStore _commitLogKeyStore;
-  final _commitLogEntriesMap = <String, AtList>{};
+  final _commitLogEntriesMap = <String, CompactionSortedList>{};
   int keysToCompactCount = 0;
   List<AtCompactionLogObserver> observers = <AtCompactionLogObserver>[];
 
@@ -15,7 +19,8 @@ class CommitLogCompactionService implements CompactionService {
           if (_commitLogEntriesMap.containsKey(key)) {
             keysToCompactCount = keysToCompactCount + 1;
           }
-          _commitLogEntriesMap.putIfAbsent(commitEntry.atKey, () => AtList());
+          _commitLogEntriesMap.putIfAbsent(
+              commitEntry.atKey, () => CompactionSortedList());
           _commitLogEntriesMap[commitEntry.atKey]!.add(key);
         }));
   }
@@ -27,7 +32,8 @@ class CommitLogCompactionService implements CompactionService {
     if (_commitLogEntriesMap.containsKey(commitEntry.atKey!)) {
       keysToCompactCount = keysToCompactCount + 1;
     }
-    _commitLogEntriesMap.putIfAbsent(commitEntry.atKey!, () => AtList());
+    _commitLogEntriesMap.putIfAbsent(
+        commitEntry.atKey!, () => CompactionSortedList());
     _commitLogEntriesMap[commitEntry.atKey!]!.add(commitEntry.commitId!);
     await compact();
   }
@@ -43,7 +49,7 @@ class CommitLogCompactionService implements CompactionService {
       var keysAfterCompaction = _commitLogKeyStore.getBox().length;
       // notify to observer when compaction is completed.
       for (var observer in observers) {
-        observer.informChange(keysBeforeCompaction - keysAfterCompaction);
+        observer.informCompletion(keysBeforeCompaction - keysAfterCompaction);
       }
     }
   }
@@ -61,8 +67,9 @@ class CommitLogCompactionService implements CompactionService {
     return keysToCompactCount >= 50;
   }
 
-  /// Not a part of core functionality. Used for unit tests
-  AtList? getCommitKeys(var key) {
+  /// Return's the list of [CommitEntry] key's for a given atKey.
+  /// Used in unit tests.
+  CompactionSortedList? getCommitKeys(var key) {
     return _commitLogEntriesMap[key];
   }
 
@@ -73,32 +80,35 @@ class CommitLogCompactionService implements CompactionService {
 }
 
 /// Represents the list of keys of [CommitEntry].
-///
-class AtList {
+class CompactionSortedList {
   final _list = [];
 
+  /// Adds the hive key of [CommitEntry] to the list and sort's the keys in descending order.
   void add(int commitEntryKey) {
     _list.add(commitEntryKey);
     _list.sort((a, b) => b.compareTo(a));
   }
 
+  /// Returns the keys to compact.
   List getKeysToCompact() {
     var expiredKeys = _list.sublist(1);
     return expiredKeys;
   }
 
+  /// Removes the compacted keys from the list.
   void deleteCompactedKeys(var expiredKeys) {
     for (var key in expiredKeys) {
       _list.remove(key);
     }
   }
 
+  /// Returns the size of list.
   int getSize() {
     return _list.length;
   }
 
   @override
   String toString() {
-    return 'AtList{_list: $_list}';
+    return 'CompactionSortedList{_list: $_list}';
   }
 }

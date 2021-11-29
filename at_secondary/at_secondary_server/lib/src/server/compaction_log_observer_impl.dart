@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 
+/// Class implementing the [AtCompactionLogObserver].
 abstract class AtCompactionLogObserverImpl implements AtCompactionLogObserver {
   late AtLogType atLogType;
 
@@ -16,7 +17,7 @@ abstract class AtCompactionLogObserverImpl implements AtCompactionLogObserver {
   final _logger = AtSignLogger('AtCompactionLogObserverImpl');
 
   @override
-  Future<void> informChange(int keysCompacted) async {
+  Future<void> informCompletion(int keysCompacted) async {
     _logger.info(
         '${atLogType.runtimeType} compaction completed. $keysCompacted keys compacted.');
 
@@ -39,6 +40,7 @@ abstract class AtCompactionLogObserverImpl implements AtCompactionLogObserver {
   }
 }
 
+/// Class extending the [AtCompactionLogObserverImpl] for commit log.
 class CommitLogCompactionObserver extends AtCompactionLogObserverImpl {
   CommitLogCompactionObserver(atLogType) {
     super.atLogType = atLogType;
@@ -46,6 +48,7 @@ class CommitLogCompactionObserver extends AtCompactionLogObserverImpl {
   }
 }
 
+/// Class extending the [AtCompactionLogObserverImpl] for access log
 class AccessLogCompactionObserver extends AtCompactionLogObserverImpl {
   AccessLogCompactionObserver(atLogType) {
     super.atLogType = atLogType;
