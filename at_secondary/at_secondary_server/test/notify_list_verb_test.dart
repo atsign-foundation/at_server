@@ -14,7 +14,8 @@ import 'package:test/test.dart';
 String testDataStoragePath = Directory.current.path + '/test/hive/notify_list_verb_test';
 
 void main() {
-  late final SecondaryKeyStoreManager keyStoreManager;
+  // ignore: prefer_typing_uninitialized_variables
+  var keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler = NotifyListVerbHandler(null);
