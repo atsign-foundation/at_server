@@ -6,16 +6,15 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
+String testDataStoragePath = Directory.current.path + '/test/hive/notify_list_verb_test';
+
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+  late final SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler = NotifyListVerbHandler(null);
@@ -72,7 +71,7 @@ void main() {
   });
 
   group('A group of tests on date time', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    setUp(() async => keyStoreManager = await setUpFunc(testDataStoragePath));
     test('A test to verify from date', () async {
       var notifyListVerbHandler =
           NotifyListVerbHandler(keyStoreManager.getKeyStore());
@@ -249,14 +248,8 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
   AtNotificationMap.getInstance().clear();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+  if (Directory(testDataStoragePath).existsSync()) {
+    Directory(testDataStoragePath).deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }
