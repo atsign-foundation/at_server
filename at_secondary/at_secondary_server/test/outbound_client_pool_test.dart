@@ -10,9 +10,10 @@ import 'package:test/test.dart';
 
 void main() async {
   late var outboundClient;
+  int testIdleTimeMillis = 200;
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = 2000;
+    serverContext.outboundIdleTimeMillis = testIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClient = OutboundClientPool();
   });
@@ -59,7 +60,7 @@ void main() async {
       poolInstance.add(client_2);
       expect(poolInstance.getCapacity(), 5);
       expect(poolInstance.getCurrentSize(), 2);
-      sleep(Duration(seconds: 3));
+      sleep(Duration(milliseconds: testIdleTimeMillis + 1));
       var inboundConnection_3 = InboundConnectionImpl(dummySocket_3, 'ccc');
       var client_3 = OutboundClient(inboundConnection_3, 'charlie');
       client_3.outboundConnection =
