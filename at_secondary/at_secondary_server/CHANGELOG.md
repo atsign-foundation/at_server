@@ -1,5 +1,3 @@
-## 3.0.9
-- at_persistence_secondary_server version upgrade.
 ## 3.0.8
 - reduce compaction interval to 12 hrs
 - compaction delete bug fix
