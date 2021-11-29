@@ -19,20 +19,18 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  // String thisTestFileName = 'update_verb_test.dart';
 
   group('A group of update accept tests', () {
     test('test update command accept test', () {
-      var command = 'update:public:location@alice newyork';
+      var command = 'update:public:location@alice NewYork';
       var handler = UpdateVerbHandler(null);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test update command accept negative test', () {
-      var command = 'updated:public:location@alice newyork';
+      var command = 'updated:public:location@alice NewYork';
       var handler = UpdateVerbHandler(null);
       var result = handler.accept(command);
       expect(result, false);
@@ -74,13 +72,13 @@ void main() {
 
     test('test update local key-value with public', () {
       var verb = Update();
-      var command = 'update:public:location@alice newyork';
+      var command = 'update:public:location@alice NewYork';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AT_KEY], 'location');
       expect(paramsMap[FOR_AT_SIGN], isNull);
       expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'newyork');
+      expect(paramsMap[AT_VALUE], 'NewYork');
     });
 
     test('test update local key-value with private key', () {
@@ -519,6 +517,41 @@ void main() {
   });
 
   group('A group of test cases with hive', () {
+    late final SecondaryKeyStoreManager keyStoreManager;
+    var testDataStoragePath = Directory.current.path + '/test/hive/update_verb_test';
+
+    String atSignAlice = '@alice';
+
+    setUpAll(() async {
+      // print(thisTestFileName + ' setUpAll starting');
+
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
+
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)!;
+
+      var commitLogInstance = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSignAlice, commitLogPath: testDataStoragePath);
+
+      secondaryPersistenceStore.getSecondaryKeyStore()!.commitLog = commitLogInstance;
+
+      await AtAccessLogManagerImpl.getInstance().getAccessLog(atSignAlice, accessLogPath: testDataStoragePath);
+
+      await secondaryPersistenceStore.getHivePersistenceManager()!.init(testDataStoragePath);
+
+      keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+
+      // print(thisTestFileName + ' setUpAll complete');
+    });
+
+    tearDownAll(() async {
+      // print(thisTestFileName + ' tearDownAll starting');
+
+      // print(thisTestFileName + ' tearDownAll removing test data directory ' + testDataStoragePath);
+      await Directory(testDataStoragePath).delete(recursive: true);
+
+      // print(thisTestFileName + ' tearDownAll complete');
+    });
+
     test('test update processVerb with local key', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
@@ -594,71 +627,67 @@ void main() {
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
+
+      // Set TTL and TTB to unit-test-friendly values
+      int ttlMillis = 100;
+      int ttbMillis = 100;
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTL, () => '10000');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '10000');
+      updateVerbParams.putIfAbsent(AT_TTL, () => ttlMillis.toString());
+      updateVerbParams.putIfAbsent(AT_TTB, () => ttbMillis.toString());
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
-      //LLOOKUP Verb - TTB
-      var localLookUpResponse_ttb = Response();
+
+      // Checks before and after TTB
+      Response localLookUpResponseTTB;
+
+      //LLOOKUP Verb - Before TTB
+      localLookUpResponseTTB = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttb, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttb.data, null);
-      await Future.delayed(Duration(seconds: 10));
+          localLookUpResponseTTB, localLookVerbParam, atConnection);
+      // Should be null because TTB has not yet been reached
+      expect(localLookUpResponseTTB.data, null);
+
       //LLOOKUP Verb - After TTB
-      var localLookUpResponse_ttb1 = Response();
+      await Future.delayed(Duration(milliseconds: ttbMillis + 1));
+      localLookUpResponseTTB = Response();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttb1, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttb1.data, 'hyderabad');
-      await Future.delayed(Duration(seconds: 10));
+          localLookUpResponseTTB, localLookVerbParam, atConnection);
+      expect(localLookUpResponseTTB.data, 'hyderabad');
+
+      // Checks before and after TTL
+      Response localLookUpResponseTTL;
+
+      //LLOOKUP Verb - Before TTL
+      // Wait for 90 percent of the TTL to pass, then do a data lookup - data should still be there
+      await Future.delayed(Duration(milliseconds: (ttlMillis * 0.9).round()));
+      localLookUpResponseTTL = Response();
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      await localLookupVerbHandler.processVerb(
+          localLookUpResponseTTL, localLookVerbParam, atConnection);
+      expect(localLookUpResponseTTB.data, 'hyderabad');
+
       //LLOOKUP Verb - After TTL
-      var localLookUpResponse_ttl = Response();
+      // Now wait for the other 10 percent of the TTL to pass, plus 1 millisecond
+      await Future.delayed(Duration(milliseconds: (ttlMillis * 0.1).round() + 1));
+      localLookUpResponseTTL = Response();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttl, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttl.data, null);
+          localLookUpResponseTTL, localLookVerbParam, atConnection);
+      expect(localLookUpResponseTTL.data, null);
     });
   });
-  tearDown(() async => await tearDownFunc());
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }
