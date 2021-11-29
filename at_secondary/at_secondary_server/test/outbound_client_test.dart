@@ -8,9 +8,10 @@ import 'package:at_commons/at_commons.dart';
 import 'package:test/test.dart';
 
 void main() {
+  int testIdleTimeMillis = 200;
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = 4000;
+    serverContext.outboundIdleTimeMillis = testIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });
 
@@ -30,7 +31,7 @@ void main() {
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      sleep(Duration(seconds: 5));
+      sleep(Duration(milliseconds: (testIdleTimeMillis + 1)));
       expect(client.isInValid(), true);
     });
 
