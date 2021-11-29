@@ -105,8 +105,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
-            forAtSign, atSign, key, NotificationType.received, opType, messageType: messageType,
-            value: atValue);
+            forAtSign, atSign, key, NotificationType.received, opType,
+            messageType: messageType, value: atValue);
         response.data = notificationId;
         return;
       }
@@ -154,8 +154,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (atConnectionMetadata.isPolAuthenticated) {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
-          fromAtSign, forAtSign, key, NotificationType.received, opType, messageType: messageType,
-          ttl_ms: ttl_ms, value: atValue);
+          fromAtSign, forAtSign, key, NotificationType.received, opType,
+          messageType: messageType, ttl_ms: ttl_ms, value: atValue);
 
       // If key is public, remove forAtSign from key.
       if (key!.contains('public:')) {

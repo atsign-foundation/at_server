@@ -109,7 +109,9 @@ class StatsVerbHandler extends AbstractVerbHandler {
   // Input : Response, verbParams, AtConnection
   @override
   Future<void> processVerb(
-      Response response, HashMap<String, String?> verbParams, InboundConnection atConnection) async {
+      Response response,
+      HashMap<String, String?> verbParams,
+      InboundConnection atConnection) async {
     try {
       var statID = verbParams[AT_STAT_ID];
       _regex = verbParams[AT_REGEX];
@@ -124,7 +126,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
       }
       var result = [];
       //Iterate through stats_id_list
-      await Future.forEach(stats_list, (dynamic element) => addStatToResult(element, result));
+      await Future.forEach(
+          stats_list, (dynamic element) => addStatToResult(element, result));
       // Create response json
       var response_json = result.toString();
       response.data = response_json;

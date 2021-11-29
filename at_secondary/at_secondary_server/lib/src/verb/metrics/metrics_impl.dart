@@ -54,7 +54,8 @@ class OutBoundMetricImpl implements MetricProvider {
 }
 
 class LastCommitIDMetricImpl implements MetricProvider {
-  static final LastCommitIDMetricImpl _singleton = LastCommitIDMetricImpl._internal();
+  static final LastCommitIDMetricImpl _singleton =
+      LastCommitIDMetricImpl._internal();
   var _atCommitLog;
 
   set atCommitLog(value) {
@@ -72,7 +73,8 @@ class LastCommitIDMetricImpl implements MetricProvider {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null) {
-      lastCommitID = await _atCommitLog.lastCommittedSequenceNumberWithRegex(regex);
+      lastCommitID =
+          await _atCommitLog.lastCommittedSequenceNumberWithRegex(regex);
       return lastCommitID.toString();
     }
     lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
@@ -86,7 +88,8 @@ class LastCommitIDMetricImpl implements MetricProvider {
 }
 
 class SecondaryStorageMetricImpl implements MetricProvider {
-  static final SecondaryStorageMetricImpl _singleton = SecondaryStorageMetricImpl._internal();
+  static final SecondaryStorageMetricImpl _singleton =
+      SecondaryStorageMetricImpl._internal();
   var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath!);
 
   SecondaryStorageMetricImpl._internal();
@@ -102,7 +105,8 @@ class SecondaryStorageMetricImpl implements MetricProvider {
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
     secondaryStorageLocation.listSync(recursive: true).forEach((element) {
       if (element is File) {
-        secondaryStorageSize = secondaryStorageSize + File(element.path).lengthSync();
+        secondaryStorageSize =
+            secondaryStorageSize + File(element.path).lengthSync();
       }
     });
     //Return bytes
@@ -116,7 +120,8 @@ class SecondaryStorageMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtSignMetricImpl implements MetricProvider {
-  static final MostVisitedAtSignMetricImpl _singleton = MostVisitedAtSignMetricImpl._internal();
+  static final MostVisitedAtSignMetricImpl _singleton =
+      MostVisitedAtSignMetricImpl._internal();
 
   MostVisitedAtSignMetricImpl._internal();
 
@@ -127,8 +132,8 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
-    var atAccessLog =
-        await (AtAccessLogManagerImpl.getInstance().getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
   }
 
@@ -139,7 +144,8 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
 }
 
 class MostVisitedAtKeyMetricImpl implements MetricProvider {
-  static final MostVisitedAtKeyMetricImpl _singleton = MostVisitedAtKeyMetricImpl._internal();
+  static final MostVisitedAtKeyMetricImpl _singleton =
+      MostVisitedAtKeyMetricImpl._internal();
 
   MostVisitedAtKeyMetricImpl._internal();
 
@@ -150,8 +156,8 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
-    var atAccessLog =
-        await (AtAccessLogManagerImpl.getInstance().getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
   }
 
@@ -162,7 +168,8 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
 }
 
 class SecondaryServerVersion implements MetricProvider {
-  static final SecondaryServerVersion _singleton = SecondaryServerVersion._internal();
+  static final SecondaryServerVersion _singleton =
+      SecondaryServerVersion._internal();
 
   SecondaryServerVersion._internal();
 
@@ -182,7 +189,8 @@ class SecondaryServerVersion implements MetricProvider {
 }
 
 class LastLoggedInDatetimeMetricImpl implements MetricProvider {
-  static final LastLoggedInDatetimeMetricImpl _singleton = LastLoggedInDatetimeMetricImpl._internal();
+  static final LastLoggedInDatetimeMetricImpl _singleton =
+      LastLoggedInDatetimeMetricImpl._internal();
 
   LastLoggedInDatetimeMetricImpl._internal();
 
@@ -192,8 +200,8 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog =
-        await (AtAccessLogManagerImpl.getInstance().getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = await atAccessLog!.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
@@ -259,10 +267,12 @@ class LastPkamMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog =
-        await (AtAccessLogManagerImpl.getInstance().getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = await atAccessLog!.getLastPkamAccessLogEntry();
-    return (entry != null) ? entry.requestDateTime!.toUtc().toString() : 'Not Available';
+    return (entry != null)
+        ? entry.requestDateTime!.toUtc().toString()
+        : 'Not Available';
   }
 
   @override
@@ -272,7 +282,8 @@ class LastPkamMetricImpl implements MetricProvider {
 }
 
 class NotificationsMetricImpl implements MetricProvider {
-  static final NotificationsMetricImpl _singleton = NotificationsMetricImpl._internal();
+  static final NotificationsMetricImpl _singleton =
+      NotificationsMetricImpl._internal();
 
   NotificationsMetricImpl._internal();
   factory NotificationsMetricImpl.getInstance() {
@@ -313,8 +324,10 @@ class NotificationsMetricImpl implements MetricProvider {
     return _asString(notifications.toJson()[key]) == value;
   }
 
-  Future<Map<String, dynamic>> getNotificationStats(Map<String, dynamic> _metrics) async {
-    AtNotificationKeystore notificationKeystore = AtNotificationKeystore.getInstance();
+  Future<Map<String, dynamic>> getNotificationStats(
+      Map<String, dynamic> _metrics) async {
+    AtNotificationKeystore notificationKeystore =
+        AtNotificationKeystore.getInstance();
     List notificationsList = await notificationKeystore.getValues();
     _metrics['total'] = notificationsList.length;
     for (var notifications in notificationsList) {
@@ -327,7 +340,8 @@ class NotificationsMetricImpl implements MetricProvider {
         _metrics['status']['delivered']++;
       } else if (_check(notifications, 'notificationStatus', 'errored')) {
         _metrics['status']['failed']++;
-      } else if (_check(notifications, 'notificationStatus', 'queued') || _check(notifications, 'status', null)) {
+      } else if (_check(notifications, 'notificationStatus', 'queued') ||
+          _check(notifications, 'status', null)) {
         _metrics['status']['queued']++;
       }
       if (_check(notifications, 'opType', 'update')) {
@@ -352,7 +366,8 @@ class NotificationsMetricImpl implements MetricProvider {
 }
 
 class KeyStorageMetricImpl implements MetricProvider {
-  static final KeyStorageMetricImpl _singleton = KeyStorageMetricImpl._internal();
+  static final KeyStorageMetricImpl _singleton =
+      KeyStorageMetricImpl._internal();
 
   KeyStorageMetricImpl._internal();
 

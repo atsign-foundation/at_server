@@ -100,7 +100,9 @@ void main() {
   });
   group('A group of notificationStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
-    setUp(() async => keyStoreManager = await setUpFunc(Directory.current.path + '/test/hive', atsign: '@alice'));
+    setUp(() async => keyStoreManager = await setUpFunc(
+        Directory.current.path + '/test/hive',
+        atsign: '@alice'));
     // test for notificationstats
     test('notificationstats command accept test', () {
       var command = 'stats:11';
@@ -137,11 +139,13 @@ void main() {
         },
         'createdOn': 0,
       };
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager!.getKeyStore());
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(keyStoreManager!.getKeyStore());
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -158,7 +162,8 @@ void main() {
       var testNotification2 = (AtNotificationBuilder()
             ..id = '1032'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.received
@@ -175,7 +180,8 @@ void main() {
       var testNotification3 = (AtNotificationBuilder()
             ..id = '1033'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.sent
@@ -192,7 +198,8 @@ void main() {
       var testNotification4 = (AtNotificationBuilder()
             ..id = '1034'
             ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now().subtract(const Duration(days: 1))
+            ..notificationDateTime =
+                DateTime.now().subtract(const Duration(days: 1))
             ..toAtSign = '@alice'
             ..notification = 'key-2'
             ..type = NotificationType.received
@@ -227,13 +234,19 @@ void main() {
       var verbParams2 = getVerbParam(regex, command2);
       var verbParams3 = getVerbParam(regex, command3);
       var verbParams4 = getVerbParam(regex, command4);
-      var atConnection = InboundConnectionImpl(null, '12345')..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, '12345')
+        ..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
-      await notifyListVerbHandler.processVerb(response, verbParams2, atConnection);
-      await notifyListVerbHandler.processVerb(response, verbParams3, atConnection);
-      await notifyListVerbHandler.processVerb(response, verbParams4, atConnection);
-      _metricsMap = await NotificationsMetricImpl.getInstance().getNotificationStats(_metricsMap);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams2, atConnection);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams3, atConnection);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams4, atConnection);
+      _metricsMap = await NotificationsMetricImpl.getInstance()
+          .getNotificationStats(_metricsMap);
       expect(_metricsMap['total'], 4);
       expect(_metricsMap['type']['sent'], 2);
       expect(_metricsMap['type']['received'], 2);

@@ -762,16 +762,20 @@ void main() {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@test_user_1';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var persistenceManager = secondaryPersistenceStore.getHivePersistenceManager()!;
+      .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
-  hiveKeyStore.commitLog =
-      await AtCommitLogManagerImpl.getInstance().getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
-  await AtAccessLogManagerImpl.getInstance().getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
+  hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
   notificationInstance.currentAtSign = atsign ?? '@test_user_1';
   await notificationInstance.init(storageDir);
