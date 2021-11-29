@@ -1,8 +1,4 @@
-import 'dart:io';
-
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
@@ -77,35 +73,5 @@ void main() async {
       expect(paramsMap['regex'], 'me');
     });
   });
-  tearDown(() async => await tearDownFunc());
-}
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var isExists = await Directory(storageDir).exists();
-  if (!isExists) {
-    Directory(storageDir).createSync(recursive: true);
-  }
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }
