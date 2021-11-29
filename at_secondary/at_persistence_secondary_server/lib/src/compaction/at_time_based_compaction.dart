@@ -16,20 +16,18 @@ class TimeBasedCompaction implements AtCompactionStrategy {
   @override
   Future<void> performCompaction(AtLogType atLogType) async {
     var expiredKeys = await atLogType.getExpired(timeInDays);
-    if (expiredKeys == null) {
-      return;
-    }
     // If expired keys is empty, log compaction is not performed.
     if (expiredKeys.isEmpty) {
+      _logger.finer('No expired keys. skipping time compaction for $atLogType');
       return;
     }
     _logger.finer(
-        'Number of entries in $atLogType before time compaction - ${atLogType.getSize()}');
+        'Number of entries in $atLogType before time compaction - ${atLogType.entriesCount()}');
     _logger.finer(
         'performing time compaction for $atLogType: Number of expired/duplicate keys: ${expiredKeys.length}');
     // Delete expired keys
     await atLogType.delete(expiredKeys);
     _logger.finer(
-        'Number of entries in $atLogType after time compaction - ${atLogType.getSize()}');
+        'Number of entries in $atLogType after time compaction - ${atLogType.entriesCount()}');
   }
 }

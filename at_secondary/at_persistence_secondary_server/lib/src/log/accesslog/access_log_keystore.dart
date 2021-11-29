@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
@@ -73,8 +72,10 @@ class AccessLogKeyStore
   }
 
   @override
-  void delete(expiredKeys) {
-    // TODO: implement delete
+  void delete(expiredKeys) async {
+    if (expiredKeys.isNotEmpty) {
+      await _getBox().deleteAll(expiredKeys);
+    }
   }
 
   /// Returns the total number of keys
@@ -95,7 +96,9 @@ class AccessLogKeyStore
     var now = DateTime.now().toUtc();
     var accessLogMap = await _toMap();
     accessLogMap!.forEach((key, value) {
-      if (value.requestDateTime != null &&
+      if (value == null) {
+        expiredKeys.add(key);
+      } else if (value.requestDateTime != null &&
           value.requestDateTime
               .isBefore(now.subtract(Duration(days: expiryInDays)))) {
         expiredKeys.add(key);

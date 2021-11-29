@@ -1,3 +1,5 @@
+## 3.0.8
+- at_utils and at_commons version upgrade.
 ## 3.0.7
 - compaction delete bug fix
 - reduce compaction frequency to 12 hours
