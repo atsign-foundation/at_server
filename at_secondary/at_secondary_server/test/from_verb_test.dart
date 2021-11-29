@@ -13,24 +13,63 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  // String thisTestFileName = 'from_verb_test.dart';
+
+  String atSignAlice = '@alice';
+  String atSignAliceWithoutTheAtSign = atSignAlice.replaceAll("@", "");
+
+  late final SecondaryKeyStoreManager keyStoreManager;
+  var testDataStoragePath = Directory.current.path + '/test/hive/from_verb_test';
+
+  setUpAll(() async {
+    // print(thisTestFileName + ' setUpAll starting');
+
+    AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
+
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)!;
+
+    var commitLogInstance = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSignAlice, commitLogPath: testDataStoragePath);
+
+    secondaryPersistenceStore.getSecondaryKeyStore()!.commitLog = commitLogInstance;
+
+    AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
+    AtConfig(AtCommitLogManagerImpl.getInstance().getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
+        AtSecondaryServerImpl.getInstance().currentAtSign);
+
+    await AtAccessLogManagerImpl.getInstance().getAccessLog(atSignAlice, accessLogPath: testDataStoragePath);
+
+    await secondaryPersistenceStore.getHivePersistenceManager()!.init(testDataStoragePath);
+
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+
+    // print(thisTestFileName + ' setUpAll complete');
+  });
+
+  tearDownAll(() async {
+    // print(thisTestFileName + ' tearDownAll starting');
+
+    // print(thisTestFileName + ' tearDownAll removing test data directory ' + testDataStoragePath);
+    await Directory(testDataStoragePath).delete(recursive: true);
+
+    // print(thisTestFileName + ' tearDownAll complete');
+  });
+
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
       var verb = From();
-      var command = 'from:@alice';
+      var command = 'from:' + atSignAlice;
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap['atSign'], '@alice');
+      expect(paramsMap['atSign'], atSignAlice);
     });
 
     test('test from correct syntax without @', () {
       var verb = From();
-      var command = 'from:alice';
+      var command = 'from:' + atSignAliceWithoutTheAtSign;
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap['atSign'], 'alice');
+      expect(paramsMap['atSign'], atSignAliceWithoutTheAtSign);
     });
 
     test('test from correct syntax with emoji', () {
@@ -62,17 +101,17 @@ void main() async {
 
   group('A group of from verb accept test', () {
     test('test from accept', () {
-      var command = 'from:@alice';
+      var command = 'from:' + atSignAlice;
       var handler = FromVerbHandler(null);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
-      var command = 'to:@alice';
+      var command = 'to:' + atSignAlice;
       var handler = FromVerbHandler(null);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
-      var command = 'FROM:@ALICE';
+      var command = 'FROM:' + atSignAlice.toUpperCase();
       command = SecondaryUtil.convertCommand(command);
       var handler = FromVerbHandler(null);
       expect(handler.accept(command), true);
@@ -81,7 +120,7 @@ void main() async {
   group('A group of from verb regex -invalid syntax', () {
     test('test from invalid keyword', () {
       var verb = From();
-      var command = 'to:@alice';
+      var command = 'to' + atSignAlice;
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -99,14 +138,14 @@ void main() async {
 
     test('test from verb handler processverb from atsign contains @', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent('atSign', () => '@alice');
+      verbParams.putIfAbsent('atSign', () => atSignAlice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId' + atSignAlice), true);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
@@ -115,14 +154,14 @@ void main() async {
     test('test from verb handler processverb from atsign does not contain @',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent('atSign', () => 'alice');
+      verbParams.putIfAbsent('atSign', () => atSignAliceWithoutTheAtSign);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId' + atSignAlice), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
@@ -155,14 +194,14 @@ void main() async {
       await AtConfig(commitLogInstance,
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent('atSign', () => '@alice');
+      verbParams.putIfAbsent('atSign', () => atSignAlice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId' + atSignAlice), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
@@ -176,7 +215,7 @@ void main() async {
                   AtSecondaryServerImpl.getInstance().currentAtSign),
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = atSignAlice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -191,7 +230,7 @@ void main() async {
     /*test('test from verb handler to block fromAtSign first and then allow',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl().currentAtSign = '@alice';
+      AtSecondaryServerImpl().currentAtSign = atSignAlice;
       await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -215,7 +254,7 @@ void main() async {
     test('test from verb handler to allow fromAtSign first and then block',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl().currentAtSign = '@alice';
+      AtSecondaryServerImpl().currentAtSign = atSignAlice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -235,41 +274,4 @@ void main() async {
           throwsA(isA<BlockedConnectionException>()));
     });*/
   });
-
-  tearDown(() async => tearDownFunc());
-
-  if (Directory(storageDir).existsSync()) {
-    Directory(storageDir).deleteSync(recursive: true);
-  }
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-  AtConfig(
-      AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
-      AtSecondaryServerImpl.getInstance().currentAtSign);
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }
