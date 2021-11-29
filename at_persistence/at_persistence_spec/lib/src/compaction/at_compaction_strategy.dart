@@ -21,6 +21,9 @@ abstract class AtLogType {
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
   int getSize();
+
+  /// Adds the observes to the [AtCompactionLogObserver]
+  void attachObserver(AtCompactionLogObserver atCompactionLogObserver);
 }
 
 /// The abstract class for Compaction Job
@@ -28,4 +31,9 @@ abstract class AtCompactionStrategy {
   /// Performs the compaction on the specified log type.
   /// @param atLogType The log type to perform the compaction job.
   Future<void> performCompaction(AtLogType atLogType);
+}
+
+/// The abstract class for Observing the [AtLogType] compaction.
+abstract class AtCompactionLogObserver {
+  Future<void> informChange(int keysCompacted);
 }

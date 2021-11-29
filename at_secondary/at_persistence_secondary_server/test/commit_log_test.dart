@@ -88,38 +88,35 @@ void main() async {
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
     });
+    tearDown(() async => await tearDownFunc());
+  });
 
-    // test('test commit - box not available', () async {
-    //   var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-    //       .getCommitLog(_getShaForAtsign('@alice')));
-    //   await commitLogInstance?.close();
-    //   expect(
-    //       () async => await commitLogInstance?.commit(
-    //           'location@alice', CommitOp.UPDATE),
-    //       throwsA(predicate((dynamic e) => e is DataStoreException)));
-    // });
-    //
-    // test('test get entry - box not available', () async {
-    //   var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-    //       .getCommitLog(_getShaForAtsign('@alice')));
-    //   var key_1 =
-    //       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-    //   await commitLogInstance?.close();
-    //   expect(() async => await commitLogInstance?.getEntry(key_1),
-    //       throwsA(predicate((dynamic e) => e is DataStoreException)));
-    // });
-    //
-    // test('test entries since commit Id - box not available', () async {
-    //   var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-    //       .getCommitLog(_getShaForAtsign('@alice')));
-    //   await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-    //   var key_2 =
-    //       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-    //   await AtCommitLogManagerImpl.getInstance().close();
-    //   expect(() async => await commitLogInstance?.getEntry(key_2),
-    //       throwsA(predicate((dynamic e) => e is DataStoreException)));
-    // });
+  group('A group of commit log compaction tests', () {
+    setUp(() async => await setUpFunc(storageDir));
+    test('Test to verify compaction when single is modified ten times',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      for (int i = 0; i <= 50; i++) {
+        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      }
+      var list = commitLogInstance!.getCommitLogKey('location@alice');
+      expect(list.getSize(), 1);
+    });
 
+    test('Test to verify compaction when two are modified ten times',
+            () async {
+          var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+          for (int i = 0; i <= 50; i++) {
+            await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+            await commitLogInstance?.commit('country@alice', CommitOp.UPDATE);
+          }
+          var locationList = commitLogInstance!.getCommitLogKey('location@alice');
+          var countryList = commitLogInstance.getCommitLogKey('location@alice');
+          expect(locationList.getSize(), 1);
+          expect(countryList.getSize(), 1);
+        });
     tearDown(() async => await tearDownFunc());
   });
 }

@@ -90,4 +90,9 @@ class AtAccessLog implements AtLogType {
   void close() {
     _accessLogKeyStore.close();
   }
+
+  @override
+  void attachObserver(AtCompactionLogObserver atCompactionLogObserver) {
+    // TODO: implement attachObserver
+  }
 }

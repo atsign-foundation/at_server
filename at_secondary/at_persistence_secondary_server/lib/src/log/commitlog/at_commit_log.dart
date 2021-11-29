@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/compaction/compaction_service_impl.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -165,5 +166,14 @@ class AtCommitLog implements AtLogType {
       regex = '.*';
     }
     return _commitLogKeyStore.getEntries(commitId, regex: regex);
+  }
+
+  AtList getCommitLogKey(String key) {
+    return _commitLogKeyStore.getCommitEntries(key);
+  }
+
+  @override
+  void attachObserver(AtCompactionLogObserver atCompactionLogObserver) {
+    _commitLogKeyStore.addObserver(atCompactionLogObserver);
   }
 }
