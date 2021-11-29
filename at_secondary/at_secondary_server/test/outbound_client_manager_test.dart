@@ -8,16 +8,18 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
 void main() {
+  int testInboundIdleTimeMillis = 150;
+  int testOutboundIdleTimeMillis = 200;
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.inboundIdleTimeMillis = 5000;
-    serverContext.outboundIdleTimeMillis = 3000;
+    serverContext.inboundIdleTimeMillis = testInboundIdleTimeMillis;
+    serverContext.outboundIdleTimeMillis = testOutboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });
 
   group('A group of outbound client manager tests', () {
     test('test outbound client manager - create new client ', () {
-      var dummySocket;
+      Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
       clientManager.init(5);
@@ -78,7 +80,7 @@ void main() {
     test(
         'test outbound client manager - inbound is closed, outbound client is invalid',
         () {
-      var dummySocket;
+      Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
       clientManager.init(5);
@@ -90,13 +92,13 @@ void main() {
     test(
         'test outbound client manager - outbound client is closed, inbound is still valid',
         () {
-      var dummySocket_1, dummySocket_2;
-      var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
+      Socket? dummySocket1, dummySocket2;
+      var inboundConnection = InboundConnectionImpl(dummySocket1, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
       clientManager.init(5);
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection)!;
       outBoundClient_1.outboundConnection =
-          OutboundConnectionImpl(dummySocket_2, 'bob');
+          OutboundConnectionImpl(dummySocket2, 'bob');
       outBoundClient_1.close();
       expect(inboundConnection.isInValid(), false);
     });
@@ -104,14 +106,14 @@ void main() {
     test(
         'test outbound client manager - outbound client is idle and becomes invalid',
         () {
-      var dummySocket_1, dummySocket_2;
-      var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
+      Socket? dummySocket1, dummySocket2;
+      var inboundConnection = InboundConnectionImpl(dummySocket1, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
       clientManager.init(5);
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection)!;
       outBoundClient_1.outboundConnection =
-          OutboundConnectionImpl(dummySocket_2, 'bob');
-      sleep(Duration(seconds: 4));
+          OutboundConnectionImpl(dummySocket2, 'bob');
+      sleep(Duration(milliseconds: testOutboundIdleTimeMillis+1));
       expect(outBoundClient_1.isInValid(), true);
     });
   });
