@@ -8,14 +8,35 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:at_utils/at_logger.dart';
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  final AtSignLogger _logger = AtSignLogger('pkam_verb_test.dart');
+  late final SecondaryKeyStoreManager keyStoreManager;
+  var testDataStoragePath = Directory.current.path + '/test/hive/pkam_verb_test';
+  // String thisTestFileName = 'pkam_verb_test.dart';
+
+  setUpAll(() async {
+    // print(thisTestFileName + ' setUpAll starting');
+
+    AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)!;
+
+    await secondaryPersistenceStore.getHivePersistenceManager()!.init(testDataStoragePath);
+
+    keyStoreManager = secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+
+    // print(thisTestFileName + ' setUpAll complete');
+  });
+
+  tearDownAll(() async {
+    // print(thisTestFileName + ' tearDownAll: removing data from ' + testDataStoragePath);
+    await Directory(testDataStoragePath).delete(recursive: true);
+    // print(thisTestFileName + ' tearDownAll complete');
+  });
 
   group("test group: pkam syntax", () {
-    test('test for pkam correct syntax', () {
+    test("test for pkam correct syntax", () {
       var verb = Pkam();
       var command = 'pkam:edgvb1234';
       var regex = verb.syntax();
@@ -23,14 +44,11 @@ void main() {
       expect(paramsMap['signature'], 'edgvb1234');
     });
 
-    test('test for incorrect syntax', () {
+    test("test for incorrect syntax", () {
       var verb = Pkam();
       var command = 'pkam@:edgvb1234';
       var regex = verb.syntax();
-      expect(
-              () => getVerbParam(regex, command),
-          throwsA(predicate((dynamic e) =>
-          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+      expect(() => getVerbParam(regex, command), throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test pkam accept', () {
@@ -50,41 +68,14 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var handler = PkamVerbHandler(null);
       var result = handler.accept(command);
-      print('result : $result');
+      // print('result : $result');
       expect(result, true);
-    });
-  });
-
-
-  group("test group: pkam verb handler", () {
-    late final SecondaryKeyStoreManager keyStoreManager;
-
-    setUpAll(() async {
-      _logger.info('setUpAll starting');
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-      SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-      await persistenceManager.init(storageDir);
-      keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-      _logger.info('setUpAll complete');
     });
 
     test('test pkam verb handler getVerb', () {
       PkamVerbHandler verbHandler = PkamVerbHandler(keyStoreManager.getKeyStore());
       var verb = verbHandler.getVerb();
       expect(verb is Pkam, true);
-    });
-
-    tearDownAll(() async {
-      var isExists = await Directory('test/hive').exists();
-      if (isExists) {
-        Directory('test/hive/').deleteSync(recursive: true);
-      }
     });
   });
 }
