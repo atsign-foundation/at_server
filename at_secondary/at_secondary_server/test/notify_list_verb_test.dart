@@ -250,6 +250,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 Future<void> tearDownFunc() async {
   AtNotificationMap.getInstance().clear();
+  await AtNotificationKeystore.getInstance().close();
   if (Directory(testDataStoragePath).existsSync()) {
     Directory(testDataStoragePath).deleteSync(recursive: true);
   }
