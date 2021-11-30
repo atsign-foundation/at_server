@@ -1,9 +1,9 @@
+import 'dart:io';
+
 import 'package:at_end2end_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'commons.dart';
-
-import 'dart:io';
 
 void main() {
   var first_atsign =
@@ -77,7 +77,7 @@ void main() {
     response = await read();
     print(
         'llookup verb response without private key in llookup verb: $response');
-    expect(response, contains('data:null'));
+    expect(response, contains('error:AT0015-key not found : country$first_atsign does not exist in keystore'));
   }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb with special characters', () async {

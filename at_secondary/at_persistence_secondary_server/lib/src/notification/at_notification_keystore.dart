@@ -191,4 +191,10 @@ class AtNotificationKeystore
   BoxBase _getBox() {
     return super.getBox();
   }
+
+  @override
+  bool isKeyExists(String key) {
+    // TODO: implement isKeyExists
+    throw UnimplementedError();
+  }
 }

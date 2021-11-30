@@ -380,7 +380,7 @@ void main() {
       expect('key-1', atNotification.notification);
       expect(1, atNotification.retryCount);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests to compute notifications wait time', () {
@@ -759,8 +759,8 @@ void main() {
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
+  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@test_user_1';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
@@ -773,11 +773,11 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
+      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = '@test_user_1';
+  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
   await notificationInstance.init(storageDir);
   return keyStoreManager;
 }
@@ -787,7 +787,7 @@ Future<void> tearDownFunc() async {
   AtNotificationMap.getInstance().clear();
   await AtNotificationKeystore.getInstance().close();
   if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+    await Directory('test/hive').delete(recursive: true);
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
@@ -65,8 +66,9 @@ void main() async {
       updateData.data = 'alice';
       await keyStore.put('last_name', updateData);
       await keyStore.remove('last_name');
-      var dataFromHive = await keyStore.get('last_name');
-      expect(dataFromHive, isNull);
+      expect(
+              () => keyStore.get('last_name'),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
 
     test('get keys', () async {
@@ -81,14 +83,6 @@ void main() async {
       await keyStore.put('first_name', data_2);
       var keys = keyStore.getKeys();
       expect(keys.length, 2);
-    });
-
-    test('test get null key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
-      var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var value = await keyStore!.get('');
-      expect(value, null);
     });
 
     test('test get expired keys - no data', () async {

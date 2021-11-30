@@ -80,8 +80,10 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   /// Returns the cached value of the key.
   Future<String?> _getCachedValue(String? operation, String key) async {
     key = 'cached:public:$key';
-    var atData = await keyStore!.get(key);
-    return SecondaryUtil.prepareResponseData(operation, atData);
+    if (keyStore!.isKeyExists(key)) {
+      var atData = await keyStore!.get(key);
+      return SecondaryUtil.prepareResponseData(operation, atData);
+    }
   }
 
   /// Performs the remote lookup and returns the value of the key.
