@@ -57,9 +57,9 @@ class CommitLogCompactionService implements CompactionService {
   /// For the given atKey, gets the expired commitEntry keys and removes from keystore
   void _compactExpiredKeys(var atKey) async {
     var atKeyList = _commitLogEntriesMap[atKey];
-    var expiredKeys = atKeyList!.getKeysToCompact();
+    var expiredKeys = atKeyList?.getKeysToCompact();
     await _commitLogKeyStore.delete(expiredKeys);
-    atKeyList.deleteCompactedKeys(expiredKeys);
+    atKeyList?.deleteCompactedKeys(expiredKeys);
   }
 
   /// Returns true if compaction is required, else false.
