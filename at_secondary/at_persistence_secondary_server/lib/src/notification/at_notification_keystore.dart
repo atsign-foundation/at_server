@@ -83,7 +83,6 @@ class AtNotificationKeystore
       bool? isBinary,
       bool? isEncrypted,
       String? dataSignature}) async {
-    // TODO: implement deleteExpiredKeys
     throw UnimplementedError();
   }
 
@@ -94,10 +93,9 @@ class AtNotificationKeystore
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         _logger.finer('expired keys: $expiredKeys');
-        expiredKeys.forEach((element) {
-          remove(element);
+        await Future.forEach(expiredKeys, (expiredKey) async {
+          await remove(expiredKey);
         });
-        result = true;
       } else {
         _logger.finer('notification key store. No expired notifications');
       }
@@ -117,14 +115,11 @@ class AtNotificationKeystore
   Future<List<dynamic>> getExpiredKeys() async {
     var expiredKeys = <String>[];
     try {
-      var now = DateTime.now().toUtc();
       var keys = _getBox().keys;
       var expired = [];
       await Future.forEach(keys, (key) async {
         var value = await get(key);
-        if (value != null &&
-            value.expiresAt != null &&
-            value.expiresAt!.isBefore(now)) {
+        if (value != null && value.isExpired()) {
           expired.add(key);
         }
       });

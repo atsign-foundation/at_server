@@ -450,6 +450,9 @@ class AtNotificationBuilder {
   AtMetaData? atMetaData;
 
   AtNotification build() {
+    if (ttl != null && expiresAt == null) {
+      expiresAt = DateTime.now().toUtc().add(Duration(milliseconds: ttl!));
+    }
     return AtNotification._builder(this);
   }
 }
