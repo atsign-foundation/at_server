@@ -6,7 +6,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -15,7 +14,7 @@ import 'package:test/test.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+  late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler = NotifyListVerbHandler(null);
@@ -223,13 +222,13 @@ void main() {
       expect('@bob', result[1]['to']);
       expect('key-2', result[1]['key']);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
+      .getSecondaryPersistenceStore(atsign ?? '@test_user_1')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
@@ -239,11 +238,11 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
+      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = '@test_user_1';
+  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
   await notificationInstance.init(storageDir);
   return keyStoreManager;
 }

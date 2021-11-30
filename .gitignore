@@ -25,3 +25,6 @@ doc/api/
 *.ipr
 *.iws
 *.idea/
+@*
+*/certs/*
+.vscode/
