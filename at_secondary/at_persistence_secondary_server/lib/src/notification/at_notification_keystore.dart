@@ -93,10 +93,13 @@ class AtNotificationKeystore
     try {
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
+        _logger.finer('expired keys: $expiredKeys');
         expiredKeys.forEach((element) {
           remove(element);
         });
         result = true;
+      } else {
+        _logger.finer('notification key store. No expired notifications');
       }
     } on Exception catch (e) {
       result = false;

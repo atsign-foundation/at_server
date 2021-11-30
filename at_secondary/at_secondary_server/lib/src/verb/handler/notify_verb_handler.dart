@@ -146,7 +146,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             ..messageType = messageType
             ..notificationStatus = NotificationStatus.queued
             ..atMetaData = atMetadata
-            ..type = NotificationType.sent)
+            ..type = NotificationType.sent
+            ..ttl = ttln_ms
+            ..expiresAt =
+                DateTime.now().toUtc().add(Duration(milliseconds: ttln_ms)))
           .build();
       var notificationId =
           await NotificationManager.getInstance().notify(atNotification);
