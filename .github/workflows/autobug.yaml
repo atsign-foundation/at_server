@@ -14,6 +14,6 @@ jobs:
         with:
           gh_token: ${{ secrets.MY_GITHUB_TOKEN }}
           organization: atsign-foundation
-          project_id: 11
+          project_id: 8
           resource_node_id: ${{ github.event.issue.node_id }}
           status_value: "Triage"
