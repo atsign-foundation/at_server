@@ -129,30 +129,31 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (ttl_ms != null) {
         atMetadata.ttl = ttl_ms;
       }
-      var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = atSign
-            ..toAtSign = forAtSign
-            ..notification = key
-            ..opType = opType
-            ..priority =
-                SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
-            ..atValue = atValue
-            ..notifier = notifier
-            ..strategy = strategy
-            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
-            ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
-                ? _getIntParam(verbParams[LATEST_N])
-                : 1
-            ..messageType = messageType
-            ..notificationStatus = NotificationStatus.queued
-            ..atMetaData = atMetadata
-            ..type = NotificationType.sent
-            ..ttl = ttln_ms
-            ..expiresAt =
-                DateTime.now().toUtc().add(Duration(milliseconds: ttln_ms)))
-          .build();
-      var notificationId =
-          await NotificationManager.getInstance().notify(atNotification);
+      final notificationBuilder = AtNotificationBuilder()
+        ..fromAtSign = atSign
+        ..toAtSign = forAtSign
+        ..notification = key
+        ..opType = opType
+        ..priority =
+            SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+        ..atValue = atValue
+        ..notifier = notifier
+        ..strategy = strategy
+        // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+        ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
+            ? _getIntParam(verbParams[LATEST_N])
+            : 1
+        ..messageType = messageType
+        ..notificationStatus = NotificationStatus.queued
+        ..atMetaData = atMetadata
+        ..type = NotificationType.sent
+        ..ttl = ttln_ms;
+      if (ttln_ms != null) {
+        notificationBuilder.expiresAt =
+            DateTime.now().toUtc().add(Duration(milliseconds: ttln_ms));
+      }
+      var notificationId = await NotificationManager.getInstance()
+          .notify(notificationBuilder.build());
       response.data = notificationId;
       return;
     }
