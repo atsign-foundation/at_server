@@ -37,10 +37,11 @@ dependency_overrides:
 #      path: at_commons
 #      ref: trunk
   at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: notification_ttl
+    path: ../at_persistence_secondary_server
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_secondary/at_persistence_secondary_server
+#      ref: trunk
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
