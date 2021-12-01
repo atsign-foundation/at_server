@@ -52,6 +52,7 @@ class CompactionSortedList {
 
   /// Returns the keys to compact.
   List getKeysToCompact() {
+    // _list.sublist(1) to retain the latest key and return the remaining.
     var expiredKeys = _list.sublist(1);
     return expiredKeys;
   }

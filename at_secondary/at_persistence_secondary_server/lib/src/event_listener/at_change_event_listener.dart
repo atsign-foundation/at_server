@@ -1,4 +1,4 @@
-import 'package:at_persistence_secondary_server/src/EventListener/at_change_event.dart';
+import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 
 /// Class responsible to listening on the [AtChangeEvent]
 abstract class AtChangeEventListener {

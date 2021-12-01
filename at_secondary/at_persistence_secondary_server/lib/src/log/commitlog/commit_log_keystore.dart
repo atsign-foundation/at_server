@@ -330,6 +330,8 @@ class CommitLogKeyStore
     return super.getBox();
   }
 
+  ///Returns the key-value pair of commit-log where key is hive internal key and
+  ///value is [CommitEntry]
   Future<Map> toMap() async {
     var commitLogMap = {};
     var keys = _getBox().keys;
@@ -339,5 +341,10 @@ class CommitLogKeyStore
       commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
+  }
+
+  ///Returns the total number of keys in commit log keystore.
+  int getEntriesCount() {
+    return _getBox().length;
   }
 }

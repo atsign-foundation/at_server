@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/EventListener/at_change_event.dart';
-import 'package:at_persistence_secondary_server/src/EventListener/event_listener.dart';
+import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
+import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// [CommitLogCompactionService] class is responsible for compacting the [AtCommitLog]
@@ -20,7 +20,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
     _commitLogKeyStore.toMap().then((map) => map.forEach((key, commitEntry) {
           // If _commitLogEntriesMap contains the key, then more than one commitEntry exists.
           // Increment the keysToCompactCount.
-          if (_commitLogEntriesMap.containsKey(key)) {
+          if (_commitLogEntriesMap.containsKey(commitEntry.atKey)) {
             keysToCompactCount = keysToCompactCount + 1;
           }
           _commitLogEntriesMap.putIfAbsent(
@@ -43,11 +43,20 @@ class CommitLogCompactionService implements AtChangeEventListener {
   /// Removes the duplicate [CommitEntry] when reaches the threshold.
   Future<void> compact() async {
     if (_isCompactionRequired()) {
-      await Future.forEach(
-          _commitLogEntriesMap.keys, (key) => _compactExpiredKeys(key));
-      //Reset keysToCompactCount to 0 after deleting the expired keys.
-      keysToCompactCount = 0;
-      _logger.info('Commit Log compaction completed');
+      var keysBeforeCompaction = _commitLogKeyStore.getEntriesCount();
+      try {
+        await Future.forEach(
+            _commitLogEntriesMap.keys, (key) => _compactExpiredKeys(key));
+        var keysAfterCompaction = _commitLogKeyStore.getEntriesCount();
+        _logger.info(
+            'Commit Log compacted successfully. Removed ${keysBeforeCompaction - keysAfterCompaction} duplicate entries');
+      } on Exception catch (e) {
+        _logger.severe(
+            'Exception occurred while performing commit log compaction ${e.toString}');
+      } finally {
+        //Reset keysToCompactCount to 0 after deleting the expired keys.
+        keysToCompactCount = 0;
+      }
     }
   }
 
@@ -62,8 +71,10 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   /// Returns true if compaction is required, else false.
+  /// Setting the compaction threshold to 50.
+  /// TODO: Get 50 from config.
   bool _isCompactionRequired() {
-    return keysToCompactCount >= 5;
+    return keysToCompactCount >= 3;
   }
 
   ///Returns the list[CompactionSortedList] for a given key.

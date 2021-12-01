@@ -29,10 +29,3 @@ abstract class AtCompactionStrategy {
   /// @param atLogType The log type to perform the compaction job.
   Future<void> performCompaction(AtLogType atLogType);
 }
-
-/// The abstract class for Observing the [AtLogType] compaction.
-abstract class AtCompactionLogObserver {
-  /// Informs the observers when compaction is completed.
-  /// [keysCompacted] represents the number of keys compacted
-  Future<void> informCompletion(int keysCompacted);
-}
