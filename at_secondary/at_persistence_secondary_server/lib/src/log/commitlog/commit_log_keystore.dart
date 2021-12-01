@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/compaction/compaction_service_impl.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
@@ -22,7 +21,6 @@ class CommitLogKeyStore
   int _latestCommitId = -1;
 
   int get latestCommitId => _latestCommitId;
-  late CommitLogCompactionService commitLogCompactionServices;
 
   CommitLogKeyStore(this._currentAtSign);
 
@@ -45,7 +43,6 @@ class CommitLogKeyStore
     if (enableCommitId) {
       _commitLogCacheMap.addAll(await _getCommitIdMap());
     }
-    commitLogCompactionServices = CommitLogCompactionService(this);
   }
 
   @override
@@ -77,7 +74,6 @@ class CommitLogKeyStore
             commitEntry.commitId! > _latestCommitId) {
           _latestCommitId = commitEntry.commitId!;
         }
-        await commitLogCompactionServices.informChange(commitEntry);
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
@@ -343,13 +339,5 @@ class CommitLogKeyStore
       commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
-  }
-
-  CompactionSortedList? getCommitEntries(var key) {
-    return commitLogCompactionServices.getCommitKeys(key);
-  }
-
-  void addObserver(AtCompactionLogObserver atCompactionLogObserver) {
-    commitLogCompactionServices.addObserver(atCompactionLogObserver);
   }
 }

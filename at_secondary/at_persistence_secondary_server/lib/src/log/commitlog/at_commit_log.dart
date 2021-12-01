@@ -1,5 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/compaction/compaction_service_impl.dart';
+import 'package:at_persistence_secondary_server/src/EventListener/at_change_event.dart';
+import 'package:at_persistence_secondary_server/src/EventListener/event_listener.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -10,7 +11,11 @@ import 'package:hive/hive.dart';
 class AtCommitLog implements AtLogType {
   var logger = AtSignLogger('AtCommitLog');
 
-  late var _commitLogKeyStore;
+  late final List<AtChangeEventListener> _atChangeEventListener = [];
+
+  late CommitLogKeyStore _commitLogKeyStore;
+
+  CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
   AtCommitLog(CommitLogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
@@ -29,6 +34,7 @@ class AtCommitLog implements AtLogType {
     var entry = CommitEntry(key, operation, DateTime.now().toUtc());
     try {
       result = await _commitLogKeyStore.add(entry);
+      await _publishChangeEvent(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -43,7 +49,7 @@ class AtCommitLog implements AtLogType {
   /// throws [DataStoreException] if there is an exception getting the commit entry
   Future<CommitEntry?> getEntry(int? sequenceNumber) async {
     try {
-      var commitEntry = await _commitLogKeyStore.get(sequenceNumber);
+      var commitEntry = await _commitLogKeyStore.get(sequenceNumber!);
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting entry:${e.toString()}');
@@ -59,7 +65,7 @@ class AtCommitLog implements AtLogType {
       {int? limit}) async {
     var changes;
     try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber,
+      changes = _commitLogKeyStore.getChanges(sequenceNumber!,
           regex: regex, limit: limit);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
@@ -134,7 +140,7 @@ class AtCommitLog implements AtLogType {
       throw DataStoreException(
           'Hive error adding to access log:${e.toString()}');
     }
-    return entries!;
+    return entries;
   }
 
   /// Removes the expired keys from the log.
@@ -168,12 +174,29 @@ class AtCommitLog implements AtLogType {
     return _commitLogKeyStore.getEntries(commitId, regex: regex);
   }
 
-  CompactionSortedList getCommitLogKey(String key) {
-    return _commitLogKeyStore.getCommitEntries(key);
+  Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
+    try {
+      for (var listener in _atChangeEventListener) {
+        await listener.listen(AtChangeEvent.from(
+            key: commitEntry.atKey,
+            value: commitEntry.commitId,
+            commitOp: commitEntry.operation!,
+            keyStoreType: KeyStoreType.commitLogKeyStore));
+      }
+    } on Exception catch (e) {
+      logger.info('Failed to publish change event ${e.toString()}');
+    } on Error catch (err) {
+      logger.info('Failed to publish change event ${err.toString()}');
+    }
   }
 
-  @override
-  void attachObserver(AtCompactionLogObserver atCompactionLogObserver) {
-    _commitLogKeyStore.addObserver(atCompactionLogObserver);
+  /// Adds the class implementing the [AtChangeEventListener] to publish the [AtChangeEvent]
+  void addEventListener(AtChangeEventListener atChangeEventListener) {
+    _atChangeEventListener.add(atChangeEventListener);
+  }
+
+  /// Removes the [AtChangeEventListener]
+  void removeEventListener(AtChangeEventListener atChangeEventListener) {
+    _atChangeEventListener.remove(atChangeEventListener);
   }
 }

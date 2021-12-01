@@ -97,26 +97,32 @@ void main() async {
         () async {
       var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var compactionService =
+          CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
+      commitLogInstance.addEventListener(compactionService);
       for (int i = 0; i <= 50; i++) {
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
       }
-      var list = commitLogInstance!.getCommitLogKey('location@alice');
-      expect(list.getSize(), 1);
+
+      var list = compactionService.getEntries('location@alice');
+      expect(list?.getSize(), 1);
     });
 
-    test('Test to verify compaction when two are modified ten times',
-            () async {
-          var commitLogInstance =
+    test('Test to verify compaction when two are modified ten times', () async {
+      var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-          for (int i = 0; i <= 50; i++) {
-            await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-            await commitLogInstance?.commit('country@alice', CommitOp.UPDATE);
-          }
-          var locationList = commitLogInstance!.getCommitLogKey('location@alice');
-          var countryList = commitLogInstance.getCommitLogKey('location@alice');
-          expect(locationList.getSize(), 1);
-          expect(countryList.getSize(), 1);
-        });
+      var compactionService =
+          CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
+      commitLogInstance.addEventListener(compactionService);
+      for (int i = 0; i <= 50; i++) {
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('country@alice', CommitOp.UPDATE);
+      }
+      var locationList = compactionService.getEntries('location@alice');
+      var countryList = compactionService.getEntries('country@alice');
+      expect(locationList!.getSize(), 1);
+      expect(countryList!.getSize(), 1);
+    });
     tearDown(() async => await tearDownFunc());
   });
 }

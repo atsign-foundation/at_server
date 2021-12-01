@@ -21,9 +21,6 @@ abstract class AtLogType {
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
   int getSize();
-
-  /// Adds the observes to the [AtCompactionLogObserver]
-  void attachObserver(AtCompactionLogObserver atCompactionLogObserver);
 }
 
 /// The abstract class for Compaction Job

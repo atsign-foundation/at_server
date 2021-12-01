@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -274,35 +273,5 @@ class LastPkamMetricImpl implements MetricProvider {
   @override
   String getName() {
     return 'LastPkam';
-  }
-}
-
-class CommitLogCompactionStats implements MetricProvider {
-  static final CommitLogCompactionStats _singleton =
-      CommitLogCompactionStats._internal();
-
-  CommitLogCompactionStats._internal();
-
-  factory CommitLogCompactionStats.getInstance() {
-    return _singleton;
-  }
-
-  @override
-  getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(
-            AtSecondaryServerImpl.getInstance().currentAtSign)!
-        .getSecondaryKeyStore();
-    var atData = await keyStore!.get(commitLogCompactionKey);
-    //If atData is null, return empty JSON
-    if (atData == null && atData!.data == null) {
-      return jsonEncode({});
-    }
-    return atData.data;
-  }
-
-  @override
-  String getName() {
-    return 'CommitLogCompactionStats';
   }
 }
