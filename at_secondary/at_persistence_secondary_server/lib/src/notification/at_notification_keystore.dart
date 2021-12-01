@@ -212,25 +212,21 @@ class AtNotificationKeystore
 
   @override
   Future getMeta(key) {
-    // TODO: implement getMeta
     throw UnimplementedError();
   }
 
   @override
   Future putAll(key, value, metadata) {
-    // TODO: implement putAll
     throw UnimplementedError();
   }
 
   @override
   Future putMeta(key, metadata) {
-    // TODO: implement putMeta
     throw UnimplementedError();
   }
 
   @override
   Future<List> getFirstNEntries(int N) {
-    // TODO: implement getFirstNEntries
     throw UnimplementedError();
   }
 }
