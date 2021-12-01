@@ -17,7 +17,7 @@ Future<SecureSocket> socket_connection(host, port) async {
   context.setTrustedCertificates('lib/secondary/base/certs/cacert.pem');
   context.usePrivateKey('lib/secondary/base/certs/privkey.pem');
   context.useCertificateChain('lib/secondary/base/certs/fullchain.pem');
-  return await SecureSocket.connect(host, port , context: context );
+  return await SecureSocket.connect(host, port, context: context);
 }
 
 void clear() {
@@ -26,8 +26,7 @@ void clear() {
 }
 
 ///Secure Socket Connection
-Future<SecureSocket> secure_socket_connection(
-    host, port) async {
+Future<SecureSocket> secure_socket_connection(host, port) async {
   var socket;
   while (true) {
     try {
@@ -63,20 +62,20 @@ Future<void> prepare(Socket socket, String atsign) async {
   var response = await read();
   print('From verb response $response');
   response = response.replaceAll('data:', '');
-  // var pkam_digest = generatePKAMDigest(atsign, response);
-  var cram = getDigest(atsign, response);
+  var pkam_digest = generatePKAMDigest(atsign, response);
+  // var cram = getDigest(atsign, response);
 
   // PKAM VERB
-  // await socket_writer(socket, 'pkam:$pkam_digest');
-  // response = await read();
-  // print('pkam verb response $response');
-  // expect(response, 'data:success\n');
+  await socket_writer(socket, 'pkam:$pkam_digest');
+  response = await read();
+  print('pkam verb response $response');
+  expect(response, 'data:success\n');
 
   //CRAM VERB
-  await socket_writer(socket, 'cram:$cram');
-  response = await read();
-  print('cram verb response $response');
-  expect(response, 'data:success\n');
+  // await socket_writer(socket, 'cram:$cram');
+  // response = await read();
+  // print('cram verb response $response');
+  // expect(response, 'data:success\n');
 }
 
 void _messageHandler(data) {
