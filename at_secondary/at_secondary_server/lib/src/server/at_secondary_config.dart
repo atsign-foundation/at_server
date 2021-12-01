@@ -5,8 +5,8 @@ import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
   //Certs
-  static bool? _useSSL = true;
-  static bool? _clientCertificateRequired = true;
+  static final bool? _useSSL = true;
+  static final bool? _clientCertificateRequired = true;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
@@ -14,46 +14,50 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
-  static String? _storagePath = 'storage/hive';
-  static String? _commitLogPath = 'storage/commitLog';
-  static String? _accessLogPath = 'storage/accessLog';
-  static String? _notificationStoragePath = 'storage/notificationLog.v1';
-  static int? _expiringRunFreqMins = 10;
+  static final String? _storagePath = 'storage/hive';
+  static final String? _commitLogPath = 'storage/commitLog';
+  static final String? _accessLogPath = 'storage/accessLog';
+  static final String? _notificationStoragePath = 'storage/notificationLog.v1';
+  static final int? _expiringRunFreqMins = 10;
 
   //Commit Log
-  static int? _commitLogCompactionFrequencyMins = 30;
-  static int? _commitLogCompactionPercentage = 20;
-  static int? _commitLogExpiryInDays = 15;
-  static int? _commitLogSizeInKB = 2;
+  static final int? _commitLogCompactionFrequencyMins = 30;
+  static final int? _commitLogCompactionPercentage = 20;
+  static final int? _commitLogExpiryInDays = 15;
+  static final int? _commitLogSizeInKB = 2;
 
   //Access Log
-  static int? _accessLogCompactionFrequencyMins = 15;
-  static int? _accessLogCompactionPercentage = 30;
-  static int? _accessLogExpiryInDays = 15;
-  static int? _accessLogSizeInKB = 2;
+  static final int? _accessLogCompactionFrequencyMins = 15;
+  static final int? _accessLogCompactionPercentage = 30;
+  static final int? _accessLogExpiryInDays = 15;
+  static final int? _accessLogSizeInKB = 2;
 
   //Notification
   static final int _maxNotificationRetries = 5;
-  static int? _maxNotificationEntries = 5;
-  static bool? _autoNotify = true;
+  static final int? _maxNotificationEntries = 5;
+  static final bool? _autoNotify = true;
   static final int _notificationQuarantineDuration = 10;
   static final int _notificationJobFrequency = 5;
+  static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
+  static final int? _notificationKeyStoreCompactionPercentage = 30;
+  static final int? _notificationKeyStoreExpiryInDays = 1;
+  static final int? _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
   static int? _runRefreshJobHour = 3;
 
   //Connection
-  static int? _inbound_max_limit = 10;
-  static int? _outbound_max_limit = 10;
-  static int? _inbound_idletime_millis = 600000;
-  static int? _outbound_idletime_millis = 600000;
+  static final int? _inbound_max_limit = 10;
+  static final int? _outbound_max_limit = 10;
+  static final int? _inbound_idletime_millis = 600000;
+  static final int? _outbound_idletime_millis = 600000;
 
   //Lookup
-  static int? _lookup_depth_of_resolution = 3;
+  static final int? _lookup_depth_of_resolution = 3;
 
   //Stats
-  static int? _stats_top_keys = 5;
-  static int? _stats_top_visits = 5;
+  static final int? _stats_top_keys = 5;
+  static final int? _stats_top_visits = 5;
 
   //log configurations
   static final bool _debugLog = true;
@@ -241,6 +245,58 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'expiringRunFrequencyMins']);
     } on ElementNotFoundException {
       return _expiringRunFreqMins;
+    }
+  }
+
+  static int? get notificationKeyStoreExpiryInDays {
+    var result = _getIntEnvVar('notificationKeyStoreExpiryInDays');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'expiryInDays']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreExpiryInDays;
+    }
+  }
+
+  static int? get notificationKeyStoreCompactionPercentage {
+    var result = _getIntEnvVar('notificationKeyStoreCompactionPercentage');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'compactionPercentage']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreCompactionPercentage;
+    }
+  }
+
+  static int? get notificationKeyStoreSizeInKB {
+    var result = _getIntEnvVar('notificationKeyStoreInKB');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'sizeInKB']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreSizeInKB;
+    }
+  }
+
+  static int? get notificationKeyStoreCompactionFrequencyMins {
+    var result = _getIntEnvVar('notificationKeyStoreCompactionFrequencyMins');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'compactionFrequencyMins']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreCompactionFrequencyMins;
     }
   }
 

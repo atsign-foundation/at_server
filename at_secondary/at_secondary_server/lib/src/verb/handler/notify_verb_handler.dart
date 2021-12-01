@@ -173,9 +173,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         return;
       }
 
-      var isKeyPresent = await keyStore!.get(notifyKey);
+      var isKeyPresent = keyStore!.isKeyExists(notifyKey);
       var atMetadata;
-      if (isKeyPresent != null) {
+      if (isKeyPresent) {
         atMetadata = await keyStore!.getMeta(notifyKey);
       }
       if (atValue != null && ttr_ms != null) {
@@ -195,7 +195,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
 
       // Update metadata only if key is cached.
-      if (isKeyPresent != null) {
+      if (isKeyPresent) {
         var atMetaData = AtMetadataBuilder(
                 newAtMetaData: atMetadata,
                 ttl: ttl_ms,

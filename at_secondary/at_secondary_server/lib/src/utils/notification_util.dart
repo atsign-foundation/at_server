@@ -70,13 +70,4 @@ class NotificationUtil {
       }
     });
   }
-
-  static void scheduleKeyExpireTask(
-      int runFrequencyMins, String currentAtSign) {
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
-      var notificationKeyStore = AtNotificationKeystore.getInstance();
-      await notificationKeyStore.deleteExpiredKeys();
-    });
-  }
 }
