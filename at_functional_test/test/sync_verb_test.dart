@@ -11,7 +11,7 @@ void main() {
   Socket? _socket_first_atsign;
 
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var first_atsign_port =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -19,24 +19,6 @@ void main() {
         await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign!);
     await prepare(_socket_first_atsign!, first_atsign);
-  });
-
-  test('sync verb ', () async {
-    /// UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign!, 'update:public:location$first_atsign Hyderabad');
-    var response = await read();
-    print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    var commitId = response.replaceAll('data:', '');
-    var syncId = int.parse(commitId);
-
-    // sync with commit Id
-    await socket_writer(_socket_first_atsign!, 'sync:${syncId - 1}');
-    response = await read();
-    print('sync response is : $response');
-    assert(response.contains('"atKey":"public:location$first_atsign'));
   });
 
   test('sync verb with regex ', () async {

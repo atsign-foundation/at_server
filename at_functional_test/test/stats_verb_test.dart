@@ -17,11 +17,11 @@ void main() {
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var first_atsign_port =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-    var second_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var second_atsign_server = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
     var second_atsign_port =
         ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
 

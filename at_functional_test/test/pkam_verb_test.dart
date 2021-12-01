@@ -12,7 +12,7 @@ void main() {
   Socket? _socket_first_atsign;
 
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var first_atsign_port =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 

@@ -20,9 +20,9 @@ void main() {
   Socket? _socket_second_atsign;
 
   test('Scan verb after authentication', () async {
-    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign!);
     await prepare(_socket_first_atsign!, first_atsign);
 
@@ -41,9 +41,9 @@ void main() {
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('scan verb before authentication', () async {
-    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign!);
 
     ///SCAN VERB
@@ -54,9 +54,9 @@ void main() {
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb with only atsign and no value', () async {
-    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['url'];
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign!);
     await prepare(_socket_first_atsign!, first_atsign);
 
@@ -68,9 +68,9 @@ void main() {
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb with regex', () async {
-    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     _socket_first_atsign =
-        await secure_socket_connection(root_server, first_atsign_port);
+        await secure_socket_connection(first_atsign_server, first_atsign_port);
     socket_listener(_socket_first_atsign!);
     await prepare(_socket_first_atsign!, first_atsign);
 
