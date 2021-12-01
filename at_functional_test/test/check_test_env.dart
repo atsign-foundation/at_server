@@ -6,15 +6,17 @@ import 'package:test/test.dart';
 import 'commons.dart';
 
 void main() {
-  var atsign = '@bob🛠';
-  var atsign_port = 25003;
-
+  
   Socket _socket;
 
   test('checking for test environment readiness', () async {
-    var root_server = ConfigUtil.getYaml()!['root_server']['url'];
+    var atsign = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+    var atsign_url =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var atsign_port = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+    print('root server url $atsign_url');
     await Future.delayed(Duration(seconds: 10));
-    _socket = await secure_socket_connection(root_server, atsign_port);
+    _socket = await secure_socket_connection(atsign_url, atsign_port);
     if (_socket != null) {
       print('connection established');
     }
