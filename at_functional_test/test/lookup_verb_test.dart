@@ -37,6 +37,14 @@ void main() {
     await prepare(_socket_second_atsign!, second_atsign);
   });
 
+  test('llookup verb on a non-existent key', () async {
+    ///lookup verb alice  atsign
+    await socket_writer(_socket_second_atsign!, 'llookup:random$first_atsign');
+    var response = await read();
+    print('llookup verb response : $response');
+    expect(response, contains('key not found : random$first_atsign does not exist in keystore'));
+  }, timeout: Timeout(Duration(minutes: 3)));
+
   test('update-lookup verb on private key - positive verb', () async {
     ///Update verb on bob atsign
     await socket_writer(_socket_first_atsign!,
@@ -53,37 +61,6 @@ void main() {
     expect(response, contains('data:developer'));
   }, timeout: Timeout(Duration(minutes: 3)));
 
-  test('update-lookup verb on self key - positive case', () async {
-    ///update verb on bob atsign
-    await socket_writer(
-        _socket_first_atsign!, 'update:work$first_atsign atsign-company');
-    var response = await read();
-    print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    await socket_writer(_socket_second_atsign!, 'lookup:work$first_atsign');
-    response = await read();
-    print('lookup verb response : $response');
-    expect(response, contains('data:null'));
-  }, timeout: Timeout(Duration(minutes: 3)));
-
-  test('update-lookup verb on public key - Negative case', () async {
-    ///Update verb
-    await socket_writer(_socket_second_atsign!,
-        'update:public:location$second_atsign United-States');
-    var response = await read();
-    print('update verb response from $second_atsign : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    ///lookup verb
-    await socket_writer(
-        _socket_first_atsign!, 'lookup:lookup:location$second_atsign');
-    response = await read();
-    print('lookup verb response from $first_atsign : $response');
-    expect(response, contains('data:null'));
-  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('update-lookup verb by giving wrong spelling - Negative case', () async {
     ///Update verb

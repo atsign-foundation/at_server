@@ -70,6 +70,8 @@ void main() {
     expect(response, contains('Invalid syntax'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
+
+  /// Open bug - https://github.com/atsign-foundation/at_server/issues/387
   test('plookup verb on non existent key - negative case', () async {
     ///PLOOKUP VERB
     await socket_writer(_socket_first_atsign!, 'plookup:no-key$first_atsign');

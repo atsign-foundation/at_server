@@ -168,6 +168,30 @@ void main() {
     expect(sentCountAfterDelete, sentCountBeforeDelete + 1);
   }, timeout: Timeout(Duration(seconds: 120)));
 
+  test('stats verb for id 11 - for messageType text ', () async {
+    /// stats:11 verb response
+    var beforeNotify = await notificationStats(_socket_first_atsign!);
+    var sentCountBeforeNotify = await beforeNotify['type']['sent'];
+    var statusBeforeNotify = await beforeNotify['status']['delivered'];
+    var textCountBeforeNotify = await beforeNotify['messageType']['text'];
+
+    /// update command
+    await socket_writer(_socket_first_atsign!,
+        'notify:messageType:text:ttr:-1:$second_atsign:message$first_atsign:Hi!!!');
+    var notifyResponse = await read();
+    print('notify verb response $notifyResponse');
+    assert((!notifyResponse.contains('Invalid syntax')) &&
+        (!notifyResponse.contains('null')));
+    await Future.delayed(Duration(seconds: 6));
+    var afterNotify = await notificationStats(_socket_first_atsign!);
+    var sentCountAfterNotify = await afterNotify['type']['sent'];
+    var statusAfterNotify = await afterNotify['status']['delivered'];
+    var textCountAfterNotify = await afterNotify['messageType']['text'];
+    expect(sentCountAfterNotify, sentCountBeforeNotify + 1);
+    expect(statusAfterNotify, statusBeforeNotify + 1);
+    expect(textCountAfterNotify, textCountBeforeNotify + 1);
+  });
+
   test('stats verb for id 11 - for an invalid atsign ', () async {
     /// stats:11 verb response
     var beforeUpdate = await notificationStats(_socket_first_atsign!);
@@ -194,29 +218,6 @@ void main() {
     expect(keyCountAfterUpdate, keyCountBeforeUpdate + 1);
   });
 
-  test('stats verb for id 11 - for messageType text ', () async {
-    /// stats:11 verb response
-    var beforeNotify = await notificationStats(_socket_first_atsign!);
-    var sentCountBeforeNotify = await beforeNotify['type']['sent'];
-    var statusBeforeNotify = await beforeNotify['status']['delivered'];
-    var textCountBeforeNotify = await beforeNotify['messageType']['text'];
-
-    /// update command
-    await socket_writer(_socket_first_atsign!,
-        'notify:messageType:text:ttr:-1:$second_atsign:message$first_atsign:Hi!!!');
-    var notifyResponse = await read();
-    print('notify verb response $notifyResponse');
-    assert((!notifyResponse.contains('Invalid syntax')) &&
-        (!notifyResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 5));
-    var afterNotify = await notificationStats(_socket_first_atsign!);
-    var sentCountAfterNotify = await afterNotify['type']['sent'];
-    var statusAfterNotify = await afterNotify['status']['delivered'];
-    var textCountAfterNotify = await afterNotify['messageType']['text'];
-    expect(sentCountAfterNotify, sentCountBeforeNotify + 1);
-    expect(statusAfterNotify, statusBeforeNotify + 1);
-    expect(textCountAfterNotify, textCountBeforeNotify + 1);
-  });
 
   tearDown(() {
     //Closing the client socket connection

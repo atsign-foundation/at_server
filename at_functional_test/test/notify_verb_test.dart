@@ -7,7 +7,7 @@ import 'package:at_functional_test/conf/config_util.dart';
 
 var response;
 var retryCount = 1;
-var maxRetryCount = 10;
+var maxRetryCount = 12;
 var first_atsign =
     ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 var second_atsign =
@@ -66,6 +66,31 @@ void main() {
         response,
         contains(
             '"key":"$first_atsign:email$second_atsign","value":"alice@yahoo.com","operation":"update"'));
+  }, timeout: Timeout(Duration(seconds: 120)));
+
+  test('notify verb without messageType and operation', () async {
+    /// NOTIFY VERB
+    await socket_writer(_socket_second_atsign!,
+        'notify:$first_atsign:contact-no$second_atsign:+91-9012823465');
+    response = await read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    id = response.replaceAll('data:', '');
+
+    // notify status
+    response = await getNotifyStatus(_socket_second_atsign!);
+    print('notify status response : $response');
+    assert(response.contains('data:delivered'));
+
+    ///notify:list verb
+    await socket_writer(_socket_first_atsign!, 'notify:list');
+    response = await read();
+    print('notify list verb response : $response');
+    expect(
+        response,
+        contains(
+            '"key":"$first_atsign:contact-no$second_atsign","value":null'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb without messageType', () async {
@@ -310,10 +335,10 @@ void main() {
             '"key":"$second_atsign:twitter$first_atsign","value":"null","operation":"delete"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('notify verb with notification expiry', () async {
+  test('notify verb with notification expiry for messageType key', () async {
     //   /// NOTIFY VERB
     await socket_writer(_socket_second_atsign!,
-        'notify:update:ttln:5000:ttr:-1:$first_atsign:message$second_atsign:Hey!');
+        'notify:update:messageType:key:ttln:7000:ttr:-1:$first_atsign:message$second_atsign:Hey!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -321,7 +346,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status before ttln expiry time
-    await Future.delayed(Duration(seconds: 2));
+    await Future.delayed(Duration(seconds: 5));
     await socket_writer(_socket_second_atsign!, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
@@ -344,10 +369,10 @@ void main() {
             '"key":"$first_atsign:message$second_atsign","value":"Hey!","operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('notify verb with notification expiry with messageType text', () async {
+  test('notify verb with notification expiry for errored- invalid atsign', () async {
     //   /// NOTIFY VERB
     await socket_writer(_socket_second_atsign!,
-        'notify:update:messageType:text:ttln:5000:ttr:-1:$first_atsign:Helllo!');
+        'notify:update:messageType:key:ttln:7000:ttr:-1:@xyz:message$second_atsign:Hey!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -355,7 +380,32 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status before ttln expiry time
-    await Future.delayed(Duration(seconds: 2));
+    await Future.delayed(Duration(seconds: 5));
+    await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+    response = await read();
+    print('notify status response : $response');
+    expect(response, contains('data:errored'));
+
+    /// notify status after ttln expiry time
+    await Future.delayed(Duration(seconds: 5));
+    await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+    response = await read();
+    print('notify status response : $response');
+    expect(response, contains('data:expired'));
+  }, timeout: Timeout(Duration(seconds: 120)));
+
+  test('notify verb with notification expiry with messageType text', () async {
+    //   /// NOTIFY VERB
+    await socket_writer(_socket_second_atsign!,
+        'notify:update:messageType:text:ttln:7000:ttr:-1:$first_atsign:Helllo!');
+    response = await read();
+    print('notify verb response : $response');
+    id = response.replaceAll('data:', '');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // notify status before ttln expiry time
+    await Future.delayed(Duration(seconds: 5));
     await socket_writer(_socket_second_atsign!, 'notify:status:$id');
     response = await read();
     print('notify status response : $response');
@@ -369,8 +419,9 @@ void main() {
     expect(response, contains('data:expired'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  /// 
-  test('notify verb with notification expiry in an incorrect spelling', () async {
+  ///
+  test('notify verb with notification expiry in an incorrect spelling',
+      () async {
     //   /// NOTIFY VERB
     await socket_writer(_socket_second_atsign!,
         'notify:update:ttlnn:5000:ttr:-1:$first_atsign:message$second_atsign:Hey!');
@@ -383,6 +434,15 @@ void main() {
     //   /// NOTIFY VERB
     await socket_writer(_socket_second_atsign!,
         'notify:update:ttlnn:ttr:-1:$first_atsign:message$second_atsign:Hey!');
+    response = await read();
+    print('notify verb response : $response');
+    expect(response, contains('Invalid syntax'));
+  });
+
+  test('notify verb with notification expiry in an incorrect order', () async {
+    //   /// NOTIFY VERB
+    await socket_writer(_socket_second_atsign!,
+        'notify:update:ttb:3000:ttr:-1:ttln:10000:$first_atsign:message$second_atsign:Hey!');
     response = await read();
     print('notify verb response : $response');
     expect(response, contains('Invalid syntax'));

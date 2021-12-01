@@ -75,7 +75,7 @@ void main() {
     response = await read();
     print(
         'llookup verb response without private key in llookup verb: $response');
-    expect(response, contains('data:null'));
+    expect(response, contains('error:AT0015-key not found : country@bob does not exist in keystore'));
   }, timeout: Timeout(Duration(seconds: 90)));
 
   test('update verb with special characters', () async {
