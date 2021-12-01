@@ -14,4 +14,7 @@ abstract class SecondaryKeyStore<K, V, T>
   /// and returns keys that finds the match
   /// @return - List<K> : Returns list of keys
   List<K> getKeys({String? regex});
+
+  /// Checks whether the keystore contains the key. Returns a true if key is present, else false.
+  bool isKeyExists(String key);
 }

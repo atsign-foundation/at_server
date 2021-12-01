@@ -236,7 +236,7 @@ void main() async {
     });*/
   });
 
-  tearDown(() async => tearDownFunc());
+  tearDown(() async => await tearDownFunc());
 
   if (Directory(storageDir).existsSync()) {
     Directory(storageDir).deleteSync(recursive: true);

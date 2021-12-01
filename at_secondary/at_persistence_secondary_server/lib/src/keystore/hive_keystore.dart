@@ -41,6 +41,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
+    if (value == null) {
+      throw KeyNotFoundException('$key does not exist in keystore');
+    }
     return value;
   }
 
@@ -72,8 +75,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       commitOp = CommitOp.UPDATE_ALL;
     }
     try {
-      var existingData = await get(key);
-      if (existingData == null) {
+      // If does not exist, create a new key,
+      // else update existing key.
+      if (!isKeyExists(key)) {
         result = await create(key, value,
             time_to_live: time_to_live,
             time_to_born: time_to_born,
@@ -83,9 +87,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature);
       } else {
+        var existingData = await get(key);
         var hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForUpdate(
-            existingData, value!,
+            existingData!, value!,
             ttl: time_to_live,
             ttb: time_to_born,
             ttr: time_to_refresh,
@@ -322,7 +327,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> putMeta(String key, AtMetaData? metadata) async {
     try {
       var hive_key = keyStoreHelper.prepareKey(key);
-      var existingData = await get(key);
+      AtData? existingData;
+      if (isKeyExists(key)) {
+        existingData = await get(key);
+      }
       var newData = existingData ?? AtData();
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata, existingMetaData: newData.metaData)
@@ -348,6 +356,13 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
+  }
+
+  /// Returns true if key exists in [HiveKeystore]; else false.
+  @override
+  bool isKeyExists(String key) {
+    var result = persistenceManager.getBox().containsKey(key);
+    return result;
   }
 
   ///Restarts the hive box.

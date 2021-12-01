@@ -128,7 +128,7 @@ class AtNotification {
     return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
         'notificationDateTime: $_notificationDateTime, '
         'toAtSign:$_toAtSign, notification:$_notification, '
-        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
+        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue}';
   }
 }
 
