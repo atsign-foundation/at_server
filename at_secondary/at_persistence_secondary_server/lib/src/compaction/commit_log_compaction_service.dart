@@ -74,7 +74,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
   /// Setting the compaction threshold to 50.
   /// TODO: Get 50 from config.
   bool _isCompactionRequired() {
-    return keysToCompactCount >= 3;
+    return keysToCompactCount >= 50;
   }
 
   ///Returns the list[CompactionSortedList] for a given key.
