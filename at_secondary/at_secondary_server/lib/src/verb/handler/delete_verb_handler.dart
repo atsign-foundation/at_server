@@ -6,13 +6,13 @@ import 'package:at_persistence_secondary_server/src/notification/at_notification
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
-class DeleteVerbHandler extends AbstractVerbHandler {
+class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
 
@@ -44,6 +44,8 @@ class DeleteVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
     deleteKey = verbParams[AT_KEY];

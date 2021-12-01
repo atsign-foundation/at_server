@@ -232,7 +232,7 @@ void main() {
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'India');
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 }
 
@@ -245,9 +245,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(
-      AtSecondaryServerImpl.getInstance().currentAtSign, storageDir);
-  await persistenceManager.openVault('@test_user_1');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
@@ -256,8 +254,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
-  await AtNotificationKeystore.getInstance()
-      .init(storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  final notificationStore = AtNotificationKeystore.getInstance();
+  notificationStore.currentAtSign = '@test_user_1';
+  await notificationStore.init(storageDir);
   return keyStoreManager;
 }
 

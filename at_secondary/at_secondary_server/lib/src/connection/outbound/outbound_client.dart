@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -81,8 +81,8 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
-    var secondaryUrl =
-        await AtLookupImpl.findSecondary(toAtSign, _rootDomain, _rootPort!);
+    var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
+        toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
@@ -132,7 +132,7 @@ class OutboundClient {
       var proof = cookieParams[3];
       var signedChallenge = SecondaryUtil.signChallenge(
           proof, AtSecondaryServerImpl.getInstance().signingKey);
-      SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+      await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
           AtSecondaryServerImpl.getInstance().currentAtSign);
 
       //4. Create pol request
@@ -262,7 +262,7 @@ class OutboundClient {
     return notifyResult;
   }
 
-  List<dynamic>? notifyList(String? atSign, {bool handshake = true}) {
+  Future<List>? notifyList(String? atSign, {bool handshake = true}) async {
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
@@ -270,14 +270,14 @@ class OutboundClient {
     }
     try {
       var notificationKeyStore = AtNotificationKeystore.getInstance();
-      notifyResult = notificationKeyStore.getValues();
+      notifyResult = await notificationKeyStore.getValues();
       if (notifyResult != null) {
         notifyResult.retainWhere((element) =>
             element.type == NotificationType.sent &&
             atSign == element.toAtSign);
       }
     } on AtIOException catch (e) {
-      outboundConnection!.close();
+      await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {

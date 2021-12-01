@@ -8,10 +8,8 @@ void main() async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-  var result = await manager.init('@test_user_1', 'test/hive');
-  await manager.openVault('@test_user_1');
+  await manager.init('test/hive');
   manager.scheduleKeyExpireTask(1);
-  print(result);
 
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;

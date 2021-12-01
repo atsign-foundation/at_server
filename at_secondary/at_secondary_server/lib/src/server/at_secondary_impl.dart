@@ -9,12 +9,14 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -132,6 +134,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Initializing all the hive instances
     await _initializeHiveInstances();
 
+    //Initializing verb handler manager
+    DefaultVerbHandlerManager().init();
+
     if (!serverContext!.isKeyStoreInitialized) {
       throw AtServerException('Secondary keystore is not initialized');
     }
@@ -176,6 +181,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
+
+    // Starts StatsNotificationService to keep monitor connections alive
+    StatsNotificationService.getInstance().schedule();
 
     try {
       _isRunning = true;
@@ -248,8 +256,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
-      } on FileSystemException {
+      } on FileSystemException catch (e) {
         retryCount++;
+        logger.info('${e.message}:${e.path}');
         logger.info('certs unavailable. Retry count $retryCount');
         sleep(Duration(seconds: 10));
       }
@@ -360,20 +369,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize notification storage
     var notificationInstance = AtNotificationKeystore.getInstance();
-    await notificationInstance.init(
-        notificationStoragePath,
-        'notifications_' +
-            AtUtils.getShaForAtSign(serverContext!.currentAtSign!));
+    notificationInstance.currentAtSign = serverContext!.currentAtSign!;
+    await notificationInstance.init(notificationStoragePath!);
     // Loads the notifications into Map.
-    NotificationUtil.loadNotificationMap();
+    await NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(serverContext!.currentAtSign!, storagePath!);
-    await manager.openVault(serverContext!.currentAtSign!);
+    await manager.init(storagePath!);
     manager.scheduleKeyExpireTask(expiringRunFreqMins!);
 
     var atData = AtData();
@@ -390,13 +396,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
-    var cramData = await keyStore.get(AT_CRAM_SECRET_DELETED);
-    var isCramDeleted = cramData?.data;
-    if (isCramDeleted == null) {
+    if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
       await keyStore.put(AT_CRAM_SECRET, atData);
     }
-    var signingData = await keyStore.get(AT_SIGNING_KEYPAIR_GENERATED);
-    if (signingData == null) {
+    if (!keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)) {
       var rsaKeypair = RSAKeypair.fromRandom();
       await keyStore.put('$AT_SIGNING_PUBLIC_KEY$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
@@ -408,7 +411,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var signingPrivateKey = await keyStore
         .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
     signingKey = signingPrivateKey?.data;
-    keyStore.deleteExpiredKeys();
+    await keyStore.deleteExpiredKeys();
   }
 
   @override

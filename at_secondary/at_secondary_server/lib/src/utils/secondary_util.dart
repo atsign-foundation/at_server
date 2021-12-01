@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -8,7 +9,8 @@ import 'package:crypton/crypton.dart';
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
 
-  static void saveCookie(String key, String value, String? atSign) {
+  static Future<void> saveCookie(
+      String key, String value, String? atSign) async {
     logger.finer('In Secondary Util saveCookie');
     logger.finer('saveCookie key : ' + key);
     logger.finer('signed challenge : ' + value);
@@ -21,7 +23,7 @@ class SecondaryUtil {
     var keystoreManager =
         secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
-    keyStore.put('public:$key', atData,
+    await keyStore.put('public:$key', atData,
         time_to_live: 60 * 1000); //expire in 1 min
   }
 
@@ -142,7 +144,7 @@ class SecondaryUtil {
     }
   }
 
-  OperationType getOperationType(String? type) {
+  static OperationType getOperationType(String? type) {
     if (type == null) {
       return OperationType.update;
     }

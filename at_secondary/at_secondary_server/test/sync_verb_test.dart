@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
@@ -52,8 +53,8 @@ void main() async {
 
   group('A group of sync verb accept test', () {
     test('test sync accept', () {
-      var command = 'sync:5';
-      var handler = SyncVerbHandler(null);
+      var command = 'sync:from:5:limit:10';
+      var handler = SyncProgressiveVerbHandler(null);
       expect(handler.accept(command), true);
     });
     test('test sync accept invalid keyword', () {
@@ -62,9 +63,9 @@ void main() async {
       expect(handler.accept(command), false);
     });
     test('test sync verb upper case', () {
-      var command = 'SYNC:5';
+      var command = 'SYNC:from:5:limit:10';
       command = SecondaryUtil.convertCommand(command);
-      var handler = SyncVerbHandler(null);
+      var handler = SyncProgressiveVerbHandler(null);
       expect(handler.accept(command), true);
     });
     test('test sync verb with regex', () {
@@ -90,8 +91,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@alice', storageDir);
-  await persistenceManager.openVault('@alice');
+  await persistenceManager.init(storageDir);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;

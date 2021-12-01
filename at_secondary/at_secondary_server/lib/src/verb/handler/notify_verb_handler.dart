@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -24,9 +25,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:list') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:status') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:all');
+          !command.startsWith('${getName(VerbEnum.notify)}:list') &&
+          !command.startsWith('${getName(VerbEnum.notify)}:status') &&
+          !command.startsWith('${getName(VerbEnum.notify)}:all');
 
   @override
   Verb getVerb() {
@@ -37,13 +38,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Throws an [UnAuthorizedException] if notify if invoked with handshake=true and without a successful handshake
   ///  Throws an [notifyException] if there is exception during notify operation
   @override
-  Future<void> processVerb(
-      Response response,
+  Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    var cachedKeyCommitId;
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
-    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    atConnection.getMetaData() as InboundConnectionMetadata;
+    var currentAtSign = AtSecondaryServerImpl
+        .getInstance()
+        .currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var ttl_ms;
     var ttb_ms;
@@ -81,7 +84,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var operation = verbParams[AT_OPERATION];
     var opType;
     if (operation != null) {
-      opType = SecondaryUtil().getOperationType(operation);
+      opType = SecondaryUtil.getOperationType(operation);
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
@@ -95,7 +98,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${atSign.toString()} \n key : $key');
+        'fromAtSign : $fromAtSign \n atSign : ${atSign
+            .toString()} \n key : $key');
     // Connection is authenticated and the currentAtSign is not atSign
     // notify secondary of atSign for the key
     if (atConnectionMetadata.isAuthenticated) {
@@ -104,13 +108,18 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue);
+            messageType: messageType, value: atValue);
         response.data = notificationId;
         return;
       }
 
       var atMetadata = AtMetaData();
-      if (ttr_ms != null && atValue != null) {
+      // If operation type is update, set value and ttr to cache a key
+      // If operation type is delete, set ttr when not null to delete the cached key.
+      if ((opType == OperationType.update &&
+          ttr_ms != null &&
+          atValue != null) ||
+          (opType == OperationType.delete && ttr_ms != null)) {
         atMetadata.ttr = ttr_ms;
         atMetadata.isCascade = isCascade;
       }
@@ -121,69 +130,81 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         atMetadata.ttl = ttl_ms;
       }
       var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = atSign
-            ..toAtSign = forAtSign
-            ..notification = key
-            ..opType = opType
-            ..priority =
-                SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
-            ..atValue = atValue
-            ..notifier = notifier
-            ..strategy = strategy
-            // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
-            ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
-                ? _getIntParam(verbParams[LATEST_N])
-                : 1
-            ..messageType = messageType
-            ..notificationStatus = NotificationStatus.queued
-            ..atMetaData = atMetadata
-            ..type = NotificationType.sent)
+        ..fromAtSign = atSign
+        ..toAtSign = forAtSign
+        ..notification = key
+        ..opType = opType
+        ..priority =
+        SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+        ..atValue = atValue
+        ..notifier = notifier
+        ..strategy = strategy
+      // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+        ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
+            ? _getIntParam(verbParams[LATEST_N])
+            : 1
+        ..messageType = messageType
+        ..notificationStatus = NotificationStatus.queued
+        ..atMetaData = atMetadata
+        ..type = NotificationType.sent)
           .build();
       var notificationId =
-          await NotificationManager.getInstance().notify(atNotification);
+      await NotificationManager.getInstance().notify(atNotification);
       response.data = notificationId;
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
+      logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttl_ms, value: atValue);
+          messageType: messageType, ttl_ms: ttl_ms, value: atValue);
 
+      // If key is public, remove forAtSign from key.
+      if (key!.contains('public:')) {
+        var index = key.indexOf(':');
+        key = key.substring(index + 1);
+      }
       var notifyKey = '$CACHED:$key';
       if (operation == 'delete') {
-        await _removeCachedKey(notifyKey);
+        cachedKeyCommitId = await _removeCachedKey(notifyKey);
+        //write the latest commit id to the StatsNotificationService
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
-
-      var isKeyPresent = await keyStore!.get(notifyKey);
+      var isKeyPresent = keyStore!.isKeyExists(notifyKey);
       var atMetadata;
-      if (isKeyPresent != null) {
+      if (isKeyPresent) {
         atMetadata = await keyStore!.getMeta(notifyKey);
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
+        cachedKeyCommitId =
         await _storeCachedKeys(key, metadata, atValue: atValue);
+        //write the latest commit id to the StatsNotificationService
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
 
       // Update metadata only if key is cached.
-      if (isKeyPresent != null) {
+      if (isKeyPresent) {
         var atMetaData = AtMetadataBuilder(
-                newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
-                ccd: isCascade)
+            newAtMetaData: atMetadata,
+            ttl: ttl_ms,
+            ttb: ttb_ms,
+            ttr: ttr_ms,
+            ccd: isCascade)
             .build();
-        await _updateMetadata(notifyKey, atMetaData);
+        cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
+        //write the latest commit id to the StatsNotificationService
+        await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -195,25 +216,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<void> _storeCachedKeys(String? key, AtMetaData? atMetaData,
+  Future<int> _storeCachedKeys(String? key, AtMetaData? atMetaData,
       {String? atValue}) async {
     var notifyKey = '$CACHED:$key';
     var atData = AtData();
     atData.data = atValue;
     atData.metaData = atMetaData;
-    await keyStore!.put(notifyKey, atData);
+    logger.info('Cached $notifyKey');
+    return await keyStore!.put(notifyKey, atData);
   }
 
-  Future<void> _updateMetadata(String notifyKey, AtMetaData? atMetaData) async {
-    await keyStore!.putMeta(notifyKey, atMetaData);
+  Future<int> _updateMetadata(String notifyKey, AtMetaData? atMetaData) async {
+    logger.info('Updating the metadata of $notifyKey');
+    return await keyStore!.putMeta(notifyKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   ///key Key to delete.
-  Future<void> _removeCachedKey(String key) async {
+  Future<int?> _removeCachedKey(String key) async {
     var metadata = await keyStore!.getMeta(key);
     if (metadata != null && metadata.isCascade) {
-      await keyStore!.remove(key);
+      logger.info('Removed cached key $key');
+      return await keyStore!.remove(key);
     }
   }
 
@@ -222,5 +246,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return null;
     }
     return int.parse(arg);
+  }
+
+  ///Sends the latest commitId to the StatsNotificationService
+  Future<void> _writeStats(int? cachedKeyCommitId,
+      String? operationType) async {
+    if (cachedKeyCommitId != null) {
+      await StatsNotificationService.getInstance().writeStatsToMonitor(
+          latestCommitID: '$cachedKeyCommitId', operationType: operationType);
+    }
   }
 }

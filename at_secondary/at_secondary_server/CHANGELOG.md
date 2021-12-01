@@ -1,2 +1,30 @@
+## 3.0.8
+- reduce compaction interval to 12 hrs
+- compaction delete bug fix
+## 3.0.7
+- Commit log compaction
+- Commit log will use in memory hive box. Other keystores will use lazy boxes.
+## 3.0.6
+- Rollback hive lazy box
+## 3.0.5
+- Uptake latest persistence - remove compaction strategy
+## 3.0.4
+- Fix NPE in commit log keystore.
+## 3.0.3
+- Change Hive box type to lazy box
+## 3.0.2
+- Remove logging of binary data
+## 3.0.1
+- Fix null aware issue in sync verb handlers
+## 3.0.0
+- Sync Pagination feature
+## 2.0.7
+- Reinitialize hive boxes on certs reload
+## 2.0.6
+- Fix for hive box closed issue
+## 2.0.5
+- Logs for hive box closed issue
+## 2.0.4
+- Last notification time support in Monitor
 ## 2.0.3
 - Support for stream verb resume

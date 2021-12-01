@@ -1,13 +1,14 @@
 import 'dart:collection';
+import 'dart:convert';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'dart:convert';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 // StatsVerbHandler class is used to process stats verb
 // Stats verb will return all the possible keys you can lookup
@@ -22,7 +23,8 @@ enum MetricNames {
   SECONDARY_SERVER_VERSION,
   LAST_LOGGEDIN_DATETIME,
   DISK_SIZE,
-  LAST_PKAM
+  LAST_AUTH_TIME,
+  NOTIFICATION_COUNT
 }
 
 extension MetricClasses on MetricNames? {
@@ -46,8 +48,10 @@ extension MetricClasses on MetricNames? {
         return LastLoggedInDatetimeMetricImpl.getInstance();
       case MetricNames.DISK_SIZE:
         return DiskSizeMetricImpl.getInstance();
-      case MetricNames.LAST_PKAM:
+      case MetricNames.LAST_AUTH_TIME:
         return LastPkamMetricImpl.getInstance();
+      case MetricNames.NOTIFICATION_COUNT:
+        return NotificationsMetricImpl.getInstance();
       default:
         return null;
     }
@@ -64,7 +68,8 @@ final Map stats_map = {
   '7': MetricNames.SECONDARY_SERVER_VERSION,
   '8': MetricNames.LAST_LOGGEDIN_DATETIME,
   '9': MetricNames.DISK_SIZE,
-  '10': MetricNames.LAST_PKAM
+  '10': MetricNames.LAST_AUTH_TIME,
+  '11': MetricNames.NOTIFICATION_COUNT
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
@@ -91,7 +96,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     var name = metric.name!.getName();
     var value;
     if (id == '3' && _regex != null) {
-      value = metric.name!.getMetrics(regex: _regex);
+      value = await metric.name!.getMetrics(regex: _regex);
     } else {
       value = await metric.name!.getMetrics();
     }

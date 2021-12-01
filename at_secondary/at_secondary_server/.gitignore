@@ -25,3 +25,7 @@ doc/api/
 *.ipr
 *.iws
 *.idea/
+certs
+storage
+*.lock
+*/hive/

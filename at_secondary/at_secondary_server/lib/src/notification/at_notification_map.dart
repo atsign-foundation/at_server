@@ -47,6 +47,7 @@ class AtNotificationMap {
     var list = tempMap['all'] as AllNotifications;
     var returnList = List<AtNotification>.from(latestList.toList())
       ..addAll(list.toList()!);
+    tempMap.clear();
     return returnList.iterator;
   }
 

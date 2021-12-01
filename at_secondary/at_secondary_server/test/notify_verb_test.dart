@@ -350,7 +350,7 @@ void main() {
   group('A group of notify verb test', () {
     setUp(() async => await setUpFunc(storageDir));
     test(
-        'A test cases to verify enqueuing error notifications increments retry count',
+        'A test case to verify enqueuing error notifications increments retry count',
         () async {
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
@@ -380,7 +380,7 @@ void main() {
       expect('key-1', atNotification.notification);
       expect(1, atNotification.retryCount);
     });
-    tearDown(() async => tearDownFunc());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests to compute notifications wait time', () {
@@ -432,6 +432,7 @@ void main() {
       while (atsignIterator.moveNext()) {
         expect(atsignIterator.current, '@alice');
       }
+      AtNotificationMap.getInstance().clear();
     });
 
     test(
@@ -482,8 +483,8 @@ void main() {
       while (atsignIterator.moveNext()) {
         expect(atsignIterator.current, '@bob');
       }
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
   group('A group of tests on notification strategy - all', () {
     test(
@@ -542,8 +543,8 @@ void main() {
       }
       expect('124', atNotificationList[0].id);
       expect('123', atNotificationList[1].id);
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
   group('A group of test cases on notification strategy - latest', () {
     test('A test case to verify only the latest notification is stored', () {
@@ -597,6 +598,7 @@ void main() {
         atNotificationList.add(itr.current);
       }
       expect('124', atNotificationList[0].id);
+      AtNotificationMap.getInstance().clear();
     });
 
     test('When latest N, when N = 2', () {
@@ -673,6 +675,7 @@ void main() {
       }
       expect('124', atNotificationList[0].id);
       expect('125', atNotificationList[1].id);
+      AtNotificationMap.getInstance().clear();
     });
 
     test(
@@ -751,31 +754,31 @@ void main() {
       expect('123', atNotificationList[0].id);
       expect('124', atNotificationList[1].id);
       expect('125', atNotificationList[2].id);
+      AtNotificationMap.getInstance().clear();
     });
-    tearDown(() async => tearDownFunc());
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
+  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@test_user_1';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@test_user_1', storageDir);
-  await persistenceManager.openVault('@test_user_1');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
+      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
-  await notificationInstance.init(
-      storageDir, 'notifications_' + _getShaForAtsign('@test_user_1'));
+  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
+  await notificationInstance.init(storageDir);
   return keyStoreManager;
 }
 
@@ -784,7 +787,7 @@ Future<void> tearDownFunc() async {
   AtNotificationMap.getInstance().clear();
   await AtNotificationKeystore.getInstance().close();
   if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
+    await Directory('test/hive').delete(recursive: true);
   }
 }
 

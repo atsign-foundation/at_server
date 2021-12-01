@@ -50,15 +50,15 @@ class NotificationUtil {
   }
 
   /// Load the notification into the map to notify on server start-up.
-  static void loadNotificationMap() {
+  static Future<void> loadNotificationMap() async {
     var _notificationLog = AtNotificationKeystore.getInstance();
     if (_notificationLog.isEmpty()) {
       return;
     }
-    _notificationLog.getValues().forEach((element) {
-      // If notifications are sent, adds the notifications to queue
-      // The notifications with status queued and errored whose retries count are less than maxRetries count
-      // are loaded into the queue.
+    var values = await _notificationLog.getValues();
+    values.forEach((element) {
+      //_notificationLog.getValues().forEach((element) {
+      // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent) {
         QueueManager.getInstance().enqueue(element);
       }

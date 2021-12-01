@@ -1,9 +1,9 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
+import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
-import 'package:at_utf7/at_utf7.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
 class AtCommitLog implements AtLogType {
@@ -54,10 +54,12 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
-  List<CommitEntry> getChanges(int? sequenceNumber, String? regex) {
+  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+      {int? limit}) async {
     var changes;
     try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber, regex: regex);
+      changes = _commitLogKeyStore.getChanges(sequenceNumber,
+          regex: regex, limit: limit);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -82,26 +84,26 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
-  List<dynamic> getExpired(int expiryInDays) {
+  Future<List> getExpired(int expiryInDays) {
     return _commitLogKeyStore.getExpired(expiryInDays);
   }
 
   /// Returns the latest committed sequence number
   int? lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.lastCommittedSequenceNumber();
+    return _commitLogKeyStore.latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex
-  int? lastCommittedSequenceNumberWithRegex(String regex) {
-    return _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
-  CommitEntry? lastSyncedEntry() {
-    return _commitLogKeyStore.lastSyncedEntry();
+  Future<CommitEntry?> lastSyncedEntry() async {
+    return await _commitLogKeyStore.lastSyncedEntry();
   }
 
-  CommitEntry? lastSyncedEntryWithRegex(String regex) {
-    return _commitLogKeyStore.lastSyncedEntry(regex: regex);
+  Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
+    return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
@@ -120,10 +122,10 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
+  Future<List> getFirstNEntries(int N) async {
     List<dynamic>? entries = [];
     try {
-      entries = _commitLogKeyStore.getDuplicateEntries();
+      entries = await _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -137,8 +139,8 @@ class AtCommitLog implements AtLogType {
   /// Removes the expired keys from the log.
   /// @param - expiredKeys : The expired keys to remove
   @override
-  void delete(dynamic expiredKeys) {
-    _commitLogKeyStore.delete(expiredKeys);
+  Future<void> delete(dynamic expiredKeys) async {
+    await _commitLogKeyStore.delete(expiredKeys);
   }
 
   @override
@@ -146,9 +148,22 @@ class AtCommitLog implements AtLogType {
     return _commitLogKeyStore.getSize();
   }
 
+  /// Returns the latest commitEntry of the key.
+  CommitEntry? getLatestCommitEntry(String key) {
+    return _commitLogKeyStore.getLatestCommitEntry(key);
+  }
+
   /// Closes the [CommitLogKeyStore] instance.
   Future<void> close() async {
-    print('closing commit log!!');
     await _commitLogKeyStore.close();
+  }
+
+  /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
+  Iterator getEntries(int commitId, {String? regex}) {
+    // If regex is null or isEmpty set regex to match all keys
+    if (regex == null || regex.isEmpty) {
+      regex = '.*';
+    }
+    return _commitLogKeyStore.getEntries(commitId, regex: regex);
   }
 }

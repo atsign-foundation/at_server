@@ -635,17 +635,16 @@ void main() {
   tearDown(() async => await tearDownFunc());
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
+  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
+      .getCommitLog(atsign ?? '@alice', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init('@alice', storageDir);
-  await persistenceManager.openVault('@alice');
+  await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
@@ -653,7 +652,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
+      .getAccessLog(atsign ?? '@alice', accessLogPath: storageDir);
   return keyStoreManager;
 }
 
