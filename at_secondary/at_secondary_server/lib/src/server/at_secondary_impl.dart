@@ -398,13 +398,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
-    var cramData = await keyStore.get(AT_CRAM_SECRET_DELETED);
-    var isCramDeleted = cramData?.data;
-    if (isCramDeleted == null) {
+    if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
       await keyStore.put(AT_CRAM_SECRET, atData);
     }
-    var signingData = await keyStore.get(AT_SIGNING_KEYPAIR_GENERATED);
-    if (signingData == null) {
+    if (!keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)) {
       var rsaKeypair = RSAKeypair.fromRandom();
       await keyStore.put('$AT_SIGNING_PUBLIC_KEY$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());

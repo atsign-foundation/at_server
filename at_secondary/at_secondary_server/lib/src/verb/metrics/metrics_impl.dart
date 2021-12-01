@@ -223,15 +223,15 @@ class DiskSizeMetricImpl implements MetricProvider {
 
   @override
   String getMetrics({String? regex}) {
-    var storageLocation = Directory(AtSecondaryServerImpl.storagePath!);
+    Directory storageLocation = Directory(AtSecondaryServerImpl.storagePath!);
     var diskSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // In the loop iterating recursively into sub-directories and gets the size of each file using lengthSync
-    storageLocation.listSync(recursive: true).forEach((file) {
+    for (var file in storageLocation.listSync(recursive: true)) {
       if (file is File) {
         diskSize = diskSize + File(file.path).lengthSync();
       }
-    });
+    }
     //Return total size
     return formatBytes(diskSize, 2);
   }
@@ -242,12 +242,17 @@ class DiskSizeMetricImpl implements MetricProvider {
   }
 
   String formatBytes(int bytes, int decimals) {
-    if (bytes <= 0) return '0 B';
+    Map<String, String> storageData = <String, String>{};
+    if (bytes <= 0) {
+      storageData['size'] = '0';
+      storageData['unit'] = 'B';
+      return jsonEncode(storageData);
+    }
     const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     var i = (log(bytes) / log(1024)).floor();
-    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) +
-        ' ' +
-        suffixes[i];
+    storageData['size'] = ((bytes / pow(1024, i)).toStringAsFixed(decimals));
+    storageData['units'] = suffixes[i];
+    return jsonEncode(storageData);
   }
 }
 
@@ -273,5 +278,110 @@ class LastPkamMetricImpl implements MetricProvider {
   @override
   String getName() {
     return 'LastPkam';
+  }
+}
+
+class NotificationsMetricImpl implements MetricProvider {
+  static final NotificationsMetricImpl _singleton =
+      NotificationsMetricImpl._internal();
+
+  NotificationsMetricImpl._internal();
+  factory NotificationsMetricImpl.getInstance() {
+    return _singleton;
+  }
+  String _asString(dynamic enumData) {
+    return enumData == null ? 'null' : enumData.toString().split('.')[1];
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    Map<String, dynamic> _metricsMap = <String, dynamic>{
+      "total": 0,
+      "type": <String, int>{
+        "sent": 0,
+        "received": 0,
+      },
+      "status": <String, int>{
+        "delivered": 0,
+        "failed": 0,
+        "queued": 0,
+      },
+      "operations": <String, int>{
+        "update": 0,
+        "delete": 0,
+      },
+      "messageType": <String, int>{
+        "key": 0,
+        "text": 0,
+      },
+      "createdOn": 0,
+    };
+    _metricsMap = await getNotificationStats(_metricsMap);
+    return jsonEncode(_metricsMap);
+  }
+
+  bool _check(var notifications, String key, String? value) {
+    return _asString(notifications.toJson()[key]) == value;
+  }
+
+  Future<Map<String, dynamic>> getNotificationStats(
+      Map<String, dynamic> _metrics) async {
+    AtNotificationKeystore notificationKeystore =
+        AtNotificationKeystore.getInstance();
+    List notificationsList = await notificationKeystore.getValues();
+    _metrics['total'] = notificationsList.length;
+    for (var notifications in notificationsList) {
+      if (_check(notifications, 'type', 'sent')) {
+        _metrics['type']['sent']++;
+      } else if (_check(notifications, 'type', 'received')) {
+        _metrics['type']['received']++;
+      }
+      if (_check(notifications, 'notificationStatus', 'delivered')) {
+        _metrics['status']['delivered']++;
+      } else if (_check(notifications, 'notificationStatus', 'errored')) {
+        _metrics['status']['failed']++;
+      } else if (_check(notifications, 'notificationStatus', 'queued') ||
+          _check(notifications, 'status', null)) {
+        _metrics['status']['queued']++;
+      }
+      if (_check(notifications, 'opType', 'update')) {
+        _metrics['operations']['update']++;
+      } else if (_check(notifications, 'opType', 'delete')) {
+        _metrics['operations']['delete']++;
+      }
+      if (_check(notifications, 'messageType', 'key')) {
+        _metrics['messageType']['key']++;
+      } else if (_check(notifications, 'messageType', 'text')) {
+        _metrics['messageType']['text']++;
+      }
+    }
+    _metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
+    return _metrics;
+  }
+
+  @override
+  String getName() {
+    return 'NotificationCount';
+  }
+}
+
+class KeyStorageMetricImpl implements MetricProvider {
+  static final KeyStorageMetricImpl _singleton =
+      KeyStorageMetricImpl._internal();
+
+  KeyStorageMetricImpl._internal();
+
+  factory KeyStorageMetricImpl.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  Future<String?> getMetrics({String? regex}) async {
+    return AtSecondaryServerImpl.getInstance().currentAtSign;
+  }
+
+  @override
+  String getName() {
+    return 'atSign';
   }
 }
