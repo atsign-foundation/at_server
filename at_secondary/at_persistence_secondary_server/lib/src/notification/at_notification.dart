@@ -107,6 +107,7 @@ class AtNotification {
 
   AtMetaData? get atMetadata => _atMetadata;
 
+  /// Time in milliseconds after which the notification will expire
   int? get ttl => _ttl;
 
   Map toJson() => {
@@ -413,6 +414,7 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
+  final int _defaultTTLInHrs = 24;
   String? id = Uuid().v4();
 
   String? fromAtSign;
@@ -452,6 +454,10 @@ class AtNotificationBuilder {
   AtNotification build() {
     if (ttl != null && expiresAt == null) {
       expiresAt = DateTime.now().toUtc().add(Duration(milliseconds: ttl!));
+    } else {
+      // default ttl to 24 hrs
+      ttl = Duration(hours: _defaultTTLInHrs).inMilliseconds;
+      expiresAt = DateTime.now().toUtc().add(Duration(hours: _defaultTTLInHrs));
     }
     return AtNotification._builder(this);
   }
