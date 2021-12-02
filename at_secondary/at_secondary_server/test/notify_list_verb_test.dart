@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
@@ -132,6 +133,8 @@ void main() {
       expect('@test_user_1', result[0]['from']);
       expect('@bob', result[0]['to']);
       expect('key-3', result[0]['key']);
+      await AtNotificationKeystore.getInstance().remove('122');
+      await AtNotificationKeystore.getInstance().remove('125');
     });
 
     test('A test to verify from and to date', () async {
@@ -221,6 +224,9 @@ void main() {
       expect('@test_user_1', result[1]['from']);
       expect('@bob', result[1]['to']);
       expect('key-2', result[1]['key']);
+      await AtNotificationKeystore.getInstance().remove('121');
+      await AtNotificationKeystore.getInstance().remove('122');
+      await AtNotificationKeystore.getInstance().remove('123');
     });
     tearDown(() async => await tearDownFunc());
   });
@@ -283,8 +289,10 @@ void main() {
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
-      expect(1, result.length);
-      expect('125', result[0]['id']);
+      expect(result.length, 1);
+      expect(result[0]['id'], '125');
+      await AtNotificationKeystore.getInstance().remove('122');
+      await AtNotificationKeystore.getInstance().remove('125');
     });
 
     test('A test to verify notify list expired entries - No expired entry', () async {
@@ -344,9 +352,11 @@ void main() {
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
-      expect(2, result.length);
-      expect('122', result[0]['id']);
-      expect('125', result[1]['id']);
+      expect(result.length, 2);
+      expect(result[0]['id'],'122');
+      expect(result[1]['id'], '125');
+      await AtNotificationKeystore.getInstance().remove('122');
+      await AtNotificationKeystore.getInstance().remove('125');
     });
     tearDown(() async => await tearDownFunc());
   });
