@@ -34,10 +34,10 @@ void main() async {
     test('test expired keys - key expired', () async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
-        ..toAtSign = '@bob'
-        ..fromAtSign = '@alice'
-        ..ttl=100
-        ..id = '123')
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 100
+            ..id = '123')
           .build();
       sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
@@ -48,10 +48,10 @@ void main() async {
     test('test expired keys - key not expired', () async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
-        ..toAtSign = '@bob'
-        ..fromAtSign = '@alice'
-        ..ttl=1000
-        ..id = '123')
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 1000
+            ..id = '123')
           .build();
       sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
@@ -76,6 +76,7 @@ Future<AtNotificationKeystore> setUpFunc(storageDir) async {
 }
 
 Future<void> tearDownFunc() async {
+  print('tear down');
   await AtNotificationKeystore.getInstance().close();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {

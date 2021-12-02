@@ -136,7 +136,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       AtNotificationKeystore notificationKeyStore) async {
     var notificationEntry = await notificationKeyStore.get(element.id);
     if (notificationEntry != null &&
-        notificationEntry.type == NotificationType.received) {
+        notificationEntry.type == NotificationType.received &&
+        !notificationEntry.isExpired()) {
       responseList.add(Notification(element));
     }
   }
