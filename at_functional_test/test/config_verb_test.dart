@@ -6,57 +6,57 @@ import 'commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
-  var first_atsign =
+  var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  Socket? _socket_first_atsign;
+  Socket? socketFirstAtsign;
 
 // second atsign details
-  var second_atsign =
+  var secondAtsign =
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var first_atsign_port =
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
   });
 
   test('config verb for adding a atsign to blocklist', () async {
     /// CONFIG VERB
     await socket_writer(
-        _socket_first_atsign!, 'config:block:add:$second_atsign');
+        socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response : $response');
     expect(response, contains('data:success'));
 
     ///CONFIG VERB -SHOW BLOCK LIST
-    await socket_writer(_socket_first_atsign!, 'config:block:show');
+    await socket_writer(socketFirstAtsign!, 'config:block:show');
     response = await read();
     print('config verb response $response');
-    expect(response, contains('data:["$second_atsign"]'));
+    expect(response, contains('data:["$secondAtsign"]'));
   });
 
   test('config verb for deleting a atsign from blocklist', () async {
     /// CONFIG VERB
     await socket_writer(
-        _socket_first_atsign!, 'config:block:add:$second_atsign');
+        socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response : $response');
     expect(response, contains('data:success'));
 
     /// CONFIG VERB - REMOVE FROM BLOCKLIST
     await socket_writer(
-        _socket_first_atsign!, 'config:block:remove:$second_atsign');
+        socketFirstAtsign!, 'config:block:remove:$secondAtsign');
     response = await read();
     print('config verb response : $response');
     expect(response, contains('data:success'));
 
     ///CONFIG VERB -SHOW BLOCK LIST
-    await socket_writer(_socket_first_atsign!, 'config:block:show');
+    await socket_writer(socketFirstAtsign!, 'config:block:show');
     response = await read();
     print('config verb response $response');
     expect(response, contains('data:null'));
@@ -66,7 +66,7 @@ void main() {
       'config verb for adding a atsign to blocklist without giving a atsign (Negative case)',
       () async {
     /// CONFIG VERB
-    await socket_writer(_socket_first_atsign!, 'config:block:add:');
+    await socket_writer(socketFirstAtsign!, 'config:block:add:');
     var response = await read();
     print('config verb response : $response');
     assert(response.contains('error:AT0003-Invalid syntax'));
@@ -76,7 +76,7 @@ void main() {
       'config verb for adding a atsign to blocklist by giving 2 @ in the atsign (Negative case)',
       () async {
     /// CONFIG VERB
-    await socket_writer(_socket_first_atsign!, 'config:block:add:@@kevin');
+    await socket_writer(socketFirstAtsign!, 'config:block:add:@@kevin');
     var response = await read();
     print('config verb response : $response');
     assert(response.contains('error:AT0003-Invalid syntax'));
@@ -84,7 +84,7 @@ void main() {
 
   test('config verb by giving list instead of show (Negative case)', () async {
     /// CONFIG VERB
-    await socket_writer(_socket_first_atsign!, 'config:block:list');
+    await socket_writer(socketFirstAtsign!, 'config:block:list');
     var response = await read();
     print('config verb response : $response');
     assert(response.contains('error:AT0003-Invalid syntax'));
@@ -93,6 +93,6 @@ void main() {
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign!.destroy();
+    socketFirstAtsign!.destroy();
   });
 }

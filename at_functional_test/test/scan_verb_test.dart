@@ -6,92 +6,92 @@ import 'package:test/test.dart';
 import 'commons.dart';
 
 void main() {
-  var first_atsign =
+  var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  var first_atsign_port =
+  var firstAtsignPort =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-  var second_atsign =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
-  var second_atsign_port =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
+  // var secondAtsign =
+  //     ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
+  // var secondAtsignPort =
+  //     ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
 
-  Socket? _socket_first_atsign;
-  Socket? _socket_second_atsign;
+  Socket? socketFirstAtsign;
+  // Socket? SocketSecondAtsign;
 
   test('Scan verb after authentication', () async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
 
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign!, 'update:public:location$first_atsign California');
+        socketFirstAtsign!, 'update:public:location$firstAtsign California');
     var response = await read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(response, contains('"public:location$first_atsign"'));
+    expect(response, contains('"public:location$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('scan verb before authentication', () async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     var response = await read();
     print('scan verb response : $response');
-    expect(response, contains('"location$first_atsign"'));
+    expect(response, contains('"location$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb with only atsign and no value', () async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['url'];
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan@');
+    await socket_writer(socketFirstAtsign!, 'scan@');
     var response = await read();
     print('scan verb response : $response');
     expect(response, contains('Invalid syntax'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb with regex', () async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
 
     ///UPDATE VERB
     await socket_writer(
-        _socket_first_atsign!, 'update:public:twitter.me$first_atsign bob_123');
+        socketFirstAtsign!, 'update:public:twitter.me$firstAtsign bob_123');
     var response = await read();
     print('update verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan .me');
+    await socket_writer(socketFirstAtsign!, 'scan .me');
     response = await read();
     print('scan verb response : $response');
-    expect(response, contains('"public:twitter.me$first_atsign"'));
+    expect(response, contains('"public:twitter.me$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign!.destroy();
+    socketFirstAtsign!.destroy();
   });
 }

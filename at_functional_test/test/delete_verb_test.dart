@@ -5,69 +5,57 @@ import 'package:at_functional_test/conf/config_util.dart';
 import 'dart:io';
 
 void main() {
-  var first_atsign =
+  var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  var second_atsign =
+  var secondAtsign =
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
-  Socket? _socket_first_atsign;
-  Socket? _socket_second_atsign;
+  Socket? socketFirstAtsign;
 
   //Establish the client socket connection
   setUp(() async {
-    var first_atsign_server =
+    var firstAtsignServer =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var first_atsign_port =
+    var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-    var second_atsign_server =
-        ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
-    var second_atsign_port =
-        ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
-
+        
     // socket connection for first atsign
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
-
-    //Socket connection for second atsign
-    _socket_second_atsign =
-        await secure_socket_connection(second_atsign_server, second_atsign_port);
-    socket_listener(_socket_second_atsign!);
-    await prepare(_socket_second_atsign!, second_atsign);
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
   });
 
 
   test('Delete verb for public key', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign!, 'update:public:location$first_atsign Bengaluru');
+    await socket_writer(socketFirstAtsign!, 'update:public:location$firstAtsign Bengaluru');
     var response = await read();
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response before delete : $response');
-    expect(response, contains('public:location$first_atsign'));
+    expect(response, contains('public:location$firstAtsign'));
 
     ///DELETE VERB
-    await socket_writer(_socket_first_atsign!, 'delete:public:location$first_atsign');
+    await socket_writer(socketFirstAtsign!, 'delete:public:location$firstAtsign');
     response = await read();
     print('delete verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response after delete : $response');
-    expect(response, isNot('public:location$first_atsign'));
+    expect(response, isNot('public:location$firstAtsign'));
   }, timeout: Timeout(Duration(seconds: 50)));
 
   test('delete verb with incorrect spelling - negative scenario', () async {
     ///Delete verb
-    await socket_writer(_socket_first_atsign!, 'deete:phone$first_atsign');
+    await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
     expect(response, contains('Invalid syntax'));
@@ -75,54 +63,54 @@ void main() {
 
   test('delete verb for an emoji key', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign!, 'update:public:🦄🦄$first_atsign 2emojis');
+    await socket_writer(socketFirstAtsign!, 'update:public:🦄🦄$firstAtsign 2emojis');
     var response = await read();
     print('update verb response $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response is :$response');
-    expect(response,contains('public:🦄🦄$first_atsign'));
+    expect(response,contains('public:🦄🦄$firstAtsign'));
 
     ///DELETE VERB
-    await socket_writer(_socket_first_atsign!, 'delete:public:🦄🦄$first_atsign');
+    await socket_writer(socketFirstAtsign!, 'delete:public:🦄🦄$firstAtsign');
     response = await read();
     print('delete verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response is :$response');
-    expect(response,isNot('public:🦄🦄$first_atsign'));
+    expect(response,isNot('public:🦄🦄$firstAtsign'));
   });
 
   test('delete verb when ccd is true', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign!, 'update:ttr:-1:ccd:true:$second_atsign:hobby$first_atsign photography');
+    await socket_writer(socketFirstAtsign!, 'update:ttr:-1:ccd:true:$secondAtsign:hobby$firstAtsign photography');
     var response = await read();
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));;
 
     ///SCAN VERB in the first atsign
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response before delete : $response');
-    expect(response, contains('"$second_atsign:hobby$first_atsign"'));
+    expect(response, contains('"$secondAtsign:hobby$firstAtsign"'));
 
     // ///DELETE VERB
-    await socket_writer(_socket_first_atsign!, 'delete:$second_atsign:hobby$first_atsign');
+    await socket_writer(socketFirstAtsign!, 'delete:$secondAtsign:hobby$firstAtsign');
     response = await read();
     print('delete verb response : $response');
     assert(!response.contains('data:null'));
 
     // ///SCAN VERB
-    await socket_writer(_socket_first_atsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response after delete : $response');
-    expect(response, isNot('"$second_atsign:hobby$first_atsign"'));
+    expect(response, isNot('"$secondAtsign:hobby$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 60)));
 
 
@@ -130,6 +118,6 @@ void main() {
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign!.destroy();
+    socketFirstAtsign!.destroy();
   });
 }

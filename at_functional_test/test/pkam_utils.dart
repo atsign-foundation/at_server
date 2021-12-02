@@ -8,7 +8,7 @@ import 'at_demo_data.dart';
 
 String generatePKAMDigest(String atsign, String challenge) {
   var privateKey = pkamPrivateKeyMap[atsign];
-  privateKey = privateKey.trim();
+  privateKey = privateKey!.trim();
   var key = RSAPrivateKey.fromString(privateKey);
   challenge = challenge.trim();
   var sign = key.createSHA256Signature(Uint8List.fromList(utf8.encode(challenge)));

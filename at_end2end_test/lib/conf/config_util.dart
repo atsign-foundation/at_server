@@ -5,7 +5,7 @@ class ConfigUtil {
   static final ApplicationConfiguration appConfig =
       ApplicationConfiguration('config/config.yaml');
 
-  static YamlMap getYaml() {
+  static YamlMap? getYaml() {
     return appConfig.getYaml();
   }
 }

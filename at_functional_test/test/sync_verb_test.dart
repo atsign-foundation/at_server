@@ -6,25 +6,25 @@ import 'commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
-  var first_atsign =
+  var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  Socket? _socket_first_atsign;
+  Socket? socketFirstAtsign;
 
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var first_atsign_port =
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
   });
 
   test('sync verb with regex ', () async {
     /// UPDATE VERB
-    await socket_writer(_socket_first_atsign!,
-        'update:public:twitter.persona$first_atsign bob_tweet');
+    await socket_writer(socketFirstAtsign!,
+        'update:public:twitter.persona$firstAtsign bob_tweet');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -34,18 +34,18 @@ void main() {
     var regex = '.persona';
 
     // sync with regex
-    await socket_writer(_socket_first_atsign!, 'sync:${syncId - 1}:$regex');
+    await socket_writer(socketFirstAtsign!, 'sync:from:${syncId - 1}:limit:5:$regex');
     response = await read();
     print('sync response is : $response');
-    assert((response.contains('"atKey":"public:twitter$regex$first_atsign')) &&
-        (!response.contains('"atKey":"public:location$first_atsign')));
+    assert((response.contains('"atKey":"public:twitter$regex$firstAtsign')) &&
+        (!response.contains('"atKey":"public:location$firstAtsign')));
   });
 
   // sync negative scenario
   test('sync verb with only regex and no commit Id ', () async {
     /// UPDATE VERB
     var regex = '.buzz@';
-    await socket_writer(_socket_first_atsign!, 'sync:$regex');
+    await socket_writer(socketFirstAtsign!, 'sync:$regex');
     var response = await read();
     print('update verb response : $response');
     assert((response.contains('Invalid syntax')));
@@ -54,7 +54,7 @@ void main() {
   test('sync verb in an incorrect format ', () async {
     /// UPDATE VERB
     var regex = '.buzz@';
-    await socket_writer(_socket_first_atsign!, 'sync $regex');
+    await socket_writer(socketFirstAtsign!, 'sync $regex');
     var response = await read();
     print('update verb response : $response');
     assert((response.contains('Invalid syntax')));
@@ -63,6 +63,6 @@ void main() {
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign!.destroy();
+    socketFirstAtsign!.destroy();
   });
 }

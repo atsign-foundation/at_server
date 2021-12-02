@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import 'commons.dart';
-import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_end2end_test/conf/config_util.dart';
 
 var response;
 var retryCount = 1;
-var maxRetryCount = 12;
-var first_atsign =
+var maxRetryCount = 15;
+var firstAtsign =
     ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-var second_atsign =
+var secondAtsign =
     ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
 // Commented as it needs a third atsign
@@ -18,37 +18,39 @@ var second_atsign =
 // var third_atsign =
 //     ConfigUtil.getYaml()!['third_atsign_server']['third_atsign_name'];
 
-Socket? _socket_first_atsign;
-Socket? _socket_second_atsign;
+Socket? socketFirstAtsign;
+Socket? socketSecondAtsign;
 
 var id;
 void main() {
   setUp(() async {
-    var first_atsign_server = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var first_atsign_port =
+    var firstAtsignServer =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-    var second_atsign_server = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
-    var second_atsign_port =
+    var secondAtsignServer =
+        ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
+    var secondAtsignPort =
         ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
 
     // socket connection for first atsign
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign!);
-    await prepare(_socket_first_atsign!, first_atsign);
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
 
     //Socket connection for second atsign
-    _socket_second_atsign = await secure_socket_connection(
-        second_atsign_server, second_atsign_port);
-    socket_listener(_socket_second_atsign!);
-    await prepare(_socket_second_atsign!, second_atsign);
+    socketSecondAtsign =
+        await secure_socket_connection(secondAtsignServer, secondAtsignPort);
+    socket_listener(socketSecondAtsign!);
+    await prepare(socketSecondAtsign!, secondAtsign);
   });
 
   test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_second_atsign!,
-        'notify:update:messageType:key:notifier:system:ttr:-1:$first_atsign:email$second_atsign:alice@yahoo.com');
+    await socket_writer(socketSecondAtsign!,
+        'notify:update:messageType:key:notifier:system:ttr:-1:$firstAtsign:email$secondAtsign:alice@yahoo.com');
     response = await read();
     print('notify verb response : $response');
     assert(
@@ -56,24 +58,24 @@ void main() {
     id = response.replaceAll('data:', '');
 
     // notify status
-    response = await getNotifyStatus(_socket_second_atsign!);
+    response = await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
-    await socket_writer(_socket_first_atsign!, 'notify:list');
+    await socket_writer(socketFirstAtsign!, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
     expect(
         response,
         contains(
-            '"key":"$first_atsign:email$second_atsign","value":"alice@yahoo.com","operation":"update"'));
+            '"key":"$firstAtsign:email$secondAtsign","value":"alice@yahoo.com","operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb without messageType and operation', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_second_atsign!,
-        'notify:$first_atsign:contact-no$second_atsign:+91-9012823465');
+    await socket_writer(socketSecondAtsign!,
+        'notify:$firstAtsign:contact-no$secondAtsign:+91-9012823465');
     response = await read();
     print('notify verb response : $response');
     assert(
@@ -81,24 +83,22 @@ void main() {
     id = response.replaceAll('data:', '');
 
     // notify status
-    response = await getNotifyStatus(_socket_second_atsign!);
+    response = await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
-    await socket_writer(_socket_first_atsign!, 'notify:list');
+    await socket_writer(socketFirstAtsign!, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
-    expect(
-        response,
-        contains(
-            '"key":"$first_atsign:contact-no$second_atsign","value":null'));
+    expect(response,
+        contains('"key":"$firstAtsign:contact-no$secondAtsign","value":null'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb without messageType', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_second_atsign!,
-        'notify:update:ttr:-1:$first_atsign:fav-city$second_atsign:Hyderabad');
+    await socket_writer(socketSecondAtsign!,
+        'notify:update:ttr:-1:$firstAtsign:fav-city$secondAtsign:Hyderabad');
     response = await read();
     print('notify verb response : $response');
     assert(
@@ -106,24 +106,24 @@ void main() {
     id = response.replaceAll('data:', '');
 
     // notify status
-    response = await getNotifyStatus(_socket_second_atsign!);
+    response = await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
-    await socket_writer(_socket_first_atsign!, 'notify:list');
+    await socket_writer(socketFirstAtsign!, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
     expect(
         response,
         contains(
-            '"key":"$first_atsign:fav-city$second_atsign","value":"Hyderabad","operation":"update"'));
+            '"key":"$firstAtsign:fav-city$secondAtsign","value":"Hyderabad","operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb for notifying a text update to another atsign', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_second_atsign!,
-        'notify:update:messageType:text:notifier:chat:ttr:-1:$first_atsign:Hello!!');
+    await socket_writer(socketSecondAtsign!,
+        'notify:update:messageType:text:notifier:chat:ttr:-1:$firstAtsign:Hello!!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -131,24 +131,24 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status
-    await getNotifyStatus(_socket_second_atsign!);
+    await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     //   ///notify:list verb
-    await socket_writer(_socket_first_atsign!, 'notify:list');
+    await socket_writer(socketFirstAtsign!, 'notify:list');
     response = await read();
     print('notify list verb response : $response');
     expect(
         response,
         contains(
-            '"key":"$first_atsign:Hello!!","value":null,"operation":"update"'));
+            '"key":"$firstAtsign:Hello!!","value":null,"operation":"update"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb for deleting a key for other atsign', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:delete:messageType:key:notifier:system:ttr:-1:$second_atsign:email$first_atsign');
+    await socket_writer(socketFirstAtsign!,
+        'notify:delete:messageType:key:notifier:system:ttr:-1:$secondAtsign:email$firstAtsign');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -156,24 +156,24 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     //  notify status
-    await getNotifyStatus(_socket_first_atsign!);
+    await getNotifyStatus(socketFirstAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     //notify:list verb with regex
-    await socket_writer(_socket_second_atsign!, 'notify:list:email');
+    await socket_writer(socketSecondAtsign!, 'notify:list:email');
     response = await read();
     print('notify list verb response : $response');
     expect(
         response,
         contains(
-            '"key":"$second_atsign:email$first_atsign","value":"null","operation":"delete"'));
+            '"key":"$secondAtsign:email$firstAtsign","value":"null","operation":"delete"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify verb without giving message type value', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:notifier:system:ttr:-1:$second_atsign:email$first_atsign');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:notifier:system:ttr:-1:$secondAtsign:email$firstAtsign');
     var response = await read();
     print('notify verb response : $response');
     assert((response.contains('Invalid syntax')));
@@ -181,8 +181,8 @@ void main() {
 
   test('notify verb without giving notifier for strategy latest', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:key:strategy:latest:ttr:-1:$second_atsign:email$first_atsign');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:key:strategy:latest:ttr:-1:$secondAtsign:email$firstAtsign');
     var response = await read();
     print('notify verb response : $response');
     assert((response.contains('Invalid syntax')));
@@ -190,8 +190,8 @@ void main() {
 
   test('notify verb with messageType text', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:text:$second_atsign:Hello!');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:text:$secondAtsign:Hello!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -199,15 +199,15 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status
-    await getNotifyStatus(_socket_first_atsign!);
+    await getNotifyStatus(socketFirstAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
   });
 
   test('notify verb with space in the value', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:key:$second_atsign:company$first_atsign:Shris Infotech Services');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:key:$secondAtsign:company$firstAtsign:Shris Infotech Services');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -215,15 +215,15 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status
-    await getNotifyStatus(_socket_first_atsign!);
+    await getNotifyStatus(socketFirstAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
   });
 
   test('notify verb with messageType text', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:text:$second_atsign:Hello!');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:text:$secondAtsign:Hello!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -231,15 +231,15 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status
-    await getNotifyStatus(_socket_first_atsign!);
+    await getNotifyStatus(socketFirstAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
   });
 
   test('notify verb with space in the value', () async {
     //   /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:update:messageType:key:$second_atsign:company$first_atsign:Shris Infotech Services');
+    await socket_writer(socketFirstAtsign!,
+        'notify:update:messageType:key:$secondAtsign:company$firstAtsign:Shris Infotech Services');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -247,14 +247,14 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status
-    await getNotifyStatus(_socket_first_atsign!);
+    await getNotifyStatus(socketFirstAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
   });
   test('notify verb in an incorrect order', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:messageType:key:update:notifier:system:ttr:-1:$second_atsign:email$first_atsign');
+    await socket_writer(socketFirstAtsign!,
+        'notify:messageType:key:update:notifier:system:ttr:-1:$secondAtsign:email$firstAtsign');
     var response = await read();
     print('notify verb response : $response');
     assert((response.contains('Invalid syntax')));
@@ -265,8 +265,8 @@ void main() {
   // // NOTIFY ALL - UPDATE
   // test('notify all for notifiying 2 atsigns at the same time ', () async {
   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_first_atsign!,
-  //       'notify:all:update:messageType:key:ttr:-1:$second_atsign,$third_atsign:twitter$first_atsign:bob_G');
+  //   await socket_writer(socketFirstAtsign!,
+  //       'notify:all:update:messageType:key:ttr:-1:$secondAtsign,$third_atsign:twitter$firstAtsign:bob_G');
   //   var response = await read();
   //   print('notify verb response : $response');
   //   assert(
@@ -274,19 +274,19 @@ void main() {
 
   //   ///notify:list verb with regex
   //   await Future.delayed(Duration(seconds: 10));
-  //   await socket_writer(_socket_second_atsign!, 'notify:list:twitter');
+  //   await socket_writer(socketSecondAtsign!, 'notify:list:twitter');
   //   response = await read();
   //   print('notify list verb response : $response');
   //   expect(
   //       response,
   //       contains(
-  //           '"key":"$second_atsign:twitter$first_atsign","value":"bob_G","operation":"update"'));
+  //           '"key":"$secondAtsign:twitter$firstAtsign","value":"bob_G","operation":"update"'));
   // }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify all for notifiying a single atsign ', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:all:$second_atsign:whatsapp$first_atsign:+91-901291029');
+    await socket_writer(socketFirstAtsign!,
+        'notify:all:$secondAtsign:whatsapp$firstAtsign:+91-901291029');
     var response = await read();
     print('notify verb response : $response');
     assert(
@@ -294,16 +294,16 @@ void main() {
 
     ///notify:list verb with regex
     await Future.delayed(Duration(seconds: 10));
-    await socket_writer(_socket_second_atsign!, 'notify:list:whatsapp');
+    await socket_writer(socketSecondAtsign!, 'notify:list:whatsapp');
     response = await read();
     print('notify list verb response : $response');
-    expect(response, contains('"key":"$second_atsign:whatsapp$first_atsign"'));
+    expect(response, contains('"key":"$secondAtsign:whatsapp$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('notify all for notifiying a single atsign ', () async {
     /// NOTIFY VERB
-    await socket_writer(_socket_first_atsign!,
-        'notify:all:$second_atsign:whatsapp$first_atsign:+91-901291029');
+    await socket_writer(socketFirstAtsign!,
+        'notify:all:$secondAtsign:whatsapp$firstAtsign:+91-901291029');
     var response = await read();
     print('notify verb response : $response');
     assert(
@@ -311,10 +311,10 @@ void main() {
 
     ///notify:list verb with regex
     await Future.delayed(Duration(seconds: 10));
-    await socket_writer(_socket_second_atsign!, 'notify:list:whatsapp');
+    await socket_writer(socketSecondAtsign!, 'notify:list:whatsapp');
     response = await read();
     print('notify list verb response : $response');
-    expect(response, contains('"key":"$second_atsign:whatsapp$first_atsign"'));
+    expect(response, contains('"key":"$secondAtsign:whatsapp$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   // Commented the test as it needs a third atsign
@@ -323,8 +323,8 @@ void main() {
   // test('notify all for notifiying 2 atsigns at the same time for a delete ',
   //     () async {
   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_first_atsign!,
-  //       'notify:all:delete:messageType:key:ttr:-1:$second_atsign,$third_atsign:twitter$first_atsign');
+  //   await socket_writer(socketFirstAtsign!,
+  //       'notify:all:delete:messageType:key:ttr:-1:$secondAtsign,$third_atsign:twitter$firstAtsign');
   //   var response = await read();
   //   print('notify verb response : $response');
   //   assert(
@@ -332,21 +332,21 @@ void main() {
 
   //   ///notify:list verb with regex
   //   await Future.delayed(Duration(seconds: 10));
-  //   await socket_writer(_socket_second_atsign!, 'notify:list:twitter');
+  //   await socket_writer(socketSecondAtsign!, 'notify:list:twitter');
   //   response = await read();
   //   print('notify list verb response : $response');
   //   expect(
   //       response,
   //       contains(
-  //           '"key":"$second_atsign:twitter$first_atsign","value":"null","operation":"delete"'));
+  //           '"key":"$secondAtsign:twitter$firstAtsign","value":"null","operation":"delete"'));
   // }, timeout: Timeout(Duration(seconds: 120)));
 
   // ignore: todo
   /// TODO-  will uncomment once the notification expiry changes are merged to trunk
   // test('notify verb with notification expiry for messageType key', () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:messageType:key:ttln:7000:ttr:-1:$first_atsign:message$second_atsign:Hey!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:messageType:key:ttln:7000:ttr:-1:$firstAtsign:message$secondAtsign:Hey!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   id = response.replaceAll('data:', '');
@@ -355,32 +355,32 @@ void main() {
 
   //   // notify status before ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:delivered'));
 
   //   /// notify status after ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:expired'));
 
   //   //   ///notify:list verb
-  //   await socket_writer(_socket_first_atsign!, 'notify:list');
+  //   await socket_writer(socketFirstAtsign!, 'notify:list');
   //   response = await read();
   //   print('notify list verb response : $response');
   //   expect(
   //       response,
   //       contains(
-  //           '"key":"$first_atsign:message$second_atsign","value":"Hey!","operation":"update"'));
+  //           '"key":"$firstAtsign:message$secondAtsign","value":"Hey!","operation":"update"'));
   // }, timeout: Timeout(Duration(seconds: 120)));
 
   // test('notify verb with notification expiry for errored- invalid atsign', () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:messageType:key:ttln:7000:ttr:-1:@xyz:message$second_atsign:Hey!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:messageType:key:ttln:7000:ttr:-1:@xyz:message$secondAtsign:Hey!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   id = response.replaceAll('data:', '');
@@ -389,14 +389,14 @@ void main() {
 
   //   // notify status before ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:errored'));
 
   //   /// notify status after ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:expired'));
@@ -404,8 +404,8 @@ void main() {
 
   // test('notify verb with notification expiry with messageType text', () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:messageType:text:ttln:7000:ttr:-1:$first_atsign:Helllo!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:messageType:text:ttln:7000:ttr:-1:$firstAtsign:Helllo!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   id = response.replaceAll('data:', '');
@@ -414,14 +414,14 @@ void main() {
 
   //   // notify status before ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:delivered'));
 
   //   /// notify status after ttln expiry time
   //   await Future.delayed(Duration(seconds: 5));
-  //   await socket_writer(_socket_second_atsign!, 'notify:status:$id');
+  //   await socket_writer(socketSecondAtsign!, 'notify:status:$id');
   //   response = await read();
   //   print('notify status response : $response');
   //   expect(response, contains('data:expired'));
@@ -431,8 +431,8 @@ void main() {
   // test('notify verb with notification expiry in an incorrect spelling',
   //     () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:ttlnn:5000:ttr:-1:$first_atsign:message$second_atsign:Hey!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:ttlnn:5000:ttr:-1:$firstAtsign:message$secondAtsign:Hey!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   expect(response, contains('Invalid syntax'));
@@ -440,8 +440,8 @@ void main() {
 
   // test('notify verb with notification expiry without value for ttln', () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:ttlnn:ttr:-1:$first_atsign:message$second_atsign:Hey!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:ttlnn:ttr:-1:$firstAtsign:message$secondAtsign:Hey!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   expect(response, contains('Invalid syntax'));
@@ -449,8 +449,8 @@ void main() {
 
   // test('notify verb with notification expiry in an incorrect order', () async {
   //   //   /// NOTIFY VERB
-  //   await socket_writer(_socket_second_atsign!,
-  //       'notify:update:ttb:3000:ttr:-1:ttln:10000:$first_atsign:message$second_atsign:Hey!');
+  //   await socket_writer(socketSecondAtsign!,
+  //       'notify:update:ttb:3000:ttr:-1:ttln:10000:$firstAtsign:message$secondAtsign:Hey!');
   //   response = await read();
   //   print('notify verb response : $response');
   //   expect(response, contains('Invalid syntax'));
@@ -459,8 +459,8 @@ void main() {
   tearDown(() {
     //Closing the client socket connection
     clear();
-    _socket_first_atsign!.destroy();
-    _socket_second_atsign!.destroy();
+    socketFirstAtsign!.destroy();
+    socketSecondAtsign!.destroy();
   });
 }
 
