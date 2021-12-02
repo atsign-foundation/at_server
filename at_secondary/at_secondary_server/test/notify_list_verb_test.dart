@@ -224,6 +224,132 @@ void main() {
     });
     tearDown(() async => await tearDownFunc());
   });
+  group('A group of tests on expiry ', () {
+    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    test('A test to verify notify list does not return expired entries - 1 expired entry', () async {
+      var notifyListVerbHandler =
+      NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notification1 = (AtNotificationBuilder()
+        ..id = '122'
+        ..fromAtSign = '@test_user_1'
+        ..notificationDateTime = DateTime.now()
+        ..toAtSign = '@bob'
+        ..notification = 'key-2'
+        ..type = NotificationType.received
+        ..opType = OperationType.update
+        ..messageType = MessageType.key
+        ..expiresAt = null
+        ..priority = NotificationPriority.low
+        ..notificationStatus = NotificationStatus.queued
+        ..retryCount = 0
+        ..strategy = 'latest'
+        ..notifier = 'persona'
+        ..depth = 3..ttl=100)
+          .build();
+
+      var notification2 = (AtNotificationBuilder()
+        ..id = '125'
+        ..fromAtSign = '@test_user_1'
+        ..notificationDateTime = DateTime.now()
+        ..toAtSign = '@bob'
+        ..notification = 'key-3'
+        ..type = NotificationType.received
+        ..opType = OperationType.update
+        ..messageType = MessageType.key
+        ..expiresAt = null
+        ..priority = NotificationPriority.low
+        ..notificationStatus = NotificationStatus.queued
+        ..retryCount = 0
+        ..strategy = 'latest'
+        ..notifier = 'persona'
+        ..depth = 3)
+          .build();
+
+      await AtNotificationKeystore.getInstance().put('122', notification1);
+      await AtNotificationKeystore.getInstance().put('125', notification2);
+      sleep(Duration(milliseconds: 500));
+      var verb = NotifyList();
+      var command = 'notify:list';
+      var regex = verb.syntax();
+      var verbParams = getVerbParam(regex, command);
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
+      var response = Response();
+      await notifyListVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      var result = jsonDecode(response.data!);
+      print(result);
+      expect(1, result.length);
+      expect('125', result[0]['id']);
+    });
+
+    test('A test to verify notify list expired entries - No expired entry', () async {
+      var notifyListVerbHandler =
+      NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notification1 = (AtNotificationBuilder()
+        ..id = '122'
+        ..fromAtSign = '@test_user_1'
+        ..notificationDateTime = DateTime.now()
+        ..toAtSign = '@bob'
+        ..notification = 'key-2'
+        ..type = NotificationType.received
+        ..opType = OperationType.update
+        ..messageType = MessageType.key
+        ..expiresAt = null
+        ..priority = NotificationPriority.low
+        ..notificationStatus = NotificationStatus.queued
+        ..retryCount = 0
+        ..strategy = 'latest'
+        ..notifier = 'persona'
+        ..depth = 3..ttl=60000)
+          .build();
+
+      var notification2 = (AtNotificationBuilder()
+        ..id = '125'
+        ..fromAtSign = '@test_user_1'
+        ..notificationDateTime = DateTime.now()
+        ..toAtSign = '@bob'
+        ..notification = 'key-3'
+        ..type = NotificationType.received
+        ..opType = OperationType.update
+        ..messageType = MessageType.key
+        ..expiresAt = null
+        ..priority = NotificationPriority.low
+        ..notificationStatus = NotificationStatus.queued
+        ..retryCount = 0
+        ..strategy = 'latest'
+        ..notifier = 'persona'
+        ..depth = 3..ttl=70000)
+          .build();
+
+      await AtNotificationKeystore.getInstance().put('122', notification1);
+      await AtNotificationKeystore.getInstance().put('125', notification2);
+      sleep(Duration(milliseconds: 500));
+      var verb = NotifyList();
+      var command = 'notify:list';
+      var regex = verb.syntax();
+      var verbParams = getVerbParam(regex, command);
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
+      var response = Response();
+      await notifyListVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      var result = jsonDecode(response.data!);
+      print(result);
+      expect(2, result.length);
+      expect('122', result[0]['id']);
+      expect('125', result[1]['id']);
+    });
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
