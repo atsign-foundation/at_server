@@ -52,7 +52,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue.
         if (!keyStore!.isKeyExists(itr.current.key)) {
-          logger.info(
+          logger.finer(
               '${itr.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
