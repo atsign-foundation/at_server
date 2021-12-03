@@ -16,14 +16,15 @@ String generatePKAMDigest(String atsign, String challenge) {
 }
 
 /// Returns the digest of the user.
-String getDigest(String atsign, String key) {
-  var secret = cramKeyMap[atsign];
-  secret = secret.trim();
-  var challenge = key;
-  challenge = challenge.trim();
-  var combo = '$secret$challenge';
-  var bytes = utf8.encode(combo);
-  var digest = sha512.convert(bytes);
+/// Code for cram 
+// String getDigest(String atsign, String key) {
+//   var secret = cramKeyMap[atsign];
+//   secret = secret!.trim();
+//   var challenge = key;
+//   challenge = challenge.trim();
+//   var combo = '$secret$challenge';
+//   var bytes = utf8.encode(combo);
+//   var digest = sha512.convert(bytes);
 
-  return digest.toString();
-}
+//   return digest.toString();
+// }

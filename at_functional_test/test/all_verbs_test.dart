@@ -78,14 +78,14 @@ void main() async {
     await socket_writer(
         socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
-    print('Delete verb response $response');
+    print('config verb response $response');
     expect(response, contains('data:success'));
   });
 
   test('config verb test - show list $firstAtsign', () async {
     await socket_writer(socketFirstAtsign!, 'config:block:show');
     var response = await read();
-    print('Delete verb response $response');
+    print('config verb response $response');
     expect(response, contains('$secondAtsign'));
   });
 
@@ -93,14 +93,15 @@ void main() async {
     await socket_writer(
         socketFirstAtsign!, 'config:block:remove:$secondAtsign');
     var response = await read();
-    print('Delete verb response $response');
+    print('config verb response $response');
     expect(response, contains('data:success'));
   });
 
   test('config verb test - show list $firstAtsign', () async {
     await socket_writer(socketFirstAtsign!, 'config:block:show');
+    await Future.delayed(Duration(seconds: 2));
     var response = await read();
-    print('Delete verb response $response');
+    print('config verb response $response');
     expect(response, contains('data:null'));
   });
 
