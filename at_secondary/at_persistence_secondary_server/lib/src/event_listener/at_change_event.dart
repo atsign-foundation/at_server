@@ -1,19 +1,18 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 ///Represents the change event on the persistent key-store.
-class AtChangeEvent {
+class AtPersistenceChangeEvent {
   dynamic key;
   dynamic value;
   late ChangeOperation changeOperation;
   late KeyStoreType keyStoreType;
 
-  /// Returns an [AtChangeEvent] for a given key, value, operation and keystore source
-  static AtChangeEvent from(
-      {dynamic key,
-      dynamic value,
+  /// Returns an [AtPersistenceChangeEvent] for a given key, value, operation and keystore source
+  static AtPersistenceChangeEvent from(dynamic key,
+      {dynamic value,
       required CommitOp commitOp,
       required KeyStoreType keyStoreType}) {
-    return AtChangeEvent()
+    return AtPersistenceChangeEvent()
       ..key = key
       ..value = value
       ..changeOperation = changeOperationAdapter(commitOp)
@@ -29,10 +28,10 @@ class AtChangeEvent {
   }
 }
 
-///Enum representing the operation in [AtChangeEvent]
+///Enum representing the operation in [AtPersistenceChangeEvent]
 enum ChangeOperation { update, delete }
 
-/// Enum representing the keystore source in [AtChangeEvent]
+/// Enum representing the keystore source in [AtPersistenceChangeEvent]
 enum KeyStoreType {
   secondaryKeyStore,
   commitLogKeyStore,
@@ -59,9 +58,7 @@ class CompactionSortedList {
 
   /// Removes the compacted keys from the list.
   void deleteCompactedKeys(var expiredKeys) {
-    for (var key in expiredKeys) {
-      _list.remove(key);
-    }
+    _list.removeWhere((element) => expiredKeys.contains(element));
   }
 
   /// Returns the size of list.

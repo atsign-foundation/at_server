@@ -30,7 +30,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   @override
-  Future<void> listen(AtChangeEvent atChangeEvent) async {
+  Future<void> listen(AtPersistenceChangeEvent atChangeEvent) async {
     if (_commitLogEntriesMap.containsKey(atChangeEvent.key)) {
       keysToCompactCount = keysToCompactCount + 1;
     }

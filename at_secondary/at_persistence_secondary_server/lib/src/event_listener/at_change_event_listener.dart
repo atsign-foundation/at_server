@@ -1,8 +1,8 @@
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 
-/// Class responsible to listening on the [AtChangeEvent]
+/// Class responsible to listening on the [AtPersistenceChangeEvent]
 abstract class AtChangeEventListener {
-  /// Publishes the [AtChangeEvent] on change in keystore to the classes implementing
+  /// Publishes the [AtPersistenceChangeEvent] on change in keystore to the classes implementing
   /// the [AtChangeEventListener].
-  Future<void> listen(AtChangeEvent atChangeEvent);
+  Future<void> listen(AtPersistenceChangeEvent atChangeEvent);
 }

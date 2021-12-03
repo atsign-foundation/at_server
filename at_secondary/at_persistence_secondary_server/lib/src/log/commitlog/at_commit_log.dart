@@ -177,8 +177,7 @@ class AtCommitLog implements AtLogType {
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
     try {
       for (var listener in _atChangeEventListener) {
-        await listener.listen(AtChangeEvent.from(
-            key: commitEntry.atKey,
+        await listener.listen(AtPersistenceChangeEvent.from(commitEntry.atKey,
             value: commitEntry.commitId,
             commitOp: commitEntry.operation!,
             keyStoreType: KeyStoreType.commitLogKeyStore));
@@ -190,7 +189,7 @@ class AtCommitLog implements AtLogType {
     }
   }
 
-  /// Adds the class implementing the [AtChangeEventListener] to publish the [AtChangeEvent]
+  /// Adds the class implementing the [AtChangeEventListener] to publish the [AtPersistenceChangeEvent]
   void addEventListener(AtChangeEventListener atChangeEventListener) {
     _atChangeEventListener.add(atChangeEventListener);
   }
