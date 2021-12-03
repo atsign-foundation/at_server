@@ -113,7 +113,8 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1.0.2
         with:
-          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+          # Commenting out as there is an assertion that the token isn't required for public repos
+          # token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
           file: ${{ env.secondary-working-directory }}/coverage.lcov
 
   # Runs functional tests on at_secondary.
