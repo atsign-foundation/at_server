@@ -106,15 +106,17 @@ jobs:
         working-directory: ${{ env.secondary-working-directory }}
         run: dart test --concurrency=1 --coverage="coverage"
 
-      - name: Convert coverage to ICOV
+      - name: Convert coverage to LCOV format
         working-directory: ${{ env.secondary-working-directory }}
         run: pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1.0.2
         with:
-          # Commenting out as there is an assertion that the token isn't required for public repos
+          # Testing assertion that the token isn't required for public repos
+          # See https://docs.codecov.com/docs/frequently-asked-questions#:~:text=The%20upload%20token%20is%20required,CI%2C%20Azure%2C%20Github%20Actions
           # token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+          token: ""
           file: ${{ env.secondary-working-directory }}/coverage.lcov
 
   # Runs functional tests on at_secondary.
