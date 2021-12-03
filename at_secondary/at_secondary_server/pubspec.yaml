@@ -49,6 +49,6 @@ dependency_overrides:
 
 dev_dependencies:
   test: ^1.17.3
-  #  test_coverage: ^0.5.0
+  coverage: ^1.0.3
   mockito: ^5.0.7
   lints: ^1.0.1

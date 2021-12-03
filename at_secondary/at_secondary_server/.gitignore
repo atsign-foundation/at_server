@@ -29,3 +29,7 @@ certs
 storage
 *.lock
 */hive/
+
+# code coverage related
+coverage
+coverage.lcov
