@@ -45,9 +45,12 @@ class NotificationManager implements NotificationManagerSpec {
   @override
   Future<NotificationStatus?> getStatus(String? notificationId) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var notificationResponse = await notificationKeyStore.get(notificationId);
-    if (notificationResponse != null) {
-      return notificationResponse.notificationStatus;
+    var notification = await notificationKeyStore.get(notificationId);
+    if (notification != null) {
+      if (notification.isExpired()) {
+        notification.notificationStatus = NotificationStatus.expired;
+      }
+      return notification.notificationStatus;
     }
     return null;
   }
