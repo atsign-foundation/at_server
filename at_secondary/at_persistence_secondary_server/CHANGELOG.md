@@ -1,3 +1,5 @@
+## 3.0.10
+- persistence spec version upgrade
 ## 3.0.9
 - Added support for notification expiry based on ttl
 ## 3.0.8
