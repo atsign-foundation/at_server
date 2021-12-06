@@ -1,3 +1,5 @@
+## 2.0.3
+- Add isKeyExists method to keystore
 ## 2.0.2
 - Support for Hive lazy and in memory boxes 
 ## 2.0.1
