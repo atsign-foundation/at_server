@@ -1,3 +1,5 @@
+## 3.0.9
+- Added support for notification expiry based on ttl
 ## 3.0.8
 - at_utils and at_commons version upgrade.
 ## 3.0.7
