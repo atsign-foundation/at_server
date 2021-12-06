@@ -50,12 +50,11 @@ class CommitLogCompactionService implements AtChangeEventListener {
         var keysAfterCompaction = _commitLogKeyStore.getEntriesCount();
         _logger.info(
             'Commit Log compacted successfully. Removed ${keysBeforeCompaction - keysAfterCompaction} duplicate entries');
+        //Reset keysToCompactCount to 0 after deleting the expired keys.
+        keysToCompactCount = 0;
       } on Exception catch (e) {
         _logger.severe(
             'Exception occurred while performing commit log compaction ${e.toString}');
-      } finally {
-        //Reset keysToCompactCount to 0 after deleting the expired keys.
-        keysToCompactCount = 0;
       }
     }
   }
