@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.8
+version: 3.0.9
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -16,8 +16,8 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.8
-  at_lookup: ^3.0.4
+  at_persistence_secondary_server: ^3.0.10
+  at_lookup: ^3.0.5
   at_server_spec: ^3.0.1
 
 dependency_overrides:
@@ -49,6 +49,6 @@ dependency_overrides:
 
 dev_dependencies:
   test: ^1.17.3
-  #  test_coverage: ^0.5.0
+  coverage: ^1.0.3
   mockito: ^5.0.7
   lints: ^1.0.1

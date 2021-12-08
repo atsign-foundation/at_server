@@ -25,9 +25,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith(getName(VerbEnum.notify) + ':') &&
-          !command.startsWith('${getName(VerbEnum.notify)}:list') &&
-          !command.startsWith('${getName(VerbEnum.notify)}:status') &&
-          !command.startsWith('${getName(VerbEnum.notify)}:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:list') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:status') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:all');
 
   @override
   Verb getVerb() {
@@ -38,19 +38,19 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Throws an [UnAuthorizedException] if notify if invoked with handshake=true and without a successful handshake
   ///  Throws an [notifyException] if there is exception during notify operation
   @override
-  Future<void> processVerb(Response response,
+  Future<void> processVerb(
+      Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var cachedKeyCommitId;
     var atConnectionMetadata =
-    atConnection.getMetaData() as InboundConnectionMetadata;
-    var currentAtSign = AtSecondaryServerImpl
-        .getInstance()
-        .currentAtSign;
+        atConnection.getMetaData() as InboundConnectionMetadata;
+    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var ttl_ms;
     var ttb_ms;
     var ttr_ms;
+    var ttln_ms;
     var isCascade;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
@@ -88,6 +88,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+      ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
         ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
@@ -98,8 +99,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${atSign
-            .toString()} \n key : $key');
+        'fromAtSign : $fromAtSign \n atSign : ${atSign.toString()} \n key : $key');
     // Connection is authenticated and the currentAtSign is not atSign
     // notify secondary of atSign for the key
     if (atConnectionMetadata.isAuthenticated) {
@@ -108,7 +108,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            messageType: messageType, value: atValue);
+            value: atValue, ttl_ms: ttln_ms);
         response.data = notificationId;
         return;
       }
@@ -117,8 +117,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // If operation type is update, set value and ttr to cache a key
       // If operation type is delete, set ttr when not null to delete the cached key.
       if ((opType == OperationType.update &&
-          ttr_ms != null &&
-          atValue != null) ||
+              ttr_ms != null &&
+              atValue != null) ||
           (opType == OperationType.delete && ttr_ms != null)) {
         atMetadata.ttr = ttr_ms;
         atMetadata.isCascade = isCascade;
@@ -129,27 +129,27 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (ttl_ms != null) {
         atMetadata.ttl = ttl_ms;
       }
-      var atNotification = (AtNotificationBuilder()
+      final notificationBuilder = AtNotificationBuilder()
         ..fromAtSign = atSign
         ..toAtSign = forAtSign
         ..notification = key
         ..opType = opType
         ..priority =
-        SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+            SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
         ..atValue = atValue
         ..notifier = notifier
         ..strategy = strategy
-      // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
+        // For strategy latest, if depth is null, default it to 1. For strategy all, depth is not considered.
         ..depth = (_getIntParam(verbParams[LATEST_N]) != null)
             ? _getIntParam(verbParams[LATEST_N])
             : 1
         ..messageType = messageType
         ..notificationStatus = NotificationStatus.queued
         ..atMetaData = atMetadata
-        ..type = NotificationType.sent)
-          .build();
-      var notificationId =
-      await NotificationManager.getInstance().notify(atNotification);
+        ..type = NotificationType.sent
+        ..ttl = ttln_ms;
+      var notificationId = await NotificationManager.getInstance()
+          .notify(notificationBuilder.build());
       response.data = notificationId;
       return;
     }
@@ -157,7 +157,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          messageType: messageType, ttl_ms: ttl_ms, value: atValue);
+          ttl_ms: ttln_ms, value: atValue);
 
       // If key is public, remove forAtSign from key.
       if (key!.contains('public:')) {
@@ -172,6 +172,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         response.data = 'data:success';
         return;
       }
+
       var isKeyPresent = keyStore!.isKeyExists(notifyKey);
       var atMetadata;
       if (isKeyPresent) {
@@ -179,14 +180,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (atValue != null && ttr_ms != null) {
         var metadata = AtMetadataBuilder(
-            newAtMetaData: atMetadata,
-            ttl: ttl_ms,
-            ttb: ttb_ms,
-            ttr: ttr_ms,
-            ccd: isCascade)
+                newAtMetaData: atMetadata,
+                ttl: ttl_ms,
+                ttb: ttb_ms,
+                ttr: ttr_ms,
+                ccd: isCascade)
             .build();
         cachedKeyCommitId =
-        await _storeCachedKeys(key, metadata, atValue: atValue);
+            await _storeCachedKeys(key, metadata, atValue: atValue);
         //write the latest commit id to the StatsNotificationService
         await _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
@@ -196,11 +197,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // Update metadata only if key is cached.
       if (isKeyPresent) {
         var atMetaData = AtMetadataBuilder(
-            newAtMetaData: atMetadata,
-            ttl: ttl_ms,
-            ttb: ttb_ms,
-            ttr: ttr_ms,
-            ccd: isCascade)
+                newAtMetaData: atMetadata,
+                ttl: ttl_ms,
+                ttb: ttb_ms,
+                ttr: ttr_ms,
+                ccd: isCascade)
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService
@@ -249,8 +250,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   ///Sends the latest commitId to the StatsNotificationService
-  Future<void> _writeStats(int? cachedKeyCommitId,
-      String? operationType) async {
+  Future<void> _writeStats(
+      int? cachedKeyCommitId, String? operationType) async {
     if (cachedKeyCommitId != null) {
       await StatsNotificationService.getInstance().writeStatsToMonitor(
           latestCommitID: '$cachedKeyCommitId', operationType: operationType);

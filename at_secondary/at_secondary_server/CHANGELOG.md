@@ -1,3 +1,5 @@
+## 3.0.9
+- notification expiry feature
 ## 3.0.8
 - reduce compaction interval to 12 hrs
 - compaction delete bug fix

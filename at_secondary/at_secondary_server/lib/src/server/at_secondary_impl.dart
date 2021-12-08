@@ -78,6 +78,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtRefreshJob atRefreshJob;
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
+  late var notificationKeyStoreCompactionJobInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -160,6 +161,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
+
+    // Notification keystore compaction
+    notificationKeyStoreCompactionJobInstance =
+        AtCompactionJob(AtNotificationKeystore.getInstance());
+    var atNotificationCompactionConfig = AtCompactionConfig(
+        AtSecondaryConfig.notificationKeyStoreSizeInKB!,
+        AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
+        AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
+        AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
+    await notificationKeyStoreCompactionJobInstance
+        .scheduleCompactionJob(atNotificationCompactionConfig);
 
     // Refresh Cached Keys
     var random = Random();

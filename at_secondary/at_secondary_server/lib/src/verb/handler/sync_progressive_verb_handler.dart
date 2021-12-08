@@ -49,14 +49,20 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       keyStoreEntry.commitId = itr.current.value.commitId;
       keyStoreEntry.operation = itr.current.value.operation;
       if (itr.current.value.operation != CommitOp.DELETE) {
+        // If commitOperation is update (or) update_all (or) update_meta and key does not
+        // exist in keystore, skip the key to sync and continue.
+        if (!keyStore!.isKeyExists(itr.current.key)) {
+          logger.finer(
+              '${itr.current.key} does not exist in the keystore. skipping the key to sync');
+          continue;
+        }
         var atData = await keyStore!.get(itr.current.key);
         if (atData == null) {
           logger.info('atData is null for ${itr.current.key}');
+          continue;
         }
-        if (atData != null) {
-          keyStoreEntry.value = atData.data;
-          keyStoreEntry.atMetaData = _populateMetadata(atData);
-        }
+        keyStoreEntry.value = atData.data;
+        keyStoreEntry.atMetaData = _populateMetadata(atData);
       }
       // If syncBuffer reaches the limit, break the loop.
       if (syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {

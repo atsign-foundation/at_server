@@ -92,9 +92,10 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Fetches the notification entries for the given atsign.
   void _fetchNotificationEntries(
       element, responseList, notificationKeyStore) async {
-    var notificationEntry = await notificationKeyStore.get(element);
+    AtNotification notificationEntry = await notificationKeyStore.get(element);
     if (notificationEntry != null &&
-        notificationEntry.type == NotificationType.received) {
+        notificationEntry.type == NotificationType.received &&
+        !notificationEntry.isExpired()) {
       responseList.add(Notification(notificationEntry));
     }
   }
