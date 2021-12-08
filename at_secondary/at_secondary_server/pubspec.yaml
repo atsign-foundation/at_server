@@ -25,7 +25,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: trunk
+      ref: enhance_compaction_service
 #  at_utils:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
@@ -40,7 +40,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
-      ref: trunk
+      ref: enhance_compaction_service
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
