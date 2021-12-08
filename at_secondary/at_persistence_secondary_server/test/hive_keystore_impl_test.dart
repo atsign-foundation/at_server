@@ -66,8 +66,7 @@ void main() async {
       updateData.data = 'alice';
       await keyStore.put('last_name', updateData);
       await keyStore.remove('last_name');
-      expect(
-              () => keyStore.get('last_name'),
+      expect(() => keyStore.get('last_name'),
           throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
 
@@ -171,6 +170,30 @@ void main() async {
 //      expect(expiredKeys.length, 0);
 //    }, timeout: Timeout(Duration(minutes: 1)));
   });
+
+  group('A group of tests to verify compaction', () {
+    test('test to verify commit log compaction', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      var compactionService =
+          CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
+      commitLogInstance.addEventListener(compactionService);
+      var atData = AtData()..data = 'US';
+      //
+      for (int i = 0; i <= 49; i++) {
+        await keyStore.put('@bob:location@test_user_1', atData);
+      }
+      var locationList =
+          compactionService.getEntries('@bob:location@test_user_1');
+      expect(locationList?.getSize(), 50);
+      await keyStore.put('@bob:location@test_user_1', atData);
+      expect(locationList?.getSize(), 1);
+    });
+  });
+
   try {
     tearDown(() async => await tearDownFunc());
   } on Exception catch (e) {
@@ -181,6 +204,11 @@ void main() async {
 Future<void> tearDownFunc() async {
   await Hive.deleteBoxFromDisk('commit_log_@test_user_1');
   await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
+  await AtCommitLogManagerImpl.getInstance().close();
+  var isExists = await Directory('test/hive/').exists();
+  if (isExists) {
+    Directory('test/hive').deleteSync(recursive: true);
+  }
 }
 
 Future<void> setUpFunc(storageDir) async {

@@ -133,7 +133,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.info('currentAtSign : $currentAtSign');
 
     //Initializing all the hive instances
-    await _initializeHiveInstances();
+    await _initializePersistentInstances();
 
     //Initializing verb handler manager
     DefaultVerbHandlerManager().init();
@@ -366,12 +366,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
-  Future<void> _initializeHiveInstances() async {
+  Future<void> _initializePersistentInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
         commitLogPath: commitLogPath);
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
+    atCommitLog!.addEventListener(
+        CommitLogCompactionService(atCommitLog.commitLogKeyStore));
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
