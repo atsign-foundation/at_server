@@ -1,3 +1,5 @@
+## 3.0.11
+- Enhance commit log compaction service
 ## 3.0.10
 - persistence spec version upgrade
 ## 3.0.9

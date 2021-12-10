@@ -198,9 +198,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
-        expiredKeys.forEach((element) {
-          remove(element);
-        });
+        for (var element in expiredKeys) {
+          await remove(element);
+        }
         result = true;
       }
     } on Exception catch (e) {
