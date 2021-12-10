@@ -39,6 +39,10 @@ def add_dependency_overrides():
     with open(project_path + 'dependency-overrides.yaml', 'r') as dependency_overrides_map:
         dependency_map = ruamel.yaml.round_trip_load(dependency_overrides_map, preserve_quotes=True)
 
+    # If dependency-overrides.yaml file is commented. Exit.
+    if not dependency_map:
+        print('The dependency-overrides.yaml is empty...Exiting')
+        return
     # If pubpsec.yaml contains dependency_overrides section,
     # update the existing dependency_overrides section
     if 'dependency_overrides' in yaml_map:
