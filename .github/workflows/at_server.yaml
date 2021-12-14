@@ -210,7 +210,7 @@ jobs:
   # The job runs end to end tests between the cicd1 and cicd2 VMs
   end2end_tests:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
-    if: ${{ github.event.pull_request.head.repo.fork == false && github.actor!= 'dependabot-preview[bot]'}}
+    if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
     runs-on: ubuntu-latest
 
     steps:
