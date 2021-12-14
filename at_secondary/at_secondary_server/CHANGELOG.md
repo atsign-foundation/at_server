@@ -1,3 +1,6 @@
+## 3.0.9
+- Enhance commit log compaction service.
+- Notification expiry feature
 ## 3.0.8
 - reduce compaction interval to 12 hrs
 - compaction delete bug fix

@@ -1,4 +1,4 @@
-import 'package:at_commons/src/compaction/at_compaction_config.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_size_based_compaction.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_time_based_compaction.dart';

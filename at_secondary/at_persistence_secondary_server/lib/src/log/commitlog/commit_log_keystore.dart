@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
@@ -195,7 +196,7 @@ class CommitLogKeyStore
   }
 
   Future<List> getDuplicateEntries() async {
-    var commitLogMap = await _toMap();
+    var commitLogMap = await toMap();
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
@@ -321,7 +322,7 @@ class CommitLogKeyStore
   }
 
   Future<List> _getValues() async {
-    var commitLogMap = await _toMap();
+    var commitLogMap = await toMap();
     return commitLogMap.values.toList();
   }
 
@@ -329,7 +330,9 @@ class CommitLogKeyStore
     return super.getBox();
   }
 
-  Future<Map> _toMap() async {
+  ///Returns the key-value pair of commit-log where key is hive internal key and
+  ///value is [CommitEntry]
+  Future<Map> toMap() async {
     var commitLogMap = {};
     var keys = _getBox().keys;
     var value;
@@ -338,5 +341,10 @@ class CommitLogKeyStore
       commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
+  }
+
+  ///Returns the total number of keys in commit log keystore.
+  int getEntriesCount() {
+    return _getBox().length;
   }
 }
