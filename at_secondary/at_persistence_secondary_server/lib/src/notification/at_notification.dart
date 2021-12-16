@@ -30,7 +30,7 @@ class AtNotification {
   final _messageType;
 
   @HiveField(8)
-  var _expiresAt;
+  final _expiresAt;
 
   @HiveField(9)
   NotificationPriority? priority;
