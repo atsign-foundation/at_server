@@ -40,6 +40,7 @@ class AtNotificationKeystore
       _register = true;
     }
     await super.openBox(_boxName);
+    await checkExpiry();
   }
 
   bool isEmpty() {
@@ -132,6 +133,39 @@ class AtNotificationKeystore
       throw DataStoreException(error.message);
     }
     return expiredKeys;
+  }
+
+  Future<void> checkExpiry() async {
+    var keys = _getBox().keys;
+    await Future.forEach(keys, (key) async {
+      var value = await get(key);
+      if (value?.notificationDateTime == null){
+        _logger.finer('notificationDateTime is null:${value?.notification}');
+      }
+      if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= 24) {
+        var newNotification = (AtNotificationBuilder()
+          ..id = value.id
+          ..fromAtSign = value.fromAtSign
+          ..notificationDateTime = value.notificationDateTime
+          ..toAtSign = value.toAtSign
+          ..notification = value.notification
+          ..type = value.type
+          ..opType = value.opType
+          ..messageType = value.messageType
+          ..expiresAt = value.notificationDateTime
+          ..priority = value.priority
+          ..notificationStatus = value.notificationStatus
+          ..retryCount = value.retryCount
+          ..strategy = value.strategy
+          ..notifier = value.notifier
+          ..depth = value.depth
+          ..atValue = value.atValue
+          ..atMetaData = value.atMetadata
+          ..ttl = value.ttl
+        ).build();
+        put(key, newNotification);
+      }
+    });
   }
 
   @override
