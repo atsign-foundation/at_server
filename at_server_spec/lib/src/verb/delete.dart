@@ -2,11 +2,11 @@ import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 
 /// Delete verb deletes a key from @sign's secondary server.
-/// The @sign should be authenticated before using the delete verb.
+/// The @sign should be authenticated using the cram/pkam verb prior using the delete verb.
 /// A malformed request closes the @sign client connection.
 /// A delete request must contain the distinguished name of the key to be deleted.
-///
-/// Syntax : delete:<key to be deleted>
+/// 
+/// /// Syntax : delete:<key to be deleted>
 /// e.g.
 /// @alice@delete:public:phone@alice - delete alice's public phone number
 class Delete extends Verb {

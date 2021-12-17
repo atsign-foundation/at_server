@@ -27,6 +27,10 @@ import 'package:at_commons/at_commons.dart';
 ///   Creates a cached key at the receiver side.
 ///   Accepts a time duration in seconds which is a positive integer value to refresh the cached key or -1 to cache for forever.
 ///   Example: notify:ttr:-1:@alice:city@bob:california.
+/// ttln:
+///   Defines the time after the notification should expire.
+///   Accepts a time duration in milliseconds 
+/// Example : notify:ttln:60:@alice:pin@bob:99001
 ///
 class Notify extends Verb {
   @override
