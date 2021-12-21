@@ -1,8 +1,8 @@
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 
-/// The “lookup” verb allows the lookup of a particular address in the @ handles namespace. The “lookup” verb provides public lookups and specific key look ups when authenticated as a particular @ handle using the “from” and “pol” verbs. 
-/// If a lookup is valid the resulting information is returned with the data: header and a carriage return and a further @ prompt ready for further commands. 
+/// The “lookup” verb allows the lookup of a particular address in the @ handles namespace. The “lookup” verb provides public lookups and specific key look ups when authenticated as a particular @ handle using the “from” and “pol” verbs.
+/// If a lookup is valid the resulting information is returned with the data: header and a carriage return and a further @ prompt ready for further commands.
 /// The @sign should be authenticated using the cram verb prior to use the lookup verb
 /// Syntax: lookup:<key to lookup>
 /// e.g.

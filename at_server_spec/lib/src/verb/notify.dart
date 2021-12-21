@@ -29,7 +29,7 @@ import 'package:at_commons/at_commons.dart';
 ///   Example: notify:ttr:-1:@alice:city@bob:california.
 /// ttln:
 ///   Defines the time after the notification should expire.
-///   Accepts a time duration in milliseconds 
+///   Accepts a time duration in milliseconds
 /// Example : notify:ttln:60:@alice:pin@bob:99001
 ///
 class Notify extends Verb {

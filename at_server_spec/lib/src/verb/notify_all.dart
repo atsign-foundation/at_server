@@ -13,7 +13,7 @@ import 'package:at_server_spec/src/verb/verb.dart';
 ///     Example: notify:all:messageType:key:@colin:phone@kevin
 ///   TEXT: To notify a message.
 ///     Example: notify:all:messageType:text:@colin:hi
-/// 2) operation: UPDATE, DELETE 
+/// 2) operation: UPDATE, DELETE
 /// This field indicates the operation. This is an optional field. Defaults to update
 ///  Type: update
 /// Example: notify:update:key:@alice:phone@bob:+91-90192019201

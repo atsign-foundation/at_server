@@ -1,7 +1,6 @@
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_commons/at_commons.dart';
 
-
 /// The update meta verb updates the metadata of the keys in the secondary server. The update meta verb is used to set/update metadata of a key.
 /// The @sign should be authenticated using cram verb prior to use the update meta verb.
 /// A malformed request closes the @sign client connection.
