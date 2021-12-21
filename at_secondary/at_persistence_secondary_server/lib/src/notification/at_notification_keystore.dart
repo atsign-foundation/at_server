@@ -123,7 +123,7 @@ class AtNotificationKeystore
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
-        else if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= _notificationExpiryInHours) {
+        if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= _notificationExpiryInHours) {
           var newNotification = (AtNotificationBuilder()
             ..id = value.id
             ..fromAtSign = value.fromAtSign
