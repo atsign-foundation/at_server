@@ -16,6 +16,7 @@ class AtNotificationKeystore
   AtNotificationKeystore._internal();
   late String currentAtSign;
   late String _boxName;
+  final _notificationExpiryInHours = 72;
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
@@ -40,7 +41,6 @@ class AtNotificationKeystore
       _register = true;
     }
     await super.openBox(_boxName);
-    await checkExpiry();
   }
 
   bool isEmpty() {
@@ -123,7 +123,31 @@ class AtNotificationKeystore
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
+        else if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= _notificationExpiryInHours) {
+          var newNotification = (AtNotificationBuilder()
+            ..id = value.id
+            ..fromAtSign = value.fromAtSign
+            ..notificationDateTime = value.notificationDateTime
+            ..toAtSign = value.toAtSign
+            ..notification = value.notification
+            ..type = value.type
+            ..opType = value.opType
+            ..messageType = value.messageType
+            ..expiresAt = value.notificationDateTime
+            ..priority = value.priority
+            ..notificationStatus = value.notificationStatus
+            ..retryCount = value.retryCount
+            ..strategy = value.strategy
+            ..notifier = value.notifier
+            ..depth = value.depth
+            ..atValue = value.atValue
+            ..atMetaData = value.atMetadata
+            ..ttl = value.ttl
+          ).build();
+          put(key, newNotification);
+        }
       });
+
       expired.forEach((key) => expiredKeys.add(Utf7.encode(key)));
     } on Exception catch (e) {
       _logger.severe('exception in hive get expired keys:${e.toString()}');
@@ -133,39 +157,6 @@ class AtNotificationKeystore
       throw DataStoreException(error.message);
     }
     return expiredKeys;
-  }
-
-  Future<void> checkExpiry() async {
-    var keys = _getBox().keys;
-    await Future.forEach(keys, (key) async {
-      var value = await get(key);
-      if (value?.notificationDateTime == null){
-        _logger.finer('notificationDateTime is null:${value?.notification}');
-      }
-      if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= 24) {
-        var newNotification = (AtNotificationBuilder()
-          ..id = value.id
-          ..fromAtSign = value.fromAtSign
-          ..notificationDateTime = value.notificationDateTime
-          ..toAtSign = value.toAtSign
-          ..notification = value.notification
-          ..type = value.type
-          ..opType = value.opType
-          ..messageType = value.messageType
-          ..expiresAt = value.notificationDateTime
-          ..priority = value.priority
-          ..notificationStatus = value.notificationStatus
-          ..retryCount = value.retryCount
-          ..strategy = value.strategy
-          ..notifier = value.notifier
-          ..depth = value.depth
-          ..atValue = value.atValue
-          ..atMetaData = value.atMetadata
-          ..ttl = value.ttl
-        ).build();
-        put(key, newNotification);
-      }
-    });
   }
 
   @override
