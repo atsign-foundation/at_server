@@ -3,6 +3,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/verb/handler/sync_from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -50,6 +51,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       await processVerb(response, verbParams, atConnection);
       if (this is SyncVerbHandler || this is SyncFromVerbHandler) {
         final verbHandler = this as SyncVerbHandler;
+        verbHandler.logResponse(response.data!);
+      } else if (this is SyncProgressiveVerbHandler) {
+        final verbHandler = this as SyncProgressiveVerbHandler;
         verbHandler.logResponse(response.data!);
       } else {
         logger.finer(

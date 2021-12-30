@@ -116,6 +116,26 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
     return metaDataMap;
   }
+
+  void logResponse(String response) {
+    try {
+      var parsedResponse = '';
+      final responseJson = jsonDecode(response);
+      for (var syncRecord in responseJson) {
+        final newRecord = {};
+        newRecord['atKey'] = syncRecord['atKey'];
+        newRecord['operation'] = syncRecord['operation'];
+        newRecord['commitId'] = syncRecord['commitId'];
+        newRecord['metadata'] = syncRecord['metadata'];
+        parsedResponse += newRecord.toString();
+      }
+      logger.finer('progressive sync response: $parsedResponse');
+    } on Exception catch (e, trace) {
+      logger.severe(
+          'exception logging progressive sync response: ${e.toString()}');
+      logger.severe(trace);
+    }
+  }
 }
 
 /// Class to represents the sync entry.
