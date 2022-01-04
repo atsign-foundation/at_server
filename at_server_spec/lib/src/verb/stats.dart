@@ -16,6 +16,7 @@ import 'package:at_commons/at_commons.dart';
 /// '8' - Last log in date time,
 /// '9' - Total Disk Size
 /// '10' - Last login datetime with PKAM
+/// '11' - Notification count
 /// Syntax: stats - List all the available metrics
 /// We can provide specific metrics id's as a comma separated list
 /// e.g. stats:1,2,3
