@@ -13,6 +13,7 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/compaction_stats.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -79,6 +80,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
+  var commitLogCompactionStatsInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -144,13 +146,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
+    commitLogCompactionStatsInstance = CompactionStats(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
         commitLogExpiryInDays!,
         commitLogCompactionPercentage!,
         commitLogCompactionFrequencyMins!);
+    commitLogCompactionStatsInstance.initialize();
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
+    commitLogCompactionStatsInstance.calculate();
+    commitLogCompactionStatsInstance.writeStats(commitLogCompactionStatsInstance);
+
 
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(_accessLog);
