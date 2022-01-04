@@ -422,9 +422,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await keyStore.put(AT_SIGNING_KEYPAIR_GENERATED, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
-    var signingPrivateKey = await keyStore
-        .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
-    signingKey = signingPrivateKey?.data;
+    try {
+      var signingPrivateKey = await keyStore
+          .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
+      signingKey = signingPrivateKey?.data;
+    } on KeyNotFoundException {
+      logger.info(
+          'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
+    }
     await keyStore.deleteExpiredKeys();
   }
 
