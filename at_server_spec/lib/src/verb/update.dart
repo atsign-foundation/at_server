@@ -11,6 +11,18 @@ import 'package:at_commons/at_commons.dart';
 /// update:public:phone@alice +1 123 456 000 - update public phone number of alice
 /// update:@bob:phone@alice +1 123 456 001 - update phone number of alice shared with bob
 /// update:@alice:phone@alice + 123 456 002 - update private phone number of alice
+/// ttl - time to live
+/// Defines the time after which value should expire
+/// Accepts time duration in milliseconds
+/// example: update:ttl:60000:@alice:otp@bob 9901 - update the otp of bob shared with alice, the value exists till the ttl time mentioned(60000ms -60sec)
+/// ttb - time to born
+/// Defines the time after which value should be displayed
+/// Accepts time duration in milliseconds
+/// example: update:ttb:60000:@alice:otp@bob 9901 - update the otp of bob shared with alice, the value appears after the ttb time mentioned(60000ms -60sec)
+/// ttr:
+///   Creates a cached key at the receiver side.
+///   Accepts a time duration in milli seconds which is a positive integer value to refresh the cached key or -1 to cache for forever.
+///   Example: update:ttr:-1:@alice:city@bob california.
 class Update extends Verb {
   @override
   String name() => 'update';

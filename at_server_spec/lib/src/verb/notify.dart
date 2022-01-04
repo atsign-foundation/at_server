@@ -23,10 +23,23 @@ import 'package:at_commons/at_commons.dart';
 ///     Notifier: This is a mandatory field. The notifier groups the notifications with same notifier and deliver the latest N notifications.
 ///     LatestN: This is optional field. The latest N notifications to deliver. Defaults to 1.
 ///     Example: notify:strategy:latest:latestN:5:notifier:wavi:@alice:location@bob
+/// ttl: time to live
+/// Defines the time after which value should expire
+/// Accepts time duration in milliseconds
+/// Example: notify:ttl:30000:@alice:country@bob:USA
+/// ttb - time to born
+/// Defines the time after which value should be displayed
+/// Accepts time duration in milliseconds
+/// Example: notify:ttb:30000:@alice:country@bob:USA
 /// ttr:
 ///   Creates a cached key at the receiver side.
 ///   Accepts a time duration in seconds which is a positive integer value to refresh the cached key or -1 to cache for forever.
 ///   Example: notify:ttr:-1:@alice:city@bob:california.
+/// ttln:
+///   Defines the time after the notification should expire.
+///   Accepts a time duration in milliseconds
+/// Example : notify:ttln:60:@alice:pin@bob:99001
+///
 ///
 class Notify extends Verb {
   @override

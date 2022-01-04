@@ -2,13 +2,11 @@ import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 import 'verb.dart';
 
-/// Config verb is used for configuring or viewing an @sign's block/allow list. 'from' verb functionality is dertermined by using
-/// the configurations of 'config' verb.
-///
-/// The @sign should be authenticated using cram verb prior to use the 'config' verb.
-///
+/// The “config” verb is used for configuring or viewing an @sign’s block/allow list.
+///‘from’ verb functionality is determined by using the configurations of ‘config’ verb.
+///If an atsign is in block list, secondary server won’t allow it for authentication.
+/// The @sign should be authenticated using cram/pkam verb prior to use the 'config' verb.
 /// **configuration syntax**: block:[add/remove]:[@sign list].
-///
 /// **view syntax**: block:show.
 /// ```
 /// e.g.
