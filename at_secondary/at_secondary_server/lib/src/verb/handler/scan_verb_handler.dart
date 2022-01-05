@@ -63,19 +63,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        String keyString;
-        var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
-        keyString = _getLocalKeys(atConnectionMetadata, keys);
-        // Apply regex on keyString to remove unnecessary characters and spaces
-        keyString = keyString.replaceFirst(RegExp(r'^\['), '');
-        keyString = keyString.replaceFirst(RegExp(r'\]$'), '');
-        keyString = keyString.replaceAll(', ', ',');
-        response.data = keyString;
-        logger.finer('response.data : ${response.data}');
-        var keysArray = (response.data != null && response.data!.isNotEmpty)
-            ? response.data?.split(',')
-            : [];
-        logger.finer('keysArray : $keysArray, ${keysArray?.length}');
+        List<String?> keys =
+            keyStore!.getKeys(regex: scanRegex) as List<String?>;
+        List<String?> keyString = _getLocalKeys(atConnectionMetadata, keys);
+        // Apply regex on keyString to remove unnecessary characters and spaces.
+        logger.finer('response.data : $keyString');
+        var keysArray = keyString;
+        logger.finer('keysArray : $keysArray, ${keysArray.length}');
         response.data = json.encode(keysArray);
       }
     } on Exception catch (e) {
@@ -110,9 +104,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// @param - atConnectionMetadata: Metadata of the inbound connection
   /// @param - List<String>: List of keys from the secondary persistent store
   /// @return - String: Returns the keys of current atsign
-  String _getLocalKeys(
+  List<String?> _getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
-    var keyString;
+    List<String?> list = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
     // If not, get only public keys
@@ -122,7 +116,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
           key.toString().startsWith('privatekey:') ||
           key.toString().startsWith('public:_') ||
           key.toString().startsWith('private:'));
-      keyString = keys.toString();
     } else {
       //When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
@@ -132,17 +125,21 @@ class ScanVerbHandler extends AbstractVerbHandler {
                     .startsWith('${atConnectionMetadata.fromAtSign}:') ==
                 false) ||
             test.toString().startsWith('public:_'));
-        keyString = keys
-            .toString()
-            .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+        for (var key in keys) {
+          var modifiedKey = key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+          list.add(modifiedKey);
+        }
       } else {
         // When pol is not performed, display only public keys
         keys.removeWhere((test) =>
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
-        keyString = keys.toString().replaceAll('public:', '');
+        for (var key in keys) {
+          var modifiedKey = key!.toString().replaceAll('public:', '');
+          list.add(modifiedKey);
+        }
       }
     }
-    return keyString;
+    return list;
   }
 }
