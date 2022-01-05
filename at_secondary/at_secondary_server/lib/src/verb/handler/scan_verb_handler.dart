@@ -106,7 +106,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// @return - String: Returns the keys of current atsign
   List<String?> _getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
-    List<String?> list = [];
+    List<String?> keysList = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
     // If not, get only public keys
@@ -127,7 +127,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
             test.toString().startsWith('public:_'));
         for (var key in keys) {
           var modifiedKey = key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
-          list.add(modifiedKey);
+          keysList.add(modifiedKey);
         }
       } else {
         // When pol is not performed, display only public keys
@@ -136,10 +136,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
             !test.toString().startsWith('public:'));
         for (var key in keys) {
           var modifiedKey = key!.toString().replaceAll('public:', '');
-          list.add(modifiedKey);
+          keysList.add(modifiedKey);
         }
       }
     }
-    return list;
+    return keysList;
   }
 }
