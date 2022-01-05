@@ -1,0 +1,124 @@
+# The @Protocol secondary server configurations.
+
+# The @Protocol root server configuration
+root_server:
+  # The port to connect to root server
+  port: 64
+  # The url to connect to root server
+  url: 'root.atsign.org'
+
+# The @Protocol application log configurations
+log:
+  debug: true
+  trace: true
+
+# The @Protocol security configurations.
+security:
+  # To start secondary server in Secure/UnSecure mode. When [useSSL] is set to false, the secondary server starts in un-secure mode.
+  # When [useSSL] is set to true, the secondary server starts in secure mode. On setting useSSL to true, the [certificateChainLocation] and
+  # [privateKeyLocation] should be populated with the path's to respective certificates.
+  useSSL: true
+  certificateChainLocation: 'certs/fullchain.pem'
+  privateKeyLocation: 'certs/privkey.pem'
+  trustedCertificateLocation: '/etc/cacert/cacert.pem'
+  clientCertificateRequired: true
+
+# The @Protocol storage configurations
+hive:
+  # The storage path for secondary storage.
+
+  storagePath: 'storage/hive'
+  # The storage path for commit log.
+  commitLogPath: 'storage/commitLog'
+  # The storage path for access log.
+  accessLogPath: 'storage/accessLog'
+  # The storage path for notifications
+  notificationStoragePath: 'storage/notificationLog.v1'
+
+  # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
+  expiringRunFrequencyMins: 10
+
+# The @Protocol connection configurations.
+connection:
+  # The maximum time in milli seconds for an inbound connection to expire.
+  inbound_idle_time_millis: 600000
+  # The maximum time in milli seconds for an outbound connection to expire.
+  outbound_idle_time_millis: 600000
+  # Creates an inbound connection and adds the connection to inbound connection pool. At any point, at most [inbound_max_limit] connections can only be created.
+  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
+  # The connection in the pool will exist until its [inbound_idle_time_millis] expires.
+  inbound_max_limit: 50
+  # Creates an outbound connection and adds the connection to outbound connection pool. At any point, at most [outbound_max_limit] connections can only be created.
+  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
+  # The connection in the pool will exist until its [outbound_idle_time_millis] expires.
+  outbound_max_limit: 50
+
+# The @Protocol commit log compaction job configurations.
+commit_log_compaction:
+  # The frequent time interval (in minutes) to initiate the commit log compaction job service.
+  compactionFrequencyMins: 60
+  # The percentage of logs to remove through the commit log compaction job service.
+  compactionPercentage: 20
+  # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
+  expiryInDays: 15
+  # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
+  sizeInKB: 10
+
+# The @Protocol notification keystore compaction job configurations.
+notification_keystore_compaction:
+  compactionFrequencyMins: 60
+  compactionPercentage: 30
+  expiryInDays: 1
+  sizeInKB: -1
+
+# The @Protocol notification keystore compaction job configurations.
+access_log_compaction:
+  # The frequent time interval (in minutes) to initiate the access log compaction job service.
+  compactionFrequencyMins: 60
+  # The percentage of logs to remove through the access log compaction job service.
+  compactionPercentage: 30
+  # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
+  expiryInDays: 15
+  # The size of the log persistent storage (in KiloBytes) when reached, initiates the access log compaction job service.
+  sizeInKB: 2
+
+# The @Protocol key lookup configurations.
+lookup:
+  # The number of iterations to resolve the atSign value references.
+  depth_of_resolution: 3
+
+# The configurations for @Protocol statistics
+stats:
+  # Return the other atSign users who visited the current atSign for maximum number of times in the descending order.
+  top_visits: 5
+  # Return the keys of current atSign's looked up by the other atSign users for maximum number of times in the descending order.
+  top_keys: 5
+
+notification:
+  autoNotify: true
+  max_entries: 5
+  # The maximum number of retries for a notification.
+  max_retries: 5
+  # The quarantine duration of an atsign.
+  quarantineDuration: 10
+  # The job frequency
+  jobFrequency: 5
+  # The time interval(in seconds) to notify latest commitID to monitor connections
+  # To disable to the feature, set to -1.
+  statsNotificationJobTimeInterval: 15
+
+# At refresh Job to refresh the cached keys.
+refreshJob:
+  # Hour at which the job has to run. Currently runs at 3 A.M. everyday.
+  runJobHour: 3
+
+certificate_expiry:
+  # Force restart secondary server.
+  force_restart: false
+
+# Sync Configurations
+sync:
+  # Represents the size of buffer for each batch.
+  bufferSize: 5242880
+  # Represents the numbers of keys to send in each batch.
+  pageLimit: 100
