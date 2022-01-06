@@ -116,6 +116,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
           key.toString().startsWith('privatekey:') ||
           key.toString().startsWith('public:_') ||
           key.toString().startsWith('private:'));
+      for (var key in keys) {
+        var modifiedKey = key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+        keysList.add(modifiedKey);
+      }
     } else {
       //When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
