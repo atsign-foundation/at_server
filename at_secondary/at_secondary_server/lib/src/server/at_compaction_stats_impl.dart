@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 
@@ -10,10 +9,10 @@ class AtCompactionStatsImpl implements AtCompactionStats{
   AtCompactionStatsImpl(this.atLogType);
 
   AtLogType atLogType;
-  DateTime? compactionStartTime;
-  Duration? compactionDuration;
-  int? sizeBeforeCompaction;
-  int? sizeAfterCompaction;
+  late DateTime compactionStartTime;
+  late Duration compactionDuration;
+  late int sizeBeforeCompaction;
+  late int sizeAfterCompaction;
   var keyStore = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(AtSecondaryServerImpl.getInstance().currentAtSign)?.getSecondaryKeyStore();
 
   @override
@@ -24,7 +23,7 @@ class AtCompactionStatsImpl implements AtCompactionStats{
 
   @override
   void calculate(){
-    compactionDuration = DateTime.now().toUtc().difference(compactionStartTime!);
+    compactionDuration = DateTime.now().toUtc().difference(compactionStartTime);
     sizeAfterCompaction = atLogType.getSize();
   }
 
