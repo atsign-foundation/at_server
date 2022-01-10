@@ -1,3 +1,5 @@
+## 3.0.10
+- Workaround for signing private key not found issue.
 ## 3.0.9
 - Enhance commit log compaction service.
 - Notification expiry feature
