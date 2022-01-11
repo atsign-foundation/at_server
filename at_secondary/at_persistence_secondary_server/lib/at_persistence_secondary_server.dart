@@ -3,6 +3,7 @@ library at_persistence_secondary_server;
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job.dart';
 export 'package:at_persistence_secondary_server/src/compaction/commit_log_compaction_service.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats.dart';
+export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_impl.dart';
 export 'package:at_persistence_secondary_server/src/config/at_config.dart';
 export 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
