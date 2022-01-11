@@ -8,9 +8,8 @@ class TimeBasedCompaction implements AtCompactionStrategy {
 
   final _logger = AtSignLogger('TimeBasedCompaction');
 
-  TimeBasedCompaction(int time, int? compactionPercentage) {
+  TimeBasedCompaction(int time, this.compactionPercentage) {
     timeInDays = time;
-    this.compactionPercentage = compactionPercentage;
   }
 
   @override

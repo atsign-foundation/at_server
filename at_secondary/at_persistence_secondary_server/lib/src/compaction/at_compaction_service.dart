@@ -2,6 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_size_based_compaction.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_time_based_compaction.dart';
+import 'at_compaction_stats_impl.dart';
 
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
@@ -12,12 +13,15 @@ class AtCompactionService {
     return _singleton;
   }
 
-  void executeCompaction(
-      AtCompactionConfig atCompactionConfig, AtLogType atLogType) {
+  late AtCompactionStats atCompactionStats;
+
+  Future<void> executeCompaction(
+      AtCompactionConfig atCompactionConfig, AtLogType atLogType) async{
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
+    atCompactionStats = AtCompactionStatsImpl.getInstance(atLogType);
 
     // Check if any of the compaction strategy's configured.
     // If none of the are configured return.
@@ -33,7 +37,10 @@ class AtCompactionService {
       var timeBasedCompaction = TimeBasedCompaction(
           atCompactionConfig.timeInDays,
           atCompactionConfig.compactionPercentage);
+      atCompactionStats.initializeStats();
       timeBasedCompaction.performCompaction(atLogType);
+      atCompactionStats.calculateStats();
+      await atCompactionStats.writeStats(atCompactionStats);
     }
 
     // Size based compaction is configured
@@ -42,7 +49,11 @@ class AtCompactionService {
       // If the are logs that met the size criteria delete them.
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
+      atCompactionStats.initializeStats();
       sizeBasedCompaction.performCompaction(atLogType);
+      atCompactionStats.calculateStats();
+      await atCompactionStats.writeStats(atCompactionStats);
+
     }
   }
 }

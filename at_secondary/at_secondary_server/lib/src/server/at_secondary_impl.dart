@@ -80,6 +80,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
+  late var atCompactionStatsImpl;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -143,6 +144,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
+    atCompactionStatsImpl.init(currentAtSign);
+
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
@@ -151,7 +154,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         commitLogCompactionPercentage!,
         commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig, AtCompactionStatsImpl(_commitLog));
+        .scheduleCompactionJob(atCommitLogCompactionConfig);
 
 
     //Access Log Compaction

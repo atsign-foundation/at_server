@@ -1,8 +1,9 @@
 abstract class AtCompactionStats{
-  
-  void initialize();
-  
-  void calculate();
-  
-  void writeStats(AtCompactionStats atCompactionStats);
+
+  void initializeStats();
+
+  void calculateStats();
+
+  Future <void> writeStats(AtCompactionStats atCompactionStats);
+
 }
