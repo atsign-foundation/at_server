@@ -13,7 +13,6 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_compaction_stats_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -80,7 +79,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
-  late var atCompactionStatsImpl;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -144,7 +142,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    atCompactionStatsImpl.init(currentAtSign);
+    AtCompactionStatsImpl.init(currentAtSign);
 
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(_commitLog);

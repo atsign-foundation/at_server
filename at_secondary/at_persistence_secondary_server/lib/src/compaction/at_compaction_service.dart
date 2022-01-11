@@ -13,7 +13,7 @@ class AtCompactionService {
     return _singleton;
   }
 
-  late AtCompactionStats atCompactionStats;
+  late AtCompactionStatsImpl atCompactionStatsImpl;
 
   Future<void> executeCompaction(
       AtCompactionConfig atCompactionConfig, AtLogType atLogType) async{
@@ -21,7 +21,7 @@ class AtCompactionService {
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
-    atCompactionStats = AtCompactionStatsImpl.getInstance(atLogType);
+    atCompactionStatsImpl = AtCompactionStatsImpl.getInstance(atLogType);
 
     // Check if any of the compaction strategy's configured.
     // If none of the are configured return.
@@ -37,10 +37,10 @@ class AtCompactionService {
       var timeBasedCompaction = TimeBasedCompaction(
           atCompactionConfig.timeInDays,
           atCompactionConfig.compactionPercentage);
-      atCompactionStats.initializeStats();
+      atCompactionStatsImpl.initializeStats();
       timeBasedCompaction.performCompaction(atLogType);
-      atCompactionStats.calculateStats();
-      await atCompactionStats.writeStats(atCompactionStats);
+      atCompactionStatsImpl.calculateStats();
+      await atCompactionStatsImpl.writeStats(atCompactionStatsImpl);
     }
 
     // Size based compaction is configured
@@ -49,10 +49,10 @@ class AtCompactionService {
       // If the are logs that met the size criteria delete them.
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
-      atCompactionStats.initializeStats();
+      atCompactionStatsImpl.initializeStats();
       sizeBasedCompaction.performCompaction(atLogType);
-      atCompactionStats.calculateStats();
-      await atCompactionStats.writeStats(atCompactionStats);
+      atCompactionStatsImpl.calculateStats();
+      await atCompactionStatsImpl.writeStats(atCompactionStatsImpl);
 
     }
   }

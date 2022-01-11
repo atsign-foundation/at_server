@@ -1,9 +1,8 @@
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
-
-import '../../at_persistence_secondary_server.dart';
 
 class AtCompactionStatsImpl implements AtCompactionStats{
 
@@ -77,22 +76,20 @@ class AtCompactionStatsImpl implements AtCompactionStats{
   }
 
   void _getKey(){
-    if (atLogType is AtCommitLog){ compactionStatsKey = commitLogCompactionKey;
+    if (atLogType is AtCommitLog)compactionStatsKey = commitLogCompactionKey;
 
     if (atLogType is AtAccessLog) compactionStatsKey = accessLogCompactionKey;
 
     if (atLogType is AtNotificationKeystore) compactionStatsKey = notificationCompactionKey;
-    }
 
   }
 
   Map toJson()=> {
-    'Compaction Duration': compactionDuration.toString(),
-    'Size before compaction': sizeBeforeCompaction.toString(),
-    'Size after compaction': sizeAfterCompaction.toString(),
-    'No. of deleted keys': deletedKeysCount.toString(),
-    'Last compaction run': lastCompactionRun.toString()
+    'duration': compactionDuration.toString(),
+    'size_before_compaction': sizeBeforeCompaction.toString(),
+    'size_after_compaction': sizeAfterCompaction.toString(),
+    'deleted_keys_count': deletedKeysCount.toString(),
+    'last_compaction_run': lastCompactionRun.toString()
   };
-
 
 }
