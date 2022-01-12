@@ -20,8 +20,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
   ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   /// Verifies whether command is accepted or not
-  /// @param - command: Input to scan verb
-  /// @return - bool: Return true if command is accepted, else false.
+  /// 
+  /// [command]: Input to scan verb
+  /// 
+  /// Return true if command is accepted, else false.
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.scan));
 
@@ -31,12 +33,15 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scan;
   }
 
-  /// Process scan Verb.
-  /// Process the given command and write response to response object.
+  /// Process scan Verb. Process the given command and write response to response object.
+  /// 
+  /// [response] - Holds the response from server and sends to the client.
+  /// 
+  /// [verbParams] - Holds the key value pair that matches the regular expression.
+  /// 
+  /// [AtConnection] - The connection which invokes the process verb.
+  /// 
   /// Throws [UnAuthenticatedException] if forAtSign is not null and connection is not authenticated.
-  /// @param - response - Holds the response from server and sends to the client.
-  /// @param - verbParams - Holds the key value pair that matches the regular expression.
-  /// @param - AtConnection - The connection which invokes the process verb.
   @override
   Future<void> processVerb(
       Response response,
@@ -65,7 +70,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       } else {
         List<String?> keys =
             keyStore!.getKeys(regex: scanRegex) as List<String?>;
-        List<String?> keyString = _getLocalKeys(atConnectionMetadata, keys);
+        List<String> keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces.
         logger.finer('response.data : $keyString');
         var keysArray = keyString;
@@ -80,10 +85,16 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches the keys of another user atsign
-  /// @param - forAtSign : The another user atsign to lookup for keys.
-  /// @param - scanRegex : The regular expression to filter the keys
-  /// @param - atConnection : The inbound connection
-  /// @return - Future<String> : The another atsign keys returned.
+  /// 
+  /// [forAtSign] : The another user atsign to lookup for keys.
+  /// 
+  /// [scanRegex] : The regular expression to filter the keys
+  /// 
+  /// [atConnection] : The inbound connection
+  /// 
+  /// **Returns**
+  /// 
+  /// String : The another atsign keys returned. Returns null if no keys found.
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
@@ -101,12 +112,19 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Returns the current atsign keys.
-  /// @param - atConnectionMetadata: Metadata of the inbound connection
-  /// @param - List<String>: List of keys from the secondary persistent store
-  /// @return - String: Returns the keys of current atsign
-  List<String?> _getLocalKeys(
+  /// 
+  /// **Parameters**
+  /// 
+  /// [atConnectionMetadata] Metadata of the inbound connection.
+  /// 
+  /// [keys] List of keys from the secondary persistent store.
+  /// 
+  /// **Returns**
+  /// 
+  /// Returns the list of keys of current atsign.
+  List<String> _getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
-    List<String?> keysList = [];
+    List<String> keysList = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
     // If not, get only public keys
@@ -116,10 +134,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
           key.toString().startsWith('privatekey:') ||
           key.toString().startsWith('public:_') ||
           key.toString().startsWith('private:'));
-      for (var key in keys) {
-        var modifiedKey = key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
-        keysList.add(modifiedKey);
-      }
     } else {
       //When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
@@ -130,7 +144,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
                 false) ||
             test.toString().startsWith('public:_'));
         for (var key in keys) {
-          var modifiedKey = key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+          var modifiedKey =
+              key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
           keysList.add(modifiedKey);
         }
       } else {
