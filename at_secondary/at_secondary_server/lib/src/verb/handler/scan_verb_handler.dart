@@ -20,9 +20,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
   ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   /// Verifies whether command is accepted or not
-  /// 
+  ///
   /// [command]: Input to scan verb
-  /// 
+  ///
   /// Return true if command is accepted, else false.
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.scan));
@@ -34,13 +34,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Process scan Verb. Process the given command and write response to response object.
-  /// 
+  ///
   /// [response] - Holds the response from server and sends to the client.
-  /// 
+  ///
   /// [verbParams] - Holds the key value pair that matches the regular expression.
-  /// 
+  ///
   /// [AtConnection] - The connection which invokes the process verb.
-  /// 
+  ///
   /// Throws [UnAuthenticatedException] if forAtSign is not null and connection is not authenticated.
   @override
   Future<void> processVerb(
@@ -68,8 +68,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        List<String?> keys =
-            keyStore!.getKeys(regex: scanRegex) as List<String?>;
+        List<String> keys = keyStore!.getKeys(regex: scanRegex) as List<String>;
         List<String> keyString = _getLocalKeys(atConnectionMetadata, keys);
         // Apply regex on keyString to remove unnecessary characters and spaces.
         logger.finer('response.data : $keyString');
@@ -85,15 +84,15 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches the keys of another user atsign
-  /// 
+  ///
   /// [forAtSign] : The another user atsign to lookup for keys.
-  /// 
+  ///
   /// [scanRegex] : The regular expression to filter the keys
-  /// 
+  ///
   /// [atConnection] : The inbound connection
-  /// 
+  ///
   /// **Returns**
-  /// 
+  ///
   /// String : The another atsign keys returned. Returns null if no keys found.
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
@@ -112,18 +111,18 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Returns the current atsign keys.
-  /// 
+  ///
   /// **Parameters**
-  /// 
+  ///
   /// [atConnectionMetadata] Metadata of the inbound connection.
-  /// 
+  ///
   /// [keys] List of keys from the secondary persistent store.
-  /// 
+  ///
   /// **Returns**
-  /// 
+  ///
   /// Returns the list of keys of current atsign.
   List<String> _getLocalKeys(
-      InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
+      InboundConnectionMetadata atConnectionMetadata, List<String> keys) {
     List<String> keysList = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
@@ -134,8 +133,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
           key.toString().startsWith('privatekey:') ||
           key.toString().startsWith('public:_') ||
           key.toString().startsWith('private:'));
+      keysList = keys;
     } else {
-      //When pol is performed, display keys that are private to the atsign.
+      // When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
         keys.removeWhere((test) =>
             (test
@@ -145,7 +145,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
             test.toString().startsWith('public:_'));
         for (var key in keys) {
           var modifiedKey =
-              key!.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+              key.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
           keysList.add(modifiedKey);
         }
       } else {
@@ -153,10 +153,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
         keys.removeWhere((test) =>
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
-        for (var key in keys) {
-          var modifiedKey = key!.toString().replaceAll('public:', '');
-          keysList.add(modifiedKey);
-        }
+        keysList = keys;
+        // for (var key in keys) {
+        //   var modifiedKey = key!.toString().replaceAll('public:', '');
+        //   keysList.add(modifiedKey);
+        // }
       }
     }
     return keysList;
