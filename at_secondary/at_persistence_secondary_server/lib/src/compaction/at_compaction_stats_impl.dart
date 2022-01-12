@@ -11,7 +11,7 @@ class AtCompactionStatsImpl implements AtCompactionStats {
 
   AtCompactionStatsImpl._internal();
 
-  ///returns the class object previously instead of creating new one
+  ///returns the only object of [AtCompactionStatsImpl]
   factory AtCompactionStatsImpl.init(atSign) {
     _singleton.atSign = atSign;
     _singleton.keyStore = SecondaryPersistenceStoreFactory.getInstance()
@@ -64,7 +64,7 @@ class AtCompactionStatsImpl implements AtCompactionStats {
     deletedKeysCount = atLogType.entriesCount() - keysBeforeCompaction;
     try {
       ///stores statistics encoded as json in the keystore
-      await keyStore?.put(compactionStatsKey, AtData()..data = json.encode(_singleton));
+      await keyStore?.put(compactionStatsKey, AtData()..data = json.encode(_singleton.toJson()));
     } on Exception catch (_, e){
       _logger.severe(e);
     }
