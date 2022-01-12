@@ -37,10 +37,9 @@ class AtCompactionService {
       var timeBasedCompaction = TimeBasedCompaction(
           atCompactionConfig.timeInDays,
           atCompactionConfig.compactionPercentage);
-      atCompactionStatsImpl.initializeStats();
+      atCompactionStatsImpl.preCompaction();
       timeBasedCompaction.performCompaction(atLogType);
-      atCompactionStatsImpl.calculateStats();
-      await atCompactionStatsImpl.writeStats(atCompactionStatsImpl);
+      await atCompactionStatsImpl.postCompaction();
     }
 
     // Size based compaction is configured
@@ -49,10 +48,9 @@ class AtCompactionService {
       // If the are logs that met the size criteria delete them.
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
-      atCompactionStatsImpl.initializeStats();
+      atCompactionStatsImpl.preCompaction();
       sizeBasedCompaction.performCompaction(atLogType);
-      atCompactionStatsImpl.calculateStats();
-      await atCompactionStatsImpl.writeStats(atCompactionStatsImpl);
+      await atCompactionStatsImpl.postCompaction();
 
     }
   }
