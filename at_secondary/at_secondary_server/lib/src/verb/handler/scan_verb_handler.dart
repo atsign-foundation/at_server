@@ -154,10 +154,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
         keysList = keys;
-        // for (var key in keys) {
-        //   var modifiedKey = key!.toString().replaceAll('public:', '');
-        //   keysList.add(modifiedKey);
-        // }
+        for (var key in keys) {
+          var modifiedKey = key.toString().replaceAll('public:', '');
+          keysList.add(modifiedKey);
+        }
       }
     }
     return keysList;
