@@ -25,9 +25,9 @@ Future<void> main() async {
 
   AtCompactionStatsImpl atCompactionStatsImpl = AtCompactionStatsImpl.getInstance(atCommitLog);
 
-  test("check stats in keystore", () async{
+  test("check stats in keystore", () async {
     atCompactionStatsImpl.preCompaction();
-    atCompactionStatsImpl.postCompaction();
+    await atCompactionStatsImpl.postCompaction();
     AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
@@ -47,9 +47,9 @@ Future<void> main() async {
   });
 
   test("check value insertion into keystore", () async {
-  await atCompactionStatsImpl.postCompaction();
-  AtData? atData= await keyStore?.get('privatekey:commitLogCompactionStats');
-  expect(jsonEncode(atCompactionStatsImpl), atData?.data);
+    await atCompactionStatsImpl.postCompaction();
+    AtData? atData= await keyStore?.get('privatekey:commitLogCompactionStats');
+    expect(jsonEncode(atCompactionStatsImpl), atData?.data);
   });
 
 }
