@@ -7,7 +7,8 @@ import 'package:at_utils/at_logger.dart';
 class AtCompactionStatsImpl implements AtCompactionStats {
   ///storing private constructor in private variable
   ///private constructor refers to the instance of this class(only created once)
-  static final AtCompactionStatsImpl _singleton = AtCompactionStatsImpl._internal();
+  static final AtCompactionStatsImpl _singleton =
+      AtCompactionStatsImpl._internal();
 
   AtCompactionStatsImpl._internal();
 
@@ -21,7 +22,7 @@ class AtCompactionStatsImpl implements AtCompactionStats {
   }
 
   factory AtCompactionStatsImpl.getInstance(atLogType) {
-   _singleton.atLogType = atLogType;
+    _singleton.atLogType = atLogType;
     return _singleton;
   }
 
@@ -39,7 +40,7 @@ class AtCompactionStatsImpl implements AtCompactionStats {
   final _logger = AtSignLogger("AtCompactionStats");
 
   Future<void> _insertInitialStats() async {
-    try{
+    try {
       await keyStore?.put(compactionStatsKey, AtData()..data = json.encode({}));
     } on Exception catch (_, e) {
       _logger.severe(e);
@@ -64,29 +65,29 @@ class AtCompactionStatsImpl implements AtCompactionStats {
     deletedKeysCount = atLogType.entriesCount() - keysBeforeCompaction;
     try {
       ///stores statistics encoded as json in the keystore
-      await keyStore?.put(compactionStatsKey, AtData()..data = json.encode(_singleton.toJson()));
-    } on Exception catch (_, e){
+      await keyStore?.put(compactionStatsKey,
+          AtData()..data = json.encode(_singleton.toJson()));
+    } on Exception catch (_, e) {
       _logger.severe(e);
     }
   }
 
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
-    if (atLogType is AtCommitLog)compactionStatsKey = commitLogCompactionKey;
+    if (atLogType is AtCommitLog) compactionStatsKey = commitLogCompactionKey;
 
     if (atLogType is AtAccessLog) compactionStatsKey = accessLogCompactionKey;
 
-    if (atLogType is AtNotificationKeystore) compactionStatsKey = notificationCompactionKey;
-
+    if (atLogType is AtNotificationKeystore)
+      compactionStatsKey = notificationCompactionKey;
   }
 
   ///maps predefined keys to their values which will be ready to encode to json
-  Map toJson()=> {
-    'duration': compactionDuration.toString(),
-    'size_before_compaction': sizeBeforeCompaction.toString(),
-    'size_after_compaction': sizeAfterCompaction.toString(),
-    'deleted_keys_count': deletedKeysCount.toString(),
-    'last_compaction_run': lastCompactionRun.toString()
-  };
-
+  Map toJson() => {
+        'duration': compactionDuration.toString(),
+        'size_before_compaction': sizeBeforeCompaction.toString(),
+        'size_after_compaction': sizeAfterCompaction.toString(),
+        'deleted_keys_count': deletedKeysCount.toString(),
+        'last_compaction_run': lastCompactionRun.toString()
+      };
 }

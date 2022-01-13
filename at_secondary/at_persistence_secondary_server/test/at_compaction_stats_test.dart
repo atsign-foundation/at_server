@@ -5,13 +5,14 @@ import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
 Future<void> main() async {
-
   var storageDir = Directory.current.path + '/test/hive';
 
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore('@alice');
-  var persistenceManager = secondaryPersistenceStore!.getHivePersistenceManager();
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@alice');
+  var persistenceManager =
+      secondaryPersistenceStore!.getHivePersistenceManager();
   await persistenceManager!.init(storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore();
   hiveKeyStore?.commitLog = commitLogInstance;
@@ -23,7 +24,8 @@ Future<void> main() async {
 
   AtCompactionStatsImpl.init('@alice');
 
-  AtCompactionStatsImpl atCompactionStatsImpl = AtCompactionStatsImpl.getInstance(atCommitLog);
+  AtCompactionStatsImpl atCompactionStatsImpl =
+      AtCompactionStatsImpl.getInstance(atCommitLog);
 
   test("check stats in keystore", () async {
     atCompactionStatsImpl.preCompaction();
@@ -37,20 +39,21 @@ Future<void> main() async {
 
   test("check compactionStats key", () async {
     atCompactionStatsImpl.preCompaction();
-    expect("privatekey:commitLogCompactionStats", atCompactionStatsImpl.compactionStatsKey);
+    expect("privatekey:commitLogCompactionStats",
+        atCompactionStatsImpl.compactionStatsKey);
   });
 
-  test("check duration calculation",() async {
-    atCompactionStatsImpl.compactionStartTime = DateTime.now().toUtc().subtract(Duration(minutes: 5));
+  test("check duration calculation", () async {
+    atCompactionStatsImpl.compactionStartTime =
+        DateTime.now().toUtc().subtract(Duration(minutes: 5));
     await atCompactionStatsImpl.postCompaction();
-    expect(Duration(minutes: 5).inMinutes, atCompactionStatsImpl.compactionDuration.inMinutes);
+    expect(Duration(minutes: 5).inMinutes,
+        atCompactionStatsImpl.compactionDuration.inMinutes);
   });
 
   test("check value insertion into keystore", () async {
     await atCompactionStatsImpl.postCompaction();
-    AtData? atData= await keyStore?.get('privatekey:commitLogCompactionStats');
+    AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     expect(jsonEncode(atCompactionStatsImpl), atData?.data);
   });
-
 }
-
