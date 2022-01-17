@@ -17,13 +17,13 @@ class AtCompactionService {
   late AtCompactionStats atCompactionStats;
 
   Future<void> executeCompaction(AtCompactionConfig atCompactionConfig,
-      AtLogType atLogType, [keyStore]) async {
+      AtLogType atLogType) async {
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atLogType, keyStore);
+        AtCompactionStatsServiceImpl(atLogType);
 
     /// Check if any of the compaction strategy's configured.
     /// If none of the are configured return.

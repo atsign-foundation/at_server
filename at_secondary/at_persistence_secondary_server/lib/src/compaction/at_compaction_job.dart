@@ -9,12 +9,12 @@ class AtCompactionJob {
 
   AtCompactionJob(this.atLogType);
 
-  void scheduleCompactionJob(AtCompactionConfig atCompactionConfig, [keyStore]) {
+  void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
     _cron = Cron();
     _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var compactionService = AtCompactionService.getInstance();
-      compactionService.executeCompaction(atCompactionConfig, atLogType, keyStore);
+      compactionService.executeCompaction(atCompactionConfig, atLogType);
     });
   }
 

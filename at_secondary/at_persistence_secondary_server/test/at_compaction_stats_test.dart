@@ -26,7 +26,8 @@ Future<void> main() async {
 
   test("check stats in keystore", () async {
     AtCompactionStats atCompactionStats = AtCompactionStats();
-    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atAccessLog!, keyStore);
+    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atAccessLog!);
+    atCompactionStatsServiceImpl.keyStore;
     atCompactionStats.compactionDuration = Duration(minutes: 10);
     atCompactionStats.deletedKeysCount = 23;
     atCompactionStats.lastCompactionRun = DateTime.now();
@@ -46,7 +47,8 @@ Future<void> main() async {
   });
 
   test("check compactionStats key", () async {
-    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atCommitLog!, keyStore);
+    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atCommitLog!);
+
     expect("privatekey:commitLogCompactionStats",
         atCompactionStatsServiceImpl.compactionStatsKey);
   });
