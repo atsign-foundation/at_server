@@ -158,11 +158,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttl_ms: ttln_ms, value: atValue);
-
+      // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
+      // except for the public keys. So, if key is public set isEncrypted to false.
+      var isEncrypted = true;
       // If key is public, remove forAtSign from key.
       if (key!.contains('public:')) {
         var index = key.indexOf(':');
         key = key.substring(index + 1);
+        isEncrypted = false;
       }
       var notifyKey = '$CACHED:$key';
       if (operation == 'delete') {
@@ -184,7 +187,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttl: ttl_ms,
                 ttb: ttb_ms,
                 ttr: ttr_ms,
-                ccd: isCascade)
+                ccd: isCascade,
+                isEncrypted: isEncrypted)
             .build();
         cachedKeyCommitId =
             await _storeCachedKeys(key, metadata, atValue: atValue);
@@ -201,7 +205,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttl: ttl_ms,
                 ttb: ttb_ms,
                 ttr: ttr_ms,
-                ccd: isCascade)
+                ccd: isCascade,
+                isEncrypted: isEncrypted)
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService
