@@ -5,28 +5,33 @@ import 'package:at_utils/at_logger.dart';
 class TimeBasedCompaction implements AtCompactionStrategy {
   late int timeInDays;
   int? compactionPercentage;
-
+  late AtCompactionStats atCompactionStats;
   final _logger = AtSignLogger('TimeBasedCompaction');
 
   TimeBasedCompaction(int time, this.compactionPercentage) {
     timeInDays = time;
   }
 
+  ///compaction runs at a specified frequency
   @override
-  Future<void> performCompaction(AtLogType atLogType) async {
+  Future<AtCompactionStats> performCompaction(AtLogType atLogType) async {
+    DateTime compactionStartTime = DateTime.now().toUtc();
     var expiredKeys = await atLogType.getExpired(timeInDays);
     // If expired keys is empty, log compaction is not performed.
     if (expiredKeys.isEmpty) {
       _logger.finer('No expired keys. skipping time compaction for $atLogType');
-      return;
     }
-    _logger.finer(
-        'Number of entries in $atLogType before time compaction - ${atLogType.entriesCount()}');
-    _logger.finer(
-        'performing time compaction for $atLogType: Number of expired/duplicate keys: ${expiredKeys.length}');
+    atCompactionStats = AtCompactionStats();
+    atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
+    atCompactionStats.deletedKeysCount = expiredKeys.length;
+    atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
     // Delete expired keys
     await atLogType.delete(expiredKeys);
-    _logger.finer(
-        'Number of entries in $atLogType after time compaction - ${atLogType.entriesCount()}');
+    atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
+    atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+    atCompactionStats.compactionDuration =
+        atCompactionStats.lastCompactionRun.difference(compactionStartTime);
+
+    return atCompactionStats;
   }
 }

@@ -5,34 +5,42 @@ import 'package:at_utils/at_logger.dart';
 class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
+  late AtCompactionStats atCompactionStats;
   final _logger = AtSignLogger('TimeBasedCompaction');
 
   SizeBasedCompaction(int size, this.compactionPercentage) {
     sizeInKB = size;
   }
 
+  ///compaction triggered when [AtLogType] size meets compaction criteria
   @override
-  Future<void> performCompaction(AtLogType atLogType) async {
+  Future<AtCompactionStats> performCompaction(AtLogType atLogType) async {
+    DateTime compactionStartTime = DateTime.now().toUtc();
     var isRequired = _isCompactionRequired(atLogType);
     if (isRequired) {
       var totalKeys = atLogType.entriesCount();
       if (totalKeys > 0) {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
+        atCompactionStats = AtCompactionStats();
+        atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
+        atCompactionStats.deletedKeysCount = keysToDelete.length;
+        atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
         if (keysToDelete.isNotEmpty) {
-          _logger.finer(
-              'Number of entries in $atLogType before size compaction - ${atLogType.entriesCount()}');
-          _logger.finer(
-              'performing size compaction for $atLogType: Number of expired keys: ${keysToDelete.length}');
           await atLogType.delete(keysToDelete);
-          _logger.finer(
-              'Number of entries in $atLogType after size compaction - ${atLogType.entriesCount()}');
+          atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
+          atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+          atCompactionStats.compactionDuration = atCompactionStats
+              .lastCompactionRun
+              .difference(compactionStartTime);
         } else {
           _logger.finer(
               'No keys to delete. skipping size compaction for $atLogType');
         }
       }
     }
+
+    return atCompactionStats;
   }
 
   bool _isCompactionRequired(AtLogType atLogType) {

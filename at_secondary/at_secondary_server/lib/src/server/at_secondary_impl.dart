@@ -57,6 +57,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   late bool _isPaused;
+  late var _keyStore;
 
   var logger = AtSignLogger('AtSecondaryServer');
 
@@ -142,8 +143,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    AtCompactionStatsImpl.init(currentAtSign);
-
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(_commitLog);
     var atCommitLogCompactionConfig = AtCompactionConfig(
@@ -152,7 +151,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         commitLogCompactionPercentage!,
         commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig);
+        .scheduleCompactionJob(atCommitLogCompactionConfig, _keyStore);
 
 
     //Access Log Compaction
@@ -163,7 +162,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionPercentage!,
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
-        .scheduleCompactionJob(atAccessLogCompactionConfig);
+        .scheduleCompactionJob(atAccessLogCompactionConfig, _keyStore);
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance =
@@ -174,7 +173,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
         AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
     await notificationKeyStoreCompactionJobInstance
-        .scheduleCompactionJob(atNotificationCompactionConfig);
+        .scheduleCompactionJob(atNotificationCompactionConfig, _keyStore);
 
     // Refresh Cached Keys
     var random = Random();
@@ -413,6 +412,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
+    _keyStore = keyStore;
     if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
       await keyStore.put(AT_CRAM_SECRET, atData);
     }
