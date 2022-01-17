@@ -1,3 +1,5 @@
+import 'package:at_persistence_spec/at_persistence_spec.dart';
+
 ///The base class for Log.
 abstract class AtLogType {
   /// Returns the total number of keys in storage.
@@ -27,5 +29,5 @@ abstract class AtLogType {
 abstract class AtCompactionStrategy {
   /// Performs the compaction on the specified log type.
   /// @param atLogType The log type to perform the compaction job.
-  Future<dynamic> performCompaction(AtLogType atLogType);
+  Future<AtCompactionStats> performCompaction(AtLogType atLogType);
 }

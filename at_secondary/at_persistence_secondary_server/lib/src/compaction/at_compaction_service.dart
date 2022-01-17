@@ -2,7 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_size_based_compaction.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_time_based_compaction.dart';
-import 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service_impl.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();

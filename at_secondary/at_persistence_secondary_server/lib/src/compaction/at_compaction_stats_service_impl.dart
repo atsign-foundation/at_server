@@ -6,14 +6,15 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_utils/at_logger.dart';
 
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
+  late var _keyStore;
 
-  AtCompactionStatsServiceImpl(this.atLogType) {
+  AtCompactionStatsServiceImpl(this.atLogType, [this._keyStore]) {
+    _keyStore ??= SecondaryKeyStoreManager().getKeyStore();
     _getKey();
   }
 
   late AtLogType atLogType;
-  late String compactionStatsKey;
-  late var keyStore = SecondaryKeyStoreManager().getKeyStore();
+  late String _compactionStatsKey;
   final _logger = AtSignLogger("AtCompactionStats");
 
   ///stores statistics encoded as json in the keystore
@@ -21,7 +22,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   Future<void> handleStats(atCompactionStats) async {
     _logger.finer(atCompactionStats.toString());
     try {
-      await keyStore.put(compactionStatsKey,
+      await _keyStore.put(_compactionStatsKey,
           AtData()..data = json.encode(atCompactionStats.toJson()));
     } on Exception catch (_, e) {
       _logger.severe(e);
@@ -30,10 +31,14 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
 
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
-    if (atLogType is AtCommitLog) compactionStatsKey = commitLogCompactionKey;
-    if (atLogType is AtAccessLog) compactionStatsKey = accessLogCompactionKey;
+    if (atLogType is AtCommitLog) {
+      _compactionStatsKey = commitLogCompactionKey;
+    }
+    if (atLogType is AtAccessLog) {
+      _compactionStatsKey = accessLogCompactionKey;
+    }
     if (atLogType is AtNotificationKeystore) {
-      compactionStatsKey = notificationCompactionKey;
+      _compactionStatsKey = notificationCompactionKey;
     }
   }
 }

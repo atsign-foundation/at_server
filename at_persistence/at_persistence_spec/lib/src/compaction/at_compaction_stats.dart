@@ -1,4 +1,4 @@
-import '../../at_persistence_secondary_server.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 ///Type to collect and store compaction statistics
 class AtCompactionStats {
