@@ -14,7 +14,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   }
 
   late AtLogType atLogType;
-  late String _compactionStatsKey;
+  late String compactionStatsKey;
   final _logger = AtSignLogger("AtCompactionStats");
 
   ///stores statistics encoded as json in the keystore
@@ -22,7 +22,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   Future<void> handleStats(atCompactionStats) async {
     _logger.finer(atCompactionStats.toString());
     try {
-      await _keyStore.put(_compactionStatsKey,
+      await _keyStore.put(compactionStatsKey,
           AtData()..data = json.encode(atCompactionStats.toJson()));
     } on Exception catch (_, e) {
       _logger.severe(e);
@@ -32,13 +32,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
     if (atLogType is AtCommitLog) {
-      _compactionStatsKey = commitLogCompactionKey;
+      compactionStatsKey = commitLogCompactionKey;
     }
     if (atLogType is AtAccessLog) {
-      _compactionStatsKey = accessLogCompactionKey;
+      compactionStatsKey = accessLogCompactionKey;
     }
     if (atLogType is AtNotificationKeystore) {
-      _compactionStatsKey = notificationCompactionKey;
+      compactionStatsKey = notificationCompactionKey;
     }
   }
 }
