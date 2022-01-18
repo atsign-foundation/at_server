@@ -137,12 +137,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
     } else {
       // When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
-        keys.removeWhere((test) =>
-            (test
-                    .toString()
-                    .startsWith('${atConnectionMetadata.fromAtSign}:') ==
-                false) ||
-            test.toString().startsWith('public:_'));
+        // remove keys where they starts with `public:_`
+        keys.removeWhere((key) =>
+            // commenting this for testing.
+            // !key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ||
+            key.toString().startsWith('public:_'));
+        // Remove the atSigns from the inbound connection 
+        // keys and add the modified key to the list.
+        // @murali:phone@sitaram => phone@sitaram
         for (var key in keys) {
           var modifiedKey =
               key.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
@@ -153,7 +155,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
         keys.removeWhere((test) =>
             test.toString().startsWith('public:_') ||
             !test.toString().startsWith('public:'));
-        keysList = keys;
         for (var key in keys) {
           var modifiedKey = key.toString().replaceAll('public:', '');
           keysList.add(modifiedKey);
