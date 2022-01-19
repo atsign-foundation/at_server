@@ -130,17 +130,19 @@ class ScanVerbHandler extends AbstractVerbHandler {
     if (atConnectionMetadata.isAuthenticated) {
       //display all keys except private
       keys.removeWhere((key) =>
-          key.toString().startsWith('privatekey:') ||
-          key.toString().startsWith('public:_') ||
-          key.toString().startsWith('private:'));
+          _isPrivateKeyForAtSign(key, 'privatekey:') ||
+          _isPrivateKeyForAtSign(key, 'public:_') ||
+          _isPrivateKeyForAtSign(key, 'private:'));
       keysList = keys;
     } else {
       // When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
         // remove keys where they starts with `public:_`
         keys.removeWhere((key) =>
-            key.toString().startsWith('public:_'));
-        // Remove the atSigns from the inbound connection 
+            _isPrivateKeyForAtSign(key, 'public:_') ||
+            !_isPrivateKeyForAtSign(
+                key, '${atConnectionMetadata.fromAtSign}:'));
+        // Remove the atSigns from the inbound connection
         // keys and add the modified key to the list.
         // @murali:phone@sitaram => phone@sitaram
         for (var key in keys) {
@@ -150,9 +152,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         }
       } else {
         // When pol is not performed, display only public keys
-        keys.removeWhere((test) =>
-            test.toString().startsWith('public:_') ||
-            !test.toString().startsWith('public:'));
+        keys.removeWhere((key) =>
+            _isPrivateKeyForAtSign(key, 'public:_') ||
+            !_isPrivateKeyForAtSign(key, 'public:'));
         for (var key in keys) {
           var modifiedKey = key.toString().replaceAll('public:', '');
           keysList.add(modifiedKey);
@@ -161,4 +163,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     }
     return keysList;
   }
+
+  bool _isPrivateKeyForAtSign(String key, String pattern) =>
+      key.toString().startsWith(pattern);
 }
