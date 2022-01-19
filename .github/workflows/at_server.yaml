@@ -166,7 +166,7 @@ jobs:
         run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
 
       - name: Build docker image
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           file: at_functional_test/lib/Dockerfile
           context: at_functional_test/lib/
@@ -238,7 +238,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           context: at_secondary
@@ -323,7 +323,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push for trunk branch
         id: docker_build_trunk
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           context: at_functional_test/lib/
@@ -372,7 +372,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           context: at_secondary
@@ -452,7 +452,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           file: ./at_secondary/Dockerfile.observe
@@ -504,7 +504,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           context: at_secondary
@@ -554,7 +554,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.8.0
         with:
           push: true
           context: at_secondary
