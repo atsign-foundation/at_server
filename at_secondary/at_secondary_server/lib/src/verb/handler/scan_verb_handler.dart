@@ -139,8 +139,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
       if (atConnectionMetadata.isPolAuthenticated) {
         // remove keys where they starts with `public:_`
         keys.removeWhere((key) =>
-            // commenting this for testing.
-            // !key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ||
             key.toString().startsWith('public:_'));
         // Remove the atSigns from the inbound connection 
         // keys and add the modified key to the list.
