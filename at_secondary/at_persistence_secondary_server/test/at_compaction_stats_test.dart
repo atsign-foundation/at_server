@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 import 'package:uuid/uuid.dart';
@@ -42,13 +41,13 @@ Future<void> main() async {
     AtData? atData = await keyStore?.get('privatekey:accessLogCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect('77', decodedData["deleted_keys_count"].toString());
-    expect('39', decodedData["size_after_compaction"].toString());
-    expect('69', decodedData["size_before_compaction"].toString());
+    expect(decodedData["deleted_keys_count"].toString(), '77');
+    expect(decodedData["size_after_compaction"].toString(), '39');
+    expect(decodedData["size_before_compaction"].toString(), '69');
     expect(
-        Duration(minutes: 12).toString(), decodedData["duration"].toString());
-    expect(CompactionType.TimeBasedCompaction.toString(),
-        decodedData['compaction_type'.toString()]);
+        decodedData["duration"].toString(), Duration(minutes: 12).toString());
+    expect(decodedData['compaction_type'.toString()],
+        CompactionType.TimeBasedCompaction.toString());
   });
 
   test("verify commitLog stats in keystore", () async {
@@ -65,13 +64,13 @@ Future<void> main() async {
     AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect('23', decodedData["deleted_keys_count"].toString());
-    expect('32', decodedData["size_after_compaction"].toString());
-    expect('44', decodedData["size_before_compaction"].toString());
+    expect(decodedData["deleted_keys_count"].toString(), '23');
+    expect(decodedData["size_after_compaction"].toString(), '32');
+    expect(decodedData["size_before_compaction"].toString(), '44');
     expect(
-        Duration(minutes: 10).toString(), decodedData["duration"].toString());
-    expect(CompactionType.SizeBasedCompaction.toString(),
-        decodedData['compaction_type'.toString()]);
+        decodedData["duration"].toString(), Duration(minutes: 10).toString());
+    expect(decodedData['compaction_type'.toString()],
+        CompactionType.SizeBasedCompaction.toString());
   });
 
   test("verify notificationKeyStore stats in keystore", () async {
@@ -89,28 +88,36 @@ Future<void> main() async {
         await keyStore?.get('privatekey:notificationCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect('239', decodedData["deleted_keys_count"].toString());
-    expect('302', decodedData["size_after_compaction"].toString());
-    expect('404', decodedData["size_before_compaction"].toString());
+    expect(decodedData["deleted_keys_count"].toString(), '239');
+    expect(decodedData["size_after_compaction"].toString(), '302');
+    expect(decodedData["size_before_compaction"].toString(), '404');
     expect(
-        Duration(minutes: 36).toString(), decodedData["duration"].toString());
-    expect(CompactionType.SizeBasedCompaction.toString(),
-        decodedData['compaction_type'.toString()]);
+        decodedData["duration"].toString(), Duration(minutes: 36).toString());
+    expect(decodedData['compaction_type'.toString()],
+        CompactionType.SizeBasedCompaction.toString());
   });
 
   test("check commitLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
         AtCompactionStatsServiceImpl(atCommitLog!, keyStore);
 
-    expect("privatekey:commitLogCompactionStats",
-        atCompactionStatsServiceImpl.compactionStatsKey);
+    expect(atCompactionStatsServiceImpl.compactionStatsKey,
+        "privatekey:commitLogCompactionStats");
   });
 
   test("check accessLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
         AtCompactionStatsServiceImpl(atAccessLog!, keyStore);
 
-    expect("privatekey:accessLogCompactionStats",
-        atCompactionStatsServiceImpl.compactionStatsKey);
+    expect(atCompactionStatsServiceImpl.compactionStatsKey,
+        "privatekey:accessLogCompactionStats");
+  });
+
+  test("check notification compactionStats key", () async {
+    atCompactionStatsServiceImpl =
+        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, keyStore);
+
+    expect(atCompactionStatsServiceImpl.compactionStatsKey,
+        "privatekey:notificationCompactionStats");
   });
 }

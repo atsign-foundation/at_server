@@ -17,7 +17,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late String compactionStatsKey;
   final _logger = AtSignLogger("AtCompactionStats");
 
-  ///stores statistics encoded as json in the keystore
+  ///stores statistics in object [atCompactionStats] to the keystore encoding them as json
   @override
   Future<void> handleStats(atCompactionStats) async {
     _logger.finer(atCompactionStats.toString());

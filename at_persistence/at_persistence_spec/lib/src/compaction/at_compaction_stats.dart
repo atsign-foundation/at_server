@@ -21,11 +21,6 @@ class AtCompactionStats {
 
   @override
   String toString() {
-    return "compaction type: $compactionType \n..."
-        "compaction last run at: $lastCompactionRun \n..."
-        "compaction duration: $compactionDuration \n..."
-        "size before compaction: $sizeBeforeCompaction \n..."
-        "size after compaction: $sizeAfterCompaction \n..."
-        "no. of keys deleted: $deletedKeysCount";
+    return "compaction type: $compactionType, compaction last run at: $lastCompactionRun, compaction duration: $compactionDuration, size before compaction: $sizeBeforeCompaction, size after compaction: $sizeAfterCompaction, no. of keys deleted: $deletedKeysCount";
   }
 }

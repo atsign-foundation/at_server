@@ -16,24 +16,26 @@ class AtCompactionService {
   late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
   late AtCompactionStats atCompactionStats;
 
-  Future<void> executeCompaction(AtCompactionConfig atCompactionConfig,
-      AtLogType atLogType) async {
+  ///[atCompactionConfig] is an object containing compaction configuration/parameters
+  ///[atLogType] specifies which logs the compaction job will run on
+  ///Method chooses which type of compaction to be run based on [atCompactionConfig]
+  Future<void> executeCompaction(
+      AtCompactionConfig atCompactionConfig, AtLogType atLogType) async {
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
-    atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atLogType);
+    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atLogType);
 
-    /// Check if any of the compaction strategy's configured.
-    /// If none of the are configured return.
+    // Check if any of the compaction strategy's configured.
+    // If none of the are configured return.
     if ((timeBasedCompactionConfigured || sizeBasedCompactionConfigured) ==
         false) {
       // Log no compaction strategy is configured. Which means logs will live for ever.
       return;
     }
 
-    /// Time based compaction is configured
+    // Time based compaction is configured
     if (timeBasedCompactionConfigured) {
       // If the are logs that met the time criteria delete them.
       var timeBasedCompaction = TimeBasedCompaction(
@@ -41,17 +43,19 @@ class AtCompactionService {
           atCompactionConfig.compactionPercentage);
       atCompactionStats =
           await timeBasedCompaction.performCompaction(atLogType);
+      //write compaction statistics returned by timeBasedCompaction into keystore
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     }
 
-    /// Size based compaction is configured
-    /// When both are configured we have to run both.
+    // Size based compaction is configured
+    // When both are configured we have to run both.
     if (sizeBasedCompactionConfigured) {
       // If the are logs that met the size criteria delete them.
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
       atCompactionStats =
           await sizeBasedCompaction.performCompaction(atLogType);
+      //write compaction statistics returned by sizeBasedCompaction into keystore
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     }
   }

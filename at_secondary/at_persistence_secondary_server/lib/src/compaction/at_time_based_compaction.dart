@@ -12,7 +12,8 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     timeInDays = time;
   }
 
-  ///compaction runs at a specified frequency
+  ///Compaction procedure when compaction invocation criteria is time(frequency of compaction)
+  ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
   @override
   Future<AtCompactionStats> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
@@ -22,13 +23,16 @@ class TimeBasedCompaction implements AtCompactionStrategy {
       _logger.finer('No expired keys. skipping time compaction for $atLogType');
     }
     atCompactionStats = AtCompactionStats();
+    //collection of AtLogType statistics before compaction
     atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
     atCompactionStats.deletedKeysCount = expiredKeys.length;
     atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
     // Delete expired keys
     await atLogType.delete(expiredKeys);
+    //collection of statistics post compaction
     atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
     atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+    //calculation of compaction duration by comparing present time with compaction start time
     atCompactionStats.compactionDuration =
         atCompactionStats.lastCompactionRun.difference(compactionStartTime);
 

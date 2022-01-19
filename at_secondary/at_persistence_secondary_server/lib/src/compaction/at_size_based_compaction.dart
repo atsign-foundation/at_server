@@ -12,7 +12,8 @@ class SizeBasedCompaction implements AtCompactionStrategy {
     sizeInKB = size;
   }
 
-  ///compaction triggered when [AtLogType] size meets compaction criteria
+  ///Compaction triggered when [AtLogType] size meets compaction criteria
+  ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
   @override
   Future<AtCompactionStats> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
@@ -20,16 +21,21 @@ class SizeBasedCompaction implements AtCompactionStrategy {
     if (isRequired) {
       var totalKeys = atLogType.entriesCount();
       if (totalKeys > 0) {
+        //calculating number of keys to be deleted based on compactionPercentage parameter
+        //'N' is the number of keys to be deleted
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
         atCompactionStats = AtCompactionStats();
+        //collection of AtLogType statistics before compaction
         atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
         atCompactionStats.deletedKeysCount = keysToDelete.length;
         atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
         if (keysToDelete.isNotEmpty) {
           await atLogType.delete(keysToDelete);
+          //collection of statistics post compaction
           atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
           atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+          //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
               .lastCompactionRun
               .difference(compactionStartTime);
@@ -43,6 +49,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
     return atCompactionStats;
   }
 
+  ///checks whether sizeBasedCompaction is required
   bool _isCompactionRequired(AtLogType atLogType) {
     var logStorageSize = 0;
     logStorageSize = atLogType.getSize();
