@@ -59,9 +59,8 @@ class AtSecondaryConfig {
   static final int? _stats_top_keys = 5;
   static final int? _stats_top_visits = 5;
 
-  //log configurations
-  static final bool _debugLog = true;
-  static final bool _traceLog = true;
+  //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
+  static final String _defaultLogLevel = 'FINEST';
 
   //root server configurations
   static final String _rootServerUrl = 'root.atsign.org';
@@ -79,14 +78,24 @@ class AtSecondaryConfig {
 
   //version
   static final String? _secondaryServerVersion =
-      (ConfigUtil.getPubspecConfig() != null &&
-              ConfigUtil.getPubspecConfig()!['version'] != null)
-          ? ConfigUtil.getPubspecConfig()!['version']
-          : null;
+  (ConfigUtil.getPubspecConfig() != null &&
+      ConfigUtil.getPubspecConfig()!['version'] != null)
+      ? ConfigUtil.getPubspecConfig()!['version']
+      : null;
 
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
+
+  // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
+  //  allow for nulls. Should fix this as has been done for logLevel
+  // TODO: Low priority: Lots of very similar boilerplate code here. Not necessarily bad in this particular case, but
+  //  could be terser as per the logLevel getter
+  static String get logLevel {
+    return _getStringEnvVar('logLevel')
+      ?? getStringValueFromYaml(['log', 'level'])
+      ?? _defaultLogLevel;
+  }
 
   static bool? get useSSL {
     var result = _getBoolEnvVar('useSSL');
@@ -344,6 +353,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
@@ -356,6 +366,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
@@ -368,6 +379,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get outbound_max_limit {
     var result = _getIntEnvVar('outbound_max_limit');
     if (result != null) {
@@ -380,6 +392,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get inbound_max_limit {
     var result = _getIntEnvVar('inbound_max_limit');
     if (result != null) {
@@ -392,6 +405,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get lookup_depth_of_resolution {
     var result = _getIntEnvVar('lookup_depth_of_resolution');
     if (result != null) {
@@ -404,6 +418,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get stats_top_visits {
     var result = _getIntEnvVar('statsTopVisits');
     if (result != null) {
@@ -416,6 +431,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get stats_top_keys {
     var result = _getIntEnvVar('statsTopKeys');
     if (result != null) {
@@ -470,30 +486,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
     } on ElementNotFoundException {
       return _certificateChainLocation;
-    }
-  }
-
-  static bool? get traceLog {
-    var result = _getBoolEnvVar('traceLog');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['log', 'trace']);
-    } on ElementNotFoundException {
-      return _traceLog;
-    }
-  }
-
-  static bool? get debugLog {
-    var result = _getBoolEnvVar('debugLog');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['log', 'debug']);
-    } on ElementNotFoundException {
-      return _debugLog;
     }
   }
 
@@ -618,10 +610,18 @@ class AtSecondaryConfig {
     }
     return null;
   }
+
+  static String? _getStringEnvVar(String envVar) {
+    if (_envVars.containsKey(envVar)) {
+      return _envVars[envVar];
+    }
+    return null;
+  }
 }
 
 dynamic getConfigFromYaml(List<String> args) {
   var yamlMap = ConfigUtil.getYaml();
+  // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
     for (int i = 0; i < args.length; i++) {
@@ -639,6 +639,29 @@ dynamic getConfigFromYaml(List<String> args) {
     throw ElementNotFoundException('Element Not Found in yaml');
   }
   return value;
+}
+
+String? getStringValueFromYaml(List<String> keyParts) {
+  var yamlMap = ConfigUtil.getYaml();
+  // ignore: prefer_typing_uninitialized_variables
+  var value;
+  if (yamlMap != null) {
+    for (int i = 0; i < keyParts.length; i++) {
+      if (i == 0) {
+        value = yamlMap[keyParts[i]];
+      } else {
+        if (value != null) {
+          value = value[keyParts[i]];
+        }
+      }
+    }
+  }
+  // If value not found throw exception
+  if (value == Null || value == null) {
+    return null;
+  } else {
+    return value.toString();
+  }
 }
 
 class ElementNotFoundException extends AtException {

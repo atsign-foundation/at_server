@@ -9,8 +9,7 @@ root_server:
 
 # The @Protocol application log configurations
 log:
-  debug: true
-  trace: true
+  level: FINEST
 
 # The @Protocol security configurations.
 security:
