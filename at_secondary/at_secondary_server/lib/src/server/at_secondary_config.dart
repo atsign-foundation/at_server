@@ -60,7 +60,7 @@ class AtSecondaryConfig {
   static final int? _stats_top_visits = 5;
 
   //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
-  static final String _defaultLogLevel = 'FINEST';
+  static final String _defaultLogLevel = 'INFO';
 
   //root server configurations
   static final String _rootServerUrl = 'root.atsign.org';

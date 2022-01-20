@@ -9,7 +9,7 @@ root_server:
 
 # The @Protocol application log configurations
 log:
-  level: FINEST
+  level: INFO
 
 # The @Protocol security configurations.
 security:
