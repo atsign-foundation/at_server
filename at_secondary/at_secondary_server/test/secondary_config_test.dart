@@ -14,7 +14,7 @@ void main() async {
     });
 
     test('Config: check AtSecondaryConfig.logLevel defaults to FINEST', () async {
-      expect (AtSecondaryConfig.logLevel.trim().toUpperCase(), equals(logging.Level.FINEST.name.trim().toUpperCase()));
+      expect (AtSecondaryConfig.logLevel.trim().toUpperCase(), equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
 
     test('Config: check new AtSignLoggers have level set correctly, via setting AtSignLogger.root_level from a string config setting', () async {
