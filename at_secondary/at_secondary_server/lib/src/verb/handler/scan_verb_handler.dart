@@ -134,8 +134,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
     } else {
       // When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
-        keys.removeWhere((key) => _isPrivateKeyForAtSign(key,
-            fromAtSign: atConnectionMetadata.fromAtSign));
+        // TODO: Refactor along with atKey and Scan refactoring.
+        keys.removeWhere((key) =>
+            key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ==
+                false ||
+            key.toString().startsWith('public:_'));
         // Remove the atSigns from the inbound connection
         // keys and add the modified key to the list.
         // @murali:phone@sitaram => phone@sitaram
@@ -146,7 +149,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         }
       } else {
         // When pol is not performed, display only public keys
-        keys.removeWhere((key) => _isPrivateKeyForAtSign(key));
+        keys.removeWhere((key) => _getNonPublicKeys(key));
         for (var key in keys) {
           var modifiedKey = key.toString().replaceAll('public:', '');
           keysList.add(modifiedKey);
@@ -156,14 +159,21 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return keysList;
   }
 
-  /// Checks if a key starts with `public:`, `public:_`, `private:`, `privatekey:` given.
+  /// Checks if a key starts with `public:_`.
   /// [key] : The key to check.
-  /// [fromAtSign] : From atsign of the key.
   /// Returns true if key starts with pattern, else false.
-  bool _isPrivateKeyForAtSign(String key, {String? fromAtSign}) {
-    return key.toString().startsWith('$fromAtSign:') ||
-        key.toString().startsWith('public:') ||
-        key.toString().startsWith('private:') ||
+  bool _getNonPublicKeys(String key) {
+    return key.toString().startsWith('public:_') ||
+        !key.toString().startsWith('public:');
+  }
+
+  /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.
+  /// [key] : The key to check.
+  /// Returns true if key starts with pattern, else false.
+  bool _isPrivateKeyForAtSign(
+    String key,
+  ) {
+    return key.toString().startsWith('private:') ||
         key.toString().startsWith('privatekey:') ||
         key.toString().startsWith('public:_');
   }
