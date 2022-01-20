@@ -8,6 +8,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
+import 'package:at_commons/at_commons.dart';
 
 class InboundMetricImpl implements MetricProvider {
   static final InboundMetricImpl _singleton = InboundMetricImpl._internal();
@@ -383,5 +384,92 @@ class KeyStorageMetricImpl implements MetricProvider {
   @override
   String getName() {
     return 'atSign';
+  }
+}
+
+class CommitLogCompactionStats implements MetricProvider {
+  static final CommitLogCompactionStats _singleton =
+      CommitLogCompactionStats.internal();
+
+  CommitLogCompactionStats.internal();
+
+  factory CommitLogCompactionStats.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  getMetrics({String? regex}) async {
+    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(
+            AtSecondaryServerImpl.getInstance().currentAtSign)
+        ?.getSecondaryKeyStore();
+    AtData? atData = await keyStore?.get(commitLogCompactionKey);
+    if (atData == null && atData?.data == null) {
+      return jsonEncode({});
+    }
+    return atData?.data;
+  }
+
+  @override
+  String getName() {
+    return 'CommitLogCompactionStats';
+  }
+}
+
+class AccessLogCompactionStats implements MetricProvider {
+  static final AccessLogCompactionStats _singleton =
+      AccessLogCompactionStats._internal();
+
+  AccessLogCompactionStats._internal();
+
+  factory AccessLogCompactionStats.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  getMetrics({String? regex}) async {
+    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(
+            AtSecondaryServerImpl.getInstance().currentAtSign)
+        ?.getSecondaryKeyStore();
+    AtData? atData = await keyStore?.get(accessLogCompactionKey);
+    if (atData == null && atData?.data == null) {
+      return jsonEncode({});
+    }
+    return atData?.data;
+  }
+
+  @override
+  String getName() {
+    return 'AccessLogCompactionStats';
+  }
+}
+
+class NotificationCompactionStats implements MetricProvider {
+  static final NotificationCompactionStats _singleton =
+      NotificationCompactionStats.internal();
+
+  NotificationCompactionStats.internal();
+
+  factory NotificationCompactionStats.getInstance() {
+    return _singleton;
+  }
+
+  @override
+  getMetrics({String? regex}) async {
+    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(
+            AtSecondaryServerImpl.getInstance().currentAtSign)
+        ?.getSecondaryKeyStore();
+    AtData? atData = await keyStore?.get(notificationCompactionKey);
+    if (atData == null && atData?.data == null) {
+      return jsonEncode({});
+    }
+    return atData?.data;
+  }
+
+  @override
+  String getName() {
+    return 'NotificationCompactionStats';
   }
 }
