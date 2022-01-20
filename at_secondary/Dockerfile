@@ -1,4 +1,4 @@
-FROM dart AS buildimage
+FROM dart:2.15.1 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
