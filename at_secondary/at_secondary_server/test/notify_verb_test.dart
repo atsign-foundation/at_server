@@ -139,7 +139,7 @@ void main() {
       var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('ttl', () => '0');
+      notifyVerbParams.putIfAbsent('ttl', () => '-1');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -151,7 +151,7 @@ void main() {
       var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('ttb', () => '0');
+      notifyVerbParams.putIfAbsent('ttb', () => '-1');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
