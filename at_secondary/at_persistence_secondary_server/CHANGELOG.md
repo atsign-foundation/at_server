@@ -1,3 +1,5 @@
+## 3.0.12
+- Changes to support reset of ttb
 ## 3.0.11
 - Enhance commit log compaction service
 ## 3.0.10

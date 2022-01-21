@@ -47,10 +47,10 @@ class AtMetadataBuilder {
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
 
-    if (ttl != null && ttl > 0) {
+    if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
     }
-    if (ttb != null && ttb > 0) {
+    if (ttb != null && ttb >= 0) {
       setTTB(ttb);
     }
     // If TTR is -1, cache the key forever.
@@ -116,6 +116,10 @@ class AtMetadataBuilder {
   }
 
   DateTime? _getExpiresAt(int epochNow, int ttl, {int? ttb}) {
+    //if ttl is zero, reset expires at. The key will not expire
+    if (ttl == 0) {
+      return null;
+    }
     var expiresAt = epochNow + ttl;
     if (ttb != null) {
       expiresAt = expiresAt + ttb;
