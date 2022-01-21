@@ -162,7 +162,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return keysList;
   }
 
-  /// Checks if a key starts with `public:_`.
+  /// Check if a key is not public.
   /// [key] : The key to check.
   /// Returns true if key starts with pattern, else false.
   bool _getNonPublicKeys(String key) {
