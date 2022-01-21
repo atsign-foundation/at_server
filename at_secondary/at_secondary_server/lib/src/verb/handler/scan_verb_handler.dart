@@ -110,7 +110,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Returns the current atsign keys.
+  /// Returns a filtered list of the 
+  /// keys where the filtering 
+  /// depends on the type of authentication 
+  /// on the inbound connection
   ///
   /// **Parameters**
   ///
