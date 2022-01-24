@@ -1,3 +1,5 @@
+## 3.0.13
+- Fix notification expiry bug.
 ## 3.0.12
 - Changes to support reset of ttb
 ## 3.0.11
