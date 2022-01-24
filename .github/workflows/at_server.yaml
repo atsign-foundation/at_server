@@ -434,14 +434,6 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install jproperties ruamel.yaml argparse
 
-      # Generates the config.yaml for staging environment
-      - name: Generates configuration file
-        working-directory: at_secondary/at_secondary_server/config
-        run: |
-          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
-          chmod +x generate_config.py
-          python3 generate_config.py -e environment
-
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
         uses: actions/download-artifact@v2
