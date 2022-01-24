@@ -20,8 +20,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
   ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   /// Verifies whether command is accepted or not
-  /// @param - command: Input to scan verb
-  /// @return - bool: Return true if command is accepted, else false.
+  ///
+  /// [command]: Input to scan verb
+  ///
+  /// Return true if command is accepted, else false.
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.scan));
 
@@ -31,12 +33,15 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scan;
   }
 
-  /// Process scan Verb.
-  /// Process the given command and write response to response object.
+  /// Process scan Verb. Process the given command and write response to response object.
+  ///
+  /// [response] - Holds the response from server and sends to the client.
+  ///
+  /// [verbParams] - Holds the key value pair that matches the regular expression.
+  ///
+  /// [AtConnection] - The connection which invokes the process verb.
+  ///
   /// Throws [UnAuthenticatedException] if forAtSign is not null and connection is not authenticated.
-  /// @param - response - Holds the response from server and sends to the client.
-  /// @param - verbParams - Holds the key value pair that matches the regular expression.
-  /// @param - AtConnection - The connection which invokes the process verb.
   @override
   Future<void> processVerb(
       Response response,
@@ -63,19 +68,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        String keyString;
-        var keys = keyStore!.getKeys(regex: scanRegex) as List<String?>;
-        keyString = _getLocalKeys(atConnectionMetadata, keys);
-        // Apply regex on keyString to remove unnecessary characters and spaces
-        keyString = keyString.replaceFirst(RegExp(r'^\['), '');
-        keyString = keyString.replaceFirst(RegExp(r'\]$'), '');
-        keyString = keyString.replaceAll(', ', ',');
-        response.data = keyString;
-        logger.finer('response.data : ${response.data}');
-        var keysArray = (response.data != null && response.data!.isNotEmpty)
-            ? response.data?.split(',')
-            : [];
-        logger.finer('keysArray : $keysArray, ${keysArray?.length}');
+        List<String> keys = keyStore!.getKeys(regex: scanRegex) as List<String>;
+        List<String> keyString = _getLocalKeys(atConnectionMetadata, keys);
+        // Apply regex on keyString to remove unnecessary characters and spaces.
+        logger.finer('response.data : $keyString');
+        var keysArray = keyString;
+        logger.finer('keysArray : $keysArray, ${keysArray.length}');
         response.data = json.encode(keysArray);
       }
     } on Exception catch (e) {
@@ -86,10 +84,16 @@ class ScanVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches the keys of another user atsign
-  /// @param - forAtSign : The another user atsign to lookup for keys.
-  /// @param - scanRegex : The regular expression to filter the keys
-  /// @param - atConnection : The inbound connection
-  /// @return - Future<String> : The another atsign keys returned.
+  ///
+  /// [forAtSign] : The another user atsign to lookup for keys.
+  ///
+  /// [scanRegex] : The regular expression to filter the keys
+  ///
+  /// [atConnection] : The inbound connection
+  ///
+  /// **Returns**
+  ///
+  /// String : The another atsign keys returned. Returns null if no keys found.
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
@@ -106,43 +110,74 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Returns the current atsign keys.
-  /// @param - atConnectionMetadata: Metadata of the inbound connection
-  /// @param - List<String>: List of keys from the secondary persistent store
-  /// @return - String: Returns the keys of current atsign
-  String _getLocalKeys(
-      InboundConnectionMetadata atConnectionMetadata, List<String?> keys) {
-    var keyString;
+  /// Returns a filtered list of the 
+  /// keys where the filtering 
+  /// depends on the type of authentication 
+  /// on the inbound connection
+  ///
+  /// **Parameters**
+  ///
+  /// [atConnectionMetadata] Metadata of the inbound connection.
+  ///
+  /// [keys] List of keys from the secondary persistent store.
+  ///
+  /// **Returns**
+  ///
+  /// Returns the list of keys of current atsign.
+  List<String> _getLocalKeys(
+      InboundConnectionMetadata atConnectionMetadata, List<String> keys) {
+    List<String> keysList = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
     // If not, get only public keys
     if (atConnectionMetadata.isAuthenticated) {
       //display all keys except private
-      keys.removeWhere((key) =>
-          key.toString().startsWith('privatekey:') ||
-          key.toString().startsWith('public:_') ||
-          key.toString().startsWith('private:'));
-      keyString = keys.toString();
+      keys.removeWhere((key) => _isPrivateKeyForAtSign(key));
+      keysList = keys;
     } else {
-      //When pol is performed, display keys that are private to the atsign.
+      // When pol is performed, display keys that are private to the atsign.
       if (atConnectionMetadata.isPolAuthenticated) {
-        keys.removeWhere((test) =>
-            (test
-                    .toString()
-                    .startsWith('${atConnectionMetadata.fromAtSign}:') ==
-                false) ||
-            test.toString().startsWith('public:_'));
-        keyString = keys
-            .toString()
-            .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+        // TODO: Refactor along with atKey and Scan refactoring.
+        keys.removeWhere((key) =>
+            key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ==
+                false ||
+            key.toString().startsWith('public:_'));
+        // Remove the atSigns from the inbound connection
+        // keys and add the modified key to the list.
+        // @murali:phone@sitaram => phone@sitaram
+        for (var key in keys) {
+          var modifiedKey =
+              key.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+          keysList.add(modifiedKey);
+        }
       } else {
         // When pol is not performed, display only public keys
-        keys.removeWhere((test) =>
-            test.toString().startsWith('public:_') ||
-            !test.toString().startsWith('public:'));
-        keyString = keys.toString().replaceAll('public:', '');
+        keys.removeWhere((key) => _getNonPublicKeys(key));
+        for (var key in keys) {
+          var modifiedKey = key.toString().replaceAll('public:', '');
+          keysList.add(modifiedKey);
+        }
       }
     }
-    return keyString;
+    return keysList;
+  }
+
+  /// Check if a key is not public.
+  /// [key] : The key to check.
+  /// Returns true if key starts with pattern, else false.
+  bool _getNonPublicKeys(String key) {
+    return key.toString().startsWith('public:_') ||
+        !key.toString().startsWith('public:');
+  }
+
+  /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.
+  /// [key] : The key to check.
+  /// Returns true if key starts with pattern, else false.
+  bool _isPrivateKeyForAtSign(
+    String key,
+  ) {
+    return key.toString().startsWith('private:') ||
+        key.toString().startsWith('privatekey:') ||
+        key.toString().startsWith('public:_');
   }
 }

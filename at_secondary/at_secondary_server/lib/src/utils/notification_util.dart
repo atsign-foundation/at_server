@@ -38,7 +38,8 @@ class NotificationUtil {
         ..messageType = messageType
         ..atValue = value
         ..notificationStatus = notificationStatus;
-      if (ttl_ms != null) {
+      //setting ttl only when it has a valid value
+      if (ttl_ms != null && ttl_ms > 0) {
         notificationBuilder.ttl = ttl_ms;
         notificationBuilder.expiresAt =
             DateTime.now().toUtc().add(Duration(milliseconds: ttl_ms));
