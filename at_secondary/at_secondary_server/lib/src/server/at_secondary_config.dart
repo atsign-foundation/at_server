@@ -78,10 +78,10 @@ class AtSecondaryConfig {
 
   //version
   static final String? _secondaryServerVersion =
-  (ConfigUtil.getPubspecConfig() != null &&
-      ConfigUtil.getPubspecConfig()!['version'] != null)
-      ? ConfigUtil.getPubspecConfig()!['version']
-      : null;
+      (ConfigUtil.getPubspecConfig() != null &&
+              ConfigUtil.getPubspecConfig()!['version'] != null)
+          ? ConfigUtil.getPubspecConfig()!['version']
+          : null;
 
   static final Map<String, String> _envVars = Platform.environment;
 
@@ -92,9 +92,9 @@ class AtSecondaryConfig {
   // TODO: Low priority: Lots of very similar boilerplate code here. Not necessarily bad in this particular case, but
   //  could be terser as per the logLevel getter
   static String get logLevel {
-    return _getStringEnvVar('logLevel')
-      ?? getStringValueFromYaml(['log', 'level'])
-      ?? _defaultLogLevel;
+    return _getStringEnvVar('logLevel') ??
+        getStringValueFromYaml(['log', 'level']) ??
+        _defaultLogLevel;
   }
 
   static bool? get useSSL {
