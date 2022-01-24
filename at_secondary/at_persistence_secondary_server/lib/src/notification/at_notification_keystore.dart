@@ -123,27 +123,32 @@ class AtNotificationKeystore
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
-        if (value?.expiresAt == null && DateTime.now().toUtc().difference(value!.notificationDateTime!).inHours >= _notificationExpiryInHours) {
+        if (value?.expiresAt == null &&
+            DateTime.now()
+                    .toUtc()
+                    .difference(value!.notificationDateTime!)
+                    .inHours >=
+                _notificationExpiryInHours) {
           var newNotification = (AtNotificationBuilder()
-            ..id = value.id
-            ..fromAtSign = value.fromAtSign
-            ..notificationDateTime = value.notificationDateTime
-            ..toAtSign = value.toAtSign
-            ..notification = value.notification
-            ..type = value.type
-            ..opType = value.opType
-            ..messageType = value.messageType
-            ..expiresAt = value.notificationDateTime
-            ..priority = value.priority
-            ..notificationStatus = value.notificationStatus
-            ..retryCount = value.retryCount
-            ..strategy = value.strategy
-            ..notifier = value.notifier
-            ..depth = value.depth
-            ..atValue = value.atValue
-            ..atMetaData = value.atMetadata
-            ..ttl = value.ttl
-          ).build();
+                ..id = value.id
+                ..fromAtSign = value.fromAtSign
+                ..notificationDateTime = value.notificationDateTime
+                ..toAtSign = value.toAtSign
+                ..notification = value.notification
+                ..type = value.type
+                ..opType = value.opType
+                ..messageType = value.messageType
+                ..expiresAt = value.notificationDateTime
+                ..priority = value.priority
+                ..notificationStatus = value.notificationStatus
+                ..retryCount = value.retryCount
+                ..strategy = value.strategy
+                ..notifier = value.notifier
+                ..depth = value.depth
+                ..atValue = value.atValue
+                ..atMetaData = value.atMetadata
+                ..ttl = value.ttl)
+              .build();
           put(key, newNotification);
         }
       });

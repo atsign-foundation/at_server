@@ -1,7 +1,7 @@
-import 'package:test/test.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:logging/logging.dart' as logging;
+import 'package:test/test.dart';
 
 void main() async {
   group('A group of secondary config test', () {
@@ -13,15 +13,18 @@ void main() async {
       expect(AtSecondaryConfig.rootServerPort is int, true);
     });
 
-    test('Config: check AtSecondaryConfig.logLevel defaults to FINEST', () async {
-      expect (AtSecondaryConfig.logLevel.trim().toUpperCase(), equals(logging.Level.INFO.name.trim().toUpperCase()));
+    test('Config: check AtSecondaryConfig.logLevel defaults to FINEST',
+        () async {
+      expect(AtSecondaryConfig.logLevel.trim().toUpperCase(),
+          equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
 
-    test('Config: check new AtSignLoggers have level set correctly, via setting AtSignLogger.root_level from a string config setting', () async {
+    test(
+        'Config: check new AtSignLoggers have level set correctly, via setting AtSignLogger.root_level from a string config setting',
+        () async {
       AtSignLogger.root_level = 'wARNinG';
       AtSignLogger atLogger = AtSignLogger('test');
-      expect (atLogger.logger.level, equals(logging.Level.WARNING));
+      expect(atLogger.logger.level, equals(logging.Level.WARNING));
     });
-
   });
 }

@@ -110,9 +110,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Returns a filtered list of the 
-  /// keys where the filtering 
-  /// depends on the type of authentication 
+  /// Returns a filtered list of the
+  /// keys where the filtering
+  /// depends on the type of authentication
   /// on the inbound connection
   ///
   /// **Parameters**

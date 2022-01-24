@@ -632,7 +632,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -653,7 +653,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-      atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
