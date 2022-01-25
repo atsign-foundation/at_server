@@ -354,11 +354,24 @@ void main() {
       expect(paramsMap[AT_SIGN], 'alice');
       expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
     });
+
+    test('adding 0 ttl and ttb to the update verb with public key', () {
+      var verb = Update();
+      var command = 'UpDaTe:ttl:0:ttb:0:public:location@alice Hyderabad,TG';
+      command = SecondaryUtil.convertCommand(command);
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      expect(paramsMap[AT_TTL], '0');
+      expect(paramsMap[AT_TTB], '0');
+      expect(paramsMap[AT_KEY], 'location');
+      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+    });
   });
 
   group('group of negative tests around ttl and ttb', () {
-    test('ttl starting with 00', () {
-      var command = 'UpDaTe:ttl:00:@bob:location@alice Hyderabad,TG';
+    test('ttl starting with -1', () {
+      var command = 'UpDaTe:ttl:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -369,19 +382,12 @@ void main() {
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      var response = Response();
-      var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
-              e.message ==
-                  'Valid value for TTL should be greater than or equal to 1')));
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
-    test('ttb starting with 0', () {
-      var command = 'UpDaTe:ttb:00:@bob:location@alice Hyderabad,TG';
+    test('ttb starting with -1', () {
+      var command = 'UpDaTe:ttb:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -392,25 +398,15 @@ void main() {
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      var response = Response();
-      var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
-          throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
-              e.message ==
-                  'Valid value for TTB should be greater than or equal to 1')));
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
-    test('ttl and ttb starting with 0', () {
-      var command = 'UpDaTe:ttl:00:ttb:00:@bob:location@alice Hyderabad,TG';
+    test('ttl and ttb starting with negative value -1', () {
+      var command = 'UpDaTe:ttl:-1:ttb:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      var response = Response();
-      var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
-      expect(() => handler.processVerb(response, verbParams, atConnection),
+      expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
@@ -630,6 +626,69 @@ void main() {
       await localLookupVerbHandler.processVerb(
           localLookUpResponse_ttl, localLookVerbParam, atConnection);
       expect(localLookUpResponse_ttl.data, null);
+    });
+
+    test('Test to verify reset of TTB', () async {
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      var secretData = AtData();
+      secretData.data =
+      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      await keyStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var fromVerbParams = HashMap<String, String>();
+      fromVerbParams.putIfAbsent('atSign', () => 'alice');
+      var response = Response();
+      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
+      var fromResponse = response.data!.replaceFirst('data:', '');
+      var cramVerbParams = HashMap<String, String>();
+      var combo = '${secretData.data}$fromResponse';
+      var bytes = utf8.encode(combo);
+      var digest = sha512.convert(bytes);
+      cramVerbParams.putIfAbsent('digest', () => digest.toString());
+      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var cramResponse = Response();
+      await cramVerbHandler.processVerb(
+          cramResponse, cramVerbParams, atConnection);
+      var connectionMetadata =
+      atConnection.getMetaData() as InboundConnectionMetadata;
+      expect(connectionMetadata.isAuthenticated, true);
+      expect(cramResponse.data, 'success');
+      //Update Verb
+      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateResponse = Response();
+      var updateVerbParams = HashMap<String, String>();
+      updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
+      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
+      updateVerbParams.putIfAbsent(AT_TTB, () => '60000');
+      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      await updateVerbHandler.processVerb(
+          updateResponse, updateVerbParams, atConnection);
+      //LLOOKUP Verb - TTB
+      var localLookUpResponse = Response();
+      var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
+      var localLookVerbParam = HashMap<String, String>();
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      await localLookupVerbHandler.processVerb(
+          localLookUpResponse, localLookVerbParam, atConnection);
+      expect(localLookUpResponse.data, null);
+      //Reset TTB
+      updateVerbParams = HashMap<String, String>();
+      updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
+      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
+      updateVerbParams.putIfAbsent(AT_TTB, () => '0');
+      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      await updateVerbHandler.processVerb(
+          updateResponse, updateVerbParams, atConnection);
+      //LLOOKUP Verb - After TTB
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      await localLookupVerbHandler.processVerb(
+          localLookUpResponse, localLookVerbParam, atConnection);
+      expect(localLookUpResponse.data, 'hyderabad');
     });
   });
   tearDown(() async => await tearDownFunc());
