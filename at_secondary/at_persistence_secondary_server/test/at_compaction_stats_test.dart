@@ -46,7 +46,7 @@ Future<void> main() async {
     expect(decodedData["size_before_compaction"].toString(), '69');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 12).toString());
-    expect(decodedData['compaction_type'.toString()],
+    expect(decodedData['compaction_type'].toString(),
         CompactionType.TimeBasedCompaction.toString());
   });
 
@@ -69,7 +69,7 @@ Future<void> main() async {
     expect(decodedData["size_before_compaction"].toString(), '44');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 10).toString());
-    expect(decodedData['compaction_type'.toString()],
+    expect(decodedData['compaction_type'].toString(),
         CompactionType.SizeBasedCompaction.toString());
   });
 
@@ -93,7 +93,7 @@ Future<void> main() async {
     expect(decodedData["size_before_compaction"].toString(), '404');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 36).toString());
-    expect(decodedData['compaction_type'.toString()],
+    expect(decodedData['compaction_type'].toString(),
         CompactionType.SizeBasedCompaction.toString());
   });
 
