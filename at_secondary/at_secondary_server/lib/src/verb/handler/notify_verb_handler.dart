@@ -88,7 +88,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     try {
       ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-      ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+      if (verbParams[AT_TTL_NOTIFICATION] == null || verbParams[AT_TTL_NOTIFICATION] == '0') {
+        ttln_ms = Duration(hours: 24).inMilliseconds;
+      } else {
+        ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+      }
       ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       if (verbParams[AT_TTR] != null) {
         ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
