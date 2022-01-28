@@ -90,7 +90,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     var result = await keyStore!.putMeta(key, atMetaData);
     response.data = result?.toString();
     // If forAtSign is null, do not auto notify
-    if (forAtSign == null) {
+    if (forAtSign == null || forAtSign.isEmpty) {
       return;
     }
     if (AUTO_NOTIFY! && (atSign != forAtSign)) {
@@ -104,7 +104,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   }
 
   String _constructKey(String? key, String? forAtSign, String? atSign) {
-    if (forAtSign != null) {
+    if (forAtSign != null && forAtSign.isNotEmpty) {
       key = '$forAtSign:$key';
     }
     key = '$key$atSign';
@@ -113,7 +113,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
 
   void _notify(forAtSign, atSign, key, priority, AtMetaData? atMetaData) {
     if (forAtSign == null) {
-      return null;
+      return;
     }
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
