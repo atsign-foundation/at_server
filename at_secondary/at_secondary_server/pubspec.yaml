@@ -16,7 +16,7 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.12
+  at_persistence_secondary_server: ^3.0.13
   at_lookup: ^3.0.5
   at_server_spec: ^3.0.1
 
