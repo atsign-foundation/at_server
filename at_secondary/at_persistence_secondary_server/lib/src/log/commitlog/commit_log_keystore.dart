@@ -197,7 +197,7 @@ class CommitLogKeyStore
 
   Future<List> getDuplicateEntries() async {
     var commitLogMap = await toMap();
-    //commitLogMap.removeWhere((key, value) => value.commitId == null);
+    //defensive fix for commit entries with commitId equal to null
     commitLogMap.forEach((key, value) {
       if (value.commitId == null) {
         commitLogMap.remove(key);
