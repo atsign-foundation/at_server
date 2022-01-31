@@ -197,6 +197,7 @@ class CommitLogKeyStore
 
   Future<List> getDuplicateEntries() async {
     var commitLogMap = await toMap();
+    commitLogMap.removeWhere((key, value) => value.commitId == null);
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
