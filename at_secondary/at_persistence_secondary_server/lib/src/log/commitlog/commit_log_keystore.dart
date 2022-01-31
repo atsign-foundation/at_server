@@ -201,8 +201,8 @@ class CommitLogKeyStore
     commitLogMap.forEach((key, value) {
       if (value.commitId == null) {
         commitLogMap.remove(key);
-        _logger.severe('Commit ID is null for key: $key');
-        throw Exception('CommitId is null for key: $key');
+        _logger.severe('Commit ID is null for $value');
+        throw Exception('CommitId cannot be null');
       }
     });
     var sortedKeys = commitLogMap.keys.toList(growable: false)
