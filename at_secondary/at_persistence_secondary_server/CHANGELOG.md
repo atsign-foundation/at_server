@@ -1,3 +1,8 @@
+## 3.0.14
+- Fix commit log compaction issue.
+## 3.0.13
+- at_utils and at_commons version upgrade.
+- Fix notification expiry bug.
 ## 3.0.12
 - Changes to support reset of ttb
 ## 3.0.11
