@@ -8,8 +8,7 @@ import 'package:at_utils/at_logger.dart';
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late var _keyStore;
 
-  AtCompactionStatsServiceImpl(this.atLogType, [this._keyStore]) {
-    _keyStore ??= SecondaryKeyStoreManager().getKeyStore();
+  AtCompactionStatsServiceImpl(this.atLogType, this._keyStore) {
     _getKey();
   }
 

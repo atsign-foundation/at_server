@@ -20,12 +20,15 @@ class AtCompactionService {
   ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
   Future<void> executeCompaction(
-      AtCompactionConfig atCompactionConfig, AtLogType atLogType) async {
+      AtCompactionConfig atCompactionConfig,
+      AtLogType atLogType,
+      SecondaryPersistenceStore secondaryPersistenceStore) async {
     var timeBasedCompactionConfigured =
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
-    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(atLogType);
+    atCompactionStatsServiceImpl =
+        AtCompactionStatsServiceImpl(atLogType, secondaryPersistenceStore);
 
     // Check if any of the compaction strategy's configured.
     // If none of the are configured return.
