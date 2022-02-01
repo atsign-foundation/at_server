@@ -30,7 +30,7 @@ Future<void> main() async {
   test("verify accessLog stats in keystore", () async {
     AtCompactionStats atCompactionStats = AtCompactionStats();
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atAccessLog!, keyStore);
+        AtCompactionStatsServiceImpl(atAccessLog!, secondaryPersistenceStore);
     atCompactionStats.compactionDuration = Duration(minutes: 12);
     atCompactionStats.deletedKeysCount = 77;
     atCompactionStats.lastCompactionRun = DateTime.now();
@@ -53,7 +53,7 @@ Future<void> main() async {
   test("verify commitLog stats in keystore", () async {
     AtCompactionStats atCompactionStats = AtCompactionStats();
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atCommitLog!, keyStore);
+        AtCompactionStatsServiceImpl(atCommitLog!, secondaryPersistenceStore);
     atCompactionStats.compactionDuration = Duration(minutes: 10);
     atCompactionStats.deletedKeysCount = 23;
     atCompactionStats.lastCompactionRun = DateTime.now();
@@ -76,7 +76,7 @@ Future<void> main() async {
   test("verify notificationKeyStore stats in keystore", () async {
     AtCompactionStats atCompactionStats = AtCompactionStats();
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, keyStore);
+        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, secondaryPersistenceStore);
     atCompactionStats.compactionDuration = Duration(minutes: 36);
     atCompactionStats.deletedKeysCount = 239;
     atCompactionStats.lastCompactionRun = DateTime.now();
@@ -99,7 +99,7 @@ Future<void> main() async {
 
   test("check commitLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atCommitLog!, keyStore);
+        AtCompactionStatsServiceImpl(atCommitLog!, secondaryPersistenceStore);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:commitLogCompactionStats");
@@ -107,7 +107,7 @@ Future<void> main() async {
 
   test("check accessLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atAccessLog!, keyStore);
+        AtCompactionStatsServiceImpl(atAccessLog!, secondaryPersistenceStore);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:accessLogCompactionStats");
@@ -115,7 +115,7 @@ Future<void> main() async {
 
   test("check notification compactionStats key", () async {
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, keyStore);
+        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, secondaryPersistenceStore);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:notificationCompactionStats");

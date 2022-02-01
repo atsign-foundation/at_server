@@ -6,10 +6,12 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_utils/at_logger.dart';
 
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
+  late SecondaryPersistenceStore _secondaryPersistenceStore;
   late var _keyStore;
 
-  AtCompactionStatsServiceImpl(this.atLogType, this._keyStore) {
+  AtCompactionStatsServiceImpl(this.atLogType, this._secondaryPersistenceStore) {
     _getKey();
+    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore();
   }
 
   late AtLogType atLogType;
