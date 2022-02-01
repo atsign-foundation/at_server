@@ -11,7 +11,6 @@ import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:uuid/uuid.dart';
 
 void main() {
   var storageDir = Directory.current.path + '/test/hive';
@@ -232,43 +231,46 @@ void main() {
   });
   group('A group of tests on expiry ', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
-    test('A test to verify notify list does not return expired entries - 1 expired entry', () async {
+    test(
+        'A test to verify notify list does not return expired entries - 1 expired entry',
+        () async {
       var notifyListVerbHandler =
-      NotifyListVerbHandler(keyStoreManager.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
-        ..id = '122'
-        ..fromAtSign = '@test_user_1'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = '@bob'
-        ..notification = 'key-2'
-        ..type = NotificationType.received
-        ..opType = OperationType.update
-        ..messageType = MessageType.key
-        ..expiresAt = null
-        ..priority = NotificationPriority.low
-        ..notificationStatus = NotificationStatus.queued
-        ..retryCount = 0
-        ..strategy = 'latest'
-        ..notifier = 'persona'
-        ..depth = 3..ttl=100)
+            ..id = '122'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = '@bob'
+            ..notification = 'key-2'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..ttl = 100)
           .build();
 
       var notification2 = (AtNotificationBuilder()
-        ..id = '125'
-        ..fromAtSign = '@test_user_1'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = '@bob'
-        ..notification = 'key-3'
-        ..type = NotificationType.received
-        ..opType = OperationType.update
-        ..messageType = MessageType.key
-        ..expiresAt = null
-        ..priority = NotificationPriority.low
-        ..notificationStatus = NotificationStatus.queued
-        ..retryCount = 0
-        ..strategy = 'latest'
-        ..notifier = 'persona'
-        ..depth = 3)
+            ..id = '125'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = '@bob'
+            ..notification = 'key-3'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3)
           .build();
 
       await AtNotificationKeystore.getInstance().put('122', notification1);
@@ -295,43 +297,46 @@ void main() {
       await AtNotificationKeystore.getInstance().remove('125');
     });
 
-    test('A test to verify notify list expired entries - No expired entry', () async {
+    test('A test to verify notify list expired entries - No expired entry',
+        () async {
       var notifyListVerbHandler =
-      NotifyListVerbHandler(keyStoreManager.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
-        ..id = '122'
-        ..fromAtSign = '@test_user_1'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = '@bob'
-        ..notification = 'key-2'
-        ..type = NotificationType.received
-        ..opType = OperationType.update
-        ..messageType = MessageType.key
-        ..expiresAt = null
-        ..priority = NotificationPriority.low
-        ..notificationStatus = NotificationStatus.queued
-        ..retryCount = 0
-        ..strategy = 'latest'
-        ..notifier = 'persona'
-        ..depth = 3..ttl=60000)
+            ..id = '122'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = '@bob'
+            ..notification = 'key-2'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..ttl = 60000)
           .build();
 
       var notification2 = (AtNotificationBuilder()
-        ..id = '125'
-        ..fromAtSign = '@test_user_1'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = '@bob'
-        ..notification = 'key-3'
-        ..type = NotificationType.received
-        ..opType = OperationType.update
-        ..messageType = MessageType.key
-        ..expiresAt = null
-        ..priority = NotificationPriority.low
-        ..notificationStatus = NotificationStatus.queued
-        ..retryCount = 0
-        ..strategy = 'latest'
-        ..notifier = 'persona'
-        ..depth = 3..ttl=70000)
+            ..id = '125'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = '@bob'
+            ..notification = 'key-3'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..ttl = 70000)
           .build();
 
       await AtNotificationKeystore.getInstance().put('122', notification1);
@@ -353,7 +358,7 @@ void main() {
       var result = jsonDecode(response.data!);
       print(result);
       expect(result.length, 2);
-      expect(result[0]['id'],'122');
+      expect(result[0]['id'], '122');
       expect(result[1]['id'], '125');
       await AtNotificationKeystore.getInstance().remove('122');
       await AtNotificationKeystore.getInstance().remove('125');

@@ -361,8 +361,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// Returns true if key exists in [HiveKeystore]; else false.
   @override
   bool isKeyExists(String key) {
-    var result = persistenceManager.getBox().containsKey(key);
-    return result;
+    return persistenceManager
+        .getBox()
+        .containsKey(keyStoreHelper.prepareKey(key));
   }
 
   ///Restarts the hive box.

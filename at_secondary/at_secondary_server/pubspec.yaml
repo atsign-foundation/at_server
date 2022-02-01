@@ -16,7 +16,7 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.12
+  at_persistence_secondary_server: ^3.0.13
   at_lookup: ^3.0.5
   at_server_spec: ^3.0.1
 
@@ -26,11 +26,11 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
       ref: compaciton_statistics_new
-#  at_utils:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_utils
-#      ref: trunk
+#   at_utils:
+#     git:
+#       url: https://github.com/atsign-foundation/at_tools.git
+#       path: at_utils
+#       ref: reset_ttl_ttb
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
