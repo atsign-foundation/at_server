@@ -145,7 +145,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(
         _commitLog,
-        SecondaryPersistenceStoreFactory.getInstance()
+        await SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(currentAtSign));
     var atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
@@ -158,7 +158,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(
         _accessLog,
-        SecondaryPersistenceStoreFactory.getInstance()
+        await SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(currentAtSign));
     var atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB!,
@@ -171,7 +171,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(),
-        SecondaryPersistenceStoreFactory.getInstance()
+        await SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(currentAtSign));
     var atNotificationCompactionConfig = AtCompactionConfig(
         AtSecondaryConfig.notificationKeyStoreSizeInKB!,
