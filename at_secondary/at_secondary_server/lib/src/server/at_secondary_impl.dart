@@ -79,6 +79,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
+  late SecondaryPersistenceStore _secondaryPersistenceStore;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -142,11 +143,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
+    _secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(currentAtSign)!;
+
     //Commit Log Compaction
-    commitLogCompactionJobInstance = AtCompactionJob(
-        _commitLog,
-        await SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(currentAtSign));
+    commitLogCompactionJobInstance =
+        AtCompactionJob(_commitLog, _secondaryPersistenceStore);
     var atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
         commitLogExpiryInDays!,
@@ -156,10 +158,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
-    accessLogCompactionJobInstance = AtCompactionJob(
-        _accessLog,
-        await SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(currentAtSign));
+    accessLogCompactionJobInstance =
+        AtCompactionJob(_accessLog, _secondaryPersistenceStore);
     var atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB!,
         accessLogExpiryInDays!,
@@ -170,9 +170,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
-        AtNotificationKeystore.getInstance(),
-        await SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(currentAtSign));
+        AtNotificationKeystore.getInstance(), _secondaryPersistenceStore);
     var atNotificationCompactionConfig = AtCompactionConfig(
         AtSecondaryConfig.notificationKeyStoreSizeInKB!,
         AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
