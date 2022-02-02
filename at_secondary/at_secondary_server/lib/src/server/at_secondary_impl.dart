@@ -394,7 +394,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins!);
+    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    final expiryRunRandomMins =
+        (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    manager.scheduleKeyExpireTask(expiryRunRandomMins);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
