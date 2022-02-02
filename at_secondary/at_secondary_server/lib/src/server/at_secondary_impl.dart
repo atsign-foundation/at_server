@@ -397,6 +397,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
     manager.scheduleKeyExpireTask(expiryRunRandomMins);
 
     var atData = AtData();
