@@ -313,12 +313,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
     } on Exception catch (e, trace) {
-      print(trace);
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
     } on Error catch (e, trace) {
-      print(trace);
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
@@ -326,9 +324,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:$streamId');
+    logger.finer('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
