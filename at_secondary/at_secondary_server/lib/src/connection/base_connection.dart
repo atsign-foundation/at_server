@@ -21,15 +21,10 @@ abstract class BaseConnection extends AtConnection {
 
   @override
   Future<void> close() async {
-    // Some defensive code just in case we accidentally call close multiple times
-    if (getMetaData().isClosed) {
-      return;
-    }
-
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
-      _socket!.destroy();
+      await _socket!.close();
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {
