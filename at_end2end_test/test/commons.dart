@@ -28,7 +28,7 @@ void clear() {
 ///Secure Socket Connection
 Future<SecureSocket> secure_socket_connection(var host, var port) async {
   var socket;
-  while (retryCount > maxRetryCount) {
+  while (retryCount < maxRetryCount) {
     try {
       socket = await SecureSocket.connect(host, port);
       if (socket != null) {
