@@ -26,16 +26,16 @@ void clear() {
 }
 
 ///Secure Socket Connection
-Future<SecureSocket> secure_socket_connection(host, port) async {
+Future<SecureSocket> secure_socket_connection(var host, var port) async {
   var socket;
-  while (true) {
+  while (retryCount > maxRetryCount) {
     try {
       socket = await SecureSocket.connect(host, port);
-      if (socket != null || retryCount > maxRetryCount) {
+      if (socket != null) {
         break;
       }
     } on Exception {
-      print('retrying for connection.. $retryCount');
+      print('retrying "$host:$port" for connection.. $retryCount');
       await Future.delayed(Duration(seconds: 5));
       retryCount++;
     }
