@@ -5,8 +5,8 @@ import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
   //Certs
-  static bool? _useSSL = true;
-  static bool? _clientCertificateRequired = true;
+  static final bool? _useSSL = true;
+  static final bool? _clientCertificateRequired = true;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
@@ -14,50 +14,53 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
-  static String? _storagePath = 'storage/hive';
-  static String? _commitLogPath = 'storage/commitLog';
-  static String? _accessLogPath = 'storage/accessLog';
-  static String? _notificationStoragePath = 'storage/notificationLog.v1';
-  static int? _expiringRunFreqMins = 10;
+  static final String? _storagePath = 'storage/hive';
+  static final String? _commitLogPath = 'storage/commitLog';
+  static final String? _accessLogPath = 'storage/accessLog';
+  static final String? _notificationStoragePath = 'storage/notificationLog.v1';
+  static final int? _expiringRunFreqMins = 10;
 
   //Commit Log
-  static int? _commitLogCompactionFrequencyMins = 30;
-  static int? _commitLogCompactionPercentage = 20;
-  static int? _commitLogExpiryInDays = 15;
-  static int? _commitLogSizeInKB = 2;
+  static final int? _commitLogCompactionFrequencyMins = 30;
+  static final int? _commitLogCompactionPercentage = 20;
+  static final int? _commitLogExpiryInDays = 15;
+  static final int? _commitLogSizeInKB = 2;
 
   //Access Log
-  static int? _accessLogCompactionFrequencyMins = 15;
-  static int? _accessLogCompactionPercentage = 30;
-  static int? _accessLogExpiryInDays = 15;
-  static int? _accessLogSizeInKB = 2;
+  static final int? _accessLogCompactionFrequencyMins = 15;
+  static final int? _accessLogCompactionPercentage = 30;
+  static final int? _accessLogExpiryInDays = 15;
+  static final int? _accessLogSizeInKB = 2;
 
   //Notification
   static final int _maxNotificationRetries = 5;
-  static int? _maxNotificationEntries = 5;
-  static bool? _autoNotify = true;
+  static final int? _maxNotificationEntries = 5;
+  static final bool? _autoNotify = true;
   static final int _notificationQuarantineDuration = 10;
   static final int _notificationJobFrequency = 5;
+  static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
+  static final int? _notificationKeyStoreCompactionPercentage = 30;
+  static final int? _notificationKeyStoreExpiryInDays = 1;
+  static final int? _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
   static int? _runRefreshJobHour = 3;
 
   //Connection
-  static int? _inbound_max_limit = 10;
-  static int? _outbound_max_limit = 10;
-  static int? _inbound_idletime_millis = 600000;
-  static int? _outbound_idletime_millis = 600000;
+  static final int? _inbound_max_limit = 10;
+  static final int? _outbound_max_limit = 10;
+  static final int? _inbound_idletime_millis = 600000;
+  static final int? _outbound_idletime_millis = 600000;
 
   //Lookup
-  static int? _lookup_depth_of_resolution = 3;
+  static final int? _lookup_depth_of_resolution = 3;
 
   //Stats
-  static int? _stats_top_keys = 5;
-  static int? _stats_top_visits = 5;
+  static final int? _stats_top_keys = 5;
+  static final int? _stats_top_visits = 5;
 
-  //log configurations
-  static final bool _debugLog = true;
-  static final bool _traceLog = true;
+  //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
+  static final String _defaultLogLevel = 'INFO';
 
   //root server configurations
   static final String _rootServerUrl = 'root.atsign.org';
@@ -83,6 +86,16 @@ class AtSecondaryConfig {
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
+
+  // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
+  //  allow for nulls. Should fix this as has been done for logLevel
+  // TODO: Low priority: Lots of very similar boilerplate code here. Not necessarily bad in this particular case, but
+  //  could be terser as per the logLevel getter
+  static String get logLevel {
+    return _getStringEnvVar('logLevel') ??
+        getStringValueFromYaml(['log', 'level']) ??
+        _defaultLogLevel;
+  }
 
   static bool? get useSSL {
     var result = _getBoolEnvVar('useSSL');
@@ -244,6 +257,58 @@ class AtSecondaryConfig {
     }
   }
 
+  static int? get notificationKeyStoreExpiryInDays {
+    var result = _getIntEnvVar('notificationKeyStoreExpiryInDays');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'expiryInDays']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreExpiryInDays;
+    }
+  }
+
+  static int? get notificationKeyStoreCompactionPercentage {
+    var result = _getIntEnvVar('notificationKeyStoreCompactionPercentage');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'compactionPercentage']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreCompactionPercentage;
+    }
+  }
+
+  static int? get notificationKeyStoreSizeInKB {
+    var result = _getIntEnvVar('notificationKeyStoreInKB');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'sizeInKB']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreSizeInKB;
+    }
+  }
+
+  static int? get notificationKeyStoreCompactionFrequencyMins {
+    var result = _getIntEnvVar('notificationKeyStoreCompactionFrequencyMins');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['notification_keystore_compaction', 'compactionFrequencyMins']);
+    } on ElementNotFoundException {
+      return _notificationKeyStoreCompactionFrequencyMins;
+    }
+  }
+
   static String? get notificationStoragePath {
     if (_envVars.containsKey('notificationStoragePath')) {
       return _envVars['notificationStoragePath'];
@@ -288,6 +353,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
@@ -300,6 +366,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
@@ -312,6 +379,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get outbound_max_limit {
     var result = _getIntEnvVar('outbound_max_limit');
     if (result != null) {
@@ -324,6 +392,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get inbound_max_limit {
     var result = _getIntEnvVar('inbound_max_limit');
     if (result != null) {
@@ -336,6 +405,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get lookup_depth_of_resolution {
     var result = _getIntEnvVar('lookup_depth_of_resolution');
     if (result != null) {
@@ -348,6 +418,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get stats_top_visits {
     var result = _getIntEnvVar('statsTopVisits');
     if (result != null) {
@@ -360,6 +431,7 @@ class AtSecondaryConfig {
     }
   }
 
+  // ignore: non_constant_identifier_names
   static int? get stats_top_keys {
     var result = _getIntEnvVar('statsTopKeys');
     if (result != null) {
@@ -414,30 +486,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
     } on ElementNotFoundException {
       return _certificateChainLocation;
-    }
-  }
-
-  static bool? get traceLog {
-    var result = _getBoolEnvVar('traceLog');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['log', 'trace']);
-    } on ElementNotFoundException {
-      return _traceLog;
-    }
-  }
-
-  static bool? get debugLog {
-    var result = _getBoolEnvVar('debugLog');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['log', 'debug']);
-    } on ElementNotFoundException {
-      return _debugLog;
     }
   }
 
@@ -562,10 +610,18 @@ class AtSecondaryConfig {
     }
     return null;
   }
+
+  static String? _getStringEnvVar(String envVar) {
+    if (_envVars.containsKey(envVar)) {
+      return _envVars[envVar];
+    }
+    return null;
+  }
 }
 
 dynamic getConfigFromYaml(List<String> args) {
   var yamlMap = ConfigUtil.getYaml();
+  // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
     for (int i = 0; i < args.length; i++) {
@@ -583,6 +639,29 @@ dynamic getConfigFromYaml(List<String> args) {
     throw ElementNotFoundException('Element Not Found in yaml');
   }
   return value;
+}
+
+String? getStringValueFromYaml(List<String> keyParts) {
+  var yamlMap = ConfigUtil.getYaml();
+  // ignore: prefer_typing_uninitialized_variables
+  var value;
+  if (yamlMap != null) {
+    for (int i = 0; i < keyParts.length; i++) {
+      if (i == 0) {
+        value = yamlMap[keyParts[i]];
+      } else {
+        if (value != null) {
+          value = value[keyParts[i]];
+        }
+      }
+    }
+  }
+  // If value not found throw exception
+  if (value == Null || value == null) {
+    return null;
+  } else {
+    return value.toString();
+  }
 }
 
 class ElementNotFoundException extends AtException {

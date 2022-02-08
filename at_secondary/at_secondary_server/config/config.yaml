@@ -9,8 +9,7 @@ root_server:
 
 # The @Protocol application log configurations
 log:
-  debug: true
-  trace: true
+  level: INFO
 
 # The @Protocol security configurations.
 security:
@@ -64,7 +63,14 @@ commit_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
   sizeInKB: 10
 
-# The @Protocol access log compaction job configurations.
+# The @Protocol notification keystore compaction job configurations.
+notification_keystore_compaction:
+  compactionFrequencyMins: 60
+  compactionPercentage: 30
+  expiryInDays: 1
+  sizeInKB: -1
+
+# The @Protocol notification keystore compaction job configurations.
 access_log_compaction:
   # The frequent time interval (in minutes) to initiate the access log compaction job service.
   compactionFrequencyMins: 60

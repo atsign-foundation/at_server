@@ -102,9 +102,19 @@ jobs:
         working-directory: ${{ env.secondary-working-directory }}
         run: dart analyze
 
-      - name: Run tests in at_secondary_server
+      - name: Run tests in at_secondary_server, with coverage
         working-directory: ${{ env.secondary-working-directory }}
-        run: dart test --concurrency=1
+        run: dart test --concurrency=1 --coverage="coverage"
+
+      - name: Convert coverage to LCOV format
+        working-directory: ${{ env.secondary-working-directory }}
+        run: pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2.1.0
+        with:
+          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+          file: ${{ env.secondary-working-directory }}/coverage.lcov
 
   # Runs functional tests on at_secondary.
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
@@ -156,7 +166,7 @@ jobs:
         run: cp at_root/at_root_server/root at_functional_test/lib/root/ && cp at_secondary/at_secondary_server/secondary at_functional_test/lib/secondary/
 
       - name: Build docker image
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           file: at_functional_test/lib/Dockerfile
           context: at_functional_test/lib/
@@ -200,7 +210,7 @@ jobs:
   # The job runs end to end tests between the cicd1 and cicd2 VMs
   end2end_tests:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
-    if: ${{ github.event.pull_request.head.repo.fork == false && github.actor!= 'dependabot-preview[bot]'}}
+    if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
     runs-on: ubuntu-latest
 
     steps:
@@ -220,7 +230,7 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -228,7 +238,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           context: at_secondary
@@ -291,7 +301,7 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -313,7 +323,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push for trunk branch
         id: docker_build_trunk
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           context: at_functional_test/lib/
@@ -354,42 +364,15 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      # Install python packages
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install jproperties ruamel.yaml argparse
-
-      # Generates the config.yaml for staging environment
-      - name: Generates configuration file
-        working-directory: at_secondary/at_secondary_server/config
-        run: |
-          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
-          chmod +x generate_config.py
-          python3 generate_config.py -e environment
-
-      # Gets the secondary server binary generated from the above "secondary" job.
-      - name: Get secondary server
-        uses: actions/download-artifact@v2
-        with:
-          name: secondary-server
-          path: at_secondary/at_secondary_server
-
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           context: at_secondary
@@ -434,7 +417,7 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -451,14 +434,6 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install jproperties ruamel.yaml argparse
 
-      # Generates the config.yaml for staging environment
-      - name: Generates configuration file
-        working-directory: at_secondary/at_secondary_server/config
-        run: |
-          echo "root_server.url=${{ secrets.root_server_url }}" >> config-environment.properties
-          chmod +x generate_config.py
-          python3 generate_config.py -e environment
-
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
         uses: actions/download-artifact@v2
@@ -469,7 +444,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           file: ./at_secondary/Dockerfile.observe
@@ -513,7 +488,7 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -521,7 +496,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           context: at_secondary
@@ -556,7 +531,7 @@ jobs:
         uses: docker/setup-buildx-action@v1.6.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1.10.0
+        uses: docker/login-action@v1.12.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -571,7 +546,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v2.7.0
+        uses: docker/build-push-action@v2.9.0
         with:
           push: true
           context: at_secondary

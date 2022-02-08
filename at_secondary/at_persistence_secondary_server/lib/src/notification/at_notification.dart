@@ -56,6 +56,9 @@ class AtNotification {
   @HiveField(16)
   final _atMetadata;
 
+  @HiveField(17)
+  final _ttl;
+
   AtNotification._builder(AtNotificationBuilder atNotificationBuilder)
       : _id = atNotificationBuilder.id,
         _fromAtSign = atNotificationBuilder.fromAtSign,
@@ -73,7 +76,8 @@ class AtNotification {
         _notifier = atNotificationBuilder.notifier,
         _depth = atNotificationBuilder.depth,
         _atValue = atNotificationBuilder.atValue,
-        _atMetadata = atNotificationBuilder.atMetaData;
+        _atMetadata = atNotificationBuilder.atMetaData,
+        _ttl = atNotificationBuilder.ttl;
 
   String? get id => _id;
 
@@ -103,6 +107,9 @@ class AtNotification {
 
   AtMetaData? get atMetadata => _atMetadata;
 
+  /// Time in milliseconds after which the notification will expire
+  int? get ttl => _ttl;
+
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
@@ -120,7 +127,8 @@ class AtNotification {
         'notifier': _notifier,
         'expiresAt': _expiresAt,
         'atValue': _atValue,
-        'atMetadata': _atMetadata
+        'atMetadata': _atMetadata,
+        'ttl': _ttl
       };
 
   @override
@@ -128,11 +136,15 @@ class AtNotification {
     return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
         'notificationDateTime: $_notificationDateTime, '
         'toAtSign:$_toAtSign, notification:$_notification, '
-        'type:$_type, opType:$_opType, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue}';
+        'type:$_type, opType:$_opType, ttl: $_ttl, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
+  }
+
+  bool isExpired() {
+    return _expiresAt != null && _expiresAt.isBefore(DateTime.now().toUtc());
   }
 }
 
-enum NotificationStatus { delivered, errored, queued }
+enum NotificationStatus { delivered, errored, queued, expired }
 
 enum NotificationType { sent, received }
 
@@ -171,7 +183,8 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
           ..notifier = fields[13] as String?
           ..depth = fields[14] as int?
           ..atValue = fields[15] as String?
-          ..atMetaData = fields[16] as AtMetaData?)
+          ..atMetaData = fields[16] as AtMetaData?
+          ..ttl = fields[17] as int?)
         .build();
 
     return atNotification;
@@ -180,7 +193,7 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   @override
   void write(BinaryWriter writer, AtNotification atNotification) {
     writer
-      ..writeByte(17)
+      ..writeByte(18)
       ..writeByte(0)
       ..write(atNotification.id)
       ..writeByte(1)
@@ -214,7 +227,9 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
       ..writeByte(15)
       ..write(atNotification.atValue)
       ..writeByte(16)
-      ..write(atNotification.atMetadata);
+      ..write(atNotification.atMetadata)
+      ..writeByte(17)
+      ..write(atNotification.ttl);
   }
 }
 
@@ -296,6 +311,8 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
         return NotificationStatus.errored;
       case 2:
         return NotificationStatus.queued;
+      case 3:
+        return NotificationStatus.expired;
       default:
         return null;
     }
@@ -312,6 +329,9 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
         break;
       case NotificationStatus.queued:
         writer.writeByte(2);
+        break;
+      case NotificationStatus.expired:
+        writer.writeByte(3);
         break;
       default:
         break;
@@ -394,6 +414,7 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
+  static const int _defaultTTLInHrs = 24;
   String? id = Uuid().v4();
 
   String? fromAtSign;
@@ -426,9 +447,14 @@ class AtNotificationBuilder {
 
   String? atValue;
 
+  int? ttl = Duration(hours: _defaultTTLInHrs).inMilliseconds;
+
   AtMetaData? atMetaData;
 
   AtNotification build() {
+    if ((ttl != null && ttl! > 0) && expiresAt == null) {
+      expiresAt = DateTime.now().toUtc().add(Duration(milliseconds: ttl!));
+    }
     return AtNotification._builder(this);
   }
 }

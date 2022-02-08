@@ -8,6 +8,8 @@ import 'package:at_commons/at_commons.dart';
 ///
 /// Syntax : plookup:<key to lookup>
 /// e.g @bob:plookup:phone@alice - returns public value of alice's phone
+/// Example: plookup:all:country@alice - returns all the details including key, value including the metadata
+/// plookup:meta:country@alice - returns only metadata of the key
 class ProxyLookup extends Verb {
   @override
   String name() => 'plookup';

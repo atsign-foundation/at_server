@@ -78,6 +78,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtRefreshJob atRefreshJob;
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
+  late var notificationKeyStoreCompactionJobInstance;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -132,7 +133,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.info('currentAtSign : $currentAtSign');
 
     //Initializing all the hive instances
-    await _initializeHiveInstances();
+    await _initializePersistentInstances();
 
     //Initializing verb handler manager
     DefaultVerbHandlerManager().init();
@@ -160,6 +161,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
+
+    // Notification keystore compaction
+    notificationKeyStoreCompactionJobInstance =
+        AtCompactionJob(AtNotificationKeystore.getInstance());
+    var atNotificationCompactionConfig = AtCompactionConfig(
+        AtSecondaryConfig.notificationKeyStoreSizeInKB!,
+        AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
+        AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
+        AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
+    await notificationKeyStoreCompactionJobInstance
+        .scheduleCompactionJob(atNotificationCompactionConfig);
 
     // Refresh Cached Keys
     var random = Random();
@@ -301,12 +313,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
     } on Exception catch (e, trace) {
-      print(trace);
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
     } on Error catch (e, trace) {
-      print(trace);
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
@@ -314,9 +324,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:$streamId');
+    logger.finer('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
@@ -354,12 +363,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
-  Future<void> _initializeHiveInstances() async {
+  Future<void> _initializePersistentInstances() async {
     // Initialize commit log
     var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
         commitLogPath: commitLogPath);
     LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
+    atCommitLog!.addEventListener(
+        CommitLogCompactionService(atCommitLog.commitLogKeyStore));
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
@@ -380,7 +391,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins!);
+    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    final expiryRunRandomMins =
+        (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
+    manager.scheduleKeyExpireTask(expiryRunRandomMins);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
@@ -408,9 +423,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await keyStore.put(AT_SIGNING_KEYPAIR_GENERATED, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
-    var signingPrivateKey = await keyStore
-        .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
-    signingKey = signingPrivateKey?.data;
+    try {
+      var signingPrivateKey = await keyStore
+          .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
+      signingKey = signingPrivateKey?.data;
+    } on KeyNotFoundException {
+      logger.info(
+          'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
+    }
     await keyStore.deleteExpiredKeys();
   }
 

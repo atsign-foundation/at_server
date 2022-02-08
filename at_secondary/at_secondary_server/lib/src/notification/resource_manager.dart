@@ -150,6 +150,9 @@ class ResourceManager {
         key = 'ttl:${atMetaData.ttl}:$key';
       }
     }
+    if (atNotification.ttl != null) {
+      key = 'ttln:${atNotification.ttl}:$key';
+    }
     key = 'notifier:${atNotification.notifier}:$key';
     key =
         'messageType:${atNotification.messageType.toString().split('.').last}:$key';

@@ -1,3 +1,18 @@
+## 3.0.15
+- at_utils version upgrade
+## 3.0.14
+- Fix commit log compaction issue.
+## 3.0.13
+- at_utils and at_commons version upgrade.
+- Fix notification expiry bug.
+## 3.0.12
+- Changes to support reset of ttb
+## 3.0.11
+- Enhance commit log compaction service
+## 3.0.10
+- persistence spec version upgrade
+## 3.0.9
+- Added support for notification expiry based on ttl
 ## 3.0.8
 - at_utils and at_commons version upgrade.
 ## 3.0.7

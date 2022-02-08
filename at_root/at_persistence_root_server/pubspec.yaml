@@ -23,5 +23,4 @@ dev_dependencies:
   lints: ^1.0.1
   test: ^1.17.3
   mockito: ^5.0.7
-  # commenting test coverage since null safe version is not available
-#  test_coverage: ^0.4.1
+  coverage: ^1.0.3

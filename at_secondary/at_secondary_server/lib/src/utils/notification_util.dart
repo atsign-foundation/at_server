@@ -1,9 +1,9 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:cron/cron.dart';
 
 /// Util class for Notifications
 class NotificationUtil {
@@ -29,16 +29,23 @@ class NotificationUtil {
       }
       forAtSign = AtUtils.formatAtSign(forAtSign);
       fromAtSign = AtUtils.formatAtSign(fromAtSign);
-      var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = fromAtSign
-            ..toAtSign = forAtSign
-            ..notification = key
-            ..type = notificationType
-            ..opType = operationType
-            ..messageType = messageType
-            ..atValue = value
-            ..notificationStatus = notificationStatus)
-          .build();
+      final notificationBuilder = AtNotificationBuilder()
+        ..fromAtSign = fromAtSign
+        ..toAtSign = forAtSign
+        ..notification = key
+        ..type = notificationType
+        ..opType = operationType
+        ..messageType = messageType
+        ..atValue = value
+        ..notificationStatus = notificationStatus;
+      //setting ttl only when it has a valid value
+      if (ttl_ms != null && ttl_ms > 0) {
+        notificationBuilder.ttl = ttl_ms;
+        notificationBuilder.expiresAt =
+            DateTime.now().toUtc().add(Duration(milliseconds: ttl_ms));
+      }
+
+      var atNotification = notificationBuilder.build();
       var notificationKeyStore = AtNotificationKeystore.getInstance();
       await notificationKeyStore.put(atNotification.id, atNotification);
       return atNotification.id;
