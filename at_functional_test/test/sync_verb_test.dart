@@ -37,8 +37,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync:from:${syncId - 1}:limit:5:$regex');
     response = await read();
     print('sync response is : $response');
-    assert((response.contains('"atKey":"public:twitter$regex$firstAtsign')) &&
-        (!response.contains('"atKey":"public:location$firstAtsign')));
+    assert((response.contains('"atKey":"public:twitter$regex$firstAtsign')));
   });
 
   // sync negative scenario

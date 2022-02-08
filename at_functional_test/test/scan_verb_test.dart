@@ -11,13 +11,7 @@ void main() {
   var firstAtsignPort =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
-  // var secondAtsign =
-  //     ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
-  // var secondAtsignPort =
-  //     ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
-
   Socket? socketFirstAtsign;
-  // Socket? SocketSecondAtsign;
 
   test('Scan verb after authentication', () async {
     var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
@@ -87,6 +81,28 @@ void main() {
     response = await read();
     print('scan verb response : $response');
     expect(response, contains('"public:twitter.me$firstAtsign"'));
+  }, timeout: Timeout(Duration(seconds: 120)));
+
+  test('Scan verb - Displays key with special characters', () async {
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    socketFirstAtsign =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketFirstAtsign!);
+    await prepare(socketFirstAtsign!, firstAtsign);
+
+    ///UPDATE VERB
+    await socket_writer(
+        socketFirstAtsign!, 'update:public:verifying,commas$firstAtsign Working?');
+    var response = await read();
+    print('update verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///SCAN VERB
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response : $response');
+    expect(response, contains('"public:verifying,commas$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   tearDown(() {

@@ -13,8 +13,8 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup: ^3.0.5 
-  at_client: ^3.0.6
+  at_lookup: ^3.0.7 
+  at_client: ^3.0.9
   
 
 # dependency_overrides:

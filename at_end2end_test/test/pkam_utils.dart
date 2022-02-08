@@ -19,7 +19,7 @@ String generatePKAMDigest(String atsign, String challenge) {
 /// Returns the digest of the user.
 String getDigest(String atsign, String key) {
   var secret = cramKeyMap[atsign];
-  secret = secret.trim();
+  secret = secret!.trim();
   var challenge = key;
   challenge = challenge.trim();
   var combo = '$secret$challenge';
