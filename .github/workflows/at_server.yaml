@@ -269,7 +269,7 @@ jobs:
       # Run end to end test
       - name: End to end test
         working-directory: at_end2end_test
-        run: dart run test test/update_verb_test.dart
+        run: dart test --concurrency=1
 
   # This job run's on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
