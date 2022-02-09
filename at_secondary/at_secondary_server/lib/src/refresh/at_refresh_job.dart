@@ -5,11 +5,12 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 
 class AtRefreshJob {
-  final _atSign;
-  var keyStore;
-  late var _cron;
+  final String? _atSign;
+  HiveKeystore? keyStore;
+  late Cron _cron;
 
   AtRefreshJob(this._atSign) {
     var secondaryPersistenceStore =
@@ -21,32 +22,35 @@ class AtRefreshJob {
   final logger = AtSignLogger('AtRefreshJob');
 
   /// Returns the list of cached keys
-  Future<List<dynamic>?> _getCachedKeys() async {
-    var keysList = await keyStore.getKeys(regex: CACHED);
+  Future<List<String>?> _getCachedKeys() async {
+    List<String>? keysList = keyStore?.getKeys(regex: CACHED);
     // If no keys to return
     if (keysList == null) {
       return null;
     }
 
-    var cachedKeys = [];
+    var cachedKeys = <String>[];
     var now = DateTime.now().toUtc();
     var nowInEpoch = now.millisecondsSinceEpoch;
     var itr = keysList.iterator;
     while (itr.moveNext()) {
       var key = itr.current;
-      var metadata = await keyStore.getMeta(key);
-      if (metadata.refreshAt != null &&
-          metadata.refreshAt.millisecondsSinceEpoch > nowInEpoch) {
+      AtMetaData? metadata = await keyStore?.getMeta(key);
+      if (metadata == null || metadata.ttr == -1) {
+        continue;
+      }
+      if (metadata.ttr != -1 &&
+          metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
         continue;
       }
       // If metadata.availableAt is greater is lastRefreshedAtInEpoch, key's TTB is not met.
       if (metadata.availableAt != null &&
-          metadata.availableAt.millisecondsSinceEpoch >= nowInEpoch) {
+          metadata.availableAt!.millisecondsSinceEpoch >= nowInEpoch) {
         continue;
       }
       // If metadata.expiresAt is less than nowInEpoch, key's TTL is expired.
       if (metadata.expiresAt != null &&
-          nowInEpoch >= metadata.expiresAt.millisecondsSinceEpoch) {
+          nowInEpoch >= metadata.expiresAt!.millisecondsSinceEpoch) {
         continue;
       }
       cachedKeys.add(key);
@@ -60,7 +64,7 @@ class AtRefreshJob {
   Future<String?> _lookupValue(String key, {bool isHandShake = true}) async {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
-    var lookupResult;
+    String? lookupResult;
     var outBoundClient = OutboundClientManager.getInstance().getClient(
         atSign, DummyInboundConnection.getInstance(),
         isHandShake: isHandShake)!;
@@ -81,15 +85,18 @@ class AtRefreshJob {
 
   /// Updates the cached key with the new value.
   Future<void> _updateCachedValue(
-      var newValue, var oldValue, var element) async {
-    newValue = newValue.replaceAll('data:', '');
+      String? newValue, AtData? oldValue, var element) async {
+    newValue = newValue?.replaceAll('data:', '');
     // When the value of the lookup key is 'data:null', on trimming 'data:',
     // If new value is 'null' or not equal to old value, update the old value with new value.
-    if (newValue != 'null' && oldValue.data != newValue) {
+    if (newValue != null &&
+        newValue.isNotEmpty &&
+        newValue != 'null' &&
+        oldValue?.data != newValue) {
       var atData = AtData();
       atData.data = newValue;
-      atData.metaData = oldValue.metaData;
-      await keyStore.put(element, atData);
+      atData.metaData = oldValue?.metaData;
+      await keyStore?.put(element, atData);
     }
   }
 
@@ -99,13 +106,13 @@ class AtRefreshJob {
     if (keysToRefresh == null) {
       return;
     }
-    var lookupKey;
+    String lookupKey;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var itr = keysToRefresh.iterator;
     while (itr.moveNext()) {
       var element = itr.current;
       lookupKey = element;
-      var newValue;
+      String? newValue;
       if (lookupKey.startsWith('cached:public:')) {
         lookupKey = lookupKey.replaceAll('cached:public:', '');
         newValue = await _lookupValue(lookupKey, isHandShake: false);
@@ -118,11 +125,11 @@ class AtRefreshJob {
         return;
       }
       logger.finest('lookup value of $lookupKey is $newValue');
-      var oldValue = await keyStore.get(element);
+      var oldValue = await keyStore?.get(element);
       await _updateCachedValue(newValue, oldValue, element);
       //Update the refreshAt date for the next interval.
-      var atMetadata = AtMetadataBuilder(ttr: oldValue.metaData.ttr).build();
-      await keyStore.putMeta(element, atMetadata);
+      var atMetadata = AtMetadataBuilder(ttr: oldValue!.metaData!.ttr).build();
+      await keyStore?.putMeta(element, atMetadata);
     }
   }
 
