@@ -176,6 +176,9 @@ jobs:
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
+      - name: Run PKAM
+        run: docker exec test_virtualenv_1 supervisorctl start pkamLoad
+        
       - name: Check test environment readiness
         working-directory: at_functional_test
         run: dart run test/check_test_env.dart
