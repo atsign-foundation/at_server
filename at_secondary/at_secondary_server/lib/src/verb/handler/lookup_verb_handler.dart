@@ -104,11 +104,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // Form the look up key
     var lookup_key = keyPrefix + key;
     logger.finer('lookup_key in lookupVerbHandler : ' + lookup_key);
+    // If key does not exist in keystore; Do nothing.
+    if (!keyStore!.isKeyExists(lookup_key)) {
+      return;
+    }
     // Find the value for the key from the data store
-    var lookup_data = await keyStore!.get(lookup_key);
-    var isActive = SecondaryUtil.isActiveKey(lookup_data);
+    var lookupData = await keyStore!.get(lookup_key);
+    var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (isActive) {
-      response.data = SecondaryUtil.prepareResponseData(operation, lookup_data);
+      response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
       //Resolving value references to correct values
       if (response.data != null &&
           response.data!.contains(AT_VALUE_REFERENCE)) {
@@ -134,7 +138,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// @param - keyPrefix : The prefix for the key: <atsign> or public.
   Future<String?> resolveValueReference(String value, String keyPrefix) async {
     var resolutionCount = 1;
-    var lookup_value;
+    var lookupValue;
 
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
     while (value.contains(AT_VALUE_REFERENCE) &&
@@ -145,12 +149,16 @@ class LookupVerbHandler extends AbstractVerbHandler {
         keyPrefix = keyPrefix + ':';
       }
       keyToResolve = keyPrefix + keyToResolve;
-      lookup_value = await keyStore!.get(keyToResolve);
-      value = lookup_value?.data;
+      if (keyStore!.isKeyExists(keyToResolve)) {
+        lookupValue = await keyStore!.get(keyToResolve);
+      }
+      value = lookupValue?.data;
       // If the value is null for a private key, searches on public namespace.
       keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookup_value = await keyStore!.get(keyToResolve);
-      value = lookup_value?.data;
+      if (keyStore!.isKeyExists(keyToResolve)) {
+        lookupValue = await keyStore!.get(keyToResolve);
+      }
+      value = lookupValue?.data;
       resolutionCount++;
     }
     return value.contains(AT_VALUE_REFERENCE) ? null : value;
