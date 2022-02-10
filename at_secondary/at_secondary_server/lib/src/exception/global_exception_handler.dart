@@ -48,7 +48,7 @@ class GlobalExceptionHandler {
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||
         exception is AtConnectException ||
-        exception is TimeoutException) {
+        exception is AtTimeoutException) {
       // In case of OutboundConnectionLimitException, LookupException, ConnectionInvalidException
       // SecondaryNotFoundException, HandShakeException, UnAuthorizedException, UnverifiedConnectionException
       // send error code.
