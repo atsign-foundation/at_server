@@ -7,7 +7,8 @@ import 'package:at_end2end_test/conf/config_util.dart';
 
 var response;
 var retryCount = 1;
-var maxRetryCount = 15;
+var maxRetryCount = 18;
+int expiryTimeMS = 10000;
 var firstAtsign =
     ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 var secondAtsign =
@@ -25,9 +26,7 @@ var id;
 void main() {
   setUp(() async {
     var firstAtsignServer =
-        ConfigUtil.
-        
-        getYaml()!['first_atsign_server']['first_atsign_url'];
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -253,6 +252,7 @@ void main() {
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
   });
+
   test('notify verb in an incorrect order', () async {
     /// NOTIFY VERB
     await socket_writer(socketFirstAtsign!,
@@ -346,38 +346,26 @@ void main() {
   test('notify verb with notification expiry for messageType key', () async {
     //   /// NOTIFY VERB
     await socket_writer(socketSecondAtsign!,
-        'notify:update:messageType:key:ttln:10000:ttr:-1:$firstAtsign:message$secondAtsign:Hey!');
+        'notify:update:messageType:key:ttln:8000:ttr:-1:$firstAtsign:message$secondAtsign:Hey!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-  //   // notify status before ttln expiry time
-    await Future.delayed(Duration(seconds: 5));
-    await socket_writer(socketSecondAtsign!, 'notify:status:$id');
-    response = await read();
+    //   // notify status before ttln expiry time
+    await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
-    ///notify:list verb
-    await socket_writer(socketFirstAtsign!, 'notify:list');
-    response = await read();
-    print('notify list verb response : $response');
-    expect(
-        response,
-        contains(
-            '"key":"$firstAtsign:message$secondAtsign","value":"Hey!","operation":"update"'));
-
-  /// notify status after ttln expiry time
-    await Future.delayed(Duration(seconds: 8));
-    await socket_writer(socketSecondAtsign!, 'notify:status:$id');
-    response = await read();
+    /// notify status after ttln expiry time
+    await getNotifyStatus(socketSecondAtsign!, checkExpiry: true);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('notify verb with notification expiry for errored- invalid atsign', () async {
+  test('notify verb with notification expiry for errored- invalid atsign',
+      () async {
     //   /// NOTIFY VERB
     await socket_writer(socketSecondAtsign!,
         'notify:update:messageType:key:ttln:7000:ttr:-1:@xyz:message$secondAtsign:Hey!');
@@ -395,9 +383,7 @@ void main() {
     expect(response, contains('data:errored'));
 
     /// notify status after ttln expiry time
-    await Future.delayed(Duration(seconds: 5));
-    await socket_writer(socketSecondAtsign!, 'notify:status:$id');
-    response = await read();
+    await getNotifyStatus(socketSecondAtsign!, checkExpiry: true);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   }, timeout: Timeout(Duration(seconds: 120)));
@@ -405,7 +391,7 @@ void main() {
   test('notify verb with notification expiry with messageType text', () async {
     //   /// NOTIFY VERB
     await socket_writer(socketSecondAtsign!,
-        'notify:update:messageType:text:ttln:7000:ttr:-1:$firstAtsign:Helllo!');
+        'notify:update:messageType:text:ttln:8000:ttr:-1:$firstAtsign:Helllo!');
     response = await read();
     print('notify verb response : $response');
     id = response.replaceAll('data:', '');
@@ -413,16 +399,12 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // notify status before ttln expiry time
-    await Future.delayed(Duration(seconds: 5));
-    await socket_writer(socketSecondAtsign!, 'notify:status:$id');
-    response = await read();
+    await getNotifyStatus(socketSecondAtsign!);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     /// notify status after ttln expiry time
-    await Future.delayed(Duration(seconds: 5));
-    await socket_writer(socketSecondAtsign!, 'notify:status:$id');
-    response = await read();
+    await getNotifyStatus(socketSecondAtsign!, checkExpiry: true);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   }, timeout: Timeout(Duration(seconds: 120)));
@@ -465,13 +447,28 @@ void main() {
 }
 
 // get notify status
-Future<String> getNotifyStatus(Socket socket) async {
+Future<String> getNotifyStatus(Socket socket,
+    {bool checkExpiry = false}) async {
   while (true) {
     try {
       await socket_writer(socket, 'notify:status:$id');
       response = await read();
+       if (checkExpiry) {
+        if (response.contains('data:expired')) {
+          break;
+        }
+        if (response.contains('data:delivered') ||
+            (response.contains('data:queued'))) {
+          print('waiting for the notification expiry .. $retryCount');
+          await Future.delayed(Duration(seconds: 2));
+          retryCount++;
+        }
+      }
       if (response.contains('data:delivered') || retryCount > maxRetryCount) {
         break;
+      }
+      if(response.contains('data:errored')){
+        print('Failed notification ');
       }
       if (response.contains('data:queued') || response.contains('data:null')) {
         print('Waiting for notification to be delivered.. $retryCount');
