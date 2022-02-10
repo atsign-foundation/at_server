@@ -90,7 +90,7 @@ class OutboundMessageListener {
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
     _closeOutboundClient();
-    throw TimeoutException("No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+    throw AtTimeoutException("No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
   }
 
   /// Logs the error and closes the [OutboundClient]
