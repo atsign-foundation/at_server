@@ -50,6 +50,8 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     // If cached key value is null, perform a remote plookup.
     if (result == null) {
       result = await _getRemoteValue(key, atSign, atConnection);
+      // OutboundMessageListener will throw exceptions upon any 'error:' responses, malformed response, or timeouts
+      // So we only have to worry about 'data:' response here
       result = result!.replaceAll('data:', '');
       if (result == 'null') {
         await _removeCachedKey(key);

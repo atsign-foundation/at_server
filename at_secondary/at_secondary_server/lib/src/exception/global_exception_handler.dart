@@ -34,8 +34,9 @@ class GlobalExceptionHandler {
       _closeConnection(atConnection);
     } else if (exception is DataStoreException ||
         exception is ConnectionInvalidException) {
-      // In case of DataStoreException
-      // Retry for n number of times and Close connection.
+      // TODO Log the fact that we've had an exception
+      // TODO send a response with appropriate error code
+      // TODO should we keep the connection open rather than closing it?
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
       await _handleInboundLimit(exception, clientSocket!);
@@ -45,7 +46,9 @@ class GlobalExceptionHandler {
         exception is HandShakeException ||
         exception is UnAuthorizedException ||
         exception is OutBoundConnectionInvalidException ||
-        exception is KeyNotFoundException) {
+        exception is KeyNotFoundException ||
+        exception is AtConnectException ||
+        exception is AtTimeoutException) {
       // In case of OutboundConnectionLimitException, LookupException, ConnectionInvalidException
       // SecondaryNotFoundException, HandShakeException, UnAuthorizedException, UnverifiedConnectionException
       // send error code.
