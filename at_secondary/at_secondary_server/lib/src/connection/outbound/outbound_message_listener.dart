@@ -60,7 +60,7 @@ class OutboundMessageListener {
   /// Throws [AtConnectException] upon an 'error:...' response from the remote secondary.
   /// Throws [AtConnectException] upon a bad response (not 'data:...', not 'error:...') from remote secondary.
   /// Throws [TimeoutException] If there is no message in queue after [maxWaitMilliSeconds].
-  Future<String?> read({int maxWaitMilliSeconds = 5000}) async {
+  Future<String?> read({int maxWaitMilliSeconds = 3000}) async {
     // ignore: prefer_typing_uninitialized_variables
     var result;
 
