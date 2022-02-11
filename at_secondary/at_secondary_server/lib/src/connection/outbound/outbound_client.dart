@@ -25,6 +25,8 @@ class OutboundClient {
   OutboundConnection? outboundConnection;
 
   String? toAtSign;
+  String? toHost;
+  String? toPort;
 
   bool isConnectionCreated = false;
 
@@ -49,10 +51,10 @@ class OutboundClient {
       // 1. Find secondary url for the toAtSign
       var secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
-      var host = secondaryInfo[0];
-      var port = secondaryInfo[1];
+      toHost = secondaryInfo[0];
+      toPort = secondaryInfo[1];
       // 2. Create an outbound connection for the host and port
-      var connectResult = await _createOutBoundConnection(host, port, toAtSign);
+      var connectResult = await _createOutBoundConnection(toHost, toPort, toAtSign);
       if (connectResult) {
         isConnectionCreated = true;
       }
@@ -182,7 +184,10 @@ class OutboundClient {
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
+
+    // Actually read the response from the remote secondary
     var lookupResult = await messageListener.read();
+
     if (lookupResult != null) {
       lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     }
@@ -263,6 +268,7 @@ class OutboundClient {
   }
 
   Future<List>? notifyList(String? atSign, {bool handshake = true}) async {
+    // ignore: prefer_typing_uninitialized_variables
     var notifyResult;
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
