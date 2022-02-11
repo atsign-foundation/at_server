@@ -89,7 +89,7 @@ void main() {
     print('update verb response $updateResponse');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 10));
+    await Future.delayed(Duration(seconds: 16));
     var afterUpdate = await notificationStats(socketFirstAtsign!);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['delivered'];
@@ -115,7 +115,7 @@ void main() {
     print('update verb response $updateResponse');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 10));
+    await Future.delayed(Duration(seconds: 16));
     var afterUpdateCount = await notificationStats(socketSecondAtsign!);
     var receivedCountAfterUpdate = afterUpdateCount['type']['received'];
     expect(afterUpdateCount['operations']['update'],
@@ -138,7 +138,7 @@ void main() {
     print('delete verb response $deleteResponse');
     assert((!deleteResponse.contains('Invalid syntax')) &&
         (!deleteResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 10));
+    await Future.delayed(Duration(seconds: 16));
     var afterDelete = await notificationStats(socketFirstAtsign!);
     var sentCountAfterDelete = await afterDelete['type']['sent'];
     var statusAfterDelete = await afterDelete['status']['delivered'];
@@ -160,7 +160,7 @@ void main() {
     print('delete verb response $deleteResponse');
     assert((!deleteResponse.contains('Invalid syntax')) &&
         (!deleteResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 5));
+    await Future.delayed(Duration(seconds: 16));
     var afterDelete = await notificationStats(socketSecondAtsign!);
     var sentCountAfterDelete = await afterDelete['type']['received'];
     expect(afterDelete['operations']['delete'],
@@ -182,7 +182,7 @@ void main() {
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
         (!notifyResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 6));
+    await Future.delayed(Duration(seconds: 16));
     var afterNotify = await notificationStats(socketFirstAtsign!);
     var sentCountAfterNotify = await afterNotify['type']['sent'];
     var statusAfterNotify = await afterNotify['status']['delivered'];
@@ -206,7 +206,7 @@ void main() {
     print('update verb response $updateResponse');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
-    await Future.delayed(Duration(seconds: 5));
+    await Future.delayed(Duration(seconds: 16));
     var afterUpdate = await notificationStats(socketFirstAtsign!);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['failed'];

@@ -1,8 +1,8 @@
 import 'package:test/test.dart';
 
-import 'e2e_test_utils.dart';
-
 import 'package:at_end2end_test/conf/config_util.dart';
+
+import 'e2e_test_utils.dart';
 
 String atSign_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 String atSign_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
