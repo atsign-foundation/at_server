@@ -1,302 +1,285 @@
-import 'dart:io';
-
-import 'package:at_end2end_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
-import 'commons.dart';
+import 'package:at_end2end_test/conf/config_util.dart';
+
+import 'e2e_test_utils.dart';
+
+String atSign_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+String atSign_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
+
+String host_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+int port_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+
+String host_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
+int port_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
+
+late SimpleOutboundSocketHandler sh1;
+late SimpleOutboundSocketHandler sh2;
+
+Future<SimpleOutboundSocketHandler> makeHandler(host, port, atSign) async {
+  var handler = SimpleOutboundSocketHandler(host, port, atSign);
+  await handler.connect();
+  handler.startListening();
+  await handler.sendFromAndPkam();
+
+  return handler;
+}
 
 void main() {
-  var first_atsign =
-      ConfigUtil.getYaml()['first_atsign_server']['first_atsign_name'];
-  var second_atsign =
-      ConfigUtil.getYaml()['second_atsign_server']['second_atsign_name'];
-
-  Socket _socket_first_atsign;
-  Socket _socket_second_atsign;
-
-  //Establish the client socket connection
+  bool initialized = false;
   setUp(() async {
-    var first_atsign_server =
-        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_url'];
-    var first_atsign_port =
-        ConfigUtil.getYaml()['first_atsign_server']['first_atsign_port'];
+    if (!initialized) {
+      sh1 = await makeHandler(host_1, port_1, atSign_1);
 
-    var second_atsign_server =
-        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_url'];
-    var second_atsign_port =
-        ConfigUtil.getYaml()['second_atsign_server']['second_atsign_port'];
+      sh2 = await makeHandler(host_2, port_2, atSign_2);
 
-    // socket connection for first atsign
-    _socket_first_atsign =
-        await secure_socket_connection(first_atsign_server, first_atsign_port);
-    socket_listener(_socket_first_atsign);
-    await prepare(_socket_first_atsign, first_atsign);
+      initialized = true;
+    }
 
-    //Socket connection for second atsign
-    _socket_second_atsign = await secure_socket_connection(
-        second_atsign_server, second_atsign_port);
-    socket_listener(_socket_second_atsign);
-    await prepare(_socket_second_atsign, second_atsign);
+    print ("Clearing socket response queues");
+    sh1.clear();
+    sh2.clear();
   });
 
   test('update-llookup verb with public key', () async {
     /// UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:location$first_atsign Hyderabad');
-    var response = await read();
+    await sh1.writeCommand('update:public:location$atSign_1 Hyderabad');
+    var response = await sh1.read(to: 1000);
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:location$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:location$atSign_1');
+    response = await sh1.read(to: 1000);
     print('llookup verb response : $response');
     expect(response, contains('data:Hyderabad'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update-llookup with private key', () async {
     /// UPDATE VERB
-    await socket_writer(_socket_first_atsign,
-        'update:$second_atsign:country$first_atsign India');
-    var response = await read();
+    await sh1.writeCommand('update:$atSign_2:country$atSign_1 India');
+    var response = await sh1.read();
     print('update verb response $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB - with @sign returns value
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:country$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:$atSign_2:country$atSign_1');
+    response = await sh1.read();
     print('llookup verb response with private key in llookup verb: $response');
     expect(response, contains('data:India'));
 
     ///LLOOKUP VERB - with out @sign does not return value.
-    await socket_writer(_socket_first_atsign, 'llookup:country$first_atsign');
-    response = await read();
-    print(
-        'llookup verb response without private key in llookup verb: $response');
-    expect(
-        response,
-        contains(
-            'error:AT0015-key not found : country$first_atsign does not exist in keystore'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+    await sh1.writeCommand('llookup:country$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response without private key in llookup verb: $response');
+    expect(response, contains('error:AT0015-key not found : country$atSign_1 does not exist in keystore'));
+  });
 
   test('update verb with special characters', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:passcode$first_atsign @!ice^&##');
-    var response = await read();
+    await sh1.writeCommand('update:public:passcode$atSign_1 @!ice^&##');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:passcode$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:passcode$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:@!ice^&##'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update verb with unicode characters', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:unicode$first_atsign U+0026');
-    var response = await read();
+    await sh1.writeCommand('update:public:unicode$atSign_1 U+0026');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:unicode$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:unicode$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:U+0026'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
-  test('update verb with address ', () async {
+  test('update verb with spaces ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
-        'update:public:address$first_atsign "plot no-103,Essar enclave,Hyderabad-500083"');
-    var response = await read();
+    await sh1.writeCommand('update:public:message$atSign_1 Hey Hello! welcome to the tests');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:address$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:message$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
-    expect(response,
-        contains('data:"plot no-103,Essar enclave,Hyderabad-500083"'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+    expect(response, contains('data:Hey Hello! welcome to the tests'));
+  });
+
+  test('updating same key with different values and doing a llookup ', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:public:message$atSign_1 Hey Hello! welcome to the tests');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///LLOOKUP VERB
+    await sh1.writeCommand('llookup:public:message$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response : $response');
+    expect(response, contains('data:Hey Hello! welcome to the tests'));
+
+    await sh1.writeCommand('update:public:message$atSign_1 Hope you are doing good');
+    response = await sh1.read();
+    print('update verb response : $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///LLOOKUP VERB
+    await sh1.writeCommand('llookup:public:message$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response : $response');
+    expect(response, contains('data:Hope you are doing good'));
+  });
 
   test('update verb without value should throw a error ', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:key-1$first_atsign');
-    var response = await read();
+    await sh1.writeCommand('update:public:key-1$atSign_1');
+    var response = await sh1.read();
     print('update verb response : $response');
     expect(response, contains('Invalid syntax'));
+
+    // Going to reconnect, because invalid syntax causes server to close connection
+    sh1 = await makeHandler(host_1, port_1, atSign_1);
   });
 
   test('update verb by passing emoji as value ', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:emoji$first_atsign 🦄');
-    var response = await read();
+    await sh1.writeCommand('update:public:emoji$atSign_1 🦄');
+    var response = await sh1.read(to:5000);
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:emoji$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:emoji$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:🦄'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update verb by passing japanese input as value ', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:japanese$first_atsign "パーニマぱーにま"');
-    var response = await read();
+    await sh1.writeCommand('update:public:japanese$atSign_1 "パーニマぱーにま"');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:public:japanese$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:public:japanese$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:"パーニマぱーにま"'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update verb by sharing a cached key ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
-        'update:ttr:-1:$second_atsign:xbox1$first_atsign player123');
-    var response = await read();
+    await sh1.writeCommand('update:ttr:-1:$atSign_2:yt$atSign_1 john');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    // ///LLOOKUP VERB in the same secondary
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:xbox1$first_atsign');
-    response = await read();
+    ///LLOOKUP VERB in the same secondary
+    await sh1.writeCommand('llookup:$atSign_2:yt$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
-    expect(response, contains('data:player123'));
+    expect(response, contains('data:john'));
 
-    //LOOKUP VERB in the shared secondary
-    await socket_writer(_socket_second_atsign,
-        'llookup:cached:$second_atsign:xbox1$first_atsign');
-    response = await read();
+    //LOOKUP VERB in the other secondary
+    await Future.delayed(Duration(milliseconds: 500));
+    await sh2.writeCommand('llookup:cached:$atSign_2:yt$atSign_1');
+    response = await sh2.read();
     print('llookup verb response : $response');
-    expect(response, contains('data:player123'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+    expect(response, contains('data:john'));
+  });
 
   test('update verb by passing 2 @ symbols ', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:public:country@$first_atsign USA');
-    var response = await read();
+    await sh1.writeCommand('update:public:country@$atSign_1 USA');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(response.contains('Invalid syntax'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+    expect(response, contains('Invalid syntax'));
+
+    // Going to reconnect, because invalid syntax causes server to close connection
+    sh1 = await makeHandler(host_1, port_1, atSign_1);
+  });
 
   test('update-llookup for private key for an emoji atsign ', () async {
     ///UPDATE VERB
-    await socket_writer(
-        _socket_first_atsign, 'update:@🦄:emoji.name$first_atsign unicorn');
-    var response = await read();
+    await sh1.writeCommand('update:@🦄:emoji.name$atSign_1 unicorn');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
-    await socket_writer(
-        _socket_first_atsign, 'llookup:@🦄:emoji.name$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:@🦄:emoji.name$atSign_1');
+    response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:unicorn'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update-llookup for ttl ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
-        'update:ttl:3000:$second_atsign:offer$first_atsign 3seconds');
-    var response = await read();
+    await sh1.writeCommand('update:ttl:3000:$atSign_2:offer$atSign_1 3seconds');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP:META verb
-    await socket_writer(
-        _socket_first_atsign, 'llookup:meta:$second_atsign:offer$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:meta:$atSign_2:offer$atSign_1');
+    response = await sh1.read();
     print('llookup meta response : $response');
     expect(response, contains('"ttl":3000'));
 
-    ///LLOOKUP VERB - Before 3  seconds
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
-    response = await read();
+    ///LLOOKUP VERB - Before 3 seconds
+    await sh1.writeCommand('llookup:$atSign_2:offer$atSign_1');
+    response = await sh1.read();
     print('llookup verb response before 3 seconds : $response');
     expect(response, contains('data:3seconds'));
 
     ///LLOOKUP VERB - After 3 seconds
-    //Waiting till the ttl time is up
-    await Future.delayed(Duration(seconds: 2));
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:offer$first_atsign');
-    response = await read();
+    await Future.delayed(Duration(seconds: 3));
+    await sh1.writeCommand('llookup:$atSign_2:offer$atSign_1');
+    response = await sh1.read();
     print('llookup verb response after 3 seconds : $response');
     expect(response, contains('data:null'));
-  }, timeout: Timeout(Duration(seconds: 90)));
+  });
 
   test('update-llookup for ttb ', () async {
     ///UPDATE VERB
-    await socket_writer(_socket_first_atsign,
-        'update:ttb:2000:$second_atsign:auth-code$first_atsign 3289');
-    var response = await read();
+    await sh1.writeCommand('update:ttb:2000:$atSign_2:auth-code$atSign_1 3289');
+    var response = await sh1.read();
     print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB - Before 2 seconds
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:$atSign_2:auth-code$atSign_1');
+    response = await sh1.read();
     print('llookup verb response before 2 seconds : $response');
     expect(response, contains('data:null'));
 
+    /// Wait for 2 seconds before proceeding
+    await Future.delayed(Duration(seconds: 2));
+
     ///LLOOKUP VERB - After 2 seconds
-    await socket_writer(
-        _socket_first_atsign, 'llookup:$second_atsign:auth-code$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:$atSign_2:auth-code$atSign_1');
+    response = await sh1.read();
     print('llookup verb response after 2 seconds : $response');
     expect(response, contains('data:3289'));
 
     ///LLookup:META FOR TTB
-    //waiting till ttb time is up
-    await Future.delayed(Duration(seconds: 2));
-    await socket_writer(_socket_first_atsign,
-        'llookup:meta:$second_atsign:auth-code$first_atsign');
-    response = await read();
+    await sh1.writeCommand('llookup:meta:$atSign_2:auth-code$atSign_1');
+    response = await sh1.read();
     print('llookup meta verb response for ttb is : $response');
     expect(response, contains('"ttb":2000'));
-  }, timeout: Timeout(Duration(seconds: 90)));
-
-  tearDown(() {
-    //Closing the client socket connection
-    clear();
-    _socket_first_atsign.destroy();
   });
 }

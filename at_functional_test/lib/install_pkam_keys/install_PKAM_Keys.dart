@@ -20,13 +20,13 @@ void lookItUp(String atSign) async {
     await _atLookup.executeCommand(command);
 
     command = 'update:privatekey:at_pkam_publickey ' +
-        at_demo_data.pkamPublicKeyMap[atSign] +
+        at_demo_data.pkamPublicKeyMap[atSign]! +
         '\n';
     print(command);
     await _atLookup.executeCommand(command);
 
     command = 'update:public:publickey$atSign ' +
-        at_demo_data.encryptionPublicKeyMap[atSign] +
+        at_demo_data.encryptionPublicKeyMap[atSign]! +
         '\n';
     print(command);
     await _atLookup.executeCommand(command);
