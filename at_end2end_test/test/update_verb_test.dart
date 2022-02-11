@@ -36,7 +36,7 @@ void main() {
       initialized = true;
     }
 
-    print ("Clearing response queues and handling socket disconnects, server-side");
+    print ("Clearing socket response queues");
     sh1.clear();
     sh2.clear();
   });

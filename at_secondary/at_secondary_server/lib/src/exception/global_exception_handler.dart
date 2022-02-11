@@ -118,12 +118,8 @@ class GlobalExceptionHandler {
         var prompt = _getPrompt(atConnection);
         var errorCode = getErrorCode(exception);
         errorCode ??= 'AT0011';
-        var exceptionMessage = exception.toString();
-        if (exceptionMessage.startsWith("Exception: ")) {
-          exceptionMessage.replaceFirst("Exception: ", "");
-        }
         var errorDescription =
-            '${getErrorDescription(errorCode)} : $exceptionMessage';
+            '${getErrorDescription(errorCode)} : ${exception.toString()}';
         _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
     }
