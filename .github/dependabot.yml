@@ -6,6 +6,6 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "docker"
-    directory: "/"
+    directory: "/at_secondary"
     schedule:
       interval: "daily"
