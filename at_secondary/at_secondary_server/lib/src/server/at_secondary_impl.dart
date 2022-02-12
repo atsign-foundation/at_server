@@ -20,7 +20,6 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:uuid/uuid.dart';
@@ -313,7 +312,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
     } on Exception catch (e, trace) {
-      logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
     } on Error catch (e, trace) {

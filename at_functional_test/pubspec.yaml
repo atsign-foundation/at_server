@@ -5,7 +5,7 @@ publish_to: none
 # homepage: https://www.example.com
 
 environment:
-  sdk: '>=2.10.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
   at_demo_data:
@@ -13,18 +13,26 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: trunk
-      version: ^2.0.4
+  at_lookup: ^3.0.7 
+  at_client: ^3.0.9
+  
 
-#dependency_overrides:
+# dependency_overrides:
+#  at_client:
+#   git:
+#       url: https://github.com/atsign-foundation/at_client_sdk.git
+#       path: at_client
+#       ref: trunk
 #  at_lookup:
-#    path: ../../at_libraries/at_lookup
-#  at_utils:
-#    path: ../../at_tools/at_utils
+#    git:
+#       url: https://github.com/atsign-foundation/at_libraries.git
+#       path: at_lookup
+#       ref: trunk
+#  at_utils: 
+#     git:
+#       url: https://github.com/atsign-foundation/at_tools.git
+#       path: at_utils
+#       ref: trunk
 
 dev_dependencies:
   lints: ^1.0.1
