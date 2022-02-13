@@ -139,7 +139,7 @@ class SimpleOutboundSocketHandler {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      _queue.addFirst(result);
+      _queue.add(result);
     }
   }
 
