@@ -1,42 +1,29 @@
 import 'package:test/test.dart';
 
-import 'package:at_end2end_test/conf/config_util.dart';
-
-import 'e2e_test_utils.dart';
-
-String atSign_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-String atSign_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
-
-String host_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-int port_1 = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-String host_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
-int port_2 = ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
-
-late SimpleOutboundSocketHandler sh1;
-late SimpleOutboundSocketHandler sh2;
-
-Future<SimpleOutboundSocketHandler> makeHandler(host, port, atSign) async {
-  var handler = SimpleOutboundSocketHandler(host, port, atSign);
-  await handler.connect();
-  handler.startListening();
-  await handler.sendFromAndPkam();
-
-  return handler;
-}
+import 'e2e_test_utils.dart' as e2e;
 
 void main() {
-  bool initialized = false;
+  late String atSign_1;
+  late e2e.SimpleOutboundSocketHandler sh1;
+
+  late String atSign_2;
+  late e2e.SimpleOutboundSocketHandler sh2;
+
+  setUpAll(() async {
+    List<String> atSigns = e2e.knownAtSigns();
+    atSign_1 = atSigns[0];
+    sh1 = await e2e.getSocketHandler(atSign_1);
+    atSign_2 = atSigns[1];
+    sh2 = await e2e.getSocketHandler(atSign_2);
+  });
+
+  tearDownAll(() {
+    sh1.close();
+    sh2.close();
+  });
+
   setUp(() async {
-    if (!initialized) {
-      sh1 = await makeHandler(host_1, port_1, atSign_1);
-
-      sh2 = await makeHandler(host_2, port_2, atSign_2);
-
-      initialized = true;
-    }
-
-    print ("Clearing socket response queues");
+    print("Clearing socket response queues");
     sh1.clear();
     sh2.clear();
   });
@@ -44,13 +31,13 @@ void main() {
   test('update-llookup verb with public key', () async {
     /// UPDATE VERB
     await sh1.writeCommand('update:public:location$atSign_1 Hyderabad');
-    var response = await sh1.read(to: 1000);
+    var response = await sh1.read(timeoutMillis: 1000);
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:location$atSign_1');
-    response = await sh1.read(to: 1000);
+    response = await sh1.read(timeoutMillis: 1000);
     print('llookup verb response : $response');
     expect(response, contains('data:Hyderabad'));
   });
@@ -150,13 +137,14 @@ void main() {
     expect(response, contains('Invalid syntax'));
 
     // Going to reconnect, because invalid syntax causes server to close connection
-    sh1 = await makeHandler(host_1, port_1, atSign_1);
+    sh1.close();
+    sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
   test('update verb by passing emoji as value ', () async {
     ///UPDATE VERB
     await sh1.writeCommand('update:public:emoji$atSign_1 🦄');
-    var response = await sh1.read(to:5000);
+    var response = await sh1.read(timeoutMillis:5000);
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
 
@@ -210,7 +198,8 @@ void main() {
     expect(response, contains('Invalid syntax'));
 
     // Going to reconnect, because invalid syntax causes server to close connection
-    sh1 = await makeHandler(host_1, port_1, atSign_1);
+    sh1.close();
+    sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
   test('update-llookup for private key for an emoji atsign ', () async {

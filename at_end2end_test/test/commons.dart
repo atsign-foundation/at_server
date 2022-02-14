@@ -50,8 +50,8 @@ void socket_listener(Socket socket) {
 
 /// Socket write
 Future<void> socket_writer(Socket socket, String msg) async {
-  msg = msg + '\n';
   print('command sent: $msg');
+  msg = msg + '\n';
   socket.write(msg);
 }
 
