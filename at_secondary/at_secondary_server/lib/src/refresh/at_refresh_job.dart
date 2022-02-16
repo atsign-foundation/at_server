@@ -1,11 +1,11 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 
 class AtRefreshJob {
   final String? _atSign;
@@ -36,6 +36,8 @@ class AtRefreshJob {
     while (itr.moveNext()) {
       var key = itr.current;
       AtMetaData? metadata = await keyStore?.getMeta(key);
+      // Setting metadata.ttr = -1 represents not to updated the cached key.
+      // Hence skipping the key from refresh job.
       if (metadata == null || metadata.ttr == -1) {
         continue;
       }
@@ -86,18 +88,10 @@ class AtRefreshJob {
   /// Updates the cached key with the new value.
   Future<void> _updateCachedValue(
       String? newValue, AtData? oldValue, var element) async {
-    newValue = newValue?.replaceAll('data:', '');
-    // When the value of the lookup key is 'data:null', on trimming 'data:',
-    // If new value is 'null' or not equal to old value, update the old value with new value.
-    if (newValue != null &&
-        newValue.isNotEmpty &&
-        newValue != 'null' &&
-        oldValue?.data != newValue) {
-      var atData = AtData();
-      atData.data = newValue;
-      atData.metaData = oldValue?.metaData;
-      await keyStore?.put(element, atData);
-    }
+    var atData = AtData();
+    atData.data = newValue;
+    atData.metaData = oldValue?.metaData;
+    await keyStore?.put(element, atData);
   }
 
   /// The refresh job
@@ -120,12 +114,27 @@ class AtRefreshJob {
         lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
         newValue = await _lookupValue(lookupKey);
       }
-      // Nothing to do. Just return
+      // If new value is null, do nothing. Continue for next key.
       if (newValue == null) {
-        return;
+        continue;
       }
-      logger.finest('lookup value of $lookupKey is $newValue');
+      newValue = newValue.replaceAll('data:', '');
+      // If new value is 'null' or empty
+      // do not update the cached key. Do nothing. Continue for next key.
+      if (newValue.trim().isEmpty || newValue == 'null') {
+        logger.finest(
+            'value not found for $lookupKey. Failed updating the cached key');
+        continue;
+      }
+      // If old value and new value are equal, then do not update;
+      // Continue for next key.
       var oldValue = await keyStore?.get(element);
+      if (oldValue?.data == newValue) {
+        logger.finest(
+            '$lookupKey cached value is same as looked-up value. Not updating the cached key');
+        continue;
+      }
+      logger.finest('Updated the cached key value of $lookupKey with $newValue');
       await _updateCachedValue(newValue, oldValue, element);
       //Update the refreshAt date for the next interval.
       var atMetadata = AtMetadataBuilder(ttr: oldValue!.metaData!.ttr).build();
