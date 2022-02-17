@@ -22,7 +22,7 @@ class AtRefreshJob {
   final logger = AtSignLogger('AtRefreshJob');
 
   /// Returns the list of cached keys
-  Future<List<String>?> _getCachedKeys() async {
+  Future<List<String>> _getCachedKeys() async {
     List<String> keysList = keyStore!.getKeys(regex: CACHED);
     var cachedKeys = <String>[];
     var now = DateTime.now().toUtc();
@@ -92,9 +92,6 @@ class AtRefreshJob {
   /// The refresh job
   Future<void> _refreshJob(int runFrequencyHours) async {
     var keysToRefresh = await _getCachedKeys();
-    if (keysToRefresh == null) {
-      return;
-    }
     String lookupKey;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var itr = keysToRefresh.iterator;
