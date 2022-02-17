@@ -23,12 +23,7 @@ class AtRefreshJob {
 
   /// Returns the list of cached keys
   Future<List<String>?> _getCachedKeys() async {
-    List<String>? keysList = keyStore?.getKeys(regex: CACHED);
-    // If no keys to return
-    if (keysList == null) {
-      return null;
-    }
-
+    List<String> keysList = keyStore!.getKeys(regex: CACHED);
     var cachedKeys = <String>[];
     var now = DateTime.now().toUtc();
     var nowInEpoch = now.millisecondsSinceEpoch;
