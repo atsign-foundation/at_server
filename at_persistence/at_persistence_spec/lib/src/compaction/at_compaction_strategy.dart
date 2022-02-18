@@ -29,5 +29,5 @@ abstract class AtLogType {
 abstract class AtCompactionStrategy {
   /// Performs the compaction on the specified log type.
   /// @param atLogType The log type to perform the compaction job.
-  Future<AtCompactionStats> performCompaction(AtLogType atLogType);
+  Future<AtCompactionStats?> performCompaction(AtLogType atLogType);
 }
