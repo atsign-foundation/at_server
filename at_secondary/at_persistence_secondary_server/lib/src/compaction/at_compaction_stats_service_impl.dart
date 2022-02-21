@@ -18,15 +18,20 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late String compactionStatsKey;
   final _logger = AtSignLogger("AtCompactionStats");
 
-  ///stores statistics in object [atCompactionStats] to the keystore encoding them as json
   @override
   Future<void> handleStats(atCompactionStats) async {
-    _logger.finer(atCompactionStats.toString());
-    try {
-      await _keyStore.put(compactionStatsKey,
-          AtData()..data = json.encode(atCompactionStats.toJson()));
-    } on Exception catch (_, e) {
-      _logger.severe(e);
+    if (atCompactionStats != null) {
+      _logger.finer(atCompactionStats?.toString());
+      try {
+        await _keyStore.put(compactionStatsKey,
+            AtData()
+              ..data = json.encode(atCompactionStats?.toJson()));
+      } on Exception catch (_, e) {
+        _logger.severe(e);
+      }
+    }
+    else{
+      _logger.finer('compaction criteria not met, skipping data write into key store');
     }
   }
 

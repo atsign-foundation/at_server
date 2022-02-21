@@ -14,7 +14,7 @@ class AtCompactionService {
   }
 
   late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
-  late AtCompactionStats atCompactionStats;
+  late AtCompactionStats? atCompactionStats;
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on
@@ -57,7 +57,7 @@ class AtCompactionService {
       var sizeBasedCompaction = SizeBasedCompaction(
           atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
       atCompactionStats =
-          await sizeBasedCompaction.performCompaction(atLogType);
+          (await sizeBasedCompaction.performCompaction(atLogType));
       //write compaction statistics returned by sizeBasedCompaction into keystore
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     }

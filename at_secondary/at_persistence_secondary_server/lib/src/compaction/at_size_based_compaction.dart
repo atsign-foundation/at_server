@@ -15,17 +15,17 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   ///Compaction triggered when [AtLogType] size meets compaction criteria
   ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
   @override
-  Future<AtCompactionStats> performCompaction(AtLogType atLogType) async {
+  Future<AtCompactionStats?> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
     var isRequired = _isCompactionRequired(atLogType);
     if (isRequired) {
+      atCompactionStats = AtCompactionStats();
       var totalKeys = atLogType.entriesCount();
       if (totalKeys > 0) {
         //calculating number of keys to be deleted based on compactionPercentage parameter
         //'N' is the number of keys to be deleted
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
-        atCompactionStats = AtCompactionStats();
         //collection of AtLogType statistics before compaction
         atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
         atCompactionStats.deletedKeysCount = keysToDelete.length;
@@ -37,16 +37,16 @@ class SizeBasedCompaction implements AtCompactionStrategy {
           atCompactionStats.sizeAfterCompaction = atLogType.getSize();
           //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
-              .lastCompactionRun
+              .lastCompactionRun!
               .difference(compactionStartTime);
+          return atCompactionStats;
         } else {
           _logger.finer(
               'No keys to delete. skipping size compaction for $atLogType');
         }
       }
     }
-
-    return atCompactionStats;
+    return null;
   }
 
   ///checks whether sizeBasedCompaction is required

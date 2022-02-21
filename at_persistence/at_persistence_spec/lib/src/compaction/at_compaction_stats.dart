@@ -24,6 +24,5 @@ class AtCompactionStats {
   @override
   String toString() {
     return toJson().toString();
-    //return "compaction type: $compactionType, compaction last run at: $lastCompactionRun, compaction duration: $compactionDuration, size before compaction: $sizeBeforeCompaction, size after compaction: $sizeAfterCompaction, no. of keys deleted: $deletedKeysCount";
   }
 }
