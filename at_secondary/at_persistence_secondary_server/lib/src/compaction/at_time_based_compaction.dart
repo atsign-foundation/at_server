@@ -34,7 +34,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     atCompactionStats.sizeAfterCompaction = atLogType.getSize();
     //calculation of compaction duration by comparing present time with compaction start time
     atCompactionStats.compactionDuration =
-        atCompactionStats.lastCompactionRun.difference(compactionStartTime);
+        atCompactionStats.lastCompactionRun?.difference(compactionStartTime);
 
     return atCompactionStats;
   }

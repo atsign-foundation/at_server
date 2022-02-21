@@ -9,7 +9,8 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late SecondaryPersistenceStore _secondaryPersistenceStore;
   late var _keyStore;
 
-  AtCompactionStatsServiceImpl(this.atLogType, this._secondaryPersistenceStore) {
+  AtCompactionStatsServiceImpl(
+      this.atLogType, this._secondaryPersistenceStore) {
     _getKey();
     _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore();
   }
@@ -24,14 +25,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
       _logger.finer(atCompactionStats?.toString());
       try {
         await _keyStore.put(compactionStatsKey,
-            AtData()
-              ..data = json.encode(atCompactionStats?.toJson()));
+            AtData()..data = json.encode(atCompactionStats?.toJson()));
       } on Exception catch (_, e) {
         _logger.severe(e);
       }
-    }
-    else{
-      _logger.finer('compaction criteria not met, skipping data write into key store');
+    } else {
+      _logger.finer(
+          'compaction criteria not met, skipping data write into key store');
     }
   }
 

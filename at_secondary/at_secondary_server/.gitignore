@@ -33,3 +33,4 @@ storage
 # code coverage related
 coverage
 coverage.lcov
+/storage/atmosphere/storage/digest/

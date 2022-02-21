@@ -75,8 +75,8 @@ Future<void> main() async {
 
   test("verify notificationKeyStore stats in keystore", () async {
     AtCompactionStats atCompactionStats = AtCompactionStats();
-    atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, secondaryPersistenceStore);
+    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
+        notificationKeyStoreInstance, secondaryPersistenceStore);
     atCompactionStats.compactionDuration = Duration(minutes: 36);
     atCompactionStats.deletedKeysCount = 239;
     atCompactionStats.lastCompactionRun = DateTime.now();
@@ -114,8 +114,8 @@ Future<void> main() async {
   });
 
   test("check notification compactionStats key", () async {
-    atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(notificationKeyStoreInstance, secondaryPersistenceStore);
+    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
+        notificationKeyStoreInstance, secondaryPersistenceStore);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:notificationCompactionStats");
