@@ -20,7 +20,6 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:uuid/uuid.dart';
@@ -319,12 +318,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
     } on Exception catch (e, trace) {
-      print(trace);
-      logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
     } on Error catch (e, trace) {
-      print(trace);
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
@@ -332,9 +328,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    print('inside stream call back');
     var streamId = sender.getMetaData().streamId;
-    print('stream id:$streamId');
+    logger.finer('stream id:$streamId');
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
@@ -400,7 +395,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
-    manager.scheduleKeyExpireTask(expiringRunFreqMins!);
+    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    final expiryRunRandomMins =
+        (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
+    manager.scheduleKeyExpireTask(expiryRunRandomMins);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;

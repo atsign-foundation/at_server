@@ -1,3 +1,6 @@
+## 3.0.12
+- Throw AtTimeoutException when connection timeouts
+- Throw AtConnectException for error responses and unexpected responses
 ## 3.0.11
 - Changes to support reset of ttb and ttl
 ## 3.0.10
