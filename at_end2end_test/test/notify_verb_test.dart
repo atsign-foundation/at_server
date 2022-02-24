@@ -394,6 +394,27 @@ void main() {
     sh1.close();
     sh1 = await e2e.getSocketHandler(atSign_1);
   });
+
+
+  test('notify a key and verifying the time taken for the status to be delivered', () async {
+    var timeBeforeNotification = DateTime.now().millisecondsSinceEpoch;
+    await sh1.writeCommand('notify:update:messageType:key:$atSign_2:company$atSign_1:atsign');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // notify status
+    response = await getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+    var timeAfterNotification = DateTime.now().millisecondsSinceEpoch;
+    var timeDifferenceValue = DateTime.fromMillisecondsSinceEpoch(timeAfterNotification).difference(DateTime.fromMillisecondsSinceEpoch(timeBeforeNotification));
+    print('time difference is $timeDifferenceValue');
+    expect(timeDifferenceValue.inMilliseconds<= 5000, true);
+});
 }
 
 // get notify status

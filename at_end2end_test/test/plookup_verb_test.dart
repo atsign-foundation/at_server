@@ -60,13 +60,13 @@ void main() {
   }, timeout: Timeout(Duration(seconds: 120)));
 
   /// Open bug - https://github.com/atsign-foundation/at_server/issues/387
-  // test('plookup verb on non existent key - negative case', () async {
-  //   ///PLOOKUP VERB
-  //   await socket_writer(_socket_first_atsign!, 'plookup:no-key$first_atsign');
-  //   var response = await read();
-  //   print('plookup verb response $response');
-  //   expect(response, contains('data:null'));
-  // }, timeout: Timeout(Duration(seconds: 120)));
+  test('plookup verb on non existent key - negative case', () async {
+    ///PLOOKUP VERB
+    await socket_writer(socketFirstAtsign!, 'plookup:no-key$firstAtsign');
+    var response = await read();
+    print('plookup verb response $response');
+    expect(response, contains('AT0015-key not found : public:no-key@cicd1 does not exist in keystore'));
+  }, timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup for an emoji key', () async {
     ///UPDATE VERB

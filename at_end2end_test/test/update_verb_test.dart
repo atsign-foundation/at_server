@@ -271,4 +271,39 @@ void main() {
     print('llookup meta verb response for ttb is : $response');
     expect(response, contains('"ttb":2000'));
   });
+
+  test('update-llookup for ttl and ttb together', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:ttl:4000:ttb:2000:$atSign_2:login-code$atSign_1 112290');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///LLOOKUP VERB - Before 3 seconds
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response before 4 seconds : $response');
+    expect(response,contains('data:null'));
+
+    ///LLOOKUP VERB - After 4 seconds ttb time
+    await Future.delayed(Duration(seconds: 2));
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response after 4 seconds : $response');
+    expect(response, contains('data:112290'));
+
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response before 4 seconds : $response');
+    expect(response,contains('data:112290'));
+
+    ///LLOOKUP VERB - After 4 seconds ttl time
+    await Future.delayed(Duration(seconds: 4));
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response after 4 seconds : $response');
+    expect(response, contains('data:null'));
+  });
+
+  
 }
