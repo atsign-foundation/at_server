@@ -202,6 +202,18 @@ void main() {
     sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
+  test('update verb with public and shared with atsign should throw a error ', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:public:$atSign_2:invalid-key$atSign_1 invalid-value');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    expect(response, contains('Invalid syntax'));
+
+    // Going to reconnect, because invalid syntax causes server to close connection
+    sh1.close();
+    sh1 = await e2e.getSocketHandler(atSign_1);
+  });
+
   test('update-llookup for private key for an emoji atsign ', () async {
     ///UPDATE VERB
     await sh1.writeCommand('update:@🦄:emoji.name$atSign_1 unicorn');

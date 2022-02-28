@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-
+import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
 
 void main() {
@@ -30,10 +30,12 @@ void main() {
 
   test('update-llookup verb with ttr:-1', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('update:ttr:-1:$atSign_2:key-1$atSign_1 value1');
-    var response = await sh1.read();
-    print('update verb response : $response');
+    await sh1.writeCommand('notify:update:ttr:-1:$atSign_2:key-1$atSign_1:value1');
+    String response = await sh1.read();
+    print('notify verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
 
     ///LLOOKUP VERB in the same atsign
     await sh1.writeCommand('llookup:$atSign_2:key-1$atSign_1');
@@ -50,26 +52,28 @@ void main() {
 
   test('update-llookup verb with ttr and ccd true', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('update:ttr:2000:ccd:true:$atSign_2:key-2$atSign_1 value2');
+    await sh1.writeCommand('notify:update:ttr:2000:ccd:true:$atSign_2:key-2$atSign_1:value2');
     var response = await sh1.read(timeoutMillis: 1000);
-    print('update verb response : $response');
+    print('notify verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
-
+    String notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    
     ///LLOOKUP VERB in the receiving atsign before delete
-    await Future.delayed(Duration(seconds: 1));
     await sh2.writeCommand('llookup:cached:$atSign_2:key-2$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key before delete : $response');
     expect(response, contains('data:value2'));
 
     /// Deleting key which has ccd:true
-    await sh1.writeCommand('delete:$atSign_2:key-2$atSign_1');
+    await sh1.writeCommand('notify:delete:$atSign_2:key-2$atSign_1');
     response = await sh1.read();
-    print('delete verb response : $response');
+    print('notify delete verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
 
     ///LLOOKUP VERB in the receiving atsign after deleting the key from the sender
-    await Future.delayed(Duration(seconds: 4));
     await sh2.writeCommand('llookup:cached:$atSign_2:key-2$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key : $response');
@@ -79,26 +83,28 @@ void main() {
 
    test('update-llookup verb with ttr and ccd false', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('update:ttr:2000:ccd:false:$atSign_2:key-3$atSign_1 value3');
+    await sh1.writeCommand('notify:update:ttr:2000:ccd:false:$atSign_2:key-3$atSign_1:value3');
     var response = await sh1.read(timeoutMillis: 1000);
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
 
     ///LLOOKUP VERB in the receiving atsign before delete
-    await Future.delayed(Duration(seconds: 2));
     await sh2.writeCommand('llookup:cached:$atSign_2:key-3$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key before delete : $response');
     expect(response, contains('data:value3'));
 
     /// Deleting key which has ccd:true
-    await sh1.writeCommand('delete:$atSign_2:key-3$atSign_1');
+    await sh1.writeCommand('notify:delete:$atSign_2:key-3$atSign_1');
     response = await sh1.read();
     print('delete verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
 
     ///LLOOKUP VERB in the receiving atsign after deleting the key from the sender
-    await Future.delayed(Duration(seconds: 4));
     await sh2.writeCommand('llookup:cached:$atSign_2:key-3$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key : $response');

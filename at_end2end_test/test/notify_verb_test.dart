@@ -413,7 +413,7 @@ void main() {
     var timeAfterNotification = DateTime.now().millisecondsSinceEpoch;
     var timeDifferenceValue = DateTime.fromMillisecondsSinceEpoch(timeAfterNotification).difference(DateTime.fromMillisecondsSinceEpoch(timeBeforeNotification));
     print('time difference is $timeDifferenceValue');
-    expect(timeDifferenceValue.inMilliseconds<= 5000, true);
+    expect(timeDifferenceValue.inMilliseconds<= 10000, true);
 });
 }
 
