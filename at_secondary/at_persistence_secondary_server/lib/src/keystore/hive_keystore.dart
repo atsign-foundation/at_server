@@ -1,12 +1,7 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_secondary_server/src/model/at_data.dart';
-import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
-import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
@@ -55,7 +50,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) async {
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
@@ -85,7 +82,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isCascade: isCascade,
             isBinary: isBinary,
             isEncrypted: isEncrypted,
-            dataSignature: dataSignature);
+            dataSignature: dataSignature,
+            sharedKeyEncrypted: sharedKeyEncrypted,
+            publicKeyChecksum: publicKeyChecksum);
       } else {
         var existingData = await get(key);
         var hive_key = keyStoreHelper.prepareKey(key);
@@ -124,7 +123,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) async {
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum}) async {
     var result;
     var commitOp;
     var hive_key = keyStoreHelper.prepareKey(key);
@@ -135,7 +136,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         isCascade: isCascade,
         isBinary: isBinary,
         isEncrypted: isEncrypted,
-        dataSignature: dataSignature);
+        dataSignature: dataSignature,
+        sharedKeyEncrypted: sharedKeyEncrypted,
+        publicKeyChecksum: publicKeyChecksum);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -148,6 +151,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       isBinary ??= value.metaData!.isBinary;
       isEncrypted ??= value.metaData!.isEncrypted;
       dataSignature ??= value.metaData!.dataSignature;
+      sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
+      publicKeyChecksum ??= value.metaData!.publicKeyCS;
     }
 
     // If metadata is set, set commitOp to Update all

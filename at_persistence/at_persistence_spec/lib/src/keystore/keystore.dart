@@ -43,7 +43,10 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
-      bool? isEncrypted});
+      bool? isEncrypted,
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
