@@ -1,9 +1,7 @@
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_commons/src/at_constants.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -11,9 +9,6 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/update_meta.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_utils/at_utils.dart';
 
 class UpdateMetaVerbHandler extends AbstractVerbHandler {
@@ -57,6 +52,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     var isBinary;
     var isEncrypted;
     var metadata;
+    String? sharedKeyEncrypted, sharedWithPublicKeyChecksum;
 
     key = _constructKey(key, forAtSign, atSign);
     if (verbParams.containsKey('isPublic')) {
@@ -70,6 +66,9 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       }
       isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
       isEncrypted = AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+      sharedKeyEncrypted = verbParams[SHARED_KEY_ENCRYPTED];
+      sharedWithPublicKeyChecksum =
+          verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
       metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
@@ -85,7 +84,9 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             ttr: ttr_ms,
             ccd: ccd,
             isBinary: isBinary,
-            isEncrypted: isEncrypted)
+            isEncrypted: isEncrypted,
+            sharedKeyEncrypted: sharedKeyEncrypted,
+            publicKeyChecksum: sharedWithPublicKeyChecksum)
         .build();
     var result = await keyStore!.putMeta(key, atMetaData);
     response.data = result?.toString();

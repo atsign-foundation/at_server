@@ -20,32 +20,37 @@ dependencies:
   at_lookup: ^3.0.9
   at_server_spec: ^3.0.1
 
-#dependency_overrides:
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
-#  at_persistence_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_persistence/at_persistence_spec
-#      ref: trunk
+dependency_overrides:
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: at_lookup
+      ref: sharedkey_metadata
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: sharedkey_metadata
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: sharedkey_metadata
 #   at_utils:
 #     git:
 #       url: https://github.com/atsign-foundation/at_tools.git
 #       path: at_utils
 #       ref: reset_ttl_ttb
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_secondary/at_persistence_secondary_server
-#      ref: fix_emoji_issue
-#  at_server_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_server_spec
-#      ref: trunk
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_secondary/at_persistence_secondary_server
+      ref: sharedkey_metadata
+  at_server_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_server_spec
+      ref: sharedkey_metadata
 
 dev_dependencies:
   test: ^1.17.3

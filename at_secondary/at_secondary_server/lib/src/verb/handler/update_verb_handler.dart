@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -74,6 +73,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var isEncrypted = updateParams.metadata!.isEncrypted;
       var dataSignature = updateParams.metadata!.dataSignature;
       var ccd = updateParams.metadata!.ccd;
+      String? sharedKeyEncrypted = updateParams.metadata!.sharedKeyEnc;
+      String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -109,7 +110,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..isCascade = ccd
         ..isBinary = isBinary
         ..isEncrypted = isEncrypted
-        ..dataSignature = dataSignature;
+        ..dataSignature = dataSignature
+        ..sharedKeyEnc = sharedKeyEncrypted
+        ..publicKeyCS = publicKeyChecksum;
 
       // update the key in data store
       var result = await keyStore!.put(key, atData,
@@ -119,7 +122,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           isCascade: ccd,
           isBinary: isBinary,
           isEncrypted: isEncrypted,
-          dataSignature: dataSignature);
+          dataSignature: dataSignature,
+          sharedKeyEncrypted: sharedKeyEncrypted,
+          publicKeyChecksum: publicKeyChecksum);
       response.data = result?.toString();
       if (AUTO_NOTIFY!) {
         _notify(
@@ -189,6 +194,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     metadata.isEncrypted =
         AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
     metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
+    metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
+    metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
     updateParams.metadata = metadata;
     return updateParams;
   }

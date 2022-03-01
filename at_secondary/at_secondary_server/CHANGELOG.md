@@ -1,3 +1,5 @@
+## 3.0.13
+- add shared key to metadata and verb handlers
 ## 3.0.12
 - Throw AtTimeoutException when connection timeouts
 - Throw AtConnectException for error responses and unexpected responses
