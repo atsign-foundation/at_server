@@ -1,3 +1,5 @@
+## 2.0.4
+- Add shared key to metadata
 ## 2.0.3
 - Add isKeyExists method to keystore
 ## 2.0.2
