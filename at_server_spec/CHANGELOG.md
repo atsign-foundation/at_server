@@ -1,3 +1,5 @@
+## 3.0.3
+- exported update meta and verb in spec 
 ## 3.0.2
 - updated dart docs for verbs
 ## 3.0.1
