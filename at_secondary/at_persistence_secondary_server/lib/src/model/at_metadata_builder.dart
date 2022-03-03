@@ -49,7 +49,7 @@ class AtMetadataBuilder {
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
     sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
-    publicKeyChecksum ??= newAtMetaData.publicKeyCS;
+    publicKeyChecksum ??= newAtMetaData.pubKeyCS;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -124,7 +124,7 @@ class AtMetadataBuilder {
 
   void setPublicKeyChecksum(String? publicKeyChecksum) {
     if (publicKeyChecksum != null) {
-      atMetaData.publicKeyCS = publicKeyChecksum;
+      atMetaData.pubKeyCS = publicKeyChecksum;
     }
   }
 

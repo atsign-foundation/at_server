@@ -56,7 +56,7 @@ class AtMetaData extends HiveObject {
   String? sharedKeyEnc;
 
   @HiveField(17)
-  String? publicKeyCS;
+  String? pubKeyCS;
 
   @override
   String toString() {
@@ -83,7 +83,7 @@ class AtMetaData extends HiveObject {
     map[IS_ENCRYPTED] = isEncrypted;
     map[PUBLIC_DATA_SIGNATURE] = dataSignature;
     map[SHARED_KEY_ENCRYPTED] = sharedKeyEnc;
-    map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = publicKeyCS;
+    map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
     return map;
   }
 
@@ -129,7 +129,7 @@ class AtMetaData extends HiveObject {
       isEncrypted = json[IS_ENCRYPTED];
       dataSignature = json[PUBLIC_DATA_SIGNATURE];
       sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
-      publicKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+      pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
     } catch (error) {
       print('AtMetaData.fromJson error: ' + error.toString());
     }
@@ -165,7 +165,7 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..isEncrypted = fields[14]
       ..dataSignature = fields[15]
       ..sharedKeyEnc = fields[16]
-      ..publicKeyCS = fields[17];
+      ..pubKeyCS = fields[17];
   }
 
   @override
@@ -207,6 +207,6 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(16)
       ..write(obj.sharedKeyEnc)
       ..writeByte(17)
-      ..write(obj.publicKeyCS);
+      ..write(obj.pubKeyCS);
   }
 }

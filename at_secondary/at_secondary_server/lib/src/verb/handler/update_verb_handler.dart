@@ -112,7 +112,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..isEncrypted = isEncrypted
         ..dataSignature = dataSignature
         ..sharedKeyEnc = sharedKeyEncrypted
-        ..publicKeyCS = publicKeyChecksum;
+        ..pubKeyCS = publicKeyChecksum;
 
       // update the key in data store
       var result = await keyStore!.put(key, atData,

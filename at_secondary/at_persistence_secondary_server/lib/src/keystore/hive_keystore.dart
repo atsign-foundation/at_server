@@ -152,7 +152,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       isEncrypted ??= value.metaData!.isEncrypted;
       dataSignature ??= value.metaData!.dataSignature;
       sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
-      publicKeyChecksum ??= value.metaData!.publicKeyCS;
+      publicKeyChecksum ??= value.metaData!.pubKeyCS;
     }
 
     // If metadata is set, set commitOp to Update all

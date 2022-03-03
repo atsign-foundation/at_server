@@ -12,7 +12,7 @@ AtMetaData? AtMetadataAdapter(Metadata metadata) {
     ..isEncrypted = metadata.isEncrypted
     ..dataSignature = metadata.dataSignature
     ..sharedKeyEnc = metadata.sharedKeyEnc
-    ..publicKeyCS = metadata.pubKeyCS;
+    ..pubKeyCS = metadata.pubKeyCS;
 
   return AtMetadataBuilder(newAtMetaData: atMetadata).build();
 }
