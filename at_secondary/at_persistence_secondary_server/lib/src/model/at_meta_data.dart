@@ -171,7 +171,7 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(18)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
