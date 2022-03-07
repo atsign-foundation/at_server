@@ -207,24 +207,19 @@ jobs:
       - name: Remove docker image
         run: docker rmi at_virtual_env:trunk
   
-  # The job runs end to end tests between the cicd1 and cicd2 VMs
-  end2end_tests:
+  
+  end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
     runs-on: ubuntu-latest
 
     steps:
+
       - uses: actions/checkout@v3
-      - uses: dart-lang/setup-dart@v1.3
-        with:
-          sdk: stable
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
         run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1.6.0
@@ -258,6 +253,17 @@ jobs:
           script: |
             ./update_image.sh
 
+# The job runs end to end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
+  end2end_test_12:
+    needs: [ end2end_test_prep ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1.3
+        with:
+          sdk: stable
+
       - name: Install dependencies
         working-directory: at_end2end_test
         run: dart pub get
@@ -265,6 +271,66 @@ jobs:
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
         run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+
+      # Put config file in place
+      - name: Config for @cicd1/2
+        run:  mv at_end2end_test/config/config12.yaml at_end2end_test/config/config.yaml
+
+      # Run end to end test
+      - name: End to end test
+        working-directory: at_end2end_test
+        run: dart test --concurrency=1
+
+# The job runs end to end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
+  end2end_test_34:
+    needs: [ end2end_test_prep ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1.3
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: at_end2end_test
+        run: dart pub get
+
+      # Create demo_data.dart from CICD_DATA_DART secret
+      - name: Get CICD keys into place
+        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+
+      # Put config file in place
+      - name: Config for @cicd3/4
+        run:  mv at_end2end_test/config/config34.yaml at_end2end_test/config/config.yaml
+
+      # Run end to end test
+      - name: End to end test
+        working-directory: at_end2end_test
+        run: dart test --concurrency=1
+
+# The job runs end to end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
+  end2end_test_56:
+    needs: [ end2end_test_prep ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dart-lang/setup-dart@v1.3
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: at_end2end_test
+        run: dart pub get
+
+      # Create demo_data.dart from CICD_DATA_DART secret
+      - name: Get CICD keys into place
+        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+
+      # Put config file in place
+      - name: Config for @cicd5/6
+        run:  mv at_end2end_test/config/config56.yaml at_end2end_test/config/config.yaml
 
       # Run end to end test
       - name: End to end test
@@ -276,7 +342,7 @@ jobs:
   # The job run's on completion of 'run_end2end_tests' job.
   push_staging_virtual_env_images:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_tests ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
@@ -339,7 +405,7 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_tests ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
@@ -392,7 +458,7 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_observable_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_tests ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     env:
@@ -464,7 +530,7 @@ jobs:
   # The job builds the canary version of secondary server docker image and pushes to docker hub.
   push_canary_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_tests ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     env:
       working-directory: at_server
@@ -511,7 +577,7 @@ jobs:
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_tests ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
       working-directory: at_server
