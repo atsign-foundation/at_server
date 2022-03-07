@@ -1,3 +1,6 @@
+## 3.0.16
+- at_lookup version upgrade for implementing server error responses
+- at_commons version upgrade for AtTimeoutException
 ## 3.0.15
 - at_utils version upgrade
 ## 3.0.14
