@@ -37,12 +37,6 @@ void main() {
     String notificationId = response.replaceAll('data:', '');
     await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
 
-    ///LLOOKUP VERB in the same atsign
-    await sh1.writeCommand('llookup:$atSign_2:key-1$atSign_1');
-    response = await sh1.read();
-    print('llookup verb response : $response');
-    expect(response, contains('data:value1'));
-
     ///LLOOKUP VERB in the receiving atsign 
     await sh2.writeCommand('llookup:cached:$atSign_2:key-1$atSign_1');
     response = await sh2.read();
