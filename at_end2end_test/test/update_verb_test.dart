@@ -202,6 +202,18 @@ void main() {
     sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
+  test('update verb with public and shared with atsign should throw a error ', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:public:$atSign_2:invalid-key$atSign_1 invalid-value');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    expect(response, contains('Invalid syntax'));
+
+    // Going to reconnect, because invalid syntax causes server to close connection
+    sh1.close();
+    sh1 = await e2e.getSocketHandler(atSign_1);
+  });
+
   test('update-llookup for private key for an emoji atsign ', () async {
     ///UPDATE VERB
     await sh1.writeCommand('update:@🦄:emoji.name$atSign_1 unicorn');
@@ -271,4 +283,39 @@ void main() {
     print('llookup meta verb response for ttb is : $response');
     expect(response, contains('"ttb":2000'));
   });
+
+  test('update-llookup for ttl and ttb together', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:ttl:4000:ttb:2000:$atSign_2:login-code$atSign_1 112290');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///LLOOKUP VERB - Before 3 seconds
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response before 4 seconds : $response');
+    expect(response,contains('data:null'));
+
+    ///LLOOKUP VERB - After 4 seconds ttb time
+    await Future.delayed(Duration(seconds: 2));
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response after 4 seconds : $response');
+    expect(response, contains('data:112290'));
+
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response before 4 seconds : $response');
+    expect(response,contains('data:112290'));
+
+    ///LLOOKUP VERB - After 4 seconds ttl time
+    await Future.delayed(Duration(seconds: 4));
+    await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
+    response = await sh1.read();
+    print('llookup verb response after 4 seconds : $response');
+    expect(response, contains('data:null'));
+  });
+
+  
 }
