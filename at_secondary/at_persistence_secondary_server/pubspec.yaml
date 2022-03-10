@@ -24,7 +24,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_persistence/at_persistence_spec
-      ref: compaciton_statistics_new
+      ref: compaction_stats_persistence_spec
 #  at_utils:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
