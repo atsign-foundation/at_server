@@ -13,7 +13,7 @@ class AtCompactionService {
     return _singleton;
   }
 
-  late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
+  late AtCompactionStatsService atCompactionStatsService;
   late AtCompactionStats? atCompactionStats;
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
@@ -27,7 +27,7 @@ class AtCompactionService {
         atCompactionConfig.timeBasedCompaction();
     var sizeBasedCompactionConfigured =
         atCompactionConfig.sizeBasedCompaction();
-    atCompactionStatsServiceImpl =
+    atCompactionStatsService =
         AtCompactionStatsServiceImpl(atLogType, secondaryPersistenceStore);
 
     // Check if any of the compaction strategy's configured.
@@ -47,7 +47,7 @@ class AtCompactionService {
       atCompactionStats =
           await timeBasedCompaction.performCompaction(atLogType);
       //write compaction statistics returned by timeBasedCompaction into keystore
-      await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
+      await atCompactionStatsService.handleStats(atCompactionStats);
     }
 
     // Size based compaction is configured
@@ -59,7 +59,7 @@ class AtCompactionService {
       atCompactionStats =
           (await sizeBasedCompaction.performCompaction(atLogType));
       //write compaction statistics returned by sizeBasedCompaction into keystore
-      await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
+      await atCompactionStatsService.handleStats(atCompactionStats);
     }
   }
 }
