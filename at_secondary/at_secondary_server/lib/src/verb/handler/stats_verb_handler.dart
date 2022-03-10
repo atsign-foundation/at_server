@@ -24,7 +24,10 @@ enum MetricNames {
   LAST_LOGGEDIN_DATETIME,
   DISK_SIZE,
   LAST_AUTH_TIME,
-  NOTIFICATION_COUNT
+  NOTIFICATION_COUNT,
+  COMMIT_LOG_COMPACTION,
+  ACCESS_lOG_COMPACTION,
+  NOTIFICATION_COMPACTION
 }
 
 extension MetricClasses on MetricNames? {
@@ -52,6 +55,12 @@ extension MetricClasses on MetricNames? {
         return LastPkamMetricImpl.getInstance();
       case MetricNames.NOTIFICATION_COUNT:
         return NotificationsMetricImpl.getInstance();
+      case MetricNames.COMMIT_LOG_COMPACTION:
+        return CommitLogCompactionStats.getInstance();
+      case MetricNames.ACCESS_lOG_COMPACTION:
+        return AccessLogCompactionStats.getInstance();
+      case MetricNames.NOTIFICATION_COMPACTION:
+        return NotificationCompactionStats.getInstance();
       default:
         return null;
     }
@@ -69,7 +78,10 @@ final Map stats_map = {
   '8': MetricNames.LAST_LOGGEDIN_DATETIME,
   '9': MetricNames.DISK_SIZE,
   '10': MetricNames.LAST_AUTH_TIME,
-  '11': MetricNames.NOTIFICATION_COUNT
+  '11': MetricNames.NOTIFICATION_COUNT,
+  '12': MetricNames.COMMIT_LOG_COMPACTION,
+  '13': MetricNames.ACCESS_lOG_COMPACTION,
+  '14': MetricNames.NOTIFICATION_COMPACTION
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
