@@ -37,8 +37,8 @@ class SizeBasedCompaction implements AtCompactionStrategy {
           atCompactionStats.sizeAfterCompaction = atLogType.getSize();
           //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
-              .lastCompactionRun!
-              .difference(compactionStartTime);
+              .lastCompactionRun
+              ?.difference(compactionStartTime);
           return atCompactionStats;
         } else {
           _logger.finer(
