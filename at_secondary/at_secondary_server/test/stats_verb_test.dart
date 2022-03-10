@@ -292,7 +292,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.sizeAfterCompaction = 92;
       atCompactionStats.sizeBeforeCompaction = 96;
-      atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
+      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
       await keyStore?.put(commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
@@ -304,7 +304,7 @@ void main() {
       expect(
           decodedData["duration"].toString(), Duration(minutes: 14).toString());
       expect(decodedData['compaction_type'].toString(),
-          CompactionType.TimeBasedCompaction.toString());
+          CompactionType.timeBasedCompaction.toString());
     });
   });
 
@@ -336,7 +336,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.sizeAfterCompaction = 902;
       atCompactionStats.sizeBeforeCompaction = 906;
-      atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+      atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
       await keyStore?.put(accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
@@ -348,7 +348,7 @@ void main() {
       expect(
           decodedData["duration"].toString(), Duration(minutes: 2).toString());
       expect(decodedData['compaction_type'].toString(),
-          CompactionType.SizeBasedCompaction.toString());
+          CompactionType.sizeBasedCompaction.toString());
     });
   });
 
@@ -380,7 +380,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.sizeAfterCompaction = 1;
       atCompactionStats.sizeBeforeCompaction = 1;
-      atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
+      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
       await keyStore?.put(commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
@@ -392,7 +392,7 @@ void main() {
       expect(
           decodedData["duration"].toString(), Duration(minutes: 1).toString());
       expect(decodedData['compaction_type'.toString()],
-          CompactionType.TimeBasedCompaction.toString());
+          CompactionType.timeBasedCompaction.toString());
     });
   });
 }

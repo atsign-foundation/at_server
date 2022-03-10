@@ -26,7 +26,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     //collection of AtLogType statistics before compaction
     atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
     atCompactionStats.deletedKeysCount = expiredKeys.length;
-    atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
     // Delete expired keys
     await atLogType.delete(expiredKeys);
     //collection of statistics post compaction

@@ -36,7 +36,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 39;
     atCompactionStats.sizeBeforeCompaction = 69;
-    atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:accessLogCompactionStats');
     var data = (atData?.data);
@@ -47,7 +47,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 12).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.TimeBasedCompaction.toString());
+        CompactionType.timeBasedCompaction.toString());
   });
 
   test("verify commitLog stats in keystore", () async {
@@ -59,7 +59,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 32;
     atCompactionStats.sizeBeforeCompaction = 44;
-    atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     var data = (atData?.data);
@@ -70,7 +70,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 10).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.SizeBasedCompaction.toString());
+        CompactionType.sizeBasedCompaction.toString());
   });
 
   test("verify notificationKeyStore stats in keystore", () async {
@@ -82,7 +82,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 302;
     atCompactionStats.sizeBeforeCompaction = 404;
-    atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData =
         await keyStore?.get('privatekey:notificationCompactionStats');
@@ -94,7 +94,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 36).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.SizeBasedCompaction.toString());
+        CompactionType.sizeBasedCompaction.toString());
   });
 
   test("check commitLog compactionStats key", () async {

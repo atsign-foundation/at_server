@@ -29,7 +29,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         //collection of AtLogType statistics before compaction
         atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
         atCompactionStats.deletedKeysCount = keysToDelete.length;
-        atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+        atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
         if (keysToDelete.isNotEmpty) {
           await atLogType.delete(keysToDelete);
           //collection of statistics post compaction
