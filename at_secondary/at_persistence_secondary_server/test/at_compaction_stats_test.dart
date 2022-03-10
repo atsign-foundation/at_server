@@ -47,7 +47,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 12).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.TimeBasedCompaction.toString());
+        CompactionType.timeBasedCompaction.toString());
   });
 
   test("verify commitLog stats in keystore", () async {
@@ -70,7 +70,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 10).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.SizeBasedCompaction.toString());
+        CompactionType.sizeBasedCompaction.toString());
   });
 
   test("verify notificationKeyStore stats in keystore", () async {
@@ -94,7 +94,7 @@ Future<void> main() async {
     expect(
         decodedData["duration"].toString(), Duration(minutes: 36).toString());
     expect(decodedData['compaction_type'].toString(),
-        CompactionType.SizeBasedCompaction.toString());
+        CompactionType.sizeBasedCompaction.toString());
   });
 
   test("check commitLog compactionStats key", () async {
