@@ -36,7 +36,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 39;
     atCompactionStats.sizeBeforeCompaction = 69;
-    atCompactionStats.compactionType = CompactionType.TimeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:accessLogCompactionStats');
     var data = (atData?.data);
@@ -59,7 +59,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 32;
     atCompactionStats.sizeBeforeCompaction = 44;
-    atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     var data = (atData?.data);
@@ -82,7 +82,7 @@ Future<void> main() async {
     atCompactionStats.lastCompactionRun = DateTime.now();
     atCompactionStats.sizeAfterCompaction = 302;
     atCompactionStats.sizeBeforeCompaction = 404;
-    atCompactionStats.compactionType = CompactionType.SizeBasedCompaction;
+    atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData =
         await keyStore?.get('privatekey:notificationCompactionStats');
