@@ -403,11 +403,13 @@ class CommitLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    AtData? atData = await keyStore?.get(commitLogCompactionKey);
-    if (atData == null && atData?.data == null) {
-      return jsonEncode({});
+    if (keyStore!.isKeyExists(commitLogCompactionKey)) {
+      AtData? atData = await keyStore.get(commitLogCompactionKey);
+      if (atData != null && atData.data != null) {
+        return atData.data;
+      }
     }
-    return atData?.data;
+    return jsonEncode({});
   }
 
   @override
@@ -432,11 +434,13 @@ class AccessLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    AtData? atData = await keyStore?.get(accessLogCompactionKey);
-    if (atData == null && atData?.data == null) {
-      return jsonEncode({});
+    if (keyStore!.isKeyExists(accessLogCompactionKey)) {
+      AtData? atData = await keyStore.get(accessLogCompactionKey);
+      if (atData != null && atData.data != null) {
+        return atData.data;
+      }
     }
-    return atData?.data;
+    return jsonEncode({});
   }
 
   @override
@@ -461,11 +465,13 @@ class NotificationCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    AtData? atData = await keyStore?.get(notificationCompactionKey);
-    if (atData == null && atData?.data == null) {
-      return jsonEncode({});
+    if (keyStore!.isKeyExists(notificationCompactionKey)) {
+      AtData? atData = await keyStore.get(notificationCompactionKey);
+      if (atData != null && atData.data != null) {
+        return atData.data;
+      }
     }
-    return atData?.data;
+    return jsonEncode({});
   }
 
   @override
