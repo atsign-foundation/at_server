@@ -17,12 +17,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
 
   late AtLogType atLogType;
   late String compactionStatsKey;
+  late String atLogName;
   final _logger = AtSignLogger("AtCompactionStats");
 
   @override
   Future<void> handleStats(atCompactionStats) async {
     if (atCompactionStats != null) {
-      _logger.finer(atCompactionStats?.toString());
+      _logger.finer('$atLogName: ${atCompactionStats?.toString()}');
       try {
         await _keyStore.put(compactionStatsKey,
             AtData()..data = json.encode(atCompactionStats?.toJson()));
@@ -39,12 +40,15 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   void _getKey() {
     if (atLogType is AtCommitLog) {
       compactionStatsKey = commitLogCompactionKey;
+      atLogName = 'commitLogCompaction';
     }
     if (atLogType is AtAccessLog) {
       compactionStatsKey = accessLogCompactionKey;
+      atLogName = 'accessLogCompaction';
     }
     if (atLogType is AtNotificationKeystore) {
       compactionStatsKey = notificationCompactionKey;
+      atLogName = 'notificationCompaction';
     }
   }
 }
