@@ -1,4 +1,5 @@
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+
 ///The base class for Log.
 abstract class AtLogType {
   /// Returns the total number of keys in storage.
