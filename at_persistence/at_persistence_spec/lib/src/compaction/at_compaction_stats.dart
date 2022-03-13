@@ -13,7 +13,7 @@ class AtCompactionStats {
 
   ///maps predefined keys to their values which will be ready to encode to json
   Map toJson() => {
-        'compaction_type': compactionType?.toString()  ,
+        'compaction_type': compactionType?.toString(),
         'last_compaction_run': lastCompactionRun?.toString(),
         'duration': compactionDuration?.toString(),
         'size_before_compaction': sizeBeforeCompaction?.toString(),
