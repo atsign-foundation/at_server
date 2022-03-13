@@ -26,11 +26,11 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_commons
 #      ref: trunk
-#  at_persistence_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_persistence/at_persistence_spec
-#      ref: trunk
+ at_persistence_spec:
+   git:
+     url: https://github.com/atsign-foundation/at_server.git
+     path: at_persistence/at_persistence_spec
+     ref: compaction_stats_persistence_spec
 #   at_utils:
 #     git:
 #       url: https://github.com/atsign-foundation/at_tools.git
