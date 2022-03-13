@@ -89,9 +89,7 @@ void _messageHandler(data) {
   } else if (data.length > 1 && data.first == 64 && data.last == 64) {
     // pol responses do not end with '\n'. Add \n for buffer completion
     _queue.add(utf8.decode(data));
-  } else {
-    _queue.add(utf8.decode(data));
-  }
+  } 
 }
 
 Future<String> read({int maxWaitMilliSeconds = 5000}) async {
