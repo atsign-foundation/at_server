@@ -1,3 +1,5 @@
+## 2.0.4
+- Support to collect and store compaction statistics
 ## 2.0.3
 - Add isKeyExists method to keystore
 ## 2.0.2

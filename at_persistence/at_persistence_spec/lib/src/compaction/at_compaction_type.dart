@@ -1,0 +1,1 @@
+enum CompactionType{timeBasedCompaction, sizeBasedCompaction}
