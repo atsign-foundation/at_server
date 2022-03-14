@@ -31,8 +31,8 @@ COPY --from=buildimage /runtime/ /
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
 COPY --from=buildimage /etc/cacert /etc/cacert
-COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary $BINARYDIR/
-COPY --from=buildimage --chown=atsign:atsign /atsign $HOMEDIR/
+COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /usr/local/at/
+COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
 WORKDIR $HOMEDIR
 USER atsign
