@@ -25,6 +25,6 @@ COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /usr/local/at /usr/local/at/
-WORKDIR $HOMEDIR
+WORKDIR /atsign
 USER atsign
 ENTRYPOINT ["/usr/local/at/root"]

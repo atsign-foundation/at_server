@@ -1,6 +1,5 @@
 FROM dart:2.16.1 AS buildimage
 ENV HOMEDIR=/atsign
-ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -34,6 +33,6 @@ COPY --from=buildimage /etc/cacert /etc/cacert
 COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /usr/local/at/
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
-WORKDIR $HOMEDIR
+WORKDIR /atsign
 USER atsign
 ENTRYPOINT ["/usr/local/at/secondary"]
