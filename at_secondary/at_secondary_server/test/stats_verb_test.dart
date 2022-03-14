@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -260,5 +262,137 @@ void main() {
       expect(_metricsMap['createdOn'] is int, true);
     });
     tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of commitLogCompactionStats verb tests', () {
+    SecondaryKeyStoreManager? keyStoreManager;
+    setUp(() async => keyStoreManager = await setUpFunc(
+        Directory.current.path + '/test/hive',
+        atsign: '@alice'));
+
+    test('commitLogCompactionStats command accept test', () {
+      var command = 'stats:12';
+      var handler = StatsVerbHandler(null);
+      var result = handler.accept(command);
+      expect(result, true);
+    });
+
+    test('test name returned for commitLogCompaction Stats', () async {
+      var commitLogInstance = CommitLogCompactionStats.getInstance();
+      String name = commitLogInstance.getName();
+      expect(name, 'CommitLogCompactionStats');
+    });
+
+    test('commit Log stats get value test', () async {
+      AtCompactionStats atCompactionStats = AtCompactionStats();
+      var keyStore = keyStoreManager?.getKeyStore();
+
+      atCompactionStats.compactionDuration = Duration(minutes: 14);
+      atCompactionStats.deletedKeysCount = 41;
+      atCompactionStats.lastCompactionRun = DateTime.now();
+      atCompactionStats.sizeAfterCompaction = 92;
+      atCompactionStats.sizeBeforeCompaction = 96;
+      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
+      await keyStore?.put(commitLogCompactionKey,
+          AtData()..data = jsonEncode(atCompactionStats));
+
+      var atData = await CommitLogCompactionStats.getInstance().getMetrics();
+      var decodedData = jsonDecode(atData!) as Map;
+      expect(decodedData["deleted_keys_count"].toString(), '41');
+      expect(decodedData["size_after_compaction"].toString(), '92');
+      expect(decodedData["size_before_compaction"].toString(), '96');
+      expect(
+          decodedData["duration"].toString(), Duration(minutes: 14).toString());
+      expect(decodedData['compaction_type'].toString(),
+          CompactionType.timeBasedCompaction.toString());
+    });
+  });
+
+  group('A group of accessLogCompactionStats verb tests', () {
+    SecondaryKeyStoreManager? keyStoreManager;
+    setUp(() async => keyStoreManager = await setUpFunc(
+        Directory.current.path + '/test/hive',
+        atsign: '@alice'));
+
+    test('accessLogCompactionStats command acceptance test', () {
+      var command = 'stats:13';
+      var handler = StatsVerbHandler(null);
+      var result = handler.accept(command);
+      expect(result, true);
+    });
+
+    test('name returned for accessLogCompaction Stats test', () async {
+      var accessLogInstance = AccessLogCompactionStats.getInstance();
+      String name = accessLogInstance.getName();
+      expect(name, 'AccessLogCompactionStats');
+    });
+
+    test('accessLogCompactionStats getValue test', () async {
+      AtCompactionStats atCompactionStats = AtCompactionStats();
+      var keyStore = keyStoreManager?.getKeyStore();
+
+      atCompactionStats.compactionDuration = Duration(minutes: 2);
+      atCompactionStats.deletedKeysCount = 431;
+      atCompactionStats.lastCompactionRun = DateTime.now();
+      atCompactionStats.sizeAfterCompaction = 902;
+      atCompactionStats.sizeBeforeCompaction = 906;
+      atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
+      await keyStore?.put(accessLogCompactionKey,
+          AtData()..data = jsonEncode(atCompactionStats));
+
+      var atData = await AccessLogCompactionStats.getInstance().getMetrics();
+      var decodedData = jsonDecode(atData!) as Map;
+      expect(decodedData["deleted_keys_count"].toString(), '431');
+      expect(decodedData["size_after_compaction"].toString(), '902');
+      expect(decodedData["size_before_compaction"].toString(), '906');
+      expect(
+          decodedData["duration"].toString(), Duration(minutes: 2).toString());
+      expect(decodedData['compaction_type'].toString(),
+          CompactionType.sizeBasedCompaction.toString());
+    });
+  });
+
+  group('A group of notificationCompactionStats verb tests', () {
+    SecondaryKeyStoreManager? keyStoreManager;
+    setUp(() async => keyStoreManager = await setUpFunc(
+        Directory.current.path + '/test/hive',
+        atsign: '@alice'));
+
+    test('notificationCompactionStats command accept test', () {
+      var command = 'stats:14';
+      var handler = StatsVerbHandler(null);
+      var result = handler.accept(command);
+      expect(result, true);
+    });
+
+    test('test name returned for notificationCompaction Stats', () async {
+      var notificationInstance = NotificationCompactionStats.getInstance();
+      String name = notificationInstance.getName();
+      expect(name, 'NotificationCompactionStats');
+    });
+
+    test('notificationCompactionStats get value test', () async {
+      AtCompactionStats atCompactionStats = AtCompactionStats();
+      var keyStore = keyStoreManager?.getKeyStore();
+
+      atCompactionStats.compactionDuration = Duration(minutes: 1);
+      atCompactionStats.deletedKeysCount = 1;
+      atCompactionStats.lastCompactionRun = DateTime.now();
+      atCompactionStats.sizeAfterCompaction = 1;
+      atCompactionStats.sizeBeforeCompaction = 1;
+      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
+      await keyStore?.put(commitLogCompactionKey,
+          AtData()..data = jsonEncode(atCompactionStats));
+
+      var atData = await CommitLogCompactionStats.getInstance().getMetrics();
+      var decodedData = jsonDecode(atData!) as Map;
+      expect(decodedData["deleted_keys_count"].toString(), '1');
+      expect(decodedData["size_after_compaction"].toString(), '1');
+      expect(decodedData["size_before_compaction"].toString(), '1');
+      expect(
+          decodedData["duration"].toString(), Duration(minutes: 1).toString());
+      expect(decodedData['compaction_type'.toString()],
+          CompactionType.timeBasedCompaction.toString());
+    });
   });
 }
