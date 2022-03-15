@@ -1,8 +1,0 @@
-server:
-  port: 64
-log:
-  debug: false
-security:
-  useSSL: true
-  certificateChainLocation: 'certs/fullchain.pem'
-  privateKeyLocation: 'certs/privkey.pem'
