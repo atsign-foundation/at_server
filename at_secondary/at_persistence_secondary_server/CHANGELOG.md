@@ -1,3 +1,5 @@
+## 3.0.17
+- Support to collect and store compaction statistics
 ## 3.0.16
 - at_lookup version upgrade for implementing server error responses
 - at_commons version upgrade for AtTimeoutException
