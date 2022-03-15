@@ -1,12 +1,10 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
 
 class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
-  var logger = AtSignLogger('SizeBasedCompaction');
 
   SizeBasedCompaction(int size, this.compactionPercentage) {
     sizeInKB = size;
@@ -44,7 +42,6 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         }
       }
     }
-    logger.finer("$atLogType: skipping compaction");
     return null;
   }
 
