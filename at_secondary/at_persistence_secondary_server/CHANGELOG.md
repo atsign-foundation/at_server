@@ -1,5 +1,7 @@
+## 3.0.18
+- add encryption shared key and public key checksum to metadata
 ## 3.0.17
-- add shared key to metadata
+- Support to collect and store compaction statistics
 ## 3.0.16
 - at_lookup version upgrade for implementing server error responses
 - at_commons version upgrade for AtTimeoutException
