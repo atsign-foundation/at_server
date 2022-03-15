@@ -96,7 +96,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isCascade: isCascade,
             isBinary: isBinary,
             isEncrypted: isEncrypted,
-            dataSignature: dataSignature);
+            dataSignature: dataSignature,
+            sharedKeyEncrypted: sharedKeyEncrypted,
+            publicKeyChecksum: publicKeyChecksum);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager.getBox().put(hive_key, hive_value);
