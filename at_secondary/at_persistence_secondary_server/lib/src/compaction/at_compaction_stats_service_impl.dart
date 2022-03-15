@@ -30,9 +30,6 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
       } on Exception catch (_, e) {
         _logger.severe(e);
       }
-    } else {
-      _logger.finer(
-          '$atLogName: compaction criteria not met, skipping data write into key store');
     }
   }
 

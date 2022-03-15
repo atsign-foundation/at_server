@@ -6,7 +6,7 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
-  final _logger = AtSignLogger('TimeBasedCompaction');
+  final logger = AtSignLogger('SizeBasedCompaction');
 
   SizeBasedCompaction(int size, this.compactionPercentage) {
     sizeInKB = size;
@@ -40,12 +40,10 @@ class SizeBasedCompaction implements AtCompactionStrategy {
               .lastCompactionRun
               ?.difference(compactionStartTime);
           return atCompactionStats;
-        } else {
-          _logger.finer(
-              'No keys to delete. skipping size compaction for $atLogType');
         }
       }
     }
+    logger.finer('compaction criteria not met,skipping data write into keystore');
     return null;
   }
 

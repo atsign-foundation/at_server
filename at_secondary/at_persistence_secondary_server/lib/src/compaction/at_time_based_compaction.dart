@@ -6,6 +6,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
   late int timeInDays;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
+  var logger = AtSignLogger('TimeBasedCompaction');
 
   TimeBasedCompaction(int time, this.compactionPercentage) {
     timeInDays = time;
@@ -19,6 +20,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     var expiredKeys = await atLogType.getExpired(timeInDays);
     // If expired keys is empty, log compaction is not performed.
     if (expiredKeys.isEmpty) {
+      logger.finer('compaction criteria not met, skipping data write into keystore');
       return null;
     }
     atCompactionStats = AtCompactionStats();
