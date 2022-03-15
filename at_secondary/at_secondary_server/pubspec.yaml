@@ -18,7 +18,7 @@ dependencies:
   basic_utils: ^3.0.2
   at_persistence_secondary_server: ^3.0.17
   at_lookup: ^3.0.11
-  at_server_spec: ^3.0.1
+  at_server_spec: ^3.0.4
 
 # dependency_overrides:
 #  at_commons:
