@@ -1,10 +1,12 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 class TimeBasedCompaction implements AtCompactionStrategy {
   late int timeInDays;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
+  var logger = AtSignLogger('TimeBasedCompaction');
 
   TimeBasedCompaction(int time, this.compactionPercentage) {
     timeInDays = time;
@@ -18,6 +20,7 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     var expiredKeys = await atLogType.getExpired(timeInDays);
     // If expired keys is empty, log compaction is not performed.
     if (expiredKeys.isEmpty) {
+      logger.finer('$atLogType: skipping compaction');
       return null;
     }
     atCompactionStats = AtCompactionStats();
