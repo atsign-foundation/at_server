@@ -148,7 +148,7 @@ void main() async {
       var dataFromHive = await (keyStore.get('phone'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
-      expect(dataFromHive?.metaData!.ttl, 5000);
+      expect(dataFromHive?.metaData!.ttl, 6000);
     });
 
     test('test create and get for metadata-shared key', () async {
