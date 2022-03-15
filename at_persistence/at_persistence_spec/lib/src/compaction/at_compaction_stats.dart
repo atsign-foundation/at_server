@@ -5,8 +5,8 @@ class AtCompactionStats {
   CompactionType? compactionType;
   late DateTime? lastCompactionRun;
   late Duration? compactionDuration;
-  int? sizeBeforeCompaction;
-  int? sizeAfterCompaction;
+  int? preCompactionEntriesCount;
+  int? postCompactionEntriesCount;
   int? deletedKeysCount;
 
   AtCompactionStats();
@@ -16,8 +16,8 @@ class AtCompactionStats {
         'compaction_type': compactionType?.toString(),
         'last_compaction_run': lastCompactionRun?.toString(),
         'duration': compactionDuration?.toString(),
-        'size_before_compaction': sizeBeforeCompaction?.toString(),
-        'size_after_compaction': sizeAfterCompaction?.toString(),
+        'size_before_compaction': preCompactionEntriesCount?.toString(),
+        'size_after_compaction': postCompactionEntriesCount?.toString(),
         'deleted_keys_count': deletedKeysCount?.toString()
       };
 
