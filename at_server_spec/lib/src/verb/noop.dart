@@ -15,7 +15,7 @@ class NoOp extends Verb {
   String name() => 'noop';
 
   @override
-  String syntax() => VerbSyntax.noop;
+  String syntax() => VerbSyntax.noOp;
 
   @override
   Verb? dependsOn() {
