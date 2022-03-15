@@ -34,19 +34,19 @@ Future<void> main() async {
     atCompactionStats.compactionDuration = Duration(minutes: 12);
     atCompactionStats.deletedKeysCount = 77;
     atCompactionStats.lastCompactionRun = DateTime.now();
-    atCompactionStats.sizeAfterCompaction = 39;
-    atCompactionStats.sizeBeforeCompaction = 69;
+    atCompactionStats.postCompactionEntriesCount = 39;
+    atCompactionStats.preCompactionEntriesCount = 69;
     atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:accessLogCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect(decodedData["deleted_keys_count"].toString(), '77');
-    expect(decodedData["size_after_compaction"].toString(), '39');
-    expect(decodedData["size_before_compaction"].toString(), '69');
+    expect(decodedData["deletedKeysCount"].toString(), '77');
+    expect(decodedData["postCompactionEntriesCount"].toString(), '39');
+    expect(decodedData["preCompactionEntriesCount"].toString(), '69');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 12).toString());
-    expect(decodedData['compaction_type'].toString(),
+    expect(decodedData['compactionType'].toString(),
         CompactionType.timeBasedCompaction.toString());
   });
 
@@ -57,19 +57,19 @@ Future<void> main() async {
     atCompactionStats.compactionDuration = Duration(minutes: 10);
     atCompactionStats.deletedKeysCount = 23;
     atCompactionStats.lastCompactionRun = DateTime.now();
-    atCompactionStats.sizeAfterCompaction = 32;
-    atCompactionStats.sizeBeforeCompaction = 44;
+    atCompactionStats.postCompactionEntriesCount = 32;
+    atCompactionStats.preCompactionEntriesCount = 44;
     atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData = await keyStore?.get('privatekey:commitLogCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect(decodedData["deleted_keys_count"].toString(), '23');
-    expect(decodedData["size_after_compaction"].toString(), '32');
-    expect(decodedData["size_before_compaction"].toString(), '44');
+    expect(decodedData["deletedKeysCount"].toString(), '23');
+    expect(decodedData["postCompactionEntriesCount"].toString(), '32');
+    expect(decodedData["preCompactionEntriesCount"].toString(), '44');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 10).toString());
-    expect(decodedData['compaction_type'].toString(),
+    expect(decodedData['compactionType'].toString(),
         CompactionType.sizeBasedCompaction.toString());
   });
 
@@ -80,20 +80,20 @@ Future<void> main() async {
     atCompactionStats.compactionDuration = Duration(minutes: 36);
     atCompactionStats.deletedKeysCount = 239;
     atCompactionStats.lastCompactionRun = DateTime.now();
-    atCompactionStats.sizeAfterCompaction = 302;
-    atCompactionStats.sizeBeforeCompaction = 404;
+    atCompactionStats.postCompactionEntriesCount = 302;
+    atCompactionStats.preCompactionEntriesCount = 404;
     atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
     await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
     AtData? atData =
         await keyStore?.get('privatekey:notificationCompactionStats');
     var data = (atData?.data);
     var decodedData = jsonDecode(data!) as Map;
-    expect(decodedData["deleted_keys_count"].toString(), '239');
-    expect(decodedData["size_after_compaction"].toString(), '302');
-    expect(decodedData["size_before_compaction"].toString(), '404');
+    expect(decodedData["deletedKeysCount"].toString(), '239');
+    expect(decodedData["postCompactionEntriesCount"].toString(), '302');
+    expect(decodedData["preCompactionEntriesCount"].toString(), '404');
     expect(
         decodedData["duration"].toString(), Duration(minutes: 36).toString());
-    expect(decodedData['compaction_type'].toString(),
+    expect(decodedData['compactionType'].toString(),
         CompactionType.sizeBasedCompaction.toString());
   });
 

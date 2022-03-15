@@ -32,7 +32,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
       }
     } else {
       _logger.finer(
-          'compaction criteria not met, skipping data write into key store');
+          '$atLogName: compaction criteria not met, skipping data write into key store');
     }
   }
 
