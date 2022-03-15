@@ -9,8 +9,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
-  static final int approximateStartTimeMillis = DateTime.now().millisecondsSinceEpoch;
-  InfoVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  static int? approximateStartTimeMillis;
+  InfoVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore) {
+    approximateStartTimeMillis ??= DateTime.now().millisecondsSinceEpoch;
+  }
 
   @override
   bool accept(String command) => command == 'info';
@@ -43,11 +45,16 @@ class InfoVerbHandler extends AbstractVerbHandler {
     /// ```
     ///
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
-    Duration uptime = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - approximateStartTimeMillis);
-    infoMap['uptime'] = "${uptime.inDays}"
-        " ${uptime.inHours.remainder(24)}"
-        " ${uptime.inMinutes.remainder(60)}"
-        " ${uptime.inSeconds.remainder(60)}";
+    Duration uptime = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - approximateStartTimeMillis!);
+    int uDays = uptime.inDays;
+    int uHours = uptime.inHours.remainder(24);
+    int uMins = uptime.inMinutes.remainder(60);
+    int uSeconds = uptime.inSeconds.remainder(60);
+    infoMap['uptime'] =
+        (uDays > 0 ? "$uDays days " : "") +
+        ((uDays > 0 || uHours > 0) ? "$uHours hours " : "") +
+        ((uDays > 0 || uHours > 0 || uMins > 0) ? "$uMins minutes " : "") +
+        "$uSeconds seconds";
     infoMap['features'] = [
       {
         "name": "No-Op verb",
