@@ -6,7 +6,6 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
-  final logger = AtSignLogger('SizeBasedCompaction');
 
   SizeBasedCompaction(int size, this.compactionPercentage) {
     sizeInKB = size;
@@ -34,7 +33,8 @@ class SizeBasedCompaction implements AtCompactionStrategy {
           await atLogType.delete(keysToDelete);
           //collection of statistics post compaction
           atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
-          atCompactionStats.postCompactionEntriesCount = atLogType.entriesCount();
+          atCompactionStats.postCompactionEntriesCount =
+              atLogType.entriesCount();
           //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
               .lastCompactionRun
@@ -43,7 +43,6 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         }
       }
     }
-    logger.finer('compaction criteria not met,skipping data write into keystore');
     return null;
   }
 
