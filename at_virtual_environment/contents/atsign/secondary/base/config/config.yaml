@@ -9,9 +9,8 @@ root_server:
 
 # The @Protocol application log configurations
 log:
-  debug: true
-  trace: true
-
+  level: FINEST
+  
 # The @Protocol security configurations.
 security:
   # To start secondary server in Secure/UnSecure mode. When [useSSL] is set to false, the secondary server starts in un-secure mode.
