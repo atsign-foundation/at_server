@@ -52,6 +52,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var ttr_ms;
     var ttln_ms;
     var isCascade;
+    var notificationId = verbParams['id'];
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
     var atValue = verbParams[AT_VALUE];
@@ -166,7 +167,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttln_ms, value: atValue);
+          ttl_ms: ttln_ms, value: atValue, id: notificationId);
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;

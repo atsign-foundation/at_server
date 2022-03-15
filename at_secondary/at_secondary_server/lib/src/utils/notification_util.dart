@@ -3,7 +3,6 @@ import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:cron/cron.dart';
 
 /// Util class for Notifications
 class NotificationUtil {
@@ -22,7 +21,8 @@ class NotificationUtil {
       {MessageType messageType = MessageType.key,
       int? ttl_ms,
       String? value,
-      NotificationStatus? notificationStatus}) async {
+      NotificationStatus? notificationStatus,
+      String? id}) async {
     try {
       if (forAtSign == null) {
         return null;
@@ -43,6 +43,9 @@ class NotificationUtil {
         notificationBuilder.ttl = ttl_ms;
         notificationBuilder.expiresAt =
             DateTime.now().toUtc().add(Duration(milliseconds: ttl_ms));
+      }
+      if(id != null && id.isNotEmpty){
+        notificationBuilder.id = id;
       }
 
       var atNotification = notificationBuilder.build();
