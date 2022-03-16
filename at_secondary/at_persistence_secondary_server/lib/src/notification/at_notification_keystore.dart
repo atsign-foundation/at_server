@@ -63,7 +63,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future put(key, value,
+  Future<dynamic> put(key, value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
@@ -78,7 +78,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future create(key, value,
+  Future<dynamic> create(key, value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
