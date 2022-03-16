@@ -25,7 +25,9 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature});
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -41,7 +43,10 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
-      bool? isEncrypted});
+      bool? isEncrypted,
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
