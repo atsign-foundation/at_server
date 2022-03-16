@@ -1,3 +1,5 @@
+## 2.0.5
+- Added encryption shared key and public key checksum to metadata
 ## 2.0.4
 - Support to collect and store compaction statistics
 ## 2.0.3
