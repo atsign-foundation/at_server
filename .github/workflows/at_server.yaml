@@ -264,6 +264,7 @@ jobs:
 # The job runs end to end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
   end2end_test_12:
     needs: [ end2end_test_prep ]
+    concurrency: cicd12
     runs-on: ubuntu-latest
 
     steps:
@@ -292,6 +293,7 @@ jobs:
 # The job runs end to end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
   end2end_test_34:
     needs: [ end2end_test_prep ]
+    concurrency: cicd34
     runs-on: ubuntu-latest
 
     steps:
@@ -320,6 +322,7 @@ jobs:
 # The job runs end to end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
   end2end_test_56:
     needs: [ end2end_test_prep ]
+    concurrency: cicd56
     runs-on: ubuntu-latest
 
     steps:
