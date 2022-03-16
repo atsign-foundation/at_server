@@ -162,14 +162,15 @@ jobs:
         working-directory: at_secondary/at_secondary_server
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
-      #- name: Generate install_pkam_keys binary
-      #  working-directory: at_functional_test/lib/install_pkam_keys
-      #  run: dart pub get && dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
+      - name: Generate install_pkam_keys binary
+        working-directory: at_virtual_environment/install_PKAM_Keys
+        run: dart pub get && dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
 
       - name: copy binaries to at_virtual_environment
         run: |
           cp at_root/at_root_server/root at_virtual_environment/contents/atsign/root/ 
           cp at_secondary/at_secondary_server/secondary at_virtual_environment/contents/atsign/secondary/
+          cp at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys at_virtual_environment/contents/usr/local/bin/
 
       - name: Build docker image
         uses: docker/build-push-action@v2.10.0
@@ -182,6 +183,7 @@ jobs:
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
         
+        # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: at_functional_test
         run: dart run test/check_test_env.dart
