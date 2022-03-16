@@ -2,6 +2,10 @@ FROM dart:2.16.1 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
+# Context for this Dockerfile needs to be at_server repo root
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/virtualenv:vip \
+##   -f at_virtual_environment/ve/Dockerfile.vip .
 COPY . .
 RUN \
   cd /app/at_secondary/at_persistence_secondary_server ; \

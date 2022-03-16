@@ -2,6 +2,10 @@ FROM dart:2.16.1 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
+# Context for this Dockerfile needs to be at_server repo root
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/vebase \
+## -f at_virtual_environment/ve_base/Dockerfile .
 COPY . .
 RUN \
   cd /app/at_root/at_root_server ; \
