@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Based on acme-dns-tiny https://github.com/Trim/acme-dns-tiny
 # pylint: disable=multiple-imports
 """ACME client to met DNS challenge and receive TLS certificate"""
 import argparse, base64, binascii, configparser, copy, hashlib, json, logging
@@ -9,6 +10,8 @@ import dns.resolver
 # Timing info
 from datetime import datetime
 start=datetime.now()
+# For root domain updates
+rootdomain = False
 
 LOGGER = logging.getLogger('acme_certs')
 LOGGER.setLevel(logging.DEBUG)
@@ -55,8 +58,12 @@ def get_crt(config, log=LOGGER):
         log.info(do_token)
         log.info('Creating TXT record on Digital Ocean')
         split_domain=domain.split(".",2)
-        chal_domain=split_domain[0]+"."+split_domain[1]
-        base_domain=split_domain[2]
+        if rootdomain:
+            chal_domain=split_domain[0]
+            base_domain=split_domain[1]+"."+split_domain[2]
+        else:
+            chal_domain=split_domain[0]+"."+split_domain[1]
+            base_domain=split_domain[2]
         api_url = f'{do_base}domains/{base_domain}/records'
         txt_params = {'type' : 'TXT', 'name' : f'{chal_domain}',
             'data' : f'{keydigest64}', 'ttl' : 1800}
@@ -383,6 +390,8 @@ Example: requests certificate chain and store it in chain.crt
     )
     parser.add_argument("-q","--quiet", action="store_const", const=logging.ERROR,
                         help="show only errors on stderr")
+    parser.add_argument("-r","--root", action="store_true",
+                        help="create a cert for the root of a (sub) domain")
     parser.add_argument("-s","--staging", action="store_true",
                         help="use LetsEncrypt Staging")
     parser.add_argument("-t","--testing", action="store_true",
@@ -409,6 +418,10 @@ Example: requests certificate chain and store it in chain.crt
             {"accountkeyfile": "/gluster/@/api/keys/letsencrypt.key",
             "ACMEDirectory": "https://acme-v02.api.letsencrypt.org/directory"}})
 
+    if args.root:
+        global rootdomain
+        rootdomain = True
+    
     logformat = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
     logfile = logging.FileHandler(f'{args.cert_name}.log')
     logfile.setFormatter(logformat)
