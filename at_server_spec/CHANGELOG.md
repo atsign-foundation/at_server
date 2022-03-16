@@ -1,3 +1,7 @@
+## 3.0.5
+- Exported update_meta.dart and verb.dart in package export
+## 3.0.4
+- Exported 'info' and 'noop' verbs in package export
 ## 3.0.3
 - Added 'info' and 'noop' verbs
 ## 3.0.2
