@@ -3,6 +3,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/notification_request_manager.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -96,8 +97,11 @@ class ResourceManager {
     try {
       while (iterator.moveNext()) {
         atNotification = iterator.current;
-        var key = _prepareNotificationKey(atNotification);
-        notifyResponse = await outBoundClient.notify(key);
+        var notificationRequest = NotificationRequestManager.getInstance()
+            .getNotificationRequest('3.0.12');
+        var key =
+            notificationRequest.prepareNotificationReqeust(atNotification);
+        notifyResponse = await outBoundClient.notify(key.request);
         logger.info('notifyResult : $notifyResponse');
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
