@@ -1,0 +1,37 @@
+FROM dart:2.16.1 AS buildimage
+ENV HOMEDIR=/atsign
+ENV USER_ID=1024
+ENV GROUP_ID=1024
+WORKDIR /app
+COPY . .
+RUN \
+  cd at_persistence_secondary_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  cd ../at_secondary_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/main.dart -o secondary ; \
+  mkdir -p $HOMEDIR/storage ; \
+  mkdir -p $HOMEDIR/config ; \
+  mkdir -p /etc/cacert ; \
+  mkdir -p /archive ; \
+  addgroup --gid $GROUP_ID atsign ; \
+  useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
+  --home $HOMEDIR atsign ; \
+  chown -R atsign:atsign $HOMEDIR ; \
+  chown -R atsign:atsign /archive ; \
+  cp config/config.yaml $HOMEDIR/config/ ; \
+  cp cacert/cacert.pem /etc/cacert ; \
+  cp pubspec.yaml $HOMEDIR/
+
+FROM atsigncompany/vebase:latest
+USER root
+
+# Secondary binary from first stage
+COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary /atsign/secondary/
+
+EXPOSE 64 6379 9001
+
+# Run supervisor configuration file on container startup
+CMD ["supervisord", "-n"]
