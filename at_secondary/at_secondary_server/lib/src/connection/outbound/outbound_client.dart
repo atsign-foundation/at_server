@@ -261,7 +261,9 @@ class OutboundClient {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     logger.info('waiting for response from outbound connection');
-    var notifyResult = await messageListener.read();
+    // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
+    // response.
+    var notifyResult = await messageListener.read(maxWaitMilliSeconds: 30000);
     //notifyResult = notifyResult.replaceFirst(RegExp(r'\n\S+'), '');
     logger.info('notifyResult result after format: $notifyResult');
     return notifyResult;
