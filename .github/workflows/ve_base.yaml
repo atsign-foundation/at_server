@@ -1,0 +1,69 @@
+name: VE_base
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '42 6 * * 1' # At 0642 each Monday
+    
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dart-lang/setup-dart@v1.3
+        with:
+          sdk: stable
+
+      - name: Generate root server binary
+        working-directory: at_root/at_root_server
+        # -o : path to copy the root binary
+        run: dart pub get && dart compile exe bin/main.dart -o root
+
+      - name: Generate install_pkam_keys binary
+        working-directory: at_virtual_environment/install_PKAM_Keys
+        run: dart pub get && dart compile exe bin/install_PKAM_Keys.dart \
+          -o install_PKAM_Keys
+
+      - name: copy binaries to at_virtual_environment ve_base
+        run: |
+          cp at_root/at_root_server/root \
+            at_virtual_environment/ve_base/contents/atsign/root/ 
+          cp at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
+            at_virtual_environment/ve_base/contents/usr/local/bin/
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.6.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.12.0 
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2.8.0
+        with:
+          file: at_virtual_environment/ve_base/Dockerfile
+          context: at_virtual_environment/ve_base
+          push: true
+          tags: |
+            atsigncompany/vebase:latest
+            atsigncompany/vebase:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm/v7
+            linux/arm64/v8
+      
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+
+      - name: Google Chat Notification
+        uses: Co-qn/google-chat-notification@releases/v1
+        with:
+          name: New Docker base image for at_virtual_environment
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
+          

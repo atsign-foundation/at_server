@@ -144,11 +144,6 @@ jobs:
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
 
-      - name: Generate root server binary
-        working-directory: at_root/at_root_server
-        # -o : path to copy the root binary
-        run: dart pub get && dart compile exe bin/main.dart -o root
-
       # Runs when github action event is pull_request or push to a trunk branch.
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
@@ -162,21 +157,15 @@ jobs:
         working-directory: at_secondary/at_secondary_server
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
-      - name: Generate install_pkam_keys binary
-        working-directory: at_virtual_environment/install_PKAM_Keys
-        run: dart pub get && dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
-
-      - name: copy binaries to at_virtual_environment
+      - name: copy secondary to at_virtual_environment/ve
         run: |
-          cp at_root/at_root_server/root at_virtual_environment/contents/atsign/root/ 
-          cp at_secondary/at_secondary_server/secondary at_virtual_environment/contents/atsign/secondary/
-          cp at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys at_virtual_environment/contents/usr/local/bin/
-
+          cp at_secondary/at_secondary_server/secondary at_virtual_environment/ve/contents/atsign/secondary/
+          
       - name: Build docker image
         uses: docker/build-push-action@v2.10.0
         with:
-          file: at_virtual_environment/Dockerfile
-          context: at_virtual_environment/
+          file: at_virtual_environment/ve/Dockerfile
+          context: at_virtual_environment/ve/
           tags: at_virtual_env:trunk
 
       - name: Run docker container
