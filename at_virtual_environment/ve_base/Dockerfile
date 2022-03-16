@@ -1,7 +1,28 @@
+FROM dart:2.16.1 AS buildimage
+ENV USER_ID=1024
+ENV GROUP_ID=1024
+WORKDIR /app
+COPY . .
+RUN \
+  cd /app/at_root/at_root_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/main.dart -o root ; \
+  cd /app/at_virtual_environment/install_PKAM_Keys ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
+
 FROM debian:stable-20220228-slim
 USER root
 
-COPY ./contents /
+COPY ./at_virtual_environment/ve_base/contents /
+COPY --from=buildimage --chown=atsign:atsign \
+  /app/at_root/at_root_server/root /atsign/root/
+COPY --from=buildimage --chown=atsign:atsign \
+  /app/at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
+  /usr/local/bin/
+
 RUN chmod 777 /tmp && \
     mkdir -p /atsign/logs && \
     mkdir -p /apps/logs/ && \
