@@ -24,14 +24,14 @@ class TimeBasedCompaction implements AtCompactionStrategy {
     }
     atCompactionStats = AtCompactionStats();
     //collection of AtLogType statistics before compaction
-    atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
+    atCompactionStats.preCompactionEntriesCount = atLogType.getSize();
     atCompactionStats.deletedKeysCount = expiredKeys.length;
     atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
     // Delete expired keys
     await atLogType.delete(expiredKeys);
     //collection of statistics post compaction
     atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
-    atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+    atCompactionStats.postCompactionEntriesCount = atLogType.getSize();
     //calculation of compaction duration by comparing present time with compaction start time
     atCompactionStats.compactionDuration =
         atCompactionStats.lastCompactionRun?.difference(compactionStartTime);

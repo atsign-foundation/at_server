@@ -27,14 +27,14 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
         //collection of AtLogType statistics before compaction
-        atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
+        atCompactionStats.preCompactionEntriesCount = atLogType.getSize();
         atCompactionStats.deletedKeysCount = keysToDelete.length;
         atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
         if (keysToDelete.isNotEmpty) {
           await atLogType.delete(keysToDelete);
           //collection of statistics post compaction
           atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
-          atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+          atCompactionStats.postCompactionEntriesCount = atLogType.getSize();
           //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
               .lastCompactionRun
