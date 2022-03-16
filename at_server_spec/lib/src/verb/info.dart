@@ -1,0 +1,49 @@
+import 'package:at_server_spec/src/verb/verb.dart';
+import 'package:at_commons/at_commons.dart';
+
+/// The "info" verb returns a JSON object as follows:
+/// ```json
+/// {
+///   "version" : "the version being run",
+///   "uptime" : "uptime as string: D days, H hours, M minutes, S seconds",
+///   "features" : [
+///     {
+///       "name" : "name of feature 1",
+///       "status" : "One of Preview, Beta, GA",
+///       "description" : "optional description of feature"
+///     },
+///     {
+///       "name" : "name of feature 2",
+///       "status" : "One of Preview, Beta, GA",
+///       "description" : "optional description of feature"
+///     },
+///     ...
+///   ]
+/// }
+/// ```
+///
+/// This verb _does not_ require authentication.
+///
+/// **Syntax**: info
+class Info extends Verb {
+  @override
+  String name() => 'info';
+
+  @override
+  String syntax() => VerbSyntax.info;
+
+  @override
+  Verb? dependsOn() {
+    return null;
+  }
+
+  @override
+  String usage() {
+    return 'info';
+  }
+
+  @override
+  bool requiresAuth() {
+    return false;
+  }
+}
