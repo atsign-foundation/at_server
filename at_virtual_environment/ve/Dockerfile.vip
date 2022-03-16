@@ -19,9 +19,11 @@ RUN \
 FROM atsigncompany/vebase:latest
 USER root
 
-# Secondary binary from first stage
+# Secondary binary and pubspec.yaml from first stage
 COPY --from=buildimage --chown=atsign:atsign \
   /app/at_secondary/at_secondary_server/secondary /atsign/secondary/
+COPY --from=buildimage --chown=atsign:atsign \
+  /app/at_secondary/at_secondary_server/pubspec.yaml /atsign/secondary/
 
 EXPOSE 64 6379 9001
 

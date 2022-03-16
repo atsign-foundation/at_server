@@ -372,30 +372,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Gets the root server binary generated from the above "build" job.
-      - name: Get root server
-        uses: actions/download-artifact@v2
-        with:
-          name: root-server
-          path: at_functional_test/lib/root/
-
-      # Gets the secondary server binary generated from the above "secondary" job.
-      - name: Get secondary server
-        uses: actions/download-artifact@v2
-        with:
-          name: secondary-server
-          path: at_functional_test/lib/secondary/
-
       # Builds and pushes the at_virtual_env to docker hub.
-      - name: Build and push for trunk branch
-        id: docker_build_trunk
+      - name: Build and push
+        id: docker_build
         uses: docker/build-push-action@v2.10.0
         with:
+          file: at_virtual_environment/ve/Dockerfile.vip
           push: true
-          context: at_functional_test/lib/
           tags: |
             atsigncompany/virtualenv:dev_env
             atsigncompany/virtualenv:${{ env.BRANCH }}-gha${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
