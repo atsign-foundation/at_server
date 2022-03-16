@@ -48,14 +48,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<int?> put(String key, AtData? value,
+  Future<dynamic> put(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) async {
+        String? dataSignature,
+        String? sharedKeyEncrypted,
+        String? publicKeyChecksum}) async {
     var result;
     // Default the commit op to just the value update
     var commitOp = CommitOp.UPDATE;
@@ -117,14 +119,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<int?> create(String key, AtData? value,
+  Future<dynamic> create(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) async {
+        String? dataSignature,
+        String? sharedKeyEncrypted,
+        String? publicKeyChecksum}) async {
     var result;
     var commitOp;
     var hive_key = keyStoreHelper.prepareKey(key);
