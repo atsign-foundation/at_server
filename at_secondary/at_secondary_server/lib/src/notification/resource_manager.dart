@@ -97,8 +97,10 @@ class ResourceManager {
     try {
       while (iterator.moveNext()) {
         atNotification = iterator.current;
+        //TODO: Get the version using the info verb
+        String version = '3.0.12';
         var notificationRequest = NotificationRequestManager.getInstance()
-            .getNotificationRequest('3.0.12');
+            .getNotificationRequest(version);
         var key =
             notificationRequest.prepareNotificationReqeust(atNotification);
         notifyResponse = await outBoundClient.notify(key.request);
@@ -133,38 +135,6 @@ class ResourceManager {
     } else {
       errorList.add(atNotification);
     }
-  }
-
-  /// Prepares the notification key.
-  /// Accepts [AtNotification]
-  /// Returns the key of notification key.
-  String _prepareNotificationKey(AtNotification atNotification) {
-    var key;
-    key = '${atNotification.notification}';
-    var atMetaData = atNotification.atMetadata;
-    if (atMetaData != null) {
-      if (atMetaData.ttr != null) {
-        key =
-            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
-      }
-      if (atMetaData.ttb != null) {
-        key = 'ttb:${atMetaData.ttb}:$key';
-      }
-      if (atMetaData.ttl != null) {
-        key = 'ttl:${atMetaData.ttl}:$key';
-      }
-    }
-    if (atNotification.ttl != null) {
-      key = 'ttln:${atNotification.ttl}:$key';
-    }
-    key = 'notifier:${atNotification.notifier}:$key';
-    key =
-        'messageType:${atNotification.messageType.toString().split('.').last}:$key';
-    if (atNotification.opType != null) {
-      key = '${atNotification.opType.toString().split('.').last}:$key';
-    }
-    key = 'id:${atNotification.id}:$key';
-    return key;
   }
 
   ///Adds the errored notifications back to queue.
