@@ -43,7 +43,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<int?> put(String key, AtData? value,
+  Future<dynamic> put(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
@@ -118,7 +118,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<int?> create(String key, AtData? value,
+  Future<dynamic> create(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,

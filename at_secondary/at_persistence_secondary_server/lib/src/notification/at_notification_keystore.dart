@@ -1,5 +1,7 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -61,31 +63,31 @@ class AtNotificationKeystore
   }
 
   @override
-  Future put(key, value,
+  Future<dynamic> put(key, value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+        String? dataSignature,
+        String? sharedKeyEncrypted,
+        String? publicKeyChecksum}) async {
     await _getBox().put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
 
   @override
-  Future create(key, value,
+  Future<dynamic> create(key, value,
       {int? time_to_live,
       int? time_to_born,
       int? time_to_refresh,
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+        String? dataSignature,
+        String? sharedKeyEncrypted,
+        String? publicKeyChecksum}) async {
     throw UnimplementedError();
   }
 
