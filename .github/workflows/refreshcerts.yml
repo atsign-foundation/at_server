@@ -27,9 +27,9 @@ jobs:
           DOMAIN="ve.atsign.zone"
           FQDN="$CERTNAME"."$DOMAIN"
           sudo mkdir -p /gluster/@/api/keys
-          sudo echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
-          sudo echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
-          sudo python3 ./automation/acme_certs.py "$FQDN"
+          echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
+          echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
+          python3 ./automation/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
