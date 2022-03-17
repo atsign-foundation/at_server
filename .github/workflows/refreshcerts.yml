@@ -43,13 +43,13 @@ jobs:
               exit 1
             fi
           fi
-          cp "$FQDN".cert.pem ./at_virtual_environment/contents/atsign/root/certs/cert.pem
-          cp "$FQDN".key ./at_virtual_environment/contents/atsign/root/certs/privkey.pem
-          cp "$FQDN".fullchain.pem ./at_virtual_environment/contents/atsign/root/certs/fullchain.pem
-          cp ./at_virtual_environment/contents/atsign/root/certs/*.pem \
-            ./at_virtual_environment/contents/atsign/secondary/base/certs/
-          git add ./at_virtual_environment/contents/atsign/secondary/base/certs/*\
-            ./at_virtual_environment/contents/atsign/root/certs/*
+          cp "$FQDN".cert.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
+          cp "$FQDN".key ./at_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp "$FQDN".fullchain.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ./at_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ./at_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          git add ./at_virtual_environment/ve_base/contents/atsign/secondary/base/certs/*\
+            ./at_virtual_environment/ve_base/contents/atsign/root/certs/*
           git config --global user.name 'Getcert Action'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Automated certificate refresh'
