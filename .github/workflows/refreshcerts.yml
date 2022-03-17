@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-python@v2.3.1
         with:
           python-version: 3.9 #install the python needed
+      
       - name: setup certinfo
         uses: atsign-company/certinfo-action@v1
 
@@ -25,10 +26,10 @@ jobs:
           CERTNAME="vip"
           DOMAIN="ve.atsign.zone"
           FQDN="$CERTNAME"."$DOMAIN"
-          mkdir -p /gluster/@/api/keys
-          echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
-          echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
-          python3 ./automation/acme_certs.py "$FQDN"
+          sudo mkdir -p /gluster/@/api/keys
+          sudo echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
+          sudo echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
+          sudo python3 ./automation/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
@@ -67,7 +68,7 @@ jobs:
         if: always()
         uses: Co-qn/google-chat-notification@releases/v1
         with:
-          name: New certificates for at_virtual_environment
+          name: New certificates for at_server virtual environment
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
 
@@ -106,7 +107,7 @@ jobs:
       - name: Google Chat Notification
         uses: Co-qn/google-chat-notification@releases/v1
         with:
-          name: New Docker image for at_virtual_environment
+          name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
           

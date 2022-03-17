@@ -39,7 +39,7 @@ jobs:
       - name: Google Chat Notification
         uses: Co-qn/google-chat-notification@releases/v1
         with:
-          name: New Docker base image for at_virtual_environment
+          name: New Docker base image for vebase:latest
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
           
