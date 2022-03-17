@@ -160,6 +160,7 @@ jobs:
       - name: copy secondary to at_virtual_environment/ve
         run: |
           cp at_secondary/at_secondary_server/secondary at_virtual_environment/ve/contents/atsign/secondary/
+          ls -laR at_virtual_environment/ve/*
           
       - name: Build docker image
         uses: docker/build-push-action@v2.10.0
@@ -170,7 +171,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker container run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
         
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
