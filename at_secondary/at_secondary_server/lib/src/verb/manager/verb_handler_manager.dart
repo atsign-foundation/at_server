@@ -24,6 +24,8 @@ import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/noop_verb_handler.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
@@ -90,6 +92,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
     _verbHandlers.add(SyncFromVerbHandler(keyStore));
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
+    _verbHandlers.add(InfoVerbHandler(keyStore));
+    _verbHandlers.add(NoOpVerbHandler(keyStore));
     return _verbHandlers;
   }
 }
