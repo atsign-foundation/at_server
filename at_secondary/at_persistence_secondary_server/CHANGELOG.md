@@ -1,3 +1,5 @@
+## 3.0.19
+- add encryption shared key and public key checksum to metadata
 ## 3.0.18
 - Renamed compaction stats attributes
 - Modified return type and added optional params in hive keystore put and create methods
