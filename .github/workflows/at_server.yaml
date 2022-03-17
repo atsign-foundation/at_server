@@ -160,6 +160,7 @@ jobs:
       - name: copy secondary to at_virtual_environment/ve
         run: |
           cp at_secondary/at_secondary_server/secondary at_virtual_environment/ve/contents/atsign/secondary/
+          chmod 755 at_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR at_virtual_environment/ve/*
           
       - name: Build docker image
