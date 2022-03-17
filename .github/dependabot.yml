@@ -9,3 +9,7 @@ updates:
     directory: "/at_secondary"
     schedule:
       interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/at_root/at_root_server"
+    schedule:
+      interval: "daily"
