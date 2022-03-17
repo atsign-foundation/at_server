@@ -137,6 +137,35 @@ void main() async {
       var keys = keyStore.getKeys(regex: '^first');
       expect(keys.length, 1);
     });
+
+    test('test create and get for metadata-ttl', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      await keyStore.create('phone', atData, time_to_live: 6000);
+      var dataFromHive = await (keyStore.get('phone'));
+      expect(dataFromHive?.data, '123');
+      expect(dataFromHive?.metaData, isNotNull);
+      expect(dataFromHive?.metaData!.ttl, 6000);
+    });
+
+    test('test create and get for metadata-shared key', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      await keyStore.create('phone', atData,
+          sharedKeyEncrypted: 'abc', publicKeyChecksum: 'xyz');
+      var dataFromHive = await (keyStore.get('phone'));
+      expect(dataFromHive?.data, '123');
+      expect(dataFromHive?.metaData, isNotNull);
+      expect(dataFromHive?.metaData!.sharedKeyEnc, 'abc');
+      expect(dataFromHive?.metaData!.pubKeyCS, 'xyz');
+    });
+
 // tests commented for coverage. runs fine with pub run test or in IDE
 //    test('test expired keys - 1 key', ()  async {
 //      var keyStore = keyStoreManager.getKeyStore();
