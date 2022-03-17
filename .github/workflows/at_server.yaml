@@ -165,7 +165,7 @@ jobs:
         uses: docker/build-push-action@v2.10.0
         with:
           file: at_virtual_environment/ve/Dockerfile
-          context: at_virtual_environment/ve/
+          context: at_virtual_environment/ve
           tags: at_virtual_env:trunk
 
       - name: Run docker container
@@ -181,15 +181,7 @@ jobs:
         working-directory: at_functional_test
         run: dart run test
 
-      # On push event, upload root server binary for using in deploy job
-      - name: upload root server
-        if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@v2
-        with:
-          name: root-server
-          path: at_root/at_root_server/root
-
-      # On push event, upload secondary server binary for using in deploy job
+      # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v2
