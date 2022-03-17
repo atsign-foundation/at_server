@@ -21,11 +21,6 @@ FROM debian:stable-20220316-slim
 USER root
 
 COPY ./at_virtual_environment/ve_base/contents /
-COPY --from=buildimage --chown=atsign:atsign \
-  /app/at_root/at_root_server/root /atsign/root/
-COPY --from=buildimage --chown=atsign:atsign \
-  /app/at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
-  /usr/local/bin/
 
 RUN chmod 777 /tmp && \
     mkdir -p /atsign/logs && \
@@ -36,3 +31,10 @@ RUN chmod 777 /tmp && \
     groupadd --system atsign && \
     useradd --system --gid atsign --shell /bin/bash --home /apps atsign && \
     /tmp/setup/create_demo_accounts.sh
+
+COPY --from=buildimage --chown=atsign:atsign \
+  /app/at_root/at_root_server/root /atsign/root/
+COPY --from=buildimage --chown=atsign:atsign \
+  /app/at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
+  /usr/local/bin/
+  
