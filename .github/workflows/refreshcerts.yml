@@ -27,6 +27,7 @@ jobs:
           DOMAIN="ve.atsign.zone"
           FQDN="$CERTNAME"."$DOMAIN"
           sudo mkdir -p /gluster/@/api/keys
+          sudo chmod -R 777 /gluster
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           python3 ./automation/acme_certs.py "$FQDN"
