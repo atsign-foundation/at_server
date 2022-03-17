@@ -1,19 +1,30 @@
-FROM ubuntu:latest
-RUN mkdir /usr/local/at
-ENV APP_BINARY=/usr/local/at
-COPY root $APP_BINARY/
-ENV HOME=/atsign
-RUN mkdir -p $HOME
+FROM dart:2.16.1 AS buildimage
+ENV HOMEDIR=/atsign
+ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024
 ENV GROUP_ID=1024
-RUN addgroup --gid $GROUP_ID atsign
-RUN useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash --home $HOME atsign
-RUN mkdir $HOME/config
-RUN mkdir $APP_BINARY/config
-COPY config/* $HOME/config/
-COPY pubspec.yaml $HOME/
-COPY config/* $APP_BINARY/config/
-RUN chown -R atsign:atsign $HOME
+WORKDIR /app
+COPY . .
+RUN \
+  mkdir -p $HOMEDIR/config ; \
+  mkdir -p $BINARYDIR/config ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/main.dart -o $BINARYDIR/root ; \
+  addgroup --gid $GROUP_ID atsign ; \
+  useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
+    --home $HOMEDIR atsign ; \
+  chown -R atsign:atsign $HOMEDIR ; \
+  cp config/* $HOMEDIR/config/ ; \
+  cp config/* $BINARYDIR/config/ ; \
+  cp pubspec.yaml $HOMEDIR/
+# Second stage of build FROM scratch
+FROM scratch
+COPY --from=buildimage /runtime/ /
+COPY --from=buildimage /etc/passwd /etc/passwd
+COPY --from=buildimage /etc/group /etc/group
+COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
+COPY --from=buildimage --chown=atsign:atsign /usr/local/at /usr/local/at/
+WORKDIR /atsign
 USER atsign
-WORKDIR $HOME
 ENTRYPOINT ["/usr/local/at/root"]
