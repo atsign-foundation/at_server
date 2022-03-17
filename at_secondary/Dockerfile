@@ -5,6 +5,10 @@ ENV GROUP_ID=1024
 WORKDIR /app
 COPY . .
 RUN \
+  mkdir -p $HOMEDIR/storage ; \
+  mkdir -p $HOMEDIR/config ; \
+  mkdir -p /etc/cacert ; \
+  mkdir -p /archive ; \
   cd at_persistence_secondary_server ; \
   dart pub get ; \
   dart pub update ; \
@@ -12,13 +16,9 @@ RUN \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o secondary ; \
-  mkdir -p $HOMEDIR/storage ; \
-  mkdir -p $HOMEDIR/config ; \
-  mkdir -p /etc/cacert ; \
-  mkdir -p /archive ; \
   addgroup --gid $GROUP_ID atsign ; \
   useradd --system --uid $USER_ID --gid $GROUP_ID --shell /bin/bash \
-  --home $HOMEDIR atsign ; \
+    --home $HOMEDIR atsign ; \
   chown -R atsign:atsign $HOMEDIR ; \
   chown -R atsign:atsign /archive ; \
   cp config/config.yaml $HOMEDIR/config/ ; \
