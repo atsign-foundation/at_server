@@ -16,31 +16,31 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.17
-  at_lookup: ^3.0.11
-  at_server_spec: ^3.0.4
+  at_persistence_secondary_server: ^3.0.19
+  at_lookup: ^3.0.12
+  at_server_spec: ^3.0.5
 
-# dependency_overrides:
+#dependency_overrides:
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_commons
-#       ref: trunk
-#   at_persistence_spec:
+#      ref: trunk
+#  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_persistence/at_persistence_spec
-#      ref: compaction_stats_persistence_spec
-#   at_utils:
-#     git:
-#       url: https://github.com/atsign-foundation/at_tools.git
-#       path: at_utils
-#        ref: reset_ttl_ttb
-#   at_persistence_secondary_server:
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_secondary/at_persistence_secondary_server
-#       ref: compaction_stats_persistence_secondary
+#      ref: trunk
+#  at_utils:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
+#  at_persistence_secondary_server:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_secondary/at_persistence_secondary_server
+#      ref: trunk
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git

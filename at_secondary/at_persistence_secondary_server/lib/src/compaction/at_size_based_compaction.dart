@@ -1,12 +1,10 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
 
 class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
-  final _logger = AtSignLogger('TimeBasedCompaction');
 
   SizeBasedCompaction(int size, this.compactionPercentage) {
     sizeInKB = size;
@@ -27,22 +25,20 @@ class SizeBasedCompaction implements AtCompactionStrategy {
         var N = (totalKeys * (compactionPercentage! / 100)).toInt();
         var keysToDelete = await atLogType.getFirstNEntries(N);
         //collection of AtLogType statistics before compaction
-        atCompactionStats.sizeBeforeCompaction = atLogType.getSize();
+        atCompactionStats.preCompactionEntriesCount = atLogType.entriesCount();
         atCompactionStats.deletedKeysCount = keysToDelete.length;
         atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
         if (keysToDelete.isNotEmpty) {
           await atLogType.delete(keysToDelete);
           //collection of statistics post compaction
           atCompactionStats.lastCompactionRun = DateTime.now().toUtc();
-          atCompactionStats.sizeAfterCompaction = atLogType.getSize();
+          atCompactionStats.postCompactionEntriesCount =
+              atLogType.entriesCount();
           //calculation of compaction duration by comparing present time to compaction start time
           atCompactionStats.compactionDuration = atCompactionStats
               .lastCompactionRun
               ?.difference(compactionStartTime);
           return atCompactionStats;
-        } else {
-          _logger.finer(
-              'No keys to delete. skipping size compaction for $atLogType');
         }
       }
     }
