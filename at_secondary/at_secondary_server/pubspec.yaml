@@ -45,7 +45,7 @@ dependencies:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
-#      ref: trunk
+#      ref: info_and_noop_verbs
 
 dev_dependencies:
   test: ^1.17.3
