@@ -20,7 +20,9 @@ class AtMetadataBuilder {
       bool? ccd,
       bool? isBinary,
       bool? isEncrypted,
-      String? dataSignature}) {
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -46,6 +48,8 @@ class AtMetadataBuilder {
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
+    sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
+    publicKeyChecksum ??= newAtMetaData.pubKeyCS;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -63,6 +67,8 @@ class AtMetadataBuilder {
     setIsBinary(isBinary);
     setIsEncrypted(isEncrypted);
     setDataSignature(dataSignature);
+    setSharedKeyEncrypted(sharedKeyEncrypted);
+    setPublicKeyChecksum(publicKeyChecksum);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
@@ -107,6 +113,18 @@ class AtMetadataBuilder {
   void setDataSignature(String? dataSignature) {
     if (dataSignature != null) {
       atMetaData.dataSignature = dataSignature;
+    }
+  }
+
+  void setSharedKeyEncrypted(String? sharedKeyEncrypted) {
+    if (sharedKeyEncrypted != null) {
+      atMetaData.sharedKeyEnc = sharedKeyEncrypted;
+    }
+  }
+
+  void setPublicKeyChecksum(String? publicKeyChecksum) {
+    if (publicKeyChecksum != null) {
+      atMetaData.pubKeyCS = publicKeyChecksum;
     }
   }
 
