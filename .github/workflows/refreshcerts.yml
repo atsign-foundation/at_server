@@ -68,7 +68,7 @@ jobs:
         if: always()
         uses: Co-qn/google-chat-notification@releases/v1
         with:
-          name: New certificates for at_virtual_environment
+          name: New certificates for at_server virtual environment
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
 
