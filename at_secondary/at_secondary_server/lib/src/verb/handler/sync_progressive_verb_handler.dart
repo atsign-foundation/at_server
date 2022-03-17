@@ -113,6 +113,14 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         metaDataMap.putIfAbsent(
             UPDATED_AT, () => metaData.updatedAt.toString());
       }
+      if (metaData.sharedKeyEnc != null) {
+        metaDataMap.putIfAbsent(
+            SHARED_KEY_ENCRYPTED, () => metaData.sharedKeyEnc);
+      }
+      if (metaData.pubKeyCS != null) {
+        metaDataMap.putIfAbsent(
+            SHARED_WITH_PUBLIC_KEY_CHECK_SUM, () => metaData.pubKeyCS);
+      }
     }
     return metaDataMap;
   }
