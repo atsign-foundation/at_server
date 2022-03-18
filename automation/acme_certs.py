@@ -407,15 +407,15 @@ Example: requests certificate chain and store it in chain.crt
 
     if args.staging:
         config.read_dict({"acmednstiny":
-            {"accountkeyfile": "/gluster/@/api/keys/letsencrypt.key",
+            {"accountkeyfile": "keys/letsencrypt.key",
             "ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory"}})
     elif args.zerossl:
         config.read_dict({"acmednstiny":
-            {"accountkeyfile": "/gluster/@/api/keys/zerossl.key",
+            {"accountkeyfile": "keys/zerossl.key",
             "ACMEDirectory": "https://acme.zerossl.com/v2/DV90"}})
     else:
         config.read_dict({"acmednstiny":
-            {"accountkeyfile": "/gluster/@/api/keys/letsencrypt.key",
+            {"accountkeyfile": "keys/letsencrypt.key",
             "ACMEDirectory": "https://acme-v02.api.letsencrypt.org/directory"}})
 
     if args.root:
