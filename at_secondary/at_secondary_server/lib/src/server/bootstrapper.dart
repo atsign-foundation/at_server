@@ -13,11 +13,11 @@ import 'package:at_utils/at_utils.dart';
 class SecondaryServerBootStrapper {
   var arguments;
   static final bool? useSSL = AtSecondaryConfig.useSSL;
-  static final int? inbound_max_limit = AtSecondaryConfig.inbound_max_limit;
-  static final int? outbound_max_limit = AtSecondaryConfig.outbound_max_limit;
-  static final int? inbound_idletime_millis =
+  static final int inbound_max_limit = AtSecondaryConfig.inbound_max_limit;
+  static final int outbound_max_limit = AtSecondaryConfig.outbound_max_limit;
+  static final int inbound_idletime_millis =
       AtSecondaryConfig.inbound_idletime_millis;
-  static final int? outbound_idletime_millis =
+  static final int outbound_idletime_millis =
       AtSecondaryConfig.outbound_idletime_millis;
 
   SecondaryServerBootStrapper(this.arguments);
