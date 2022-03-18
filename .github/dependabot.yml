@@ -9,3 +9,16 @@ updates:
     directory: "/at_secondary"
     schedule:
       interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/at_virtual_environment/ve"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/at_virtual_environment/ve_base"
+    schedule:
+      interval: "daily"     
+  - package-ecosystem: "docker"
+    directory: "/at_root/at_root_server"
+    schedule:
+      interval: "daily"
+      
