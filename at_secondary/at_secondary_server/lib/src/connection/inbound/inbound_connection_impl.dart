@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
@@ -30,16 +31,19 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
 
+    AtSecondaryContext? secondaryContext = AtSecondaryServerImpl.getInstance().serverContext;
+    // In test harnesses, secondary context may not yet have been set, in which case create a default AtSecondaryContext instance
+    secondaryContext ??= AtSecondaryContext();
     // We have one value set in config : inboundIdleTimeMillis
-    maxAllowableInboundIdleTimeMillis = AtSecondaryServerImpl.getInstance().serverContext!.inboundIdleTimeMillis;
-    lowWaterMarkRatio = AtSecondaryServerImpl.getInstance().serverContext!.inboundConnectionLowWaterMarkRatio;
-    unauthenticatedMinAllowableIdleTimeMillis = AtSecondaryServerImpl.getInstance().serverContext!.unauthenticatedMinAllowableIdleTimeMillis;
+    maxAllowableInboundIdleTimeMillis = secondaryContext.inboundIdleTimeMillis;
+    lowWaterMarkRatio = secondaryContext.inboundConnectionLowWaterMarkRatio;
+    unauthenticatedMinAllowableIdleTimeMillis = secondaryContext.unauthenticatedMinAllowableIdleTimeMillis;
 
     // minAllowableIdleTimeMillis for authenticated connections should be a lot more generous.
     // if configured inboundIdleTimeMillis is 600,000 then authenticated min allowable will be 120,000
     // if configured inboundIdleTimeMillis is 60,000 then authenticated min allowable will be 30,000
     authenticatedMinAllowableIdleTimeMillis = (maxAllowableInboundIdleTimeMillis / 5).floor();
-    progressivelyReduceAllowableInboundIdleTime = AtSecondaryServerImpl.getInstance().serverContext!.progressivelyReduceAllowableInboundIdleTime;
+    progressivelyReduceAllowableInboundIdleTime = secondaryContext.progressivelyReduceAllowableInboundIdleTime;
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
