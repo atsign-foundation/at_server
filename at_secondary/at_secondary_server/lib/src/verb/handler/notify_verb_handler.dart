@@ -58,6 +58,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var atValue = verbParams[AT_VALUE];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
+    String? sharedKeyEncrypted = verbParams[SHARED_KEY_ENCRYPTED];
+    String? pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
     // If strategy is null, default it to strategy all.
@@ -139,6 +141,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (ttl_ms != null) {
         atMetadata.ttl = ttl_ms;
       }
+      if (sharedKeyEncrypted != null) {
+        atMetadata.sharedKeyEnc = sharedKeyEncrypted;
+      }
+      if (pubKeyCS != null) {
+        atMetadata.pubKeyCS = pubKeyCS;
+      }
       final notificationBuilder = AtNotificationBuilder()
         ..fromAtSign = atSign
         ..toAtSign = forAtSign
@@ -198,7 +206,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttb: ttb_ms,
                 ttr: ttr_ms,
                 ccd: isCascade,
-                isEncrypted: isEncrypted)
+                isEncrypted: isEncrypted,
+                sharedKeyEncrypted: sharedKeyEncrypted,
+                publicKeyChecksum: pubKeyCS)
             .build();
         cachedKeyCommitId =
             await _storeCachedKeys(key, metadata, atValue: atValue);
