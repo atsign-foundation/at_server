@@ -226,7 +226,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
                 ttb: ttb_ms,
                 ttr: ttr_ms,
                 ccd: isCascade,
-                isEncrypted: isEncrypted)
+                isEncrypted: isEncrypted,
+                sharedKeyEncrypted: sharedKeyEncrypted,
+                publicKeyChecksum: pubKeyCS)
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService

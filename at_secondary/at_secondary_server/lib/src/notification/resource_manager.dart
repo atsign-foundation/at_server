@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
@@ -93,17 +95,15 @@ class ResourceManager {
     var notifyResponse;
     var atNotification;
     var errorList = [];
-    // For list of notifications, iterate on each notification and process the notification.
+    String version = await _getVersion(outBoundClient);
+    var notificationRequest = NotificationRequestManager.getInstance()
+        .getNotificationRequest(version);
     try {
+      // For list of notifications, iterate on each notification and process the notification.
       while (iterator.moveNext()) {
         atNotification = iterator.current;
-        //TODO: Get the version using the info verb
-        String version = '3.0.12';
-        var notificationRequest = NotificationRequestManager.getInstance()
-            .getNotificationRequest(version);
-        var key =
-            notificationRequest.prepareNotificationReqeust(atNotification);
-        notifyResponse = await outBoundClient.notify(key.request);
+        var notification = notificationRequest.getRequest(atNotification);
+        notifyResponse = await outBoundClient.notify(notification.request);
         logger.info('notifyResult : $notifyResponse');
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
@@ -165,5 +165,29 @@ class ResourceManager {
           'Retrying to notify: ${atNotification.id} retry count: ${atNotification.retryCount}');
       QueueManager.getInstance().enqueue(atNotification);
     }
+  }
+
+  /// Return's version of the receiver's secondary server
+  /// If failed, returns the default version.
+  Future<String> _getVersion(OutboundClient outBoundClient) async {
+    //
+    var defaultVersion = '3.0.12';
+    String? infoResponse;
+    try {
+      infoResponse = await outBoundClient.info();
+      // If infoResponse is null, fallback to default version
+      if (infoResponse == null || infoResponse.startsWith('error:')) {
+        logger.finer(
+            'Failed to fetch version, falling back to default version: $defaultVersion');
+        return defaultVersion;
+      }
+    } on Exception {
+      logger.finer(
+          'Exception occurred in fetching the version, falling back to default version: $defaultVersion');
+      return defaultVersion;
+    }
+    var infoMap = jsonDecode(infoResponse.replaceAll('data:', ''));
+    // If version is null, return the default version.
+    return infoMap['version'] ??= defaultVersion;
   }
 }

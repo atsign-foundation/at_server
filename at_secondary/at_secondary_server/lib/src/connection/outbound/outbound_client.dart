@@ -54,7 +54,8 @@ class OutboundClient {
       toHost = secondaryInfo[0];
       toPort = secondaryInfo[1];
       // 2. Create an outbound connection for the host and port
-      var connectResult = await _createOutBoundConnection(toHost, toPort, toAtSign);
+      var connectResult =
+          await _createOutBoundConnection(toHost, toPort, toAtSign);
       if (connectResult) {
         isConnectionCreated = true;
       }
@@ -293,5 +294,11 @@ class OutboundClient {
     }
 
     return notifyResult.sentNotifications;
+  }
+
+  /// Runs a "info" on the secondary of the @sign that this instance represents.
+  Future<String?> info() async {
+    outboundConnection?.write('info\n');
+    return await messageListener.read();
   }
 }

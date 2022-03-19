@@ -14,7 +14,7 @@ class NotificationRequestManager {
 
   /// Accepts the secondary server version and returns the instance
   /// of NotificationRequest.
-  /// Defaults to return the latest version of NotificationRequest
+  /// Defaults to return the oldest version of NotificationRequest
   NotificationRequest getNotificationRequest(String version) {
     switch (version) {
       case '3.0.12':
@@ -22,7 +22,7 @@ class NotificationRequestManager {
       case '3.0.13':
         return NotificationRequestv2();
       default:
-        return NotificationRequestv2();
+        return NotificationRequestv1();
     }
   }
 }

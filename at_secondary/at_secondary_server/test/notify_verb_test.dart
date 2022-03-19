@@ -45,6 +45,18 @@ void main() {
       expect(paramsMap[FOR_AT_SIGN], 'bob');
       expect(paramsMap[AT_SIGN], 'colin');
     });
+
+    test('test to verify notify with encryptedSharedKey and check sum', () {
+      var verb = Notify();
+      var command = 'notify:notifier:persona:sharedKeyEnc:123:pubKeyCS:123:@bob:email@colin';
+      var regex = verb.syntax();
+      var paramsMap = getVerbParam(regex, command);
+      expect(paramsMap[SHARED_KEY_ENCRYPTED], '123');
+      expect(paramsMap[SHARED_WITH_PUBLIC_KEY_CHECK_SUM], '123');
+      expect(paramsMap[AT_KEY], 'email');
+      expect(paramsMap[FOR_AT_SIGN], 'bob');
+      expect(paramsMap[AT_SIGN], 'colin');
+    });
   });
 
   group('A group of notify accept tests', () {
