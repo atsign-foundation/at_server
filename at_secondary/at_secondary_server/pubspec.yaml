@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.12
+version: 3.0.13
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -16,9 +16,9 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.16
-  at_lookup: ^3.0.11
-  at_server_spec: ^3.0.1
+  at_persistence_secondary_server: ^3.0.19
+  at_lookup: ^3.0.12
+  at_server_spec: ^3.0.6
 
 #dependency_overrides:
 #  at_commons:
@@ -31,21 +31,21 @@ dependencies:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_persistence/at_persistence_spec
 #      ref: trunk
-#   at_utils:
-#     git:
-#       url: https://github.com/atsign-foundation/at_tools.git
-#       path: at_utils
-#       ref: reset_ttl_ttb
+#  at_utils:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
 #  at_persistence_secondary_server:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_secondary/at_persistence_secondary_server
-#      ref: fix_emoji_issue
+#      ref: trunk
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
-#      ref: trunk
+#      ref: info_and_noop_verbs
 
 dev_dependencies:
   test: ^1.17.3

@@ -1,3 +1,8 @@
+## 2.0.5
+- Added encryption shared key and public key checksum to metadata
+- Compaction statistics measures entries count, previously measured log size
+## 2.0.4
+- Support to collect and store compaction statistics
 ## 2.0.3
 - Add isKeyExists method to keystore
 ## 2.0.2

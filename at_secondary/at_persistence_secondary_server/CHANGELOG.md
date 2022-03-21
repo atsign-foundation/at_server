@@ -1,3 +1,10 @@
+## 3.0.19
+- add encryption shared key and public key checksum to metadata
+## 3.0.18
+- Renamed compaction stats attributes
+- Modified return type and added optional params in hive keystore put and create methods
+## 3.0.17
+- Support to collect and store compaction statistics
 ## 3.0.16
 - at_lookup version upgrade for implementing server error responses
 - at_commons version upgrade for AtTimeoutException

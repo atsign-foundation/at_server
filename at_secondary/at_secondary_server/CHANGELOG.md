@@ -1,6 +1,8 @@
 ## 3.0.13
 - Changes to add responses to queue from last in outbound message listener
 - Uptake at_lookup version change for increase timeout for outbound connection
+- Added compaction statistics to stats verb handler
+- update verb and update meta verb handler changes for shared key and public key checksum in metadata
 ## 3.0.12
 - Throw AtTimeoutException when connection timeouts
 - Throw AtConnectException for error responses and unexpected responses

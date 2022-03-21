@@ -1,6 +1,6 @@
 name: at_server_spec
 description: A Dart library containing abstract classes that defines what implementations of the root and secondary servers are responsible for.
-version: 3.0.2
+version: 3.0.6
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 documentation: https://atsign.dev/docs/
@@ -9,14 +9,14 @@ environment:
   sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  at_commons: ^3.0.2
+  at_commons: ^3.0.7
 
 #dependency_overrides:
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+# at_commons:
+#   git:
+#     url: https://github.com/atsign-foundation/at_tools.git
+#     path: at_commons
+#     ref: trunk
 
 dev_dependencies:
   lints: ^1.0.1
