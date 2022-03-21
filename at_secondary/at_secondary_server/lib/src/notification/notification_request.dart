@@ -1,19 +1,26 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
+/// The class represents the NotificationRequest.
+///
+/// The [request] holds the command to notify to the other atSign.
+///
+/// The [getRequest] method returns instance of [NotificationRequest] basing on
+/// cloud secondary server version of the receiver atSign.
 abstract class NotificationRequest {
   late String request;
 
   NotificationRequest getRequest(AtNotification atNotification);
 }
 
-class NotificationRequestv1 implements NotificationRequest {
+/// Forms a notifications request without the notification Id, encryptedSharedKey and checkSum
+/// Compatible for secondary server version up to 3.0.12
+class NonIdBasedRequest implements NotificationRequest {
   @override
   late String request;
 
   @override
-  NotificationRequest getRequest(
-      AtNotification atNotification) {
-    var notification = NotificationRequestv1();
+  NotificationRequest getRequest(AtNotification atNotification) {
+    var notification = NonIdBasedRequest();
     notification.request = '${atNotification.notification}';
     if (atNotification.atMetadata != null) {
       if (atNotification.atMetadata?.ttr != null) {
@@ -45,11 +52,15 @@ class NotificationRequestv1 implements NotificationRequest {
   }
 }
 
-class NotificationRequestv2 extends NotificationRequestv1 {
+/// Forms a notification request which includes notificationId, encryptedSharedKey and checksum
+/// Compatible from secondary server version 3.0.13 and above.
+class IdBasedRequest implements NotificationRequest {
   @override
-  NotificationRequest getRequest(
-      AtNotification atNotification) {
-    var notificationRequest = NotificationRequestv2();
+  late String request;
+
+  @override
+  NotificationRequest getRequest(AtNotification atNotification) {
+    var notificationRequest = IdBasedRequest();
     notificationRequest.request = '${atNotification.notification}';
     atNotification.atMetadata?.toJson();
     if (atNotification.atMetadata != null) {
@@ -86,7 +97,8 @@ class NotificationRequestv2 extends NotificationRequestv1 {
       notificationRequest.request =
           '${atNotification.opType.toString().split('.').last}:${notificationRequest.request}';
     }
-    notificationRequest.request = 'id:${atNotification.id}:${notificationRequest.request}';
+    notificationRequest.request =
+        'id:${atNotification.id}:${notificationRequest.request}';
     return notificationRequest;
   }
 }

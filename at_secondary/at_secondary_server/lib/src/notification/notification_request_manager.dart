@@ -16,13 +16,15 @@ class NotificationRequestManager {
   /// of NotificationRequest.
   /// Defaults to return the oldest version of NotificationRequest
   NotificationRequest getNotificationRequest(String version) {
-    switch (version) {
-      case '3.0.12':
-        return NotificationRequestv1();
-      case '3.0.13':
-        return NotificationRequestv2();
-      default:
-        return NotificationRequestv1();
+    // If version is equal or greater than 3.0.13, return IdBased NotificationReqeust.
+    if (version.compareTo('3.0.13') == 1 || version.compareTo('3.0.13') == 0) {
+      return IdBasedRequest();
     }
+    // If version is equal or greater than 3.0.12, return NonIdBased NotificationReqeust.
+    if (version.compareTo('3.0.12') == 0) {
+      return NonIdBasedRequest();
+    }
+    // By default, return NonIdBased NotificationReqeust.
+    return NonIdBasedRequest();
   }
 }
