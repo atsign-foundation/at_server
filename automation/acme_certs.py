@@ -113,7 +113,11 @@ def get_crt(config, log=LOGGER):
                     sys.exit(3)
 
     def delete_txt(txt_id,domain):
-        base_domain=domain.split(".",2)[2]
+        split_domain=domain.split(".",2)
+        if rootdomain:
+            base_domain=split_domain[1]+"."+split_domain[2]
+        else:
+            base_domain=split_domain[2]
         log.info('Deleting TXT record')
         api_url = f'{do_base}domains/{base_domain}/records/{txt_id}'
 
@@ -161,8 +165,12 @@ def get_crt(config, log=LOGGER):
                 if backoff > 64:
                     raise RuntimeError("Unable to get response from ACME "
                         "server after multiple retries.")
+                elif response.status_code == 429:
+                    raise RuntimeError("Hit the rate limit "
+                        f"{response.text}")
                 else:
-                    log.info(f"Can't reach ACME server, retrying in {backoff}s")
+                    log.info(f"Can't reach ACME server at {url}, retrying in {backoff}s")
+                    log.info(f"{response.text}")
                     time.sleep(backoff)
 
     # main code
@@ -322,11 +330,11 @@ def get_crt(config, log=LOGGER):
                     delete_txt(txt_id,dnsrr_domain)
                     sys.exit(4)
                 elif challenge_status["status"] == "processing":
-                    log.info("Ceritificate isn't ready yet - processing "
+                    log.info("Certificate isn't ready yet - processing "
                             f", backing off for {backoff}s")
                     time.sleep(backoff)
                 elif challenge_status["status"] == "pending":
-                    log.info("Ceritificate isn't ready yet - pending "
+                    log.info("Certificate isn't ready yet - pending "
                             f", backing off for {backoff}s")
                     time.sleep(backoff)
                 elif challenge_status["status"] == "invalid":
