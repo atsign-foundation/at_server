@@ -146,7 +146,7 @@ class SimpleOutboundSocketHandler {
   /// A message which is returned from [read] if throwTimeoutException is set to false
   static String readTimedOutMessage = 'E2E_SIMPLE_SOCKET_HANDLER_TIMED_OUT';
 
-  Future<String> read({bool log = true, int timeoutMillis = 2000, bool throwTimeoutException = true}) async {
+  Future<String> read({bool log = true, int timeoutMillis = 5000, bool throwTimeoutException = true}) async {
     String result;
 
     // Wait this many milliseconds between checks on the queue
