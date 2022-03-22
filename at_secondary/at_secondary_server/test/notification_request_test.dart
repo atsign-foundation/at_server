@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notification_request.dart';
 import 'package:at_secondary/src/notification/notification_request_manager.dart';
@@ -5,28 +6,30 @@ import 'package:test/test.dart';
 
 void main() {
   group('A group of tests to verify the getNotificationRequest method', () {
-    test('Test to verify NonIdBasedRequest is returned for 3.0.12', () {
+    test('Test to verify NonIdBasedRequest is returned by default', () {
       expect(
           NotificationRequestManager.getInstance()
-              .getNotificationRequest('3.0.12'),
-          isA<NonIdBasedRequest>());
-    });
-
-    test('Test to verify IdBasedRequest is returned for 3.0.13', () {
-      expect(
-          NotificationRequestManager.getInstance()
-              .getNotificationRequest('3.0.13'),
-          isA<IdBasedRequest>());
+              .getNotificationRequestByFeature(),
+          isA<NonIdRequest>());
     });
 
     test(
-        'Test to verify IdBasedRequest is returned for version higher than 3.0.13',
+        'Test to verify IdBasedRequest is returned when feature is set to notifyWithId',
         () {
       expect(
           NotificationRequestManager.getInstance()
-              .getNotificationRequest('3.0.14'),
-          isA<IdBasedRequest>());
+              .getNotificationRequestByFeature(feature: notifyWithId),
+          isA<IdRequest>());
     });
+
+    test(
+        'Test to verify IdBasedRequest is returned when feature is set to notifyWithoutId',
+            () {
+          expect(
+              NotificationRequestManager.getInstance()
+                  .getNotificationRequestByFeature(feature: notifyWithoutId),
+              isA<NonIdRequest>());
+        });
   });
   group('A group of tests to verify notification feature manager', () {
     // The notification request with 3.0.12 will not have notification id
@@ -40,7 +43,7 @@ void main() {
             ..notification = 'phone')
           .build();
       var notificationRequest = NotificationRequestManager.getInstance()
-          .getNotificationRequest('3.0.12');
+          .getNotificationRequestByFeature();
       var notifyStr = notificationRequest.getRequest(atNotification).request;
       expect(notifyStr, 'messageType:key:notifier:system:ttln:86400000:phone');
     });
@@ -59,7 +62,7 @@ void main() {
               ..pubKeyCS = 'abcd'))
           .build();
       var notificationRequest = NotificationRequestManager.getInstance()
-          .getNotificationRequest('3.0.13');
+          .getNotificationRequestByFeature(feature: notifyWithId);
       var notifyStr = notificationRequest.getRequest(atNotification).request;
       expect(notifyStr,
           'id:124:messageType:key:notifier:system:ttln:86400000:sharedKeyEnc:1234:pubKeyCS:abcd:phone');

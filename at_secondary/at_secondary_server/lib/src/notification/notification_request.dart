@@ -14,13 +14,13 @@ abstract class NotificationRequest {
 
 /// Forms a notifications request without the notification Id, encryptedSharedKey and checkSum
 /// Compatible for secondary server version up to 3.0.12
-class NonIdBasedRequest implements NotificationRequest {
+class NonIdRequest implements NotificationRequest {
   @override
   late String request;
 
   @override
   NotificationRequest getRequest(AtNotification atNotification) {
-    var notification = NonIdBasedRequest();
+    var notification = NonIdRequest();
     notification.request = '${atNotification.notification}';
     if (atNotification.atMetadata != null) {
       if (atNotification.atMetadata?.ttr != null) {
@@ -54,13 +54,13 @@ class NonIdBasedRequest implements NotificationRequest {
 
 /// Forms a notification request which includes notificationId, encryptedSharedKey and checksum
 /// Compatible from secondary server version 3.0.13 and above.
-class IdBasedRequest implements NotificationRequest {
+class IdRequest implements NotificationRequest {
   @override
   late String request;
 
   @override
   NotificationRequest getRequest(AtNotification atNotification) {
-    var notificationRequest = IdBasedRequest();
+    var notificationRequest = IdRequest();
     notificationRequest.request = '${atNotification.notification}';
     atNotification.atMetadata?.toJson();
     if (atNotification.atMetadata != null) {

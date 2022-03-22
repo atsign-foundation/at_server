@@ -2,13 +2,14 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/notification_request.dart';
 import 'package:at_secondary/src/notification/notification_request_manager.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/feature_cache.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class that is responsible for sending the notifications.
@@ -90,14 +91,20 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(
+  Future<void> _sendNotifications(
       OutboundClient outBoundClient, Iterator iterator) async {
-    var notifyResponse;
+    String? notifyResponse;
     var atNotification;
     var errorList = [];
-    String version = await _getVersion(outBoundClient);
-    var notificationRequest = NotificationRequestManager.getInstance()
-        .getNotificationRequest(version);
+    // Setting NotificationRequest to default feature - NotifyWithoutId
+    NotificationRequest notificationRequest =
+        NotificationRequestManager.getInstance()
+            .getNotificationRequestByFeature();
+    // Verify if receiver atSign has 'NotifyWithId' enabled.
+    if (await _isFeatureEnabled(outBoundClient, notifyWithId)) {
+      notificationRequest = NotificationRequestManager.getInstance()
+          .getNotificationRequestByFeature(feature: notifyWithId);
+    }
     try {
       // For list of notifications, iterate on each notification and process the notification.
       while (iterator.moveNext()) {
@@ -137,7 +144,7 @@ class ResourceManager {
     }
   }
 
-  ///Adds the errored notifications back to queue.
+  ///Adds the error notifications back to queue.
   Future<void> _enqueueErrorList(List errorList) async {
     if (errorList.isEmpty) {
       return;
@@ -167,27 +174,67 @@ class ResourceManager {
     }
   }
 
-  /// Return's version of the receiver's secondary server
-  /// If failed, returns the default version.
-  Future<String> _getVersion(OutboundClient outBoundClient) async {
-    //
-    var defaultVersion = '3.0.12';
+  /// Verifies if [feature] is enabled on the receiver's atSign.
+  /// If enabled, returns true else false.
+  ///
+  /// Initially check's in the [FeatureCache] i
+  Future<bool> _isFeatureEnabled(
+      OutboundClient outBoundClient, String featureName) async {
+    // Check if feature is present in cache.
+    try {
+      var featureCacheEntry = FeatureCache.getInstance()
+          .getFeatureCacheEntry(outBoundClient.toAtSign!, featureName);
+      // If the lastUpdatedEpoch is less than 15 minutes, return [feature.isEnabled] from the cache.
+      if (DateTime.now()
+              .toUtc()
+              .difference(DateTime.fromMillisecondsSinceEpoch(
+                  featureCacheEntry.lastUpdatedEpoch))
+              .inMinutes <
+          15) {
+        return featureCacheEntry.feature.isEnabled;
+      }
+    } on KeyNotFoundException {
+      logger.finer(
+          '$featureName does not exist in feature cache. Fetching from ${outBoundClient.toAtSign} cloud secondary');
+    }
+    // Fetch the info from toAtSign cloud secondary
+    var infoFeaturesMap = await _getInfoResponse(outBoundClient);
+    // Update the feature cache
+    _updateFeatureCache(outBoundClient.toAtSign!, infoFeaturesMap);
+    // Returns true if feature is enabled, else false.
+    return infoFeaturesMap.containsKey(featureName);
+  }
+
+  /// Returns the [Info] of [OutboundClient.toAtSign]
+  Future<Map<String, dynamic>> _getInfoResponse(
+      OutboundClient outBoundClient) async {
     String? infoResponse;
     try {
       infoResponse = await outBoundClient.info();
-      // If infoResponse is null, fallback to default version
       if (infoResponse == null || infoResponse.startsWith('error:')) {
-        logger.finer(
-            'Failed to fetch version, falling back to default version: $defaultVersion');
-        return defaultVersion;
+        return {};
       }
     } on Exception {
       logger.finer(
-          'Exception occurred in fetching the version, falling back to default version: $defaultVersion');
-      return defaultVersion;
+          'Exception occurred on getting the info of ${outBoundClient.toAtSign}');
     }
-    var infoMap = jsonDecode(infoResponse.replaceAll('data:', ''));
-    // If version is null, return the default version.
-    return infoMap['version'] ??= defaultVersion;
+    return (jsonDecode(infoResponse!.replaceAll('data:', '')))['features'];
+  }
+
+  /// Updates the [Info] response into [FeatureCache]
+  void _updateFeatureCache(String atSign, Map<String, dynamic> infoMap) {
+    Map<String, FeatureCacheEntry> featureCacheMap = {};
+    infoMap.forEach((key, value) {
+      var featureCacheEntry = FeatureCacheEntry()
+        ..feature = (Feature()
+          ..featureName = key
+          ..status = value['status']
+          ..description = value['description'])
+        ..lastUpdatedEpoch = (DateTime.now().toUtc().millisecondsSinceEpoch);
+      featureCacheMap.putIfAbsent(key, () => featureCacheEntry);
+    });
+    // setFeatures clears the cache and updates all entries.
+    // Hence do not use inside the forEach loop.
+    FeatureCache.getInstance().setFeatures(atSign, featureCacheMap);
   }
 }
