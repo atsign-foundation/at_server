@@ -53,36 +53,6 @@ void main() {
     expect(int.parse(deletedCountAfter),result );
   }, timeout: Timeout(Duration(seconds: 150)));
 
-  test('access log compaction', () async {
-    int randomNumber = Random().nextInt(30);
-    var beforeUpdate = await compactionStats(socketFirstAtsign!, 13);
-    var sizeBeforeCompaction = await beforeUpdate['size_before_compaction'];
-    var deletedCountBefore = await beforeUpdate['deletedKeysCount'];
-    var lastRunTime = await beforeUpdate['last_compaction_run'];
-    print('size before compaction is $sizeBeforeCompaction');
-    print('deleted keys before update is $deletedCountBefore');
-    print('last compaction run time is $lastRunTime');
-
-    int noOfTests = 30;
-    for (int i = 1; i <= noOfTests; i++) {
-      await socket_writer(socketFirstAtsign!,
-          'update:public:pin$firstAtsign 1122$randomNumber');
-      var response = await read();
-      print('update verb response : $response');
-      assert((!response.contains('Invalid syntax')) &&
-          (!response.contains('null')));
-    }
-
-    await Future.delayed(Duration(seconds: 40));
-    var afterUpdate = await compactionStats(socketFirstAtsign!, 13);
-    var sizeAfterCompaction = await afterUpdate['size_after_compaction'];
-    var deletedCountAfter = await afterUpdate['deletedKeysCount'];
-    print('deleted keys count after update is $deletedCountAfter');
-    print('size after compaction is $sizeAfterCompaction');
-    expect(sizeAfterCompaction, 0);
-    expect(deletedCountAfter, (noOfTests - 1));
-  }, timeout: Timeout(Duration(seconds: 150)));
-
   tearDown(() {
     //Closing the socket connection
     clear();
