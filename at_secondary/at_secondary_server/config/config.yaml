@@ -39,9 +39,11 @@ hive:
 
 # The @Protocol connection configurations.
 connection:
-  # The maximum time in milli seconds for an inbound connection to expire.
+  # The maximum time in milliseconds for an inbound connection to expire.
+  # This should NEVER be set to less than 60 seconds. Internally, the effective
+  # value used is reduced progressively as the number of connections approaches the max limit
   inbound_idle_time_millis: 600000
-  # The maximum time in milli seconds for an outbound connection to expire.
+  # The maximum time in milliseconds for an outbound connection to expire.
   outbound_idle_time_millis: 600000
   # Creates an inbound connection and adds the connection to inbound connection pool. At any point, at most [inbound_max_limit] connections can only be created.
   # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
