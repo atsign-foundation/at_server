@@ -13,6 +13,7 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/refresh_feature_cache.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -193,6 +194,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (!resourceManager.isRunning) {
       resourceManager.schedule();
     }
+
+    // Job to update the feature cache
+    RefreshFeatureCache.getInstance().refreshInfoCache();
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);

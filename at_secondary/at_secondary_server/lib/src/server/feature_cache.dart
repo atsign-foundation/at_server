@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/server/refresh_feature_cache.dart';
 
 /// Class represents the Feature.
 class Feature {
@@ -26,6 +27,8 @@ class FeatureCache {
 
   final Map<String, Map<String, FeatureCacheEntry>> _featureCache = {};
 
+  final cacheObservers = <RefreshFeatureCache>[];
+
   /// Returns [FeatureCacheEntry] for the given atSign and featureName
   FeatureCacheEntry getFeatureCacheEntry(String atSign, String featureName) {
     if (!_featureCache.containsKey(atSign) ||
@@ -47,5 +50,9 @@ class FeatureCache {
       return;
     }
     _featureCache.putIfAbsent(atSign, () => feature);
+    // Notify atSign
+    for (var observer in cacheObservers) {
+      observer.notifyAtSign(atSign);
+    }
   }
 }
