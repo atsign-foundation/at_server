@@ -8,12 +8,11 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 
 /// Factory to create and maintain [InboundConnection] using [InboundConnectionPool]
 class InboundConnectionManager implements AtConnectionFactory {
-  static final InboundConnectionManager _singleton =
-      InboundConnectionManager._internal();
+  static final InboundConnectionManager _singleton = InboundConnectionManager._internal();
 
   InboundConnectionManager._internal();
 
-  static const int default_pool_size = 10;
+  static const int defaultPoolSize = 100;
 
   bool _isInitialized = false;
 
@@ -24,22 +23,22 @@ class InboundConnectionManager implements AtConnectionFactory {
   }
 
   /// Creates and adds [InboundConnection] to the pool
-  /// If the pool is not initialized, initializes the pool with [default_pool_size]
+  /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
   /// @param socket - client socket
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
   InboundConnection createConnection(Socket? socket, {String? sessionId}) {
     if (!_isInitialized) {
-      init(default_pool_size);
+      init(defaultPoolSize);
     }
     if (!hasCapacity()) {
-      throw InboundConnectionLimitException(
-          'max limit reached on inbound pool');
+      throw InboundConnectionLimitException('max limit reached on inbound pool');
     }
     sessionId ??= '_' + Uuid().v4();
-    var atConnection = InboundConnectionImpl(socket, sessionId);
-    _add(atConnection);
+    var atConnection = InboundConnectionImpl(socket, sessionId, owningPool: _pool);
+    _pool.add(atConnection);
+    true;
     return atConnection;
   }
 
@@ -50,15 +49,10 @@ class InboundConnectionManager implements AtConnectionFactory {
 
   /// Initialises inbound client pool with a given size.
   /// @param - size - Maximum clients the pool can hold
-  void init(int? size) {
+  void init(int size) {
     _pool = InboundConnectionPool.getInstance();
     _pool.init(size);
     _isInitialized = true;
-  }
-
-  bool _add(InboundConnection inboundConnection) {
-    _pool.add(inboundConnection);
-    return true;
   }
 
   /// Closes all the active connections accepted by the secondary

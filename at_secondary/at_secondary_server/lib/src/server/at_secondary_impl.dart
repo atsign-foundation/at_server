@@ -196,8 +196,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
-    OutboundClientManager.getInstance()
-        .init(serverContext!.outboundConnectionLimit);
+    OutboundClientManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
     StatsNotificationService.getInstance().schedule();
