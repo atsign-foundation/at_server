@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -52,6 +51,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var ttr_ms;
     var ttln_ms;
     var isCascade;
+    // The notification id received from the SDK.
+    var id = verbParams['id'];
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
     var atValue = verbParams[AT_VALUE];
@@ -117,7 +118,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue, ttl_ms: ttln_ms);
+            value: atValue, ttl_ms: ttln_ms, id: id);
         response.data = notificationId;
         return;
       }
@@ -157,6 +158,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         ..atMetaData = atMetadata
         ..type = NotificationType.sent
         ..ttl = ttln_ms;
+      if(id != null && id.isNotEmpty){
+        notificationBuilder.id = id;
+      }
       var notificationId = await NotificationManager.getInstance()
           .notify(notificationBuilder.build());
       response.data = notificationId;
@@ -166,7 +170,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttln_ms, value: atValue);
+          ttl_ms: ttln_ms, value: atValue, id: id);
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;
