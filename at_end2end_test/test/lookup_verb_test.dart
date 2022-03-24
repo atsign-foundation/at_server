@@ -47,7 +47,7 @@ void main() {
 
     ///lookup verb alice  atsign
     await sh2.writeCommand('lookup:role$atSign_1');
-   response = await sh2.read();
+   response = await sh2.read(timeoutMillis: 4000);
     print('lookup verb response : $response');
     expect(response, contains('data:developer'));
   }, timeout: Timeout(Duration(minutes: 3)));
