@@ -325,7 +325,7 @@ def get_crt(config, log=LOGGER):
                 if challenge_status["status"] == "valid":
                     log.info("ACME has verified challenge for domain: %s", domain)
                     break
-                elif backoff > 256:
+                elif backoff > 128:
                     log.warning(f"Validation failed after multiple retries")
                     delete_txt(txt_id,dnsrr_domain)
                     sys.exit(4)
@@ -340,6 +340,7 @@ def get_crt(config, log=LOGGER):
                 elif challenge_status["status"] == "invalid":
                     log.info("Validation failed, maybe DNS not propogated "
                             f"yet, backing off for {backoff}s")
+                    log.info(http_response.text)
                     time.sleep(backoff)
                 else:
                     raise ValueError(f"Challenge for domain {domain} did not"
@@ -429,7 +430,7 @@ Example: requests certificate chain and store it in chain.crt
     if args.root:
         global rootdomain
         rootdomain = True
-    
+
     logformat = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
     logfile = logging.FileHandler(f'{args.cert_name}.log')
     logfile.setFormatter(logformat)
