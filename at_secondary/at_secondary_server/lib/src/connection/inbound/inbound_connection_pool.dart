@@ -42,7 +42,7 @@ class InboundConnectionPool {
   void clearInvalidConnections() {
     var invalidConnections = [];
     //dart doesn't support iterator.remove(). So use forEach + removeWhere
-    for (var connection in _connections) {
+    for (var connection in _connections.toList()) {
       if (connection.isInValid()) {
         invalidConnections.add(connection);
         connection.close();
@@ -61,7 +61,7 @@ class InboundConnectionPool {
   }
 
   bool clearAllConnections() {
-    for (var connection in _connections) {
+    for (var connection in _connections.toList()) {
       connection.close();
     }
     _connections.clear();
