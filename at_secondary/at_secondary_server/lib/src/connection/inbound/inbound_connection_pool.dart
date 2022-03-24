@@ -40,16 +40,29 @@ class InboundConnectionPool {
   }
 
   void clearInvalidConnections() {
-    var invalidConnections = [];
-    //dart doesn't support iterator.remove(). So use forEach + removeWhere
-    for (var connection in _connections.toList()) {
-      if (connection.isInValid()) {
-        invalidConnections.add(connection);
-        connection.close();
+    // clearInvalidConnections needs to never throw an exception, as the entire server will hang if it does
+    try {
+      var invalidConnections = [];
+      //dart doesn't support iterator.remove(). So use forEach + removeWhere
+      for (var connection in _connections.toList()) {
+        if (connection.isInValid()) {
+          invalidConnections.add(connection);
+        }
       }
+      // clearInvalidConnections needs to never throw an exception, so we're going to do all of the connection close() calls separately here
+      for (var connection in invalidConnections) {
+        try {
+          connection.close();
+        } catch (e) {
+          logger.severe("clearInvalidConnections: Exception while closing connection: $e");
+        }
+      }
+
+      _connections.removeWhere((client) => invalidConnections.contains(client));
+      _checkWarningStatesOnRemove();
+    } catch (e) {
+      logger.severe("clearInvalidConnections: Caught (and swallowing) exception $e");
     }
-    _connections.removeWhere((client) => invalidConnections.contains(client));
-    _checkWarningStatesOnRemove();
   }
 
   int getCurrentSize() {
