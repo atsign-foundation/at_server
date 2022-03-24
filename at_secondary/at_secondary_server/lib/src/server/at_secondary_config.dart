@@ -47,10 +47,10 @@ class AtSecondaryConfig {
   static int? _runRefreshJobHour = 3;
 
   //Connection
-  static final int? _inbound_max_limit = 10;
-  static final int? _outbound_max_limit = 10;
-  static final int? _inbound_idletime_millis = 600000;
-  static final int? _outbound_idletime_millis = 600000;
+  static final int _inbound_max_limit = 10;
+  static final int _outbound_max_limit = 10;
+  static final int _inbound_idletime_millis = 600000;
+  static final int _outbound_idletime_millis = 600000;
 
   //Lookup
   static final int? _lookup_depth_of_resolution = 3;
@@ -354,7 +354,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int? get outbound_idletime_millis {
+  static int get outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
       return result;
@@ -367,7 +367,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int? get inbound_idletime_millis {
+  static int get inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
       return result;
@@ -380,7 +380,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int? get outbound_max_limit {
+  static int get outbound_max_limit {
     var result = _getIntEnvVar('outbound_max_limit');
     if (result != null) {
       return result;
@@ -393,7 +393,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int? get inbound_max_limit {
+  static int get inbound_max_limit {
     var result = _getIntEnvVar('inbound_max_limit');
     if (result != null) {
       return result;
