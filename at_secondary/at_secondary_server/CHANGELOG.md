@@ -1,3 +1,6 @@
+## 3.0.14
+- Notify verb handler changes for shared key and public key checksum in metadata
+- Inbound connection management improvements
 ## 3.0.13
 - Changes to add responses to queue from last in outbound message listener
 - Uptake at_lookup version change for increase timeout for outbound connection
