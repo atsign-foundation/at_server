@@ -373,12 +373,12 @@ void main() {
       if (response.moveNext()) {
         atNotification = response.current;
       }
-      expect('abc', atNotification.id);
-      expect('@test_user_1', atNotification.fromAtSign);
-      expect('@alice', atNotification.toAtSign);
-      expect(NotificationPriority.low, atNotification.priority);
-      expect('key-1', atNotification.notification);
-      expect(1, atNotification.retryCount);
+      expect(atNotification.id, 'abc');
+      expect(atNotification.fromAtSign, '@test_user_1');
+      expect(atNotification.toAtSign, '@alice');
+      expect(atNotification.priority, NotificationPriority.low);
+      expect(atNotification.notification, 'key-1');
+      expect(atNotification.retryCount, 1);
     });
     tearDown(() async => await tearDownFunc());
   });
@@ -541,8 +541,8 @@ void main() {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      expect('124', atNotificationList[0].id);
-      expect('123', atNotificationList[1].id);
+      expect(atNotificationList[0].id, '124');
+      expect(atNotificationList[1].id, '123');
       AtNotificationMap.getInstance().clear();
     });
   });
@@ -597,7 +597,7 @@ void main() {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      expect('124', atNotificationList[0].id);
+      expect(atNotificationList[0].id, '124');
       AtNotificationMap.getInstance().clear();
     });
 
@@ -673,8 +673,8 @@ void main() {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      expect('124', atNotificationList[0].id);
-      expect('125', atNotificationList[1].id);
+      expect(atNotificationList[0].id, '124');
+      expect(atNotificationList[1].id, '125');
       AtNotificationMap.getInstance().clear();
     });
 
@@ -751,10 +751,59 @@ void main() {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      expect('123', atNotificationList[0].id);
-      expect('124', atNotificationList[1].id);
-      expect('125', atNotificationList[2].id);
+      expect(atNotificationList[0].id, '123');
+      expect(atNotificationList[1].id, '124');
+      expect(atNotificationList[2].id, '125');
       AtNotificationMap.getInstance().clear();
+    });
+  });
+  group(
+      'A group of tests to verify public key checksum and shared key on metadata',
+      () {
+    test('notify command accept test for public key checksum and sharedkey',
+        () {
+      var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
+      var handler = NotifyVerbHandler(null);
+      var result = handler.accept(command);
+      expect(result, true);
+    });
+    test('verify public key checksum and sharedkey in metadata', () async {
+      final atMetaData = AtMetaData()
+        ..pubKeyCS = '123'
+        ..sharedKeyEnc = 'abc';
+      var atNotification1 = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = '@alice'
+            ..notification = 'key-1'
+            ..type = NotificationType.sent
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.high
+            ..atMetaData = atMetaData)
+          .build();
+      var queueManager = QueueManager.getInstance();
+      queueManager.enqueue(atNotification1);
+      var response = queueManager.dequeue('@alice');
+      late AtNotification atNotification;
+      if (response.moveNext()) {
+        atNotification = response.current;
+      }
+      expect(atNotification.id, 'abc');
+      expect(
+        atNotification.fromAtSign,
+        '@test_user_1',
+      );
+      expect(
+        atNotification.toAtSign,
+        '@alice',
+      );
+      expect(atNotification.notification, 'key-1');
+      expect(atNotification.atMetadata, isNotNull);
+      expect(atNotification.atMetadata!.pubKeyCS, '123');
+      expect(atNotification.atMetadata!.sharedKeyEnc, 'abc');
     });
   });
 }
