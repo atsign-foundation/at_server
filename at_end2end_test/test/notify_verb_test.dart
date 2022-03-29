@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:at_client/at_client.dart';
 import 'package:test/test.dart';
 
 import 'e2e_test_utils.dart' as e2e;
@@ -8,6 +11,8 @@ void main() {
 
   late String atSign_2;
   late e2e.SimpleOutboundSocketHandler sh2;
+
+  var lastValue = Random().nextInt(30);
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -30,8 +35,9 @@ void main() {
 
   test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
+    var value = 'alice$lastValue@yahoo.com';
     await sh2.writeCommand(
-        'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_1:email$atSign_2:alice@yahoo.com');
+        'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_1:email$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
@@ -51,13 +57,14 @@ void main() {
     expect(
         response,
         contains(
-            '"key":"$atSign_1:email$atSign_2","value":"alice@yahoo.com","operation":"update"'));
+            '"key":"$atSign_1:email$atSign_2","value":"$value","operation":"update"'));
   });
 
   test('notify verb without messageType and operation', () async {
     /// NOTIFY VERB
+    var value = '+91-901282346$lastValue';
     await sh2
-        .writeCommand('notify:$atSign_1:contact-no$atSign_2:+91-9012823465');
+        .writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
@@ -80,8 +87,9 @@ void main() {
 
   test('notify verb without messageType', () async {
     /// NOTIFY VERB
+    var value = '$lastValue-Hyderabad';
     await sh2.writeCommand(
-        'notify:update:ttr:-1:$atSign_1:fav-city$atSign_2:Hyderabad');
+        'notify:update:ttr:-1:$atSign_1:fav-city$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
@@ -101,13 +109,14 @@ void main() {
     expect(
         response,
         contains(
-            '"key":"$atSign_1:fav-city$atSign_2","value":"Hyderabad","operation":"update"'));
+            '"key":"$atSign_1:fav-city$atSign_2","value":"$value","operation":"update"'));
   });
 
   test('notify verb for notifying a text update to another atsign', () async {
     //   /// NOTIFY VERB
+    var value = '$lastValue-Hyderabad';
     await sh2.writeCommand(
-        'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:Hello!!');
+        'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
@@ -197,9 +206,10 @@ void main() {
   });
 
   test('notify verb with space in the value', () async {
-    //   /// NOTIFY VERB
+     /// NOTIFY VERB
+    var value = '$lastValue Shris Infotech Services';
     await sh1.writeCommand(
-        'notify:update:messageType:key:$atSign_2:company$atSign_1:Shris Infotech Services');
+        'notify:update:messageType:key:$atSign_2:company$atSign_1:$value');
     String response = await sh1.read();
     print('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
@@ -216,23 +226,6 @@ void main() {
   test('notify verb with messageType text', () async {
     //   /// NOTIFY VERB
     await sh1.writeCommand('notify:update:messageType:text:$atSign_2:Hello!');
-    String response = await sh1.read();
-    print('notify verb response : $response');
-    String notificationId = response.replaceAll('data:', '');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    // notify status
-    response = await getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
-    expect(response, contains('data:delivered'));
-  });
-
-  test('notify verb with space in the value', () async {
-    //   /// NOTIFY VERB
-    await sh1.writeCommand(
-        'notify:update:messageType:key:$atSign_2:company$atSign_1:Shris Infotech Services');
     String response = await sh1.read();
     print('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');

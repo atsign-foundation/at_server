@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:test/test.dart';
 import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
@@ -8,6 +10,8 @@ void main() {
 
   late String atSign_2;
   late e2e.SimpleOutboundSocketHandler sh2;
+
+  var lastValue = Random().nextInt(10);
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -30,7 +34,8 @@ void main() {
 
   test('update-llookup verb with ttr:-1', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('notify:update:ttr:-1:$atSign_2:key-1$atSign_1:value1');
+    var value = 'val$lastValue';
+    await sh1.writeCommand('notify:update:ttr:-1:$atSign_2:key-1$atSign_1:$value');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -41,12 +46,13 @@ void main() {
     await sh2.writeCommand('llookup:cached:$atSign_2:key-1$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key : $response');
-    expect(response, contains('data:value1'));
+    expect(response, contains('data:$value'));
   });
 
   test('update-llookup verb with ttr and ccd true', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('notify:update:ttr:2000:ccd:true:$atSign_2:key-2$atSign_1:value2');
+    var value = 'val-$lastValue';
+    await sh1.writeCommand('notify:update:ttr:2000:ccd:true:$atSign_2:key-2$atSign_1:$value');
     var response = await sh1.read(timeoutMillis: 1000);
     print('notify verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -57,7 +63,7 @@ void main() {
     await sh2.writeCommand('llookup:cached:$atSign_2:key-2$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key before delete : $response');
-    expect(response, contains('data:value2'));
+    expect(response, contains('data:$value'));
 
     /// Deleting key which has ccd:true
     await sh1.writeCommand('notify:delete:$atSign_2:key-2$atSign_1');
@@ -77,7 +83,8 @@ void main() {
 
    test('update-llookup verb with ttr and ccd false', () async {
     /// UPDATE VERB
-    await sh1.writeCommand('notify:update:ttr:2000:ccd:false:$atSign_2:key-3$atSign_1:value3');
+    var value = 'value is $lastValue';
+    await sh1.writeCommand('notify:update:ttr:2000:ccd:false:$atSign_2:key-3$atSign_1:$value');
     var response = await sh1.read(timeoutMillis: 1000);
     print('update verb response : $response');
     assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -88,7 +95,7 @@ void main() {
     await sh2.writeCommand('llookup:cached:$atSign_2:key-3$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key before delete : $response');
-    expect(response, contains('data:value3'));
+    expect(response, contains('data:$value'));
 
     /// Deleting key which has ccd:true
     await sh1.writeCommand('notify:delete:$atSign_2:key-3$atSign_1');
@@ -102,7 +109,7 @@ void main() {
     await sh2.writeCommand('llookup:cached:$atSign_2:key-3$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key : $response');
-    expect(response, contains('data:value3'));
+    expect(response, contains('data:$value'));
 
   });
 
