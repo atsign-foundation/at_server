@@ -139,6 +139,14 @@ class ResourceManager {
     key = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      if (atNotification.atMetadata!.pubKeyCS != null) {
+        key =
+            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$key';
+      }
+      if (atNotification.atMetadata!.sharedKeyEnc != null) {
+        key =
+            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$key';
+      }
       if (atMetaData.ttr != null) {
         key =
             'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
@@ -153,6 +161,7 @@ class ResourceManager {
     if (atNotification.ttl != null) {
       key = 'ttln:${atNotification.ttl}:$key';
     }
+
     key = 'notifier:${atNotification.notifier}:$key';
     key =
         'messageType:${atNotification.messageType.toString().split('.').last}:$key';

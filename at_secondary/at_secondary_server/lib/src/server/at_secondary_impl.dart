@@ -97,7 +97,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   @override
   bool isRunning() {
-    logger.info('Checking whether server is running or not');
     return _isRunning == true;
   }
 
@@ -340,21 +339,32 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> stop() async {
     pause();
     try {
-      var result = inboundConnectionFactory.removeAllConnections();
-      if (result) {
-        //close server socket
-        _serverSocket.close();
-        await AtCommitLogManagerImpl.getInstance().close();
-        await AtAccessLogManagerImpl.getInstance().close();
-        await SecondaryPersistenceStoreFactory.getInstance().close();
-        atRefreshJob.close();
-        commitLogCompactionJobInstance.close();
-        accessLogCompactionJobInstance.close();
-        _isRunning = false;
-      }
+      logger.info("Executing server stop()");
+
+      //close server socket
+      logger.info("Closing ServerSocket");
+      _serverSocket.close();
+
+      logger.info("Terminating all inbound connections");
+      inboundConnectionFactory.removeAllConnections();
+
+      logger.info("Closing CommitLog HiveBox");
+      await AtCommitLogManagerImpl.getInstance().close();
+      logger.info("Closing AccessLog HiveBox");
+      await AtAccessLogManagerImpl.getInstance().close();
+      logger.info("Closing NotificationKeyStore HiveBox");
+      await AtNotificationKeystore.getInstance().close();
+      logger.info("Closing Main key store HiveBox");
+      await SecondaryPersistenceStoreFactory.getInstance().close();
+
+      logger.info("Stopping scheduled tasks");
+      atRefreshJob.close();
+      commitLogCompactionJobInstance.close();
+      accessLogCompactionJobInstance.close();
+      _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
-          'Unable to stop secondary server :${e.toString()}');
+          'Caught exception while trying to stop secondary server :${e.toString()}');
     }
   }
 
