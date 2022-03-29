@@ -27,7 +27,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       command.startsWith(getName(VerbEnum.notify) + ':') &&
       !command.startsWith('${getName(VerbEnum.notify)}:list') &&
       !command.startsWith('${getName(VerbEnum.notify)}:status') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:all') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:delete');
 
   @override
   Verb getVerb() {
