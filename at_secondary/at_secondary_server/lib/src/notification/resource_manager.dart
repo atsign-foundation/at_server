@@ -168,6 +168,8 @@ class ResourceManager {
     if (atNotification.opType != null) {
       key = '${atNotification.opType.toString().split('.').last}:$key';
     }
+    // appending id to the notify command.
+    key = 'id:${atNotification.id}:$key';
     return key;
   }
 
