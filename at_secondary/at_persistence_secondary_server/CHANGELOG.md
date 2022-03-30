@@ -1,3 +1,5 @@
+## 3.0.20
+- Upgrade Hive version to 2.1.0
 ## 3.0.19
 - add encryption shared key and public key checksum to metadata
 ## 3.0.18
