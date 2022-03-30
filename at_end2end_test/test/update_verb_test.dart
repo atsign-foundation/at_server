@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
+import 'commons.dart';
 import 'e2e_test_utils.dart' as e2e;
 
 void main() {
@@ -38,7 +39,8 @@ void main() {
     await sh1.writeCommand('update:public:location$atSign_1 $value');
     var response = await sh1.read(timeoutMillis: 1000);
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:location$atSign_1');
@@ -53,7 +55,8 @@ void main() {
     await sh1.writeCommand('update:$atSign_2:country$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB - with @sign returns value
     await sh1.writeCommand('llookup:$atSign_2:country$atSign_1');
@@ -64,8 +67,12 @@ void main() {
     ///LLOOKUP VERB - with out @sign does not return value.
     await sh1.writeCommand('llookup:country$atSign_1');
     response = await sh1.read();
-    print('llookup verb response without private key in llookup verb: $response');
-    expect(response, contains('error:AT0015-key not found : country$atSign_1 does not exist in keystore'));
+    print(
+        'llookup verb response without private key in llookup verb: $response');
+    expect(
+        response,
+        contains(
+            'error:AT0015-key not found : country$atSign_1 does not exist in keystore'));
   });
 
   test('update verb with special characters', () async {
@@ -74,7 +81,8 @@ void main() {
     await sh1.writeCommand('update:public:passcode$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:passcode$atSign_1');
@@ -89,7 +97,8 @@ void main() {
     await sh1.writeCommand('update:public:unicode$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:unicode$atSign_1');
@@ -104,7 +113,8 @@ void main() {
     await sh1.writeCommand('update:public:message$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:message$atSign_1');
@@ -113,13 +123,15 @@ void main() {
     expect(response, contains('data:$value'));
   });
 
-  test('updating same key with different values and doing a llookup ', () async {
+  test('updating same key with different values and doing a llookup ',
+      () async {
     ///UPDATE VERB
     var value = 'Hey Hello! welcome to the tests$lastValue';
     await sh1.writeCommand('update:public:message$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:message$atSign_1');
@@ -131,7 +143,8 @@ void main() {
     await sh1.writeCommand('update:public:message$atSign_1 $value2');
     response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:message$atSign_1');
@@ -156,9 +169,10 @@ void main() {
     ///UPDATE VERB
     var value = '🦄$lastValue';
     await sh1.writeCommand('update:public:emoji$atSign_1 $value');
-    var response = await sh1.read(timeoutMillis:5000);
+    var response = await sh1.read(timeoutMillis: 5000);
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:emoji$atSign_1');
@@ -173,7 +187,8 @@ void main() {
     await sh1.writeCommand('update:public:japanese$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:public:japanese$atSign_1');
@@ -184,25 +199,33 @@ void main() {
 
   test('update verb by sharing a cached key ', () async {
     ///UPDATE VERB
-    var value = 'joey$lastValue';
-    await sh1.writeCommand('update:ttr:-1:$atSign_2:yt$atSign_1 $value');
+    var value = 'joey$lastValue$lastValue';
+    await sh1.writeCommand('update:ttr:-1:$atSign_2:youtube_id$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB in the same secondary
-    await sh1.writeCommand('llookup:$atSign_2:yt$atSign_1');
+    await sh1.writeCommand('llookup:$atSign_2:youtube_id$atSign_1');
     response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:$value'));
 
     //LOOKUP VERB in the other secondary
-    await Future.delayed(Duration(milliseconds: 5000));
-    await sh2.writeCommand('llookup:cached:$atSign_2:yt$atSign_1');
-    response = await sh2.read();
-    print('llookup verb response : $response');
-    expect(response, contains('data:$value'));
-  });
+    while (true) {
+      await sh2.writeCommand('llookup:cached:$atSign_2:youtube_id$atSign_1');
+      response = await sh2.read();
+      if (response.contains('data:$value') || retryCount > maxRetryCount) {
+        break;
+      }
+      if (!response.contains('data:$value') || response.contains('data:null')) {
+        print('Waiting for the cached key $retryCount');
+        await Future.delayed(Duration(seconds: 2));
+        retryCount++;
+      }
+    }
+  }, timeout: Timeout(Duration(seconds: 120)));
 
   test('update verb by passing 2 @ symbols ', () async {
     ///UPDATE VERB
@@ -216,9 +239,11 @@ void main() {
     sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
-  test('update verb with public and shared with atsign should throw a error ', () async {
+  test('update verb with public and shared with atsign should throw a error ',
+      () async {
     ///UPDATE VERB
-    await sh1.writeCommand('update:public:$atSign_2:invalid-key$atSign_1 invalid-value');
+    await sh1.writeCommand(
+        'update:public:$atSign_2:invalid-key$atSign_1 invalid-value');
     var response = await sh1.read();
     print('update verb response : $response');
     expect(response, contains('Invalid syntax'));
@@ -234,7 +259,8 @@ void main() {
     await sh1.writeCommand('update:@🦄:emoji.name$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB
     await sh1.writeCommand('llookup:@🦄:emoji.name$atSign_1');
@@ -249,7 +275,8 @@ void main() {
     await sh1.writeCommand('update:ttl:3000:$atSign_2:offer$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP:META verb
     await sh1.writeCommand('llookup:meta:$atSign_2:offer$atSign_1');
@@ -274,10 +301,12 @@ void main() {
   test('update-llookup for ttb ', () async {
     ///UPDATE VERB
     var value = '3289$lastValue';
-    await sh1.writeCommand('update:ttb:2000:$atSign_2:auth-code$atSign_1 $value');
+    await sh1
+        .writeCommand('update:ttb:2000:$atSign_2:auth-code$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB - Before 2 seconds
     await sh1.writeCommand('llookup:$atSign_2:auth-code$atSign_1');
@@ -304,16 +333,18 @@ void main() {
   test('update-llookup for ttl and ttb together', () async {
     ///UPDATE VERB
     var value = '1122$lastValue';
-    await sh1.writeCommand('update:ttl:4000:ttb:2000:$atSign_2:login-code$atSign_1 $value');
+    await sh1.writeCommand(
+        'update:ttl:4000:ttb:2000:$atSign_2:login-code$atSign_1 $value');
     var response = await sh1.read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///LLOOKUP VERB - Before 3 seconds
     await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
     response = await sh1.read();
     print('llookup verb response before 4 seconds : $response');
-    expect(response,contains('data:null'));
+    expect(response, contains('data:null'));
 
     ///LLOOKUP VERB - After 4 seconds ttb time
     await Future.delayed(Duration(seconds: 2));
@@ -325,7 +356,7 @@ void main() {
     await sh1.writeCommand('llookup:$atSign_2:login-code$atSign_1');
     response = await sh1.read();
     print('llookup verb response before 4 seconds : $response');
-    expect(response,contains('data:$value'));
+    expect(response, contains('data:$value'));
 
     ///LLOOKUP VERB - After 4 seconds ttl time
     await Future.delayed(Duration(seconds: 4));
@@ -334,6 +365,4 @@ void main() {
     print('llookup verb response after 4 seconds : $response');
     expect(response, contains('data:null'));
   });
-
-  
 }
