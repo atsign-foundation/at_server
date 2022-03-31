@@ -2,9 +2,12 @@ import 'dart:io';
 
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
+  static var logger = AtSignLogger('DummyInboundConnection');
+
   static final Map<String, DummyInboundConnection> _instances = {};
   factory DummyInboundConnection.getInstance(String purpose) {
     if (_instances[purpose] != null) {
@@ -13,16 +16,19 @@ class DummyInboundConnection implements InboundConnection {
       // ... but wait! if its metadata says it's closed, we need to ditch it and create a new one
       // otherwise, bad things happen. Long story. See https://github.com/atsign-foundation/at_server/pull/615
       if (existingInstance.metadata.isClosed) {
+        logger.info('Booting existing instance for $purpose as it isClosed; creating new one');
         _instances.remove(existingInstance);
 
         DummyInboundConnection instance = DummyInboundConnection._(purpose);
         _instances[purpose] = instance;
         return instance;
       } else {
+        logger.info('Returning existing instance for $purpose');
         return existingInstance;
       }
     } else {
       // No existing instance. Let's mint a new one
+      logger.info('Creating new instance for $purpose');
       DummyInboundConnection instance = DummyInboundConnection._(purpose);
       _instances[purpose] = instance;
       return instance;

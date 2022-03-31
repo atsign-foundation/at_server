@@ -42,7 +42,9 @@ class NotifyConnectionsPool {
       init(default_pool_size);
     }
     _pool.clearInvalidClients();
-    var inboundConnection = DummyInboundConnection.getInstance('notify-$toAtSign');
+    String purpose = 'notify-$toAtSign';
+    var inboundConnection = DummyInboundConnection.getInstance(purpose);
+    logger.info('Got DummyInboundConnection for $purpose');
     var client = _pool.get(toAtSign, inboundConnection);
 
     if (client != null) {
