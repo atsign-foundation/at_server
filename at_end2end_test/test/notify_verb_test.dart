@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:at_client/at_client.dart';
 import 'package:test/test.dart';
 
 import 'e2e_test_utils.dart' as e2e;
@@ -114,7 +113,7 @@ void main() {
 
   test('notify verb for notifying a text update to another atsign', () async {
     //   /// NOTIFY VERB
-    var value = '$lastValue-Hyderabad';
+    var value = '$lastValue-Hey,Hello!';
     await sh2.writeCommand(
         'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:$value');
     String response = await sh2.read();
@@ -136,7 +135,7 @@ void main() {
     expect(
         response,
         contains(
-            '"key":"$atSign_1:Hello!!","value":null,"operation":"update"'));
+            '"key":"$atSign_1:$value","value":null,"operation":"update"'));
   });
 
   test('notify verb for deleting a key for other atsign', () async {
