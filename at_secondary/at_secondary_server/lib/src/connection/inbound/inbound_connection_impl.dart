@@ -31,6 +31,8 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
 
+    logger.info('close() called on inbound connection (sessionID: ${getMetaData().sessionID}) (from socket: $socket)');
+
     AtSecondaryContext? secondaryContext = AtSecondaryServerImpl.getInstance().serverContext;
     // In test harnesses, secondary context may not yet have been set, in which case create a default AtSecondaryContext instance
     secondaryContext ??= AtSecondaryContext();
@@ -156,12 +158,7 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
-      logger.info('close() called on inbound connection from $address:$port - destroying socket');
-      try {
-        throw Exception("Just to generate a stack trace");
-      } catch (e, st) {
-        logger.info('Stack trace which led to connection being closed: $st');
-      }
+      logger.info('close() called on inbound connection (sessionID: ${getMetaData().sessionID}) from $address:$port - destroying socket');
       var socket = getSocket();
       if (socket != null) {
         socket.destroy();
