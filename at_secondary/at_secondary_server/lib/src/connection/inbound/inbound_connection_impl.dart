@@ -157,6 +157,11 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
       logger.info('close() called on inbound connection from $address:$port - destroying socket');
+      try {
+        throw Exception("Just to generate a stack trace");
+      } catch (e, st) {
+        logger.info('Stack trace which led to connection being closed: $st');
+      }
       var socket = getSocket();
       if (socket != null) {
         socket.destroy();
