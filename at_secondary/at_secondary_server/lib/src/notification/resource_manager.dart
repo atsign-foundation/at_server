@@ -78,7 +78,8 @@ class ResourceManager {
           return outBoundClient;
         }
       }
-    } on Exception catch (e) {
+    } on Exception catch (e, st) {
+      logger.warning("Failed to connect outbound client to $toAtSign with exception '$e' - stack trace $st");
       outBoundClient.inboundConnection.getMetaData().isClosed = true;
       logger.finer('connect result: $e');
       throw ConnectionInvalidException('Connection failed');
