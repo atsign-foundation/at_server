@@ -164,10 +164,10 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
-      logger.info('close() called on inbound connection (sessionID: ${getMetaData().sessionID}) from $address:$port - CLOSING socket');
+      logger.info('close() called on inbound connection (sessionID: ${getMetaData().sessionID}) from $address:$port - destroying socket');
       var socket = getSocket();
       if (socket != null) {
-        await socket.close();
+        socket.destroy();
       }
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;

@@ -5,17 +5,35 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
-  var metadata = InboundConnectionMetadata();
+  static final Map<String, DummyInboundConnection> _instances = {};
+  factory DummyInboundConnection.getInstance(String purpose) {
+    if (_instances[purpose] != null) {
+      // Found an existing instance ...
+      DummyInboundConnection existingInstance = _instances[purpose]!;
+      // ... but wait! if its metadata says it's closed, we need to ditch it and create a new one
+      // otherwise, bad things happen. Long story. See https://github.com/atsign-foundation/at_server/pull/615
+      if (existingInstance.metadata.isClosed) {
+        _instances.remove(existingInstance);
 
-  static final DummyInboundConnection _singleton =
-      DummyInboundConnection._internal();
-
-  factory DummyInboundConnection.getInstance() {
-    return _singleton;
+        DummyInboundConnection instance = DummyInboundConnection._(purpose);
+        _instances[purpose] = instance;
+        return instance;
+      } else {
+        return existingInstance;
+      }
+    } else {
+      // No existing instance. Let's mint a new one
+      DummyInboundConnection instance = DummyInboundConnection._(purpose);
+      _instances[purpose] = instance;
+      return instance;
+    }
   }
 
-  DummyInboundConnection._internal() {
-    metadata.sessionID = 'xxxxx-dummy-inbound-connection';
+  late InboundConnectionMetadata metadata;
+
+  DummyInboundConnection._(String purpose) {
+    var metadata = InboundConnectionMetadata();
+    metadata.sessionID = '$purpose-dummy-inbound-connection';
   }
 
   @override
@@ -26,11 +44,8 @@ class DummyInboundConnection implements InboundConnection {
   Future<void> close() async {}
 
   @override
-  bool equals(InboundConnection connection) {
-    if (connection is DummyInboundConnection) {
-      return true;
-    }
-    return false;
+  bool equals(InboundConnection other) {
+    return identical(this, other);
   }
 
   @override
