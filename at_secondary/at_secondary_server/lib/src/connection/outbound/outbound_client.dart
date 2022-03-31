@@ -242,7 +242,7 @@ class OutboundClient {
   bool isInValid() {
     // TODO This is weird. Why are we checking if the inbound connection is inValid?
     if (inboundConnection.isInValid()) {
-      logger.warning('isInValid() found that its associated inbound connection is inValid - this *outbound* client is therefore being marked as inValid');
+      logger.warning('isInValid() found that its associated inbound connection (sessionID: ${inboundConnection.getMetaData().sessionID}) is inValid - this *outbound* client is therefore being marked as inValid');
     }
     return inboundConnection.isInValid() ||
         (outboundConnection != null && outboundConnection!.isInValid());

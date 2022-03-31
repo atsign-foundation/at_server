@@ -14,7 +14,9 @@ class DummyInboundConnection implements InboundConnection {
     return _singleton;
   }
 
-  DummyInboundConnection._internal();
+  DummyInboundConnection._internal() {
+    metadata.sessionID = 'xxxxx-dummy-inbound-connection';
+  }
 
   @override
   void acceptRequests(Function(String p1, InboundConnection p2) callback,
