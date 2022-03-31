@@ -11,12 +11,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
-  var _commitLog;
+  late AtCommitLog _commitLog;
 
   HiveKeystore();
 
-  set commitLog(value) {
-    _commitLog = value;
+  set commitLog(theCommitLog) {
+    _commitLog = theCommitLog;
   }
 
   @override
@@ -297,9 +297,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     } on Exception catch (exception) {
       logger.severe('HiveKeystore getMeta exception: $exception');
       throw DataStoreException('exception in getMeta: ${exception.toString()}');
-    } on HiveError catch (error) {
+    } on HiveError catch (error, stackTrace) {
       await _restartHiveBox(error);
-      logger.severe('HiveKeystore getMeta error: $error');
+      logger.severe('HiveKeystore getMeta error: $error - stack trace: \n$stackTrace');
       throw DataStoreException(error.message);
     }
     return null;
@@ -379,6 +379,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     if (e is HiveError && !persistenceManager.getBox().isOpen) {
       logger.info('Hive box closed. Restarting the hive box');
       await persistenceManager.openVault(persistenceManager.atsign!);
+    }
+  }
+
+  @override
+  Future<int> latestCommitIdForKey(String key) async {
+    var latestCommitEntry = _commitLog.getLatestCommitEntry(key);
+    if (latestCommitEntry != null) {
+      return latestCommitEntry.commitId != null ? latestCommitEntry.commitId! : -1;
+    } else {
+      return -1;
     }
   }
 }

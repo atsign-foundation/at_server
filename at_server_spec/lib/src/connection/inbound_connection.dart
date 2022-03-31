@@ -5,6 +5,7 @@ abstract class InboundConnection extends AtConnection {
   ///Returns true if remote socket and remote port of this and connection matches
   bool equals(InboundConnection connection);
 
+  @Deprecated('use InboundConnectionMetadata.isMonitor')
   bool? isMonitor;
 
   /// This contains the value of the atsign initiated the connection

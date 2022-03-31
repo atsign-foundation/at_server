@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_utils.dart';
 
 HashMap<String, String?> getVerbParam(String regex, String command) {
+  print('handler_util.dart: getVerbParam: Parsing command $command against regex $regex');
   var regExp = RegExp(regex, caseSensitive: false);
   var regexMatches = at_regex.getMatches(regExp, command);
   if (regexMatches.isEmpty) {

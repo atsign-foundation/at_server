@@ -80,4 +80,9 @@ class CommitLogCompactionService implements AtChangeEventListener {
   CompactionSortedList? getEntries(var key) {
     return _commitLogEntriesMap[key];
   }
+
+  @override
+  ignoreCommitId(int commitId) {
+    return;
+  }
 }

@@ -9,6 +9,7 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_secondary/src/verb/handler/sync_handler_helpers.dart';
 
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
@@ -42,10 +43,11 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Iterates on all the elements in iterator
     // Loop breaks when the [syncBuffer] reaches the limit.
     // and when syncResponse length equals the [AtSecondaryConfig.syncPageLimit]
+    int syncPageLimit = AtSecondaryConfig.syncPageLimit;
     while (itr.moveNext() &&
-        syncResponse.length < AtSecondaryConfig.syncPageLimit) {
+        syncResponse.length < syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = itr.current.key;
+      keyStoreEntry.atKey = itr.current.key;
       keyStoreEntry.commitId = itr.current.value.commitId;
       keyStoreEntry.operation = itr.current.value.operation;
       if (itr.current.value.operation != CommitOp.DELETE) {
@@ -62,7 +64,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           continue;
         }
         keyStoreEntry.value = atData.data;
-        keyStoreEntry.atMetaData = _populateMetadata(atData);
+        keyStoreEntry.atMetaData = populateMetadata(atData);
       }
       // If syncBuffer reaches the limit, break the loop.
       if (syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
@@ -74,55 +76,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     //Clearing the buffer data
     syncBuffer.clear();
     response.data = jsonEncode(syncResponse);
-  }
-
-  Map _populateMetadata(value) {
-    var metaDataMap = <String, dynamic>{};
-    AtMetaData? metaData = value?.metaData;
-    if (metaData != null) {
-      if (metaData.ttl != null) {
-        metaDataMap.putIfAbsent(AT_TTL, () => metaData.ttl.toString());
-      }
-      if (metaData.ttb != null) {
-        metaDataMap.putIfAbsent(AT_TTB, () => metaData.ttb.toString());
-      }
-      if (metaData.ttr != null) {
-        metaDataMap.putIfAbsent(AT_TTR, () => metaData.ttr.toString());
-      }
-      if (metaData.isCascade != null) {
-        metaDataMap.putIfAbsent(CCD, () => metaData.isCascade.toString());
-      }
-
-      if (metaData.dataSignature != null) {
-        metaDataMap.putIfAbsent(
-            PUBLIC_DATA_SIGNATURE, () => metaData.dataSignature.toString());
-      }
-      if (metaData.isBinary != null) {
-        metaDataMap.putIfAbsent(IS_BINARY, () => metaData.isBinary.toString());
-      }
-      if (metaData.isEncrypted != null) {
-        metaDataMap.putIfAbsent(
-            IS_ENCRYPTED, () => metaData.isEncrypted.toString());
-      }
-
-      if (metaData.createdAt != null) {
-        metaDataMap.putIfAbsent(
-            CREATED_AT, () => metaData.createdAt.toString());
-      }
-      if (metaData.updatedAt != null) {
-        metaDataMap.putIfAbsent(
-            UPDATED_AT, () => metaData.updatedAt.toString());
-      }
-      if (metaData.sharedKeyEnc != null) {
-        metaDataMap.putIfAbsent(
-            SHARED_KEY_ENCRYPTED, () => metaData.sharedKeyEnc);
-      }
-      if (metaData.pubKeyCS != null) {
-        metaDataMap.putIfAbsent(
-            SHARED_WITH_PUBLIC_KEY_CHECK_SUM, () => metaData.pubKeyCS);
-      }
-    }
-    return metaDataMap;
   }
 
   void logResponse(String response) {
@@ -143,38 +96,5 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           'exception logging progressive sync response: ${e.toString()}');
       logger.severe(trace);
     }
-  }
-}
-
-/// Class to represents the sync entry.
-class KeyStoreEntry {
-  late String key;
-  String? value;
-  Map? atMetaData;
-  late int commitId;
-  late CommitOp operation;
-
-  @override
-  String toString() {
-    return 'atKey: $key, value: $value, metadata: $atMetaData, commitId: $commitId, operation: $operation';
-  }
-
-  Map toJson() {
-    var map = {};
-    map['atKey'] = key;
-    map['value'] = value;
-    map['metadata'] = atMetaData;
-    map['commitId'] = commitId;
-    map['operation'] = operation.name;
-    return map;
-  }
-
-  KeyStoreEntry fromJson(Map json) {
-    key = json['atKey'];
-    value = json['value'];
-    atMetaData = json['metadata'];
-    commitId = json['commitId'];
-    operation = json['operation'];
-    return this;
   }
 }

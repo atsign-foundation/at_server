@@ -11,7 +11,7 @@ import 'package:hive/hive.dart';
 class AtCommitLog implements AtLogType {
   var logger = AtSignLogger('AtCommitLog');
 
-  late final List<AtChangeEventListener> _atChangeEventListener = [];
+  late final List<AtChangeEventListener> _atChangeEventListeners = [];
 
   late CommitLogKeyStore _commitLogKeyStore;
 
@@ -34,7 +34,9 @@ class AtCommitLog implements AtLogType {
     var entry = CommitEntry(key, operation, DateTime.now().toUtc());
     try {
       result = await _commitLogKeyStore.add(entry);
-      await _publishChangeEvent(entry);
+      Future.delayed(Duration(milliseconds: 0)).then((value) async {
+        await _publishChangeEvent(entry);
+      });
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -176,7 +178,7 @@ class AtCommitLog implements AtLogType {
 
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
     try {
-      for (var listener in _atChangeEventListener) {
+      for (var listener in _atChangeEventListeners) {
         await listener.listen(AtPersistenceChangeEvent.from(commitEntry.atKey,
             value: commitEntry.commitId,
             commitOp: commitEntry.operation!,
@@ -191,11 +193,11 @@ class AtCommitLog implements AtLogType {
 
   /// Adds the class implementing the [AtChangeEventListener] to publish the [AtPersistenceChangeEvent]
   void addEventListener(AtChangeEventListener atChangeEventListener) {
-    _atChangeEventListener.add(atChangeEventListener);
+    _atChangeEventListeners.add(atChangeEventListener);
   }
 
   /// Removes the [AtChangeEventListener]
   void removeEventListener(AtChangeEventListener atChangeEventListener) {
-    _atChangeEventListener.remove(atChangeEventListener);
+    _atChangeEventListeners.remove(atChangeEventListener);
   }
 }

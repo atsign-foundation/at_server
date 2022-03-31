@@ -263,4 +263,9 @@ class AtNotificationKeystore
   Future<List> getFirstNEntries(int N) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<int> latestCommitIdForKey(key) {
+    throw UnsupportedError('Notification Keystore does not use a commit log');
+  }
 }

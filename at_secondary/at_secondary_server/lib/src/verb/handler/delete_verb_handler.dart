@@ -2,7 +2,7 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -67,8 +67,23 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (deleteKey == AT_CRAM_SECRET) {
       await keyStore!.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
-    var result = await keyStore!.remove(deleteKey);
-    response.data = result?.toString();
+    if (verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY] != null) {
+      int clientCommitId = int.parse(verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY]!);
+      int serverCommitId = await keyStore!.latestCommitIdForKey(deleteKey);
+      if (clientCommitId < serverCommitId) {
+        // Client last known commit id is out of date; reject the update
+        throw AtInvalidStateException('delete: Client last known commit id $clientCommitId is less than server commit id $serverCommitId - rejecting');
+      }
+    }
+
+    int commitId = await keyStore!.remove(deleteKey);
+    InboundConnectionMetadata inboundConnectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+    if (inboundConnectionMetadata.commitLogStreamer != null) {
+      AtChangeEventListener syncStreamListener = inboundConnectionMetadata.commitLogStreamer as AtChangeEventListener;
+      syncStreamListener.ignoreCommitId(commitId);
+    }
+
+    response.data = commitId.toString();
     logger.finer('delete success. delete key: $deleteKey');
     try {
       if (!deleteKey.startsWith('@')) {

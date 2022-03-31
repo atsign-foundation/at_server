@@ -6,6 +6,18 @@ version: 1.0.1
 environment:
   sdk: '>=2.12.0 <3.0.0'
 
+dependency_overrides:
+  at_utils:
+    path: ../../at_tools/at_utils
+  at_commons:
+    path: ../../at_tools/at_commons
+  at_server_spec:
+    path: ../at_server_spec
+  at_persistence_secondary_server:
+    path: ../at_secondary/at_persistence_secondary_server
+  at_secondary:
+    path: ../at_secondary/at_secondary_server
+
 dependencies:
   at_demo_data:
     git:

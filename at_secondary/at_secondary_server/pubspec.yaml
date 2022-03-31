@@ -19,8 +19,19 @@ dependencies:
   at_persistence_secondary_server: ^3.0.19
   at_lookup: ^3.0.12
   at_server_spec: ^3.0.6
+  mutex: ^3.0.0
 
-#dependency_overrides:
+dependency_overrides:
+  at_utils:
+    path: ../../../at_tools/at_utils
+  at_commons:
+    path: ../../../at_tools/at_commons
+  at_server_spec:
+    path: ../../at_server_spec
+  at_persistence_spec:
+    path: ../../at_persistence/at_persistence_spec
+  at_persistence_secondary_server:
+    path: ../at_persistence_secondary_server
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git

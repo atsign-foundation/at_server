@@ -67,7 +67,8 @@ class GlobalExceptionHandler {
         exception is AtConnectException ||
         exception is AtTimeoutException ||
         exception is InvalidAtSignException ||
-        exception is UnAuthenticatedException) {
+        exception is UnAuthenticatedException ||
+        exception is AtInvalidStateException) {
       // TODO Not sure some of these are really worthy of WARNINGS, but let's leave as is for now
       logger.warning(exception.toString());
       await _sendResponseForException(exception, atConnection);

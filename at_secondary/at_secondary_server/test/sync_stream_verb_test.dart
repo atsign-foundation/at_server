@@ -10,7 +10,10 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  group('A group of sync verb regex test', () {
+  group('A group of sync-stream tests', () {
+    setUpAll(() {
+
+    });
     test('test sync correct syntax', () {
       var verb = Sync();
       var command = 'sync:5';
@@ -24,9 +27,9 @@ void main() async {
       var command = 'sync:';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test sync incorrect multiple sequence number', () {
@@ -34,9 +37,9 @@ void main() async {
       var command = 'sync:5 6 7';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test sync incorrect sequence number with alphabet', () {
@@ -44,9 +47,9 @@ void main() async {
       var command = 'sync:5a';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
@@ -87,16 +90,16 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
+  secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
   AtCommitLog? commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance!;
   var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   return keyStoreManager;
 }

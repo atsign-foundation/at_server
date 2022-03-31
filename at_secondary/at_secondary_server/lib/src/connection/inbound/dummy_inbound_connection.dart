@@ -51,13 +51,13 @@ class DummyInboundConnection implements InboundConnection {
   void write(String data) {}
 
   @override
-  bool? isMonitor;
-
-  @override
   String? initiatedBy;
 
   bool isStream = false;
 
   @override
   Socket? receiverSocket;
+
+  @override
+  bool? isMonitor;
 }

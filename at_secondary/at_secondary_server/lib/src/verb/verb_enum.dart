@@ -17,7 +17,8 @@ enum VerbEnum {
   stream,
   batch,
   info,
-  noop
+  noop,
+  ssync
 }
 
 String getName(VerbEnum d) => '$d'.split('.').last;

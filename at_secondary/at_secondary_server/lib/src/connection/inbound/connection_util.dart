@@ -1,3 +1,5 @@
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+
 import 'inbound_connection_pool.dart';
 
 class ConnectionUtil {
@@ -5,7 +7,8 @@ class ConnectionUtil {
   static int getMonitorConnectionSize() {
     var count = 0;
     InboundConnectionPool.getInstance().getConnections().forEach((connection) {
-      if (!connection.isInValid() && connection.isMonitor!) {
+      var inboundConnectionMetadata = connection.getMetaData() as InboundConnectionMetadata;
+      if (!connection.isInValid() && inboundConnectionMetadata.isMonitor) {
         count++;
       }
     });

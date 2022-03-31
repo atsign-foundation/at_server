@@ -18,9 +18,8 @@ import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -81,7 +80,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(PolVerbHandler(keyStore));
     _verbHandlers.add(DeleteVerbHandler(keyStore));
     _verbHandlers.add(StatsVerbHandler(keyStore));
-    _verbHandlers.add(SyncVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));
     _verbHandlers.add(MonitorVerbHandler(keyStore));
     _verbHandlers.add(StreamVerbHandler(keyStore));
@@ -90,8 +88,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler((keyStore)));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
-    _verbHandlers.add(SyncFromVerbHandler(keyStore));
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
+    _verbHandlers.add(SyncStreamVerbHandler(keyStore));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));
     return _verbHandlers;

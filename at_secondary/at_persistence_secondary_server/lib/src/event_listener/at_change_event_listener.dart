@@ -5,4 +5,5 @@ abstract class AtChangeEventListener {
   /// Publishes the [AtPersistenceChangeEvent] on change in keystore to the classes implementing
   /// the [AtChangeEventListener].
   Future<void> listen(AtPersistenceChangeEvent atChangeEvent);
+  ignoreCommitId(int commitId);
 }

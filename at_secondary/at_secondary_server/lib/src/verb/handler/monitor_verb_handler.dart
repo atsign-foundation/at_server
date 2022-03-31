@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -36,7 +37,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    if (atConnection.getMetaData().isAuthenticated) {
+    var inboundConnectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+    if (inboundConnectionMetadata.isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
 
@@ -55,7 +57,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
             (notification) => processReceivedNotification(notification));
       }
     }
-    atConnection.isMonitor = true;
+    inboundConnectionMetadata.isMonitor = true;
   }
 
   /// Writes [notification] to connection if the [notification] matches [monitor]'s [regex]

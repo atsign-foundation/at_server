@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -88,8 +89,24 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             sharedKeyEncrypted: sharedKeyEncrypted,
             publicKeyChecksum: sharedWithPublicKeyChecksum)
         .build();
-    var result = await keyStore!.putMeta(key, atMetaData);
-    response.data = result?.toString();
+
+    if (verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY] != null) {
+      int clientCommitId = int.parse(verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY]!);
+      int serverCommitId = await keyStore!.latestCommitIdForKey(key);
+      if (clientCommitId < serverCommitId) {
+        // Client last known commit id is out of date; reject the update
+        throw AtInvalidStateException('update:meta: Client last known commit id $clientCommitId is less than server commit id $serverCommitId - rejecting');
+      }
+    }
+
+    int commitId = await keyStore!.putMeta(key, atMetaData);
+    InboundConnectionMetadata inboundConnectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+    if (inboundConnectionMetadata.commitLogStreamer != null) {
+      AtChangeEventListener syncStreamListener = inboundConnectionMetadata.commitLogStreamer as AtChangeEventListener;
+      syncStreamListener.ignoreCommitId(commitId);
+    }
+
+    response.data = commitId.toString();
     // If forAtSign is null, do not auto notify
     if (forAtSign == null || forAtSign.isEmpty) {
       return;

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -89,6 +90,16 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           updateParams.metadata!.isPublic!) {
         key = 'public:$key';
       }
+
+      if (verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY] != null) {
+        int clientCommitId = int.parse(verbParams[AT_CLIENT_LAST_KNOWN_COMMIT_ID_FOR_KEY]!);
+        int serverCommitId = await keyStore!.latestCommitIdForKey(key);
+        if (clientCommitId < serverCommitId) {
+          // Client last known commit id is out of date; reject the update
+          throw AtInvalidStateException('update: Client last known commit id $clientCommitId is less than server commit id $serverCommitId - rejecting');
+        }
+      }
+
       var metadata = await keyStore!.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
       ttr_ms = cacheRefreshMetaMap[AT_TTR];
@@ -115,7 +126,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..pubKeyCS = publicKeyChecksum;
 
       // update the key in data store
-      var result = await keyStore!.put(key, atData,
+      int commitId = await keyStore!.put(key, atData,
           time_to_live: ttl_ms,
           time_to_born: ttb_ms,
           time_to_refresh: ttr_ms,
@@ -125,7 +136,13 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           dataSignature: dataSignature,
           sharedKeyEncrypted: sharedKeyEncrypted,
           publicKeyChecksum: publicKeyChecksum);
-      response.data = result?.toString();
+
+      InboundConnectionMetadata inboundConnectionMetadata = atConnection.getMetaData() as InboundConnectionMetadata;
+      if (inboundConnectionMetadata.commitLogStreamer != null) {
+        AtChangeEventListener syncStreamListener = inboundConnectionMetadata.commitLogStreamer as AtChangeEventListener;
+        syncStreamListener.ignoreCommitId(commitId);
+      }
+      response.data = commitId.toString();
       if (AUTO_NOTIFY!) {
         _notify(
             atSign,

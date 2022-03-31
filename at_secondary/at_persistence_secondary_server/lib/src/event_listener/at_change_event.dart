@@ -4,6 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class AtPersistenceChangeEvent {
   dynamic key;
   dynamic value;
+  late CommitOp commitOp;
   late ChangeOperation changeOperation;
   late KeyStoreType keyStoreType;
 
@@ -15,6 +16,7 @@ class AtPersistenceChangeEvent {
     return AtPersistenceChangeEvent()
       ..key = key
       ..value = value
+      ..commitOp = commitOp
       ..changeOperation = changeOperationAdapter(commitOp)
       ..keyStoreType = keyStoreType;
   }

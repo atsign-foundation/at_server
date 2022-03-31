@@ -1,13 +1,9 @@
 import 'dart:collection';
 import 'dart:math';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
-import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 class CommitLogKeyStore
@@ -37,12 +33,15 @@ class CommitLogKeyStore
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
-    // Cache the latest commitId of each key.
-    // Add entries to commitLogCacheMap when initialized from at_secondary_server
-    // and refrain for at_client_sdk.
-    if (enableCommitId) {
-      _commitLogCacheMap.addAll(await _getCommitIdMap());
-    }
+    // * Cache the latest commitId of each key (by scanning through *all* commit log entries).
+    // * We are doing this both for server and for client, as we need this on client also.
+    // * Note that getCommitIdMap will skip CommitLogEntries where the commitId is null.
+    // * commitId is null on client side until entry has been synced to cloud secondary
+    // * commitId is null on server side only if the server happened to terminate in the period
+    //   between the commitLog entry being created (with commitId == null) and updated (setting the commitId)
+    // TODO This map needs to be made persistent and maintained alongside the main commit log
+    _commitLogCacheMap.addAll(await _getCommitIdMap());
+    _logger.info('Initialized with _commitLogCacheMap size ${_commitLogCacheMap.length}');
   }
 
   @override
@@ -59,19 +58,22 @@ class CommitLogKeyStore
   }
 
   @override
-  Future<int> add(CommitEntry? commitEntry) async {
-    var internalKey;
+  Future<int> add(CommitEntry? nullableCommitEntry) async {
+    CommitEntry commitEntry = nullableCommitEntry!;
+    int internalKey;
     try {
       internalKey = await _getBox().add(commitEntry);
       //set the hive generated key as commit id
       if (enableCommitId) {
-        commitEntry!.commitId = internalKey;
+        // enableCommitId means commitId is generated here - i.e. this is server-side
+        commitEntry.commitId = internalKey;
         // update entry with commitId
         await _getBox().put(internalKey, commitEntry);
+      }
+      if (commitEntry.commitId != null) {
         // update the commitId in cache commitMap.
         _updateCacheLog(commitEntry.atKey!, commitEntry);
-        if (commitEntry.commitId != null &&
-            commitEntry.commitId! > _latestCommitId) {
+        if (commitEntry.commitId! > _latestCommitId) {
           _latestCommitId = commitEntry.commitId!;
         }
       }
@@ -121,7 +123,7 @@ class CommitLogKeyStore
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
     var values = await _getValues();
     var lastCommittedEntry = values.lastWhere(
-        (entry) => (_isRegexMatches(entry.atKey, regex)),
+        (entry) => (AtKeyUtils.atKeyMatchesRegexForSync(entry.atKey, regex)),
         orElse: () => null);
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
@@ -134,7 +136,7 @@ class CommitLogKeyStore
     if (regex != null) {
       lastSyncedEntry = values.lastWhere(
           (entry) =>
-              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
+              (AtKeyUtils.atKeyMatchesRegexForSync(entry.atKey, regex) && (entry.commitId != null)),
           orElse: () => null);
     } else {
       lastSyncedEntry = values.lastWhere((entry) => entry.commitId != null,
@@ -238,7 +240,7 @@ class CommitLogKeyStore
       if (limit != null) {
         values.forEach((element) {
           if (element.key >= startKey &&
-              _isRegexMatches(element.atKey, regexString) &&
+              AtKeyUtils.atKeyMatchesRegexForSync(element.atKey, regexString) &&
               changes.length <= limit) {
             changes.add(element);
           }
@@ -247,7 +249,7 @@ class CommitLogKeyStore
       }
       values.forEach((f) {
         if (f.key >= startKey) {
-          if (_isRegexMatches(f.atKey, regexString)) {
+          if (AtKeyUtils.atKeyMatchesRegexForSync(f.atKey, regexString)) {
             changes.add(f);
           }
         }
@@ -261,18 +263,6 @@ class CommitLogKeyStore
     return changes;
   }
 
-  bool _isRegexMatches(String atKey, String regex) {
-    var result = false;
-    if ((RegExp(regex).hasMatch(atKey)) ||
-        atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
-        atKey.startsWith('public:') ||
-        atKey.contains(AT_PKAM_SIGNATURE) ||
-        atKey.contains(AT_SIGNING_PRIVATE_KEY)) {
-      result = true;
-    }
-    return result;
-  }
-
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
   /// Called in init method of commitLog to initialize on server start-up.
   Future<Map<String, CommitEntry>> _getCommitIdMap() async {
@@ -280,8 +270,12 @@ class CommitLogKeyStore
     var values = await _getValues();
     for (var value in values) {
       if (value.commitId == null) {
-        _logger.severe(
-            'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
+        if (enableCommitId) { // synonym for 'server-side' behaviour
+          // * commitId will be null on client side until entry has been synced to cloud secondary
+          // * commitId is null on server side only if the server happened to terminate in the period
+          //   between the commitLog entry being created (with commitId == null) and updated (setting the commitId)
+          _logger.severe('CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
+        }
         continue;
       }
       // If keyMap contains the key, update the commitId in the map with greater commitId.
@@ -301,6 +295,7 @@ class CommitLogKeyStore
 
   /// Updates the commitId of the key.
   void _updateCacheLog(String key, CommitEntry commitEntry) {
+    _logger.info('Updating commit log cache for $key with ${commitEntry.commitId}');
     _commitLogCacheMap[key] = commitEntry;
   }
 
@@ -324,7 +319,7 @@ class CommitLogKeyStore
     // Remove the keys that does not match regex or commitId of the key
     // less than the commitId specified in the argument.
     sortedMap.removeWhere((key, value) =>
-        !_isRegexMatches(key, regex) || value!.commitId! < commitId);
+        !AtKeyUtils.atKeyMatchesRegexForSync(key, regex) || value!.commitId! < commitId);
     return sortedMap.entries.iterator;
   }
 

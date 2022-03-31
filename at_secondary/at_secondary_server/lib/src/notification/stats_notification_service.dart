@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -81,11 +82,11 @@ class StatsNotificationService {
           (InboundConnection connection) async {
         // If a monitor connection is stale for 15 seconds,
         // Writes the lastCommitID to the monitor connection
-        if (connection.isMonitor != null &&
-            connection.isMonitor! &&
+        var inboundConnectionMetadata = connection.getMetaData() as InboundConnectionMetadata;
+        if (inboundConnectionMetadata.isMonitor &&
             DateTime.now()
                     .toUtc()
-                    .difference(connection.getMetaData().lastAccessed!)
+                    .difference(inboundConnectionMetadata.lastAccessed!)
                     .inSeconds >=
                 AtSecondaryConfig.statsNotificationJobTimeInterval) {
           //Construct a stats notification

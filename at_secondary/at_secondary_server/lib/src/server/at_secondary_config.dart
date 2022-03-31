@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 
 class AtSecondaryConfig {
   //Certs
@@ -47,8 +48,8 @@ class AtSecondaryConfig {
   static int? _runRefreshJobHour = 3;
 
   //Connection
-  static final int _inbound_max_limit = 10;
-  static final int _outbound_max_limit = 10;
+  static final int _inbound_max_limit = 50;
+  static final int _outbound_max_limit = 50;
   static final int _inbound_idletime_millis = 600000;
   static final int _outbound_idletime_millis = 600000;
 
@@ -73,8 +74,12 @@ class AtSecondaryConfig {
   static final int _statsNotificationJobTimeInterval = 15;
 
   //Sync Configurations
-  static final int _syncBufferSize = 5242880;
+  /// Max data length we want to return to client, in [SyncProgressiveVerbHandler]
+  static final int _syncBufferSize = 5 * 1024 * 1024;
+  /// Max number of individual entries we want to return to client, in [SyncProgressiveVerbHandler]
   static final int _syncPageLimit = 100;
+  /// Max number of 'in-flight' (i.e. not acked) keyStore entries when streaming to client, in [SyncStreamVerbHandler]
+  static final int _syncStreamInFlightLimit = 5;
 
   //version
   static final String? _secondaryServerVersion =
@@ -594,6 +599,18 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['sync', 'pageLimit']);
     } on ElementNotFoundException {
       return _syncPageLimit;
+    }
+  }
+
+  static int get syncStreamInFlightLimit {
+    var result = _getIntEnvVar('syncStreamInFlightLimit');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['sync', 'streamInFlightLimit']);
+    } on ElementNotFoundException {
+      return _syncStreamInFlightLimit;
     }
   }
 

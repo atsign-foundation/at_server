@@ -54,6 +54,10 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> remove(K key);
+
+  /// Returns the latest commitId for a given key.
+  /// If no commit log entry for this key, returns -1
+  Future<int> latestCommitIdForKey(K key);
 }
 
 abstract class SynchronizableKeyStore<K, V, T> {

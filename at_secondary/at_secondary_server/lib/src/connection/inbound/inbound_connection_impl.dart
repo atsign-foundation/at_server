@@ -11,11 +11,20 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 class InboundConnectionImpl extends BaseConnection implements InboundConnection {
   @override
-  bool? isMonitor = false;
+  @Deprecated('use InboundConnectionMetadata.isMonitor')
+  bool? get isMonitor => getMetaData().isMonitor;
+  @override
+  @Deprecated('use InboundConnectionMetadata.isMonitor')
+  set isMonitor (bool? b) => getMetaData().isMonitor = b!;
 
   /// This contains the value of the atsign initiated the connection
   @override
   String? initiatedBy;
+
+  @override
+  InboundConnectionMetadata getMetaData() {
+    return metaData as InboundConnectionMetadata;
+  }
 
   InboundConnectionPool? owningPool;
 
@@ -154,6 +163,9 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     }
 
     try {
+      if (getMetaData().commitLogStreamer != null) {
+        getMetaData().commitLogStreamer.close();
+      }
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
       var socket = getSocket();
