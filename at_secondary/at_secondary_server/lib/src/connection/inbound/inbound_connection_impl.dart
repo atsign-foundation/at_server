@@ -103,6 +103,9 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       int allowableIdleTime = calcAllowableIdleTime(idleTimeReductionFactor, unauthenticatedMinAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
+      if (retVal && allowableIdleTime <= 70) {
+        logger.info('isInvalid returning true for UN-authenticated connection, allowableIdleTime now $allowableIdleTime, actualIdleTime $actualIdleTime');
+      }
       return retVal;
     } else {
       // For authenticated connections
@@ -111,6 +114,9 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       int allowableIdleTime = calcAllowableIdleTime(idleTimeReductionFactor, authenticatedMinAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
+      if (retVal && allowableIdleTime <= 70) {
+        logger.info('isInvalid returning true for AUTHENTICATED connection, allowableIdleTime now $allowableIdleTime, actualIdleTime $actualIdleTime');
+      }
       return retVal;
     }
   }

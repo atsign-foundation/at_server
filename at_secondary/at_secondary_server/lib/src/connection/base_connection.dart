@@ -47,6 +47,7 @@ abstract class BaseConnection extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
+      logger.info('$runtimeType : sessionID: ${metaData.sessionID} writing data to socket : $data');
       getSocket().write(data);
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
