@@ -36,16 +36,17 @@ void main() {
     /// UPDATE VERB
     var value = 'val$lastValue';
     await sh1.writeCommand(
-        'notify:update:ttl:15000:ttr:-1:$atSign_2:key-1$atSign_1:$value');
+        'notify:update:ttl:600000:ttr:-1:$atSign_2:key-1$atSign_1:$value');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
     await notification.getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 20000);
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 30000);
 
     ///LLOOKUP VERB in the receiving atsign
+    await Future.delayed(Duration(seconds: 2));
     await sh2.writeCommand('llookup:cached:$atSign_2:key-1$atSign_1');
     response = await sh2.read();
     print('llookup verb response of a cached key : $response');
