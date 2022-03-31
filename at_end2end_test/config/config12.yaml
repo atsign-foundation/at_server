@@ -5,6 +5,10 @@ root_server:
   # The url to connect to root server
   url: 'root.atsign.wtf'
 
+connection:
+  inbound_max_limit: 50
+  outbound_max_limit: 50
+
 # cicd atsign details
 first_atsign_server:
   first_atsign_name: '@cicd1'
