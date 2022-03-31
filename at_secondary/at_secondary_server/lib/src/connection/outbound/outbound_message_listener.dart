@@ -82,9 +82,11 @@ class OutboundMessageListener {
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
           throw AtConnectException("Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
         } else {
+          String message = "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}";
+          logger.severe('Closing outbound client - $message');
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();
-          throw AtConnectException("Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+          throw AtConnectException(message);
         }
       }
     }
@@ -101,6 +103,7 @@ class OutboundMessageListener {
 
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
+    logger.info('_finishedHandler called - closing outbound connection');
     await _closeOutboundClient();
   }
 
