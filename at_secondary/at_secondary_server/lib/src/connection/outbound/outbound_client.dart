@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
@@ -240,12 +241,23 @@ class OutboundClient {
   }
 
   bool isInValid() {
+    if (outboundConnection != null && outboundConnection!.isInValid()) {
+      return true;
+    }
+
     // TODO This is weird. Why are we checking if the inbound connection is inValid?
     if (inboundConnection.isInValid()) {
-      logger.warning('isInValid() found that its associated inbound connection (sessionID: ${inboundConnection.getMetaData().sessionID}) is inValid - this *outbound* client is therefore being marked as inValid');
+      if (inboundConnection is DummyInboundConnection) {
+        return false;
+      } else {
+        logger.warning('isInValid() found that its associated inbound connection (sessionID: ${inboundConnection
+            .getMetaData()
+            .sessionID}) is inValid - this *outbound* client is therefore being marked as inValid');
+        return true;
+      }
+    } else {
+      return false;
     }
-    return inboundConnection.isInValid() ||
-        (outboundConnection != null && outboundConnection!.isInValid());
   }
 
   Future<String?> notify(String key, {bool handshake = true}) async {

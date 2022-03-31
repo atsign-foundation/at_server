@@ -81,6 +81,9 @@ class ResourceManager {
       }
     } on Exception catch (e) {
       logger.warning('Failed to connect outbound client to $toAtSign with exception : $e');
+      if (outBoundClient.outboundConnection != null) {
+        outBoundClient.outboundConnection!.metaData.isStale = true;
+      }
       // TODO This is weird. Why mark the inbound connection as closed?
       outBoundClient.inboundConnection.getMetaData().isClosed = true;
       logger.finer('connect result: $e');
