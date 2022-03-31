@@ -241,7 +241,7 @@ class OutboundClient {
 
   bool isInValid() {
     if (inboundConnection.isInValid()) {
-      logger.warning('isInValid() found that its associated inbound connection from ${inboundConnection.getSocket().remoteAddress}:${inboundConnection.getSocket().remotePort} is inValid - this client is therefore being marked as inValid');
+      logger.warning('isInValid() found that its associated inbound connection is inValid - this *outbound* client is therefore being marked as inValid');
     }
     return inboundConnection.isInValid() ||
         (outboundConnection != null && outboundConnection!.isInValid());
