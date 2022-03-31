@@ -108,7 +108,7 @@ class SimpleOutboundSocketHandler {
   }
 
   Future<void> clear() async {
-    // queue.clear();
+    _queue.clear();
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
