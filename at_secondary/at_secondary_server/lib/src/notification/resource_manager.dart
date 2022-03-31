@@ -69,6 +69,7 @@ class ResourceManager {
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
   Future<OutboundClient?> _connect(String? toAtSign) async {
+    logger.info('_connect called for $toAtSign');
     var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
