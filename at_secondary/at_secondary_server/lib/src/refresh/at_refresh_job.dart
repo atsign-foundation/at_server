@@ -63,7 +63,7 @@ class AtRefreshJob {
     var atSign = key.substring(index);
     String? lookupResult;
     var outBoundClient = OutboundClientManager.getInstance().getClient(
-        atSign, DummyInboundConnection.getInstance('AtRefreshJob-$atSign'),
+        atSign, DummyInboundConnection.getInstance(),
         isHandShake: isHandShake)!;
     // Need not connect again if the client's handshake is already done
     try {
