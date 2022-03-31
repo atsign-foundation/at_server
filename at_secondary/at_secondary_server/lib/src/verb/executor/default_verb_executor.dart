@@ -24,6 +24,7 @@ class DefaultVerbExecutor implements VerbExecutor {
       throw InvalidSyntaxException('invalid command');
     }
     try {
+      fromConnection.getMetaData().lastAccessed = DateTime.now();
       await handler.process(utf8EncodedCommand, fromConnection);
     } on AtConnectException {
       rethrow;
