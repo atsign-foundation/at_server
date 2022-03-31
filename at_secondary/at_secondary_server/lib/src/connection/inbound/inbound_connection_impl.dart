@@ -31,7 +31,7 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
 
-    logger.info('close() called on inbound connection (sessionID: ${getMetaData().sessionID}) (from socket: $socket)');
+    logger.info('Created inbound connection (sessionID: $sessionId)');
 
     AtSecondaryContext? secondaryContext = AtSecondaryServerImpl.getInstance().serverContext;
     // In test harnesses, secondary context may not yet have been set, in which case create a default AtSecondaryContext instance
