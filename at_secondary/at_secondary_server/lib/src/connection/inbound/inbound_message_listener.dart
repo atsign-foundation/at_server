@@ -90,6 +90,7 @@ class InboundMessageListener {
 
   /// Closes the [InboundConnection]
   Future<void> _finishedHandler() async {
+    logger.info('_finishedHandler called - closing inbound connection');
     await _closeConnection();
   }
 

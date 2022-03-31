@@ -45,6 +45,7 @@ class OutboundConnectionImpl extends OutboundConnection {
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
+      logger.info('close() called on outbound connection to $address:$port - destroying socket');
       var socket = getSocket();
       if (socket != null) {
         socket.destroy();
