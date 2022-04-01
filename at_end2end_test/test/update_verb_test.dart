@@ -226,7 +226,7 @@ void main() {
     response = await sh1.read();
     print('llookup verb response : $response');
     expect(response, contains('data:unicorn'));
-  });
+  }, skip: 'Non existent atSign, skipping the test to avoid connection issue');
 
   test('update-llookup for ttl ', () async {
     ///UPDATE VERB
