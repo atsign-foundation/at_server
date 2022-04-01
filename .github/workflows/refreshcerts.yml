@@ -22,6 +22,7 @@ jobs:
 
       - name: execute acme_certs.py
         run: |
+          set +e
           pip3 install dnspython requests
           CERTNAME="vip"
           DOMAIN="ve.atsign.zone"
@@ -43,6 +44,7 @@ jobs:
               exit 1
             fi
           fi
+          set -e
           cp "$FQDN".cert.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
           cp "$FQDN".key ./at_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp "$FQDN".fullchain.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
