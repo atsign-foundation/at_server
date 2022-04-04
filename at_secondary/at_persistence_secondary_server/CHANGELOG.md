@@ -1,3 +1,5 @@
+## 3.0.21
+- Upgrade at_lookup and at_commons for NotifyRemove
 ## 3.0.20
 - Upgrade Hive version to 2.1.0
 ## 3.0.19
