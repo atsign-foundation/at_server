@@ -10,7 +10,7 @@ environment:
 
 dependencies:
   path: ^1.8.0
-  hive: ^2.0.4
+  hive: ^2.1.0
   cron: ^0.3.0
   crypto: ^3.0.1
   uuid: ^3.0.4
