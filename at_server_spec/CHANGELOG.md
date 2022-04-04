@@ -1,3 +1,6 @@
+## 3.0.7
+- Exported 'NotifyDelete' verbs in package export
+- Upgraded version of at_commons to 3.0.10
 ## 3.0.6
 - Exported 'info' and 'noop' verbs in package export, redux
 ## 3.0.5

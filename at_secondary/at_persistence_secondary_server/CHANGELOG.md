@@ -1,3 +1,5 @@
+## 3.0.20
+- Add remove method in Notification Keystore.
 ## 3.0.19
 - add encryption shared key and public key checksum to metadata
 ## 3.0.18
