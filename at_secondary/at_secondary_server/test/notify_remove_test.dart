@@ -6,8 +6,8 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_secondary/src/verb/handler/notify_delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_server_spec/verbs.dart';
 import 'package:test/test.dart';
 
@@ -16,9 +16,9 @@ void main() {
   late SecondaryKeyStoreManager keyStoreManager;
   group('A group of test to verify NotifyDeleteVerb', () {
     test('Test to verify notify delete getVerb', () {
-      var handler = NotifyDeleteVerbHandler(null);
+      var handler = NotifyRemoveVerbHandler(null);
       var verb = handler.getVerb();
-      expect(verb is NotifyDelete, true);
+      expect(verb is NotifyRemove, true);
     });
   });
 
@@ -51,10 +51,10 @@ void main() {
 
       //Notify delete verb handler
       var notifyDeleteHandler =
-          NotifyDeleteVerbHandler(keyStoreManager.getKeyStore());
+          NotifyRemoveVerbHandler(keyStoreManager.getKeyStore());
       await notifyDeleteHandler.processVerb(
           response,
-          getVerbParam(NotifyDelete().syntax(), 'notify:delete:122'),
+          getVerbParam(NotifyRemove().syntax(), 'notify:delete:122'),
           atConnection);
       expect(response.data, 'success');
 

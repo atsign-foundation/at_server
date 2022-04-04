@@ -7,17 +7,17 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
-class NotifyDeleteVerbHandler extends AbstractVerbHandler {
-  static NotifyDelete notifyDelete = NotifyDelete();
+class NotifyRemoveVerbHandler extends AbstractVerbHandler {
+  static NotifyRemove notifyRemove = NotifyRemove();
 
-  NotifyDeleteVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  NotifyRemoveVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
-  bool accept(String command) => command.startsWith('notify:delete');
+  bool accept(String command) => command.startsWith('notify:remove:');
 
   @override
   Verb getVerb() {
-    return notifyDelete;
+    return notifyRemove;
   }
 
   @override

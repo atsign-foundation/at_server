@@ -10,12 +10,12 @@ import 'package:at_server_spec/src/verb/verb.dart';
 /// To List notification between two dates and matches with the regex
 /// notify:list:<StartDate>:<EndDate>:<regex>
 /// regex, startDate, endDate are optional
-class NotifyDelete extends Verb {
+class NotifyRemove extends Verb {
   @override
   String name() => 'notify';
 
   @override
-  String syntax() => VerbSyntax.notifyDelete;
+  String syntax() => VerbSyntax.notifyRemove;
 
   @override
   Verb? dependsOn() {
@@ -24,7 +24,7 @@ class NotifyDelete extends Verb {
 
   @override
   String usage() {
-    return 'e.g notify:delete:<notificationId>';
+    return 'e.g notify:remove:<notificationId>';
   }
 
   @override

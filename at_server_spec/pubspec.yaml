@@ -11,12 +11,12 @@ environment:
 dependencies:
   at_commons: 3.0.10
 
-#dependency_overrides:
-# at_commons:
-#   git:
-#     url: https://github.com/atsign-foundation/at_tools.git
-#     path: at_commons
-#     ref: trunk
+dependency_overrides:
+ at_commons:
+   git:
+     url: https://github.com/atsign-foundation/at_tools.git
+     path: at_commons
+     ref: delete_notification
 
 dev_dependencies:
   lints: ^1.0.1

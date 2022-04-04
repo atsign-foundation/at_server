@@ -19,22 +19,22 @@ dependencies:
   at_commons: 3.0.10
   at_utf7: ^1.0.0
 
-#dependency_overrides:
+dependency_overrides:
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_persistence/at_persistence_spec
 #      ref: compaction_stats_patch1
-#  at_utils:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_utils
-#      ref: trunk
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: delete_notification
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_utils
+      ref: trunk
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: delete_notification
 
 dev_dependencies:
   lints: ^1.0.1
