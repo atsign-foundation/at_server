@@ -1,3 +1,5 @@
+## 3.0.15
+- Update persistence version for hive upgrade
 ## 3.0.14
 - Notify verb handler changes for shared key and public key checksum in metadata
 - Inbound connection management improvements
