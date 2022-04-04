@@ -24,7 +24,7 @@ void main() {
 
   group('A group of hive tests to verify notify delete', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
-    test('A test to verify notify delete', () async {
+    test('A test to verify notify remove', () async {
       // Notification Object
       var notificationObj = (AtNotificationBuilder()
             ..id = '122'
@@ -54,7 +54,7 @@ void main() {
           NotifyRemoveVerbHandler(keyStoreManager.getKeyStore());
       await notifyDeleteHandler.processVerb(
           response,
-          getVerbParam(NotifyRemove().syntax(), 'notify:delete:122'),
+          getVerbParam(NotifyRemove().syntax(), 'notify:remove:122'),
           atConnection);
       expect(response.data, 'success');
 
