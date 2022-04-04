@@ -70,9 +70,9 @@ class AtNotificationKeystore
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-        String? dataSignature,
-        String? sharedKeyEncrypted,
-        String? publicKeyChecksum}) async {
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum}) async {
     await _getBox().put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
   }
@@ -85,9 +85,9 @@ class AtNotificationKeystore
       bool? isCascade,
       bool? isBinary,
       bool? isEncrypted,
-        String? dataSignature,
-        String? sharedKeyEncrypted,
-        String? publicKeyChecksum}) async {
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum}) async {
     throw UnimplementedError();
   }
 

@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.14
+version: 3.0.15
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -16,36 +16,36 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.19
-  at_lookup: ^3.0.15
-  at_server_spec: ^3.0.6
+  at_persistence_secondary_server: 3.0.21
+  at_lookup: 3.0.16
+  at_server_spec: 3.0.6
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: delete_notification
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_persistence/at_persistence_spec
 #      ref: trunk
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_utils
-      ref: delete_notification
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: delete_notification
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_server_spec
-      ref: delete_notification
+#  at_utils:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_utils
+#      ref: trunk
+#  at_persistence_secondary_server:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_secondary/at_persistence_secondary_server
+#      ref: update_dependencies
+#  at_server_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_server_spec
+#      ref: info_and_noop_verbs
 
 dev_dependencies:
   test: ^1.17.3
