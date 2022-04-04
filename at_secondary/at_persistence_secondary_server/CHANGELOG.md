@@ -1,5 +1,3 @@
-## 3.0.21
-- Add remove method in Notification Keystore.
 ## 3.0.20
 - Upgrade Hive version to 2.1.0
 ## 3.0.19
