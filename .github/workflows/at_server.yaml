@@ -485,7 +485,7 @@ jobs:
 
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server
@@ -587,7 +587,7 @@ jobs:
 
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server
