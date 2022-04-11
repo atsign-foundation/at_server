@@ -58,7 +58,7 @@ jobs:
       
       - name: store logs and responses
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cert-logs
           path: vip.ve.atsign.zone.*

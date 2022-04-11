@@ -186,7 +186,7 @@ jobs:
       # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server/secondary
