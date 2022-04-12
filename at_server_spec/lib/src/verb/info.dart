@@ -5,7 +5,7 @@ import 'package:at_commons/at_commons.dart';
 /// ```json
 /// {
 ///   "version" : "the version being run",
-///   "uptime" : "uptime as string: D days, H hours, M minutes, S seconds",
+///   "uptimeAsWords" : "uptime as string: D days, H hours, M minutes, S seconds",
 ///   "features" : [
 ///     {
 ///       "name" : "ID of feature 1",
@@ -25,7 +25,7 @@ import 'package:at_commons/at_commons.dart';
 /// ```json
 /// {
 ///   "version" : "the version being run",
-///   "uptime" : "uptime in milliseconds, as integer",
+///   "uptimeAsMillis" : "uptime in milliseconds, as integer",
 /// }
 /// ```
 ///
