@@ -1,3 +1,5 @@
+## 3.0.7
+- Updated 'info' verb documentation to cover new functionality
 ## 3.0.6
 - Exported 'info' and 'noop' verbs in package export, redux
 ## 3.0.5
