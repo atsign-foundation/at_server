@@ -106,6 +106,9 @@ class ResourceManager {
       logger.severe(
           'Exception in processing the notification ${atNotification.id} : ${e.toString()}');
       errorList.add(atNotification);
+      while (iterator.moveNext()) {
+        errorList.add(iterator.current);
+      }
     } finally {
       //1. Adds errored notifications back to queue.
       await _enqueueErrorList(errorList);
