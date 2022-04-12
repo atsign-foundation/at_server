@@ -8,17 +8,24 @@ import 'package:at_commons/at_commons.dart';
 ///   "uptime" : "uptime as string: D days, H hours, M minutes, S seconds",
 ///   "features" : [
 ///     {
-///       "name" : "name of feature 1",
+///       "name" : "ID of feature 1",
 ///       "status" : "One of Preview, Beta, GA",
-///       "description" : "optional description of feature"
+///       "description" : "Description of feature"
 ///     },
 ///     {
-///       "name" : "name of feature 2",
+///       "name" : "ID of feature 2",
 ///       "status" : "One of Preview, Beta, GA",
-///       "description" : "optional description of feature"
+///       "description" : "Description of feature"
 ///     },
 ///     ...
 ///   ]
+/// }
+/// ```
+/// `info:brief` will just return the version and uptime as milliseconds
+/// ```json
+/// {
+///   "version" : "the version being run",
+///   "uptime" : "uptime in milliseconds, as integer",
 /// }
 /// ```
 ///
