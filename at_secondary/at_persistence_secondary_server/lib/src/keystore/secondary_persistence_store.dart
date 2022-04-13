@@ -31,5 +31,7 @@ class SecondaryPersistenceStore {
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager();
     _secondaryKeyStoreManager!.keyStore = _hiveKeystore;
+
+    _hiveKeystore.initMetaDataCache();
   }
 }

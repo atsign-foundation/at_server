@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
@@ -12,11 +13,30 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
+  Map<String, Metadata> metaDataCache = HashMap();
 
   HiveKeystore();
 
   set commitLog(value) {
     _commitLog = value;
+  }
+
+  Future<void> initMetaDataCache() async {
+    if (persistenceManager == null) {
+      logger.severe(
+          'persistence manager not initialized. skipping metadata caching');
+      return;
+    }
+    if (persistenceManager.getBox() != null) {
+      var keys = persistenceManager.getBox().keys;
+      await Future.forEach(
+          keys,
+          (key) async => {
+                metaDataCache[key.toString()] =
+                    await persistenceManager.getBox().get(key)
+              });
+    }
+    logger.severe(metaDataCache.keys);
   }
 
   @override

@@ -180,4 +180,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
         key.toString().startsWith('privatekey:') ||
         key.toString().startsWith('public:_');
   }
+
+  bool _removeExpiredKeys(AtKey atKey) {
+    return true;
+  }
 }
