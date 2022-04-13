@@ -40,12 +40,12 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_secondary/at_persistence_secondary_server
-      ref: delete_notification
+      ref: trunk
   at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: delete_notification
+      ref: trunk
 
 dev_dependencies:
   test: ^1.17.3
