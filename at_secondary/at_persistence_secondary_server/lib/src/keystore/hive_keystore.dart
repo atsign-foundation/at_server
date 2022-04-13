@@ -13,7 +13,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-  Map<String, Metadata> metaDataCache = HashMap();
+  Map<String, AtMetaData> metaDataCache = HashMap();
 
   HiveKeystore();
 
@@ -28,6 +28,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       return;
     }
     if (persistenceManager.getBox() != null) {
+      await persistenceManager.openVault(persistenceManager.atsign!);
       var keys = persistenceManager.getBox().keys;
       await Future.forEach(
           keys,
@@ -122,6 +123,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager.getBox().put(hive_key, hive_value);
+        metaDataCache[key] = hive_value.metaData!;
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -190,6 +192,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       await persistenceManager.getBox().put(hive_key, hive_data);
+      metaDataCache[hive_key] = hive_data.metaData!;
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -207,6 +210,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     var result;
     try {
       await persistenceManager.getBox().delete(Utf7.encode(key));
+      metaDataCache.remove(key);
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
     } on Exception catch (exception) {
@@ -275,7 +279,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String? regex}) {
+  List<String> getKeys({String? regex, bool? removeExpired}) {
     var keys = <String>[];
     var encodedKeys;
 
@@ -290,7 +294,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         } else {
           encodedKeys = persistenceManager.getBox().keys.toList();
         }
-        encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
+        encodedKeys?.forEach((key) => {
+              if (!isExpired(key)) {keys.add(Utf7.decode(key))}
+            });
       }
     } on FormatException catch (exception) {
       logger.severe('Invalid regular expression : $regex');
@@ -308,19 +314,23 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtMetaData?> getMeta(String key) async {
-    try {
-      var hive_key = keyStoreHelper.prepareKey(key);
-      var value = await persistenceManager.getBox().get(hive_key);
-      if (value != null) {
-        return value.metaData;
-      }
-    } on Exception catch (exception) {
-      logger.severe('HiveKeystore getMeta exception: $exception');
-      throw DataStoreException('exception in getMeta: ${exception.toString()}');
-    } on HiveError catch (error) {
-      await _restartHiveBox(error);
-      logger.severe('HiveKeystore getMeta error: $error');
-      throw DataStoreException(error.message);
+    // try {
+    //   var hive_key = keyStoreHelper.prepareKey(key);
+    //   var value = await persistenceManager.getBox().get(hive_key);
+    //   if (value != null) {
+    //     return value.metaData;
+    //   }
+    // } on Exception catch (exception) {
+    //   logger.severe('HiveKeystore getMeta exception: $exception');
+    //   throw DataStoreException('exception in getMeta: ${exception.toString()}');
+    // } on HiveError catch (error) {
+    //   await _restartHiveBox(error);
+    //   logger.severe('HiveKeystore getMeta error: $error');
+    //   throw DataStoreException(error.message);
+    // }
+    // return null;
+    if (metaDataCache.containsKey(key)) {
+      return metaDataCache[key];
     }
     return null;
   }
@@ -341,6 +351,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       metadata.version = version;
       await persistenceManager.getBox().put(hive_key, value);
+      metaDataCache[hive_key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -376,6 +387,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       newData.metaData?.version = version;
 
       await persistenceManager.getBox().put(hive_key, newData);
+      metaDataCache[hive_key] = newData.metaData!;
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
     } on HiveError catch (error) {
@@ -400,5 +412,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.info('Hive box closed. Restarting the hive box');
       await persistenceManager.openVault(persistenceManager.atsign!);
     }
+  }
+
+  bool isExpired(key) {
+    return metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
   }
 }
