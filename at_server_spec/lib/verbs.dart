@@ -11,6 +11,7 @@ export 'package:at_server_spec/src/verb/noop.dart';
 export 'package:at_server_spec/src/verb/notify.dart';
 export 'package:at_server_spec/src/verb/notify_all.dart';
 export 'package:at_server_spec/src/verb/notify_list.dart';
+export 'package:at_server_spec/src/verb/notify_remove.dart';
 export 'package:at_server_spec/src/verb/notify_status.dart';
 export 'package:at_server_spec/src/verb/pkam.dart';
 export 'package:at_server_spec/src/verb/pol.dart';

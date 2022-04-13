@@ -1,4 +1,5 @@
 ## 3.0.22
+- Add remove method in NotificationManagerSpec.
 - Bumped some dependencies
 ## 3.0.21
 - Upgrade at_lookup and at_commons for NotifyRemove

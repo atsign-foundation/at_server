@@ -11,4 +11,7 @@ abstract class NotificationManagerSpec {
 
   /// Returns if notification can be accepted.
   bool isNotificationAccepted();
+
+  /// Removes the notification from the Notification Keystore.
+  Future<void> remove(String notificationId);
 }
