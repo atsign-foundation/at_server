@@ -1,4 +1,3 @@
-import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
@@ -13,7 +12,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-  Map<String, AtMetaData> metaDataCache = HashMap();
+  final _metaDataCache = {};
 
   HiveKeystore();
 
@@ -22,22 +21,17 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   Future<void> initMetaDataCache() async {
-    if (persistenceManager == null) {
+    if (persistenceManager == null || !persistenceManager.getBox().isOpen) {
       logger.severe(
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
-    if (persistenceManager.getBox() != null) {
-      await persistenceManager.openVault(persistenceManager.atsign!);
-      var keys = persistenceManager.getBox().keys;
-      await Future.forEach(
-          keys,
-          (key) async => {
-                metaDataCache[key.toString()] =
-                    await persistenceManager.getBox().get(key)
-              });
-    }
-    logger.severe(metaDataCache.keys);
+    var keys = persistenceManager.getBox().keys;
+    await Future.forEach(
+        keys,
+        (key) => persistenceManager.getBox().get(key).then((atData) {
+              _metaDataCache[key.toString()] = atData.metaData!;
+            }));
   }
 
   @override
@@ -123,7 +117,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager.getBox().put(hive_key, hive_value);
-        metaDataCache[key] = hive_value.metaData!;
+        _metaDataCache[key] = hive_value.metaData!;
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -192,7 +186,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       await persistenceManager.getBox().put(hive_key, hive_data);
-      metaDataCache[hive_key] = hive_data.metaData!;
+      _metaDataCache[hive_key] = hive_data.metaData!;
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -210,7 +204,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     var result;
     try {
       await persistenceManager.getBox().delete(Utf7.encode(key));
-      metaDataCache.remove(key);
+      _metaDataCache.remove(key);
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
     } on Exception catch (exception) {
@@ -329,8 +323,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     //   throw DataStoreException(error.message);
     // }
     // return null;
-    if (metaDataCache.containsKey(key)) {
-      return metaDataCache[key];
+    if (_metaDataCache.containsKey(key)) {
+      return _metaDataCache[key];
     }
     return null;
   }
@@ -351,7 +345,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       metadata.version = version;
       await persistenceManager.getBox().put(hive_key, value);
-      metaDataCache[hive_key] = value.metaData!;
+      _metaDataCache[hive_key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -387,7 +381,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       newData.metaData?.version = version;
 
       await persistenceManager.getBox().put(hive_key, newData);
-      metaDataCache[hive_key] = newData.metaData!;
+      _metaDataCache[hive_key] = newData.metaData!;
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
     } on HiveError catch (error) {
@@ -415,6 +409,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool isExpired(key) {
-    return metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
+    return _metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
   }
 }
