@@ -412,11 +412,13 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool _isExpired(key) {
-    return _metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
+    return _metaDataCache[key]!.expiresAt.isBefore(DateTime.now().toUtc()) ||
+        _metaDataCache[key]!.expiresAt == null;
   }
 
   bool _isBorn(key) {
-    return _metaDataCache[key]!.isBefore(DateTime.now().toUtc());
+    return _metaDataCache[key]!.availableAt.isBefore(DateTime.now().toUtc()) ||
+        _metaDataCache[key]!.expiresAt == null;
   }
 
   bool _isKeyAvailable(key) {
