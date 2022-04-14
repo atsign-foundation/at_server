@@ -279,7 +279,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String? regex, bool? removeExpired}) {
+  List<String> getKeys({String? regex, bool removeExpired = false}) {
     var keys = <String>[];
     var encodedKeys;
 
@@ -294,9 +294,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         } else {
           encodedKeys = persistenceManager.getBox().keys.toList();
         }
-        encodedKeys?.forEach((key) => {
-              if (!isExpired(key)) {keys.add(Utf7.decode(key))}
-            });
+        //if bool removeExpired is true, expired keys will not be added to the keys list
+        if (removeExpired) {
+          encodedKeys?.forEach((key) => {
+                if (!isExpired(key)) {keys.add(Utf7.decode(key))}
+              });
+        } else if (!removeExpired) {
+          encodedKeys?.forEach((key) => {keys.add(Utf7.decode(key))});
+        }
       }
     } on FormatException catch (exception) {
       logger.severe('Invalid regular expression : $regex');
