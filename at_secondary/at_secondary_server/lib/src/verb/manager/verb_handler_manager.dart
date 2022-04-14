@@ -5,11 +5,14 @@ import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/noop_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
@@ -24,8 +27,6 @@ import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/noop_verb_handler.dart';
 
 /// The default implementation of [VerbHandlerManager].
 class DefaultVerbHandlerManager implements VerbHandlerManager {
@@ -94,6 +95,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));
+    _verbHandlers.add(NotifyRemoveVerbHandler(keyStore));
     return _verbHandlers;
   }
 }
