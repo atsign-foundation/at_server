@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
@@ -12,7 +14,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-  final _metaDataCache = {};
+  final _metaDataCache = HashMap();
 
   HiveKeystore();
 
@@ -273,7 +275,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - List<String> : List of keys from secondary storage.
   @override
-  List<String> getKeys({String? regex, bool removeExpired = false}) {
+  List<String> getKeys({String? regex}) {
     var keys = <String>[];
     var encodedKeys;
 
@@ -289,13 +291,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           encodedKeys = persistenceManager.getBox().keys.toList();
         }
         //if bool removeExpired is true, expired keys will not be added to the keys list
-        if (removeExpired) {
-          encodedKeys?.forEach((key) => {
-                if (!isExpired(key)) {keys.add(Utf7.decode(key))}
-              });
-        } else if (!removeExpired) {
-          encodedKeys?.forEach((key) => {keys.add(Utf7.decode(key))});
-        }
+        encodedKeys?.forEach((key) => {
+              if (_isKeyAvailable(key)) {keys.add(Utf7.decode(key))}
+            });
       }
     } on FormatException catch (exception) {
       logger.severe('Invalid regular expression : $regex');
@@ -413,7 +411,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
-  bool isExpired(key) {
+  bool _isExpired(key) {
     return _metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
+  }
+
+  bool _isBorn(key) {
+    return _metaDataCache[key]!.isBefore(DateTime.now().toUtc());
+  }
+
+  bool _isKeyAvailable(key) {
+    return !_isExpired(key) && _isBorn(key);
   }
 }
