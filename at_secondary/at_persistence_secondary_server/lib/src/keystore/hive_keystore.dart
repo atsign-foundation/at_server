@@ -246,27 +246,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
-    try {
-      var now = DateTime.now().toUtc();
-      if (persistenceManager.getBox() != null) {
-        var keys = persistenceManager.getBox().keys;
-        var expired = [];
-        await Future.forEach(keys, (key) async {
-          var value = await persistenceManager.getBox().get(key);
-          if (value.metaData?.expiresAt != null &&
-              value.metaData.expiresAt.isBefore(now)) {
-            expired.add(key);
-          }
-        });
-        expired.forEach((key) => expiredKeys.add(Utf7.encode(key)));
+    for (var key in _metaDataCache.keys) {
+      if (_isExpired(key)) {
+        expiredKeys.add(Utf7.encode(key));
       }
-    } on Exception catch (e) {
-      logger.severe('exception in hive get expired keys:${e.toString()}');
-      throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
-    } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
-      _restartHiveBox(error);
-      throw DataStoreException(error.message);
     }
     return expiredKeys;
   }
@@ -311,21 +294,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtMetaData?> getMeta(String key) async {
-    // try {
-    //   var hive_key = keyStoreHelper.prepareKey(key);
-    //   var value = await persistenceManager.getBox().get(hive_key);
-    //   if (value != null) {
-    //     return value.metaData;
-    //   }
-    // } on Exception catch (exception) {
-    //   logger.severe('HiveKeystore getMeta exception: $exception');
-    //   throw DataStoreException('exception in getMeta: ${exception.toString()}');
-    // } on HiveError catch (error) {
-    //   await _restartHiveBox(error);
-    //   logger.severe('HiveKeystore getMeta error: $error');
-    //   throw DataStoreException(error.message);
-    // }
-    // return null;
     if (_metaDataCache.containsKey(key)) {
       return _metaDataCache[key];
     }

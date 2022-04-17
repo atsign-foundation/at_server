@@ -223,6 +223,54 @@ void main() async {
     });
   });
 
+  group('Verify metadata cache', () {
+    test('test to verify put and remove', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+      atData.data = 'value_test_1';
+      var meta = AtMetaData();
+      meta.ttl = 11;
+      atData.metaData = meta;
+      await keystore?.put('key_test_1', atData);
+      var getMetaResult = await keystore?.getMeta('key_test_1');
+      expect(getMetaResult?.ttl, 11);
+      await keystore?.remove('key_test_1');
+      var getMetaResult1 = await keystore?.getMeta('key_test_1');
+      expect(getMetaResult1?.ttl, null);
+    });
+    test('test to verify putMeta', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1');
+      var keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+      atData.data = 'value_test_2';
+      var meta = AtMetaData();
+      meta.ttl = 112;
+      atData.metaData = meta;
+      await keystore?.put('key_test_2', atData);
+      meta.ttl = 131;
+      await keystore?.putMeta('key_test_2', meta);
+      var newMeta = await keystore?.getMeta('key_test_2');
+      expect(newMeta?.ttl, 131);
+    });
+  });
+
+  test('test to verify if getKeys returns expired keys', () async {
+    var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore('@test_user_1');
+    var keystore = keyStoreManager?.getSecondaryKeyStore();
+    AtData atData = AtData();
+    atData.data = 'value_test_3';
+    var meta = AtMetaData();
+    meta.expiresAt = DateTime.now().toUtc().subtract(Duration(minutes: 100));
+    atData.metaData = meta;
+    await keystore?.put('key_test_2', atData);
+    List<String>? keysList = keystore?.getKeys();
+    expect(keysList!.contains('value_test_3'), false);
+  });
+
   try {
     tearDown(() async => await tearDownFunc());
   } on Exception catch (e) {
