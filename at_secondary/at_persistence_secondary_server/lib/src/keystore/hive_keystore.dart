@@ -9,12 +9,12 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
-  final logger = AtSignLogger('HiveKeystore');
+  final AtSignLogger logger = AtSignLogger('HiveKeystore');
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   var persistenceManager;
   var _commitLog;
-  final _metaDataCache = HashMap();
+  final HashMap<String, AtMetaData> _metaDataCache = HashMap();
 
   HiveKeystore();
 
@@ -40,7 +40,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<AtData?> get(String key) async {
     var value;
     try {
-      var hive_key = keyStoreHelper.prepareKey(key);
+      String hive_key = keyStoreHelper.prepareKey(key);
       value = await persistenceManager.getBox().get(hive_key);
       // load metadata for hive_key
       // compare availableAt with time.now()
@@ -72,9 +72,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? publicKeyChecksum}) async {
     var result;
     // Default the commit op to just the value update
-    var commitOp = CommitOp.UPDATE;
+    CommitOp commitOp = CommitOp.UPDATE;
     // Verifies if any of the args are not null
-    var isMetadataNotNull = ObjectsUtil.isAnyNotNull(
+    bool isMetadataNotNull = ObjectsUtil.isAnyNotNull(
         a1: time_to_live,
         a2: time_to_born,
         a3: time_to_refresh,
@@ -103,8 +103,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             sharedKeyEncrypted: sharedKeyEncrypted,
             publicKeyChecksum: publicKeyChecksum);
       } else {
-        var existingData = await get(key);
-        var hive_key = keyStoreHelper.prepareKey(key);
+        AtData? existingData = await get(key);
+        String hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForUpdate(
             existingData!, value!,
             ttl: time_to_live,
@@ -148,7 +148,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? publicKeyChecksum}) async {
     var result;
     var commitOp;
-    var hive_key = keyStoreHelper.prepareKey(key);
+    String hive_key = keyStoreHelper.prepareKey(key);
     var hive_data = keyStoreHelper.prepareDataForCreate(value!,
         ttl: time_to_live,
         ttb: time_to_born,
@@ -221,11 +221,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<bool> deleteExpiredKeys() async {
-    var result = true;
+    bool result = true;
     try {
-      var expiredKeys = await getExpiredKeys();
+      List<String> expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
-        for (var element in expiredKeys) {
+        for (String element in expiredKeys) {
           await remove(element);
         }
         result = true;
@@ -237,7 +237,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           'exception in deleteExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
       logger.severe('HiveKeystore get error: $error');
-      _restartHiveBox(error);
+      await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
     return result;
@@ -245,8 +245,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<List<String>> getExpiredKeys() async {
-    var expiredKeys = <String>[];
-    for (var key in _metaDataCache.keys) {
+    List<String> expiredKeys = <String>[];
+    for (String key in _metaDataCache.keys) {
       if (_isExpired(key)) {
         expiredKeys.add(Utf7.encode(key));
       }
@@ -259,7 +259,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// @return - List<String> : List of keys from secondary storage.
   @override
   List<String> getKeys({String? regex}) {
-    var keys = <String>[];
+    List<String> keys = <String>[];
     var encodedKeys;
 
     try {
@@ -304,11 +304,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
     try {
       var result;
-      var hive_key = keyStoreHelper.prepareKey(key);
+      String hive_key = keyStoreHelper.prepareKey(key);
       value!.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
       // Updating the version of the metadata.
 //    (metadata!.version != null) ? metadata.version += 1 : metadata.version = 0;
-      var version = metadata!.version;
+      int? version = metadata!.version;
       if (version != null) {
         version = version + 1;
       } else {
@@ -329,12 +329,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   Future<int?> putMeta(String key, AtMetaData? metadata) async {
     try {
-      var hive_key = keyStoreHelper.prepareKey(key);
+      String hive_key = keyStoreHelper.prepareKey(key);
       AtData? existingData;
       if (isKeyExists(key)) {
         existingData = await get(key);
       }
-      var newData = existingData ?? AtData();
+      AtData newData = existingData ?? AtData();
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata, existingMetaData: newData.metaData)
           .build();
@@ -343,7 +343,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 //        ? newData.metaData?.version += 1
 //        : newData.metaData!.version = 0;
 
-      var version = newData.metaData?.version;
+      int? version = newData.metaData?.version;
       if (version != null) {
         version = version + 1;
       } else {
@@ -380,17 +380,17 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool _isExpired(key) {
-    if (_metaDataCache[key]!.expiresAt == null) {
+    if (_metaDataCache[key]?.expiresAt == null) {
       return false;
     }
-    return _metaDataCache[key]!.expiresAt.isBefore(DateTime.now().toUtc());
+    return _metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
   }
 
   bool _isBorn(key) {
     if (_metaDataCache[key]!.availableAt == null) {
       return true;
     }
-    return _metaDataCache[key]!.availableAt.isBefore(DateTime.now().toUtc());
+    return _metaDataCache[key]!.availableAt!.isBefore(DateTime.now().toUtc());
   }
 
   bool _isKeyAvailable(key) {
