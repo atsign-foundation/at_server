@@ -394,6 +394,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool _isKeyAvailable(key) {
-    return !_isExpired(key) && _isBorn(key);
+    if (_metaDataCache.containsKey(key)) {
+      return !_isExpired(key) && _isBorn(key);
+    } else {
+      return false;
+    }
   }
 }
