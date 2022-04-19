@@ -396,9 +396,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool _isKeyAvailable(key) {
-    for (MapEntry<String, AtMetaData> element in _metaDataCache.entries) {
-      logger.severe(element.key, element.value);
-    }
     if (_metaDataCache.containsKey(key)) {
       return !_isExpired(key) && _isBorn(key);
     } else {
