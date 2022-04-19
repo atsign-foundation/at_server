@@ -28,12 +28,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
+    logger.finer('Metadata cache initialization started');
     var keys = persistenceManager.getBox().keys;
     await Future.forEach(
         keys,
         (key) => persistenceManager.getBox().get(key).then((atData) {
               _metaDataCache[key.toString()] = atData.metaData!;
             }));
+    logger.finer('Metadata cache initialization complete');
   }
 
   @override
@@ -394,6 +396,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   bool _isKeyAvailable(key) {
+    for (MapEntry<String, AtMetaData> element in _metaDataCache.entries) {
+      logger.severe(element.key, element.value);
+    }
     if (_metaDataCache.containsKey(key)) {
       return !_isExpired(key) && _isBorn(key);
     } else {

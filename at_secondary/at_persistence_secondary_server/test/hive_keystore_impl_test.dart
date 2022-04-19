@@ -264,7 +264,22 @@ void main() async {
     AtData atData = AtData();
     atData.data = 'value_test_3';
     var meta = AtMetaData();
-    meta.expiresAt = DateTime.now().toUtc().subtract(Duration(minutes: 100));
+    meta.expiresAt =
+        DateTime.now().toUtc().subtract(const Duration(minutes: 100));
+    atData.metaData = meta;
+    await keystore?.put('key_test_2', atData);
+    List<String>? keysList = keystore?.getKeys();
+    expect(keysList!.contains('value_test_3'), false);
+  });
+
+  test('test to verify if getKeys returns unborn keys', () async {
+    var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore('@test_user_1');
+    var keystore = keyStoreManager?.getSecondaryKeyStore();
+    AtData atData = AtData();
+    atData.data = 'value_test_3';
+    var meta = AtMetaData();
+    meta.availableAt = DateTime.now().toUtc().add(const Duration(minutes: 100));
     atData.metaData = meta;
     await keystore?.put('key_test_2', atData);
     List<String>? keysList = keystore?.getKeys();
