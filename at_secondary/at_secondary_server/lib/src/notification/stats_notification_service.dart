@@ -69,6 +69,7 @@ class StatsNotificationService {
     await writeStatsToMonitor();
   }
 
+  /// Writes the lastCommitID to the monitor connection for every [AtSecondaryConfig.statsNotificationJobTimeInterval] seconds. Defaulted to 15 seconds
   Future<void> writeStatsToMonitor(
       {String? latestCommitID, String? operationType}) async {
     try {
@@ -79,15 +80,7 @@ class StatsNotificationService {
       // Iterates on the list of active connections.
       await Future.forEach(connectionsList,
           (InboundConnection connection) async {
-        // If a monitor connection is stale for 15 seconds,
-        // Writes the lastCommitID to the monitor connection
-        if (connection.isMonitor != null &&
-            connection.isMonitor! &&
-            DateTime.now()
-                    .toUtc()
-                    .difference(connection.getMetaData().lastAccessed!)
-                    .inSeconds >=
-                AtSecondaryConfig.statsNotificationJobTimeInterval) {
+        if (connection.isMonitor != null && connection.isMonitor!) {
           //Construct a stats notification
           var atNotificationBuilder = AtNotificationBuilder()
             ..id = '-1'
