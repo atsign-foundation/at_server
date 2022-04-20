@@ -22,7 +22,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     _commitLog = value;
   }
 
-  Future<void> initMetaDataCache() async {
+  Future<void> init() async {
+    await _initMetaDataCache();
+  }
+
+  Future<void> _initMetaDataCache() async {
     if (persistenceManager == null || !persistenceManager.getBox().isOpen) {
       logger.severe(
           'persistence manager not initialized. skipping metadata caching');
