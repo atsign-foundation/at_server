@@ -195,7 +195,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
-    OutboundClientManager.getInstance().init(serverContext!.outboundConnectionLimit);
+    OutboundClientManager.getInstance()
+        .init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
     StatsNotificationService.getInstance().schedule();
@@ -422,7 +423,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
     // Initialize the hive metadata cache
-    hiveKeyStore.initMetaDataCache();
+    hiveKeyStore.init();
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
