@@ -41,7 +41,8 @@ class StatsNotificationService {
   final _logger = AtSignLogger('StatsNotificationService');
   final String _currentAtSign =
       AtSecondaryServerImpl.getInstance().currentAtSign;
-  var _atCommitLog;
+  AtCommitLog? _atCommitLog;
+  DateTime _lastSentTime = DateTime.now().toUtc();
 
   /// Starts the [StatsNotificationService] and notifies the latest commitID
   /// to the active monitor connections.
@@ -80,7 +81,10 @@ class StatsNotificationService {
       // Iterates on the list of active connections.
       await Future.forEach(connectionsList,
           (InboundConnection connection) async {
-        if (connection.isMonitor != null && connection.isMonitor!) {
+        if (connection.isMonitor != null &&
+            connection.isMonitor! &&
+            DateTime.now().toUtc().difference(_lastSentTime).inSeconds >
+                AtSecondaryConfig.statsNotificationJobTimeInterval) {
           //Construct a stats notification
           var atNotificationBuilder = AtNotificationBuilder()
             ..id = '-1'
@@ -93,6 +97,7 @@ class StatsNotificationService {
           var notification = Notification(atNotificationBuilder.build());
           connection.write(
               'notification: ' + jsonEncode(notification.toJson()) + '\n');
+          _lastSentTime = DateTime.now().toUtc();
         }
       });
     } on Exception catch (exception) {
