@@ -422,7 +422,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     hiveKeyStore.commitLog = atCommitLog;
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
-    // Initialize the hive metadata cache
+    // Initialize the hive store
     hiveKeyStore.init();
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
