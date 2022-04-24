@@ -124,7 +124,7 @@ void main() {
     var response = await read();
     print('update verb response : $response');
     //update ttl
-    socket_writer(socketFirstAtsign!,
+    await socket_writer(socketFirstAtsign!,
         'update:ttl:6000:public:verifyingTTL$firstAtsign 1');
     //insert delay for 2 secs
     await socket_writer(socketFirstAtsign!, 'scan');
@@ -148,7 +148,7 @@ void main() {
     var response = await read();
     print('update verb response : $response');
     //update ttb
-    socket_writer(socketFirstAtsign!,
+    await socket_writer(socketFirstAtsign!,
         'update:ttb:6000:public:verifyingTTB$firstAtsign 600000');
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
