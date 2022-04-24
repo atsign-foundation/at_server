@@ -127,11 +127,12 @@ void main() {
     await socket_writer(socketFirstAtsign!,
         'update:ttl:6000:public:verifyingTTL$firstAtsign 1');
     //insert delay for 2 secs
+    sleep(Duration(seconds: 2));
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(response,
-        !(response.contains('"update:public:verifyingTTL$firstAtsign"')));
+    expect(
+        false, response.contains('"update:public:verifyingTTL$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb does not return unborn keys', () async {
@@ -153,8 +154,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(response,
-        !(response.contains('"update:public:verifyingTTB$firstAtsign"')));
+    expect(
+        false, response.contains('"update:public:verifyingTTB$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   tearDown(() {
