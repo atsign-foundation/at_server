@@ -123,10 +123,9 @@ void main() {
         socketFirstAtsign!, 'update:public:verifyingTTL$firstAtsign Working?');
     var response = await read();
     print('update verb response : $response');
-    //update ttl
+    //update ttl so that key is expired
     await socket_writer(socketFirstAtsign!,
         'update:ttl:6000:public:verifyingTTL$firstAtsign 1');
-    //insert delay for 2 secs
     sleep(Duration(seconds: 2));
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
@@ -148,7 +147,7 @@ void main() {
         socketFirstAtsign!, 'update:public:verifyingTTB$firstAtsign Working?');
     var response = await read();
     print('update verb response : $response');
-    //update ttb
+    //update ttb so that key is not born yet
     await socket_writer(socketFirstAtsign!,
         'update:ttb:6000:public:verifyingTTB$firstAtsign 600000');
     await socket_writer(socketFirstAtsign!, 'scan');
