@@ -16,7 +16,7 @@ dependencies:
   crypton: ^2.0.1
   collection: ^1.15.0
   basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.22
+  at_persistence_secondary_server: ^3.0.24
   at_lookup: ^3.0.16
   at_server_spec: ^3.0.7
 
@@ -36,16 +36,16 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_utils
 #      ref: trunk
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_secondary/at_persistence_secondary_server
-      ref: meta_data_cache
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_server_spec
-      ref: trunk
+#   at_persistence_secondary_server:
+#     git:
+#       url: https://github.com/atsign-foundation/at_server.git
+#       path: at_secondary/at_persistence_secondary_server
+#       ref: meta_data_cache
+#   at_server_spec:
+#     git:
+#       url: https://github.com/atsign-foundation/at_server.git
+#       path: at_server_spec
+#       ref: trunk
 
 dev_dependencies:
   test: ^1.17.3
