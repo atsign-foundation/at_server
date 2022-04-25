@@ -1,3 +1,5 @@
+## 3.0.23
+- Add remove method in NotificationManagerSpec.
 ## 3.0.22
 - Bumped some dependencies
 ## 3.0.21

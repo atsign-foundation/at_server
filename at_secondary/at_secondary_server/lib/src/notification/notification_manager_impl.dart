@@ -59,4 +59,9 @@ class NotificationManager implements NotificationManagerSpec {
   bool isNotificationAccepted() {
     return true;
   }
+
+  @override
+  Future<void> remove(String notificationId) async {
+    await AtNotificationKeystore.getInstance().remove(notificationId);
+  }
 }
