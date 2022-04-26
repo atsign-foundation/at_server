@@ -31,17 +31,24 @@ jobs:
           sudo chmod -R 777 /gluster
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
+          echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
           python3 ./automation/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
-            echo "Failing over to ZeroSSL"
-            python3 ./automation/acme_certs.py -z "$FQDN"
+            echo "Failing over to Google"
+            python3 ./automation/acme_certs.py -g "$FQDN"
             if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
-              echo "ZeroSSL certificate validated"
+              echo "Google certificate validated"
             else
-              echo "Unable to get valid cert for either source"
-              exit 1
+              echo "Failing over to ZeroSSL"
+              python3 ./automation/acme_certs.py -z "$FQDN"
+              if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
+                echo "ZeroSSL certificate validated"
+              else
+                echo "Unable to get valid cert from any source"
+                exit 1
+              fi
             fi
           fi
           set -e
@@ -77,7 +84,7 @@ jobs:
           delete-branch: true
           title: 'New certificates generated'
           body: |
-            New descriptions for libraries have been scraped from pub.dev
+            Fresh certificates generated.
           labels: |
             operations
           assignees: cpswan

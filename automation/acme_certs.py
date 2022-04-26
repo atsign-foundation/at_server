@@ -409,6 +409,10 @@ Example: requests certificate chain and store it in chain.crt
                         help="show all debug informations on stderr")
     parser.add_argument("-z","--zerossl", action="store_true",
                         help="use ZeroSSL")
+    parser.add_argument("-g","--google", action="store_true",
+                        help="use Google")
+    parser.add_argument("-n","--googlestaging", action="store_true",
+                        help="use Google Staging")
     parser.add_argument("cert_name", help="FQDN of certificate to be generated")
     args = parser.parse_args(argv)
 
@@ -422,6 +426,14 @@ Example: requests certificate chain and store it in chain.crt
         config.read_dict({"acmednstiny":
             {"accountkeyfile": "/gluster/@/api/keys/zerossl.key",
             "ACMEDirectory": "https://acme.zerossl.com/v2/DV90"}})
+    elif args.google:
+        config.read_dict({"acmednstiny":
+            {"accountkeyfile": "/gluster/@/api/keys/google.key",
+            "ACMEDirectory": "https://dv.acme-v02.api.pki.goog/directory"}})
+    elif args.googlestaging:
+        config.read_dict({"acmednstiny":
+            {"accountkeyfile": "/gluster/@/api/keys/google-staging.key",
+            "ACMEDirectory": "https://dv.acme-v02.test-api.pki.goog/directory"}})
     else:
         config.read_dict({"acmednstiny":
             {"accountkeyfile": "/gluster/@/api/keys/letsencrypt.key",
