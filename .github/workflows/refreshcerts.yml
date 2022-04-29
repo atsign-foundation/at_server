@@ -2,7 +2,7 @@ name: Refreshcerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: '39 7 15 1/2 *' # At 0739 on the 15th day of every odd month
+    - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
     
 jobs:
   refresh-ACME-cert:
@@ -20,8 +20,9 @@ jobs:
       - name: setup certinfo
         uses: atsign-company/certinfo-action@v1
 
-      - name: execute acme_certs.py # sync action not fired by this push
+      - name: execute acme_certs.py
         run: |
+          set +e
           pip3 install dnspython requests
           CERTNAME="vip"
           DOMAIN="ve.atsign.zone"
@@ -30,85 +31,62 @@ jobs:
           sudo chmod -R 777 /gluster
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
+          echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
           python3 ./automation/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
-            echo "Failing over to ZeroSSL"
-            python3 ./automation/acme_certs.py -z "$FQDN"
+            echo "Failing over to Google"
+            python3 ./automation/acme_certs.py -g "$FQDN"
             if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
-              echo "ZeroSSL certificate validated"
+              echo "Google certificate validated"
             else
-              echo "Unable to get valid cert for either source"
-              exit 1
+              echo "Failing over to ZeroSSL"
+              python3 ./automation/acme_certs.py -z "$FQDN"
+              if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
+                echo "ZeroSSL certificate validated"
+              else
+                echo "Unable to get valid cert from any source"
+                exit 1
+              fi
             fi
           fi
+          set -e
           cp "$FQDN".cert.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
           cp "$FQDN".key ./at_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp "$FQDN".fullchain.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
           cp ./at_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ./at_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
-          git add ./at_virtual_environment/ve_base/contents/atsign/secondary/base/certs/*\
-            ./at_virtual_environment/ve_base/contents/atsign/root/certs/*
           git config --global user.name 'Getcert Action'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Automated certificate refresh'
-          git push
         env:
           GITHUB_API_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
           DO_KEY: ${{ secrets.DO_KEY }}
       
       - name: store logs and responses
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cert-logs
           path: vip.ve.atsign.zone.*
 
-      - name: Google Chat Notification
-        if: always()
-        uses: Co-qn/google-chat-notification@releases/v1
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v4
         with:
-          name: New certificates for at_server virtual environment
-          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-          status: ${{ job.status }}
-
-  docker:
-    runs-on: ubuntu-latest
-    needs: [ refresh-ACME-cert ]
-    steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1.12.0 
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v2.10.0
-        with:
-          file: at_virtual_environment/ve/Dockerfile.vip
-          push: true
-          tags: |
-            atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:GHA${{ github.run_number }}
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
-
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-
-      - name: Google Chat Notification
-        uses: Co-qn/google-chat-notification@releases/v1
-        with:
-          name: New Docker image for atsigncompany/virtualenv:vip
-          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-          status: ${{ job.status }}
-          
+          token: ${{ secrets.MY_GITHUB_TOKEN }}
+          commit-message: New certificates for at_server
+          committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          signoff: false
+          add-paths: ./at_virtual_environment
+          branch: bot-new-certs
+          delete-branch: true
+          title: 'New certificates generated'
+          body: |
+            Fresh certificates generated.
+          labels: |
+            operations
+          assignees: cpswan
+          reviewers: cpswan
+          draft: false

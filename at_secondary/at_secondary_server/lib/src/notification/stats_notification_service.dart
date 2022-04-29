@@ -42,7 +42,8 @@ class StatsNotificationService {
   final _logger = AtSignLogger('StatsNotificationService');
   final String _currentAtSign =
       AtSecondaryServerImpl.getInstance().currentAtSign;
-  var _atCommitLog;
+  AtCommitLog? _atCommitLog;
+  DateTime _lastSentTime = DateTime.now().toUtc();
 
   /// Starts the [StatsNotificationService] and notifies the latest commitID
   /// to the active monitor connections.
@@ -70,6 +71,7 @@ class StatsNotificationService {
     await writeStatsToMonitor();
   }
 
+  /// Writes the lastCommitID to the monitor connection for every [AtSecondaryConfig.statsNotificationJobTimeInterval] seconds. Defaulted to 15 seconds
   Future<void> writeStatsToMonitor(
       {String? latestCommitID, String? operationType}) async {
     try {
@@ -82,12 +84,9 @@ class StatsNotificationService {
           (InboundConnection connection) async {
         // If a monitor connection is stale for 15 seconds,
         // Writes the lastCommitID to the monitor connection
-        var inboundConnectionMetadata = connection.getMetaData() as InboundConnectionMetadata;
-        if (inboundConnectionMetadata.isMonitor &&
-            DateTime.now()
-                    .toUtc()
-                    .difference(inboundConnectionMetadata.lastAccessed!)
-                    .inSeconds >=
+            var inboundConnectionMetadata = connection.getMetaData() as InboundConnectionMetadata;
+            if (inboundConnectionMetadata.isMonitor &&
+                DateTime.now().toUtc().difference(_lastSentTime).inSeconds >
                 AtSecondaryConfig.statsNotificationJobTimeInterval) {
           //Construct a stats notification
           var atNotificationBuilder = AtNotificationBuilder()
@@ -101,6 +100,7 @@ class StatsNotificationService {
           var notification = Notification(atNotificationBuilder.build());
           connection.write(
               'notification: ' + jsonEncode(notification.toJson()) + '\n');
+          _lastSentTime = DateTime.now().toUtc();
         }
       });
     } on Exception catch (exception) {

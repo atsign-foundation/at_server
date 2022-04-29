@@ -2,8 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/model/at_data.dart';
-import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
@@ -13,7 +11,6 @@ import 'hive_base.dart';
 import 'secondary_persistence_store_factory.dart';
 
 class HivePersistenceManager with HiveBase {
-  final bool _debug = true;
 
   final logger = AtSignLogger('HivePersistenceManager');
 
@@ -83,21 +80,16 @@ class HivePersistenceManager with HiveBase {
     List<int>? secretAsUint8List;
     try {
       atsign = atsign.trim().toLowerCase();
-      if (_debug) {
-        logger.finer('getHiveSecretFromFile fetching hiveSecretString for ' +
-            atsign +
-            ' from file');
-      }
+      logger.finest('getHiveSecretFromFile fetching hiveSecretString for ' +
+          atsign +
+          ' from file');
       var path = storagePath;
       var fileName = AtUtils.getShaForAtSign(atsign) + '.hash';
       var filePath = path + '/' + fileName;
-      if (_debug) {
-        logger.finer('getHiveSecretFromFile found filePath: ' + filePath);
-      }
+      logger.finest('getHiveSecretFromFile found filePath: ' + filePath);
       String hiveSecretString;
       var exists = File(filePath).existsSync();
       if (exists) {
-        if (_debug) print('AtServer.getHiveSecretFromFile file found');
         hiveSecretString = File(filePath).readAsStringSync();
         if (hiveSecretString.isEmpty) {
           secretAsUint8List = _generatePersistenceSecret();
@@ -107,7 +99,6 @@ class HivePersistenceManager with HiveBase {
           secretAsUint8List = Uint8List.fromList(hiveSecretString.codeUnits);
         }
       } else {
-        if (_debug) print('getHiveSecretFromFile no file found');
         secretAsUint8List = _generatePersistenceSecret();
         hiveSecretString = String.fromCharCodes(secretAsUint8List);
         var newFile = await File(filePath).create(recursive: true);

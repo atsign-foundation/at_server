@@ -1,3 +1,14 @@
+## 3.0.24
+- Introduced a cache to speed up metaData retrieval.
+- Removed unnecessary print statements
+## 3.0.23
+- Add remove method in NotificationManagerSpec.
+## 3.0.22
+- Bumped some dependencies
+## 3.0.21
+- Upgrade at_lookup and at_commons for NotifyRemove
+## 3.0.20
+- Upgrade Hive version to 2.1.0
 ## 3.0.19
 - add encryption shared key and public key checksum to metadata
 ## 3.0.18

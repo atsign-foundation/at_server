@@ -186,7 +186,7 @@ jobs:
       # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server/secondary
@@ -213,7 +213,7 @@ jobs:
         run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -358,7 +358,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -410,7 +410,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -463,7 +463,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -485,7 +485,7 @@ jobs:
 
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server
@@ -534,7 +534,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -577,7 +577,7 @@ jobs:
         uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.6.0
+        uses: docker/setup-buildx-action@v1.7.0
 
       - name: Login to DockerHub
         uses: docker/login-action@v1.14.1
@@ -587,7 +587,7 @@ jobs:
 
       # Gets the secondary server binary generated from the above "secondary" job.
       - name: Get secondary server
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: secondary-server
           path: at_secondary/at_secondary_server
@@ -645,6 +645,46 @@ jobs:
             --amend atsigncompany/secondary:dess-x64
           docker manifest push atsigncompany/secondary:dess
       
+  push_prod_virtualenv_image:
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.7.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1.12.0 
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2.10.0
+        with:
+          file: at_virtual_environment/ve/Dockerfile.vip
+          push: true
+          tags: |
+            atsigncompany/virtualenv:vip
+            atsigncompany/virtualenv:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+
+      - name: Google Chat Notification
+        uses: Co-qn/google-chat-notification@releases/v1
+        with:
+          name: New Docker image for atsigncompany/virtualenv:vip
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
+ 
 #  # Deploy root server image to cluster
 #  deploy_root_sever:
 #    needs: [ unit_tests, functional_tests, end2end_tests ]

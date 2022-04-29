@@ -106,6 +106,9 @@ class ResourceManager {
       logger.severe(
           'Exception in processing the notification ${atNotification.id} : ${e.toString()}');
       errorList.add(atNotification);
+      while (iterator.moveNext()) {
+        errorList.add(iterator.current);
+      }
     } finally {
       //1. Adds errored notifications back to queue.
       await _enqueueErrorList(errorList);
@@ -139,6 +142,14 @@ class ResourceManager {
     key = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      if (atNotification.atMetadata!.pubKeyCS != null) {
+        key =
+            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$key';
+      }
+      if (atNotification.atMetadata!.sharedKeyEnc != null) {
+        key =
+            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$key';
+      }
       if (atMetaData.ttr != null) {
         key =
             'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
@@ -153,12 +164,15 @@ class ResourceManager {
     if (atNotification.ttl != null) {
       key = 'ttln:${atNotification.ttl}:$key';
     }
+
     key = 'notifier:${atNotification.notifier}:$key';
     key =
         'messageType:${atNotification.messageType.toString().split('.').last}:$key';
     if (atNotification.opType != null) {
       key = '${atNotification.opType.toString().split('.').last}:$key';
     }
+    // appending id to the notify command.
+    key = 'id:${atNotification.id}:$key';
     return key;
   }
 

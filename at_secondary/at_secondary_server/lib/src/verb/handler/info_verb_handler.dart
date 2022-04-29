@@ -7,6 +7,7 @@ import 'abstract_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
+/// Handler for the 'info' verb. Usage of info verb is documented in at_server_spec/lib/src/verb/info.dart
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
   static int? approximateStartTimeMillis;
@@ -15,7 +16,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  bool accept(String command) => command == 'info';
+  bool accept(String command) => command == 'info' || command == 'info:brief';
 
   @override
   Verb getVerb() => infoVerb;
@@ -26,24 +27,41 @@ class InfoVerbHandler extends AbstractVerbHandler {
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
     Duration uptime = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - approximateStartTimeMillis!);
+    if (verbParams[paramFullCommandAsReceived] == 'info') {
+      String uptimeAsWords = durationToWords(uptime);
+      infoMap['uptimeAsWords'] = uptimeAsWords;
+      infoMap['features'] = [
+        {
+          "name": "noop:",
+          "status": "Beta",
+          "description": "The No-Op verb simply does nothing for the requested number of milliseconds. "
+              "The requested number of milliseconds may not be greater than 5000. "
+              "Upon completion, the noop verb sends 'ok' as a response to the client.",
+          "syntax": VerbSyntax.noOp
+        },
+        {
+          "name": "info:",
+          "status": "Beta",
+          "description": "The Info verb returns some information about the server "
+              "including uptime and some info about available features. ",
+          "syntax": VerbSyntax.info
+        }
+      ];
+    } else {
+      infoMap['uptimeAsMillis'] = uptime.inMilliseconds;
+    }
+    response.data = json.encode(infoMap);
+  }
+
+  String durationToWords(Duration uptime) {
     int uDays = uptime.inDays;
     int uHours = uptime.inHours.remainder(24);
     int uMins = uptime.inMinutes.remainder(60);
     int uSeconds = uptime.inSeconds.remainder(60);
-    infoMap['uptime'] =
-        (uDays > 0 ? "$uDays days " : "") +
+    String uptimeAsWords = (uDays > 0 ? "$uDays days " : "") +
         ((uDays > 0 || uHours > 0) ? "$uHours hours " : "") +
         ((uDays > 0 || uHours > 0 || uMins > 0) ? "$uMins minutes " : "") +
         "$uSeconds seconds";
-    infoMap['features'] = [
-      {
-        "name": "No-Op verb",
-        "status": "Beta",
-        "description": "NoOp simply does nothing for the requested number of milliseconds. "
-            "The requested number of milliseconds may not be greater than 5000. "
-            "Upon completion, the noop verb sends 'ok' as a response to the client."
-      }
-    ];
-    response.data = json.encode(infoMap);
+    return uptimeAsWords;
   }
 }
