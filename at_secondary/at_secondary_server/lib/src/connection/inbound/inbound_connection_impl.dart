@@ -163,23 +163,25 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     }
 
     try {
-      if (getMetaData().commitLogStreamer != null) {
-        getMetaData().commitLogStreamer.close();
+      var commitLogStreamer = getMetaData().commitLogStreamer;
+      if (commitLogStreamer != null) {
+        commitLogStreamer.close();
       }
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
       var socket = getSocket();
+      // ignore: unnecessary_null_comparison
       if (socket != null) {
         socket.destroy();
       }
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {
-      getMetaData().isStale = true;
       // Ignore exception on a connection close
-    } on Error {
       getMetaData().isStale = true;
+    } on Error {
       // Ignore error on a connection close
+      getMetaData().isStale = true;
     }
   }
 }
