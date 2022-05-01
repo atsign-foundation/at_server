@@ -45,7 +45,6 @@ class ResourceManager {
 
   ///Runs for every configured number of seconds(5).
   Future<void> _schedule() async {
-    logger.info("schedule() calling _processNotificationQueue()");
     await _processNotificationQueue();
     var millisBetweenRuns = notificationJobFrequency * 1000;
     Future.delayed(Duration(milliseconds: millisBetweenRuns)).then((value) => _schedule());
@@ -126,7 +125,6 @@ class ResourceManager {
         atNotification = iterator.current;
         var key = _prepareNotificationKey(atNotification);
         notifyResponse = await outBoundClient.notify(key);
-        logger.info('notifyResult : $notifyResponse');
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
       }
@@ -224,8 +222,9 @@ class ResourceManager {
             'Failed to notify ${atNotification.id} from ${atNotification.fromAtSign} to ${atNotification.toAtSign}. Maximum retries ($maxRetries) reached');
         continue;
       }
-      logger.info(
-          'Retrying to notify: ${atNotification.id} from ${atNotification.fromAtSign} to ${atNotification.toAtSign}. Retry count: ${atNotification.retryCount}');
+      logger.info('Retrying to notify: ${atNotification.id}'
+          ' from ${atNotification.fromAtSign} to ${atNotification.toAtSign}.'
+          ' Retry count: ${atNotification.retryCount}');
       QueueManager.getInstance().enqueue(atNotification);
     }
   }
