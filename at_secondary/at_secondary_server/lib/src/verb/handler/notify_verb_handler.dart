@@ -42,16 +42,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var cachedKeyCommitId;
+    int? cachedKeyCommitId;
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;
-    var ttl_ms;
-    var ttb_ms;
-    var ttr_ms;
-    var ttln_ms;
-    var isCascade;
+    int? ttlMillis;
+    int? ttbMillis;
+    int? ttrMillis;
+    int ttlnMillis;
+    bool? isCascade;
     // The notification id received from the SDK.
     var id = verbParams['id'];
     var forAtSign = verbParams[FOR_AT_SIGN];
@@ -86,28 +86,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       key = '$forAtSign:$key';
     }
     var operation = verbParams[AT_OPERATION];
-    var opType;
+    OperationType? opType;
     if (operation != null) {
       opType = SecondaryUtil.getOperationType(operation);
     }
     try {
       if (AtMetadataUtil.validateTTL(verbParams[AT_TTL]) > 0) {
-        ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+        ttlMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttln_ms = Duration(hours: 24).inMilliseconds;
+        ttlnMillis = Duration(hours: 24).inMilliseconds;
       } else {
-        ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+        ttlnMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
       }
       if (AtMetadataUtil.validateTTB(verbParams[AT_TTB]) > 0) {
-        ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+        ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       }
       if (verbParams[AT_TTR] != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
-          ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
+          ttrMillis, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
     } on InvalidSyntaxException {
       rethrow;
     }
@@ -121,7 +121,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue, ttl_ms: ttln_ms, id: id);
+            value: atValue, ttlMillis: ttlnMillis, id: id);
         response.data = notificationId;
         return;
       }
@@ -130,17 +130,17 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // If operation type is update, set value and ttr to cache a key
       // If operation type is delete, set ttr when not null to delete the cached key.
       if ((opType == OperationType.update &&
-              ttr_ms != null &&
+              ttrMillis != null &&
               atValue != null) ||
-          (opType == OperationType.delete && ttr_ms != null)) {
-        atMetadata.ttr = ttr_ms;
+          (opType == OperationType.delete && ttrMillis != null)) {
+        atMetadata.ttr = ttrMillis;
         atMetadata.isCascade = isCascade;
       }
-      if (ttb_ms != null) {
-        atMetadata.ttb = ttb_ms;
+      if (ttbMillis != null) {
+        atMetadata.ttb = ttbMillis;
       }
-      if (ttl_ms != null) {
-        atMetadata.ttl = ttl_ms;
+      if (ttlMillis != null) {
+        atMetadata.ttl = ttlMillis;
       }
       if (sharedKeyEncrypted != null) {
         atMetadata.sharedKeyEnc = sharedKeyEncrypted;
@@ -166,7 +166,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         ..notificationStatus = NotificationStatus.queued
         ..atMetaData = atMetadata
         ..type = NotificationType.sent
-        ..ttl = ttln_ms;
+        ..ttl = ttlnMillis;
       if(id != null && id.isNotEmpty){
         notificationBuilder.id = id;
       }
@@ -179,7 +179,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttln_ms, value: atValue, id: id);
+          ttlMillis: ttlnMillis, value: atValue, id: id);
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;
@@ -199,16 +199,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
 
       var isKeyPresent = keyStore!.isKeyExists(notifyKey);
-      var atMetadata;
+      AtMetaData? atMetadata;
       if (isKeyPresent) {
         atMetadata = await keyStore!.getMeta(notifyKey);
       }
-      if (atValue != null && ttr_ms != null) {
+      if (atValue != null && ttrMillis != null) {
         var metadata = AtMetadataBuilder(
                 newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
+                ttl: ttlMillis,
+                ttb: ttbMillis,
+                ttr: ttrMillis,
                 ccd: isCascade,
                 isEncrypted: isEncrypted,
                 sharedKeyEncrypted: sharedKeyEncrypted,
@@ -226,9 +226,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (isKeyPresent) {
         var atMetaData = AtMetadataBuilder(
                 newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
+                ttl: ttlMillis,
+                ttb: ttbMillis,
+                ttr: ttrMillis,
                 ccd: isCascade,
                 isEncrypted: isEncrypted)
             .build();
@@ -268,6 +268,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (metadata != null && metadata.isCascade) {
       logger.info('Removed cached key $key');
       return await keyStore!.remove(key);
+    } else {
+      return  null;
     }
   }
 

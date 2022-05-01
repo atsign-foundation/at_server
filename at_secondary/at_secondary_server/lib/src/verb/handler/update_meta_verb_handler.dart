@@ -12,7 +12,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 class UpdateMetaVerbHandler extends AbstractVerbHandler {
-  static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
+  static final autoNotify = AtSecondaryConfig.autoNotify;
   static UpdateMeta updateMeta = UpdateMeta();
 
   UpdateMetaVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
@@ -45,13 +45,13 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     atSign = AtUtils.formatAtSign(atSign);
 
     var key = verbParams[AT_KEY];
-    var ttl_ms;
-    var ttb_ms;
-    var ttr_ms;
-    var ccd;
-    var isBinary;
-    var isEncrypted;
-    var metadata;
+    int ttlMillis;
+    int ttbMillis;
+    int? ttrMillis;
+    bool ccd;
+    bool isBinary;
+    bool isEncrypted;
+    AtMetaData? metadata;
     String? sharedKeyEncrypted, sharedWithPublicKeyChecksum;
 
     key = _constructKey(key, forAtSign, atSign);
@@ -59,10 +59,10 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       key = 'public:$key';
     }
     try {
-      ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-      ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      if (ttr_ms != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+      ttlMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+      ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+      if (ttrMillis != null) {
+        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
       isEncrypted = AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
@@ -71,17 +71,17 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
           verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
       metadata = await keyStore!.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
-      ttr_ms = cacheRefreshMetaMap[AT_TTR];
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
+      ttrMillis = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
     } on InvalidSyntaxException {
       rethrow;
     }
     var atMetaData = AtMetadataBuilder(
             newAtMetaData: metadata,
-            ttl: ttl_ms,
-            ttb: ttb_ms,
-            ttr: ttr_ms,
+            ttl: ttlMillis,
+            ttb: ttbMillis,
+            ttr: ttrMillis,
             ccd: ccd,
             isBinary: isBinary,
             isEncrypted: isEncrypted,
@@ -94,7 +94,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null || forAtSign.isEmpty) {
       return;
     }
-    if (AUTO_NOTIFY! && (atSign != forAtSign)) {
+    if (autoNotify! && (atSign != forAtSign)) {
       _notify(
           forAtSign,
           atSign,
