@@ -33,21 +33,19 @@ class AtNotificationMap {
   }
 
   /// Returns the map of first N entries.
-  Iterator<AtNotification> remove(String? atsign) {
-    // If map is empty, return empty map
-    if (_notificationMap.isEmpty) {
-      return [].iterator as Iterator<AtNotification>;
+  Iterator<AtNotification> remove(String? atSign) {
+    List<AtNotification> returnList;
+    // If map is empty, or map doesn't contain the atSign, return an iterator for an empty list
+    if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
+      returnList = [];
+    } else {
+      Map<String, NotificationStrategy> tempMap = _notificationMap.remove(atSign)!;
+      var latestList = tempMap['latest'] as LatestNotifications;
+      var list = tempMap['all'] as AllNotifications;
+      returnList = List<AtNotification>.from(latestList.toList())
+        ..addAll(list.toList()!);
+      tempMap.clear();
     }
-    // If map does not contain the atsign, return empty map.
-    if (!_notificationMap.containsKey(atsign)) {
-      return [].iterator as Iterator<AtNotification>;
-    }
-    var tempMap = _notificationMap.remove(atsign)!;
-    var latestList = tempMap['latest'] as LatestNotifications;
-    var list = tempMap['all'] as AllNotifications;
-    var returnList = List<AtNotification>.from(latestList.toList())
-      ..addAll(list.toList()!);
-    tempMap.clear();
     return returnList.iterator;
   }
 
@@ -78,7 +76,7 @@ class AtNotificationMap {
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
     notificationWaitTime.prioritiesSum = atNotification.priority!.index;
     notificationWaitTime.totalPriorities += 1;
-    var date;
+    DateTime? date;
     if (notificationWaitTime.totalPriorities == 1) {
       date = atNotification.notificationDateTime;
     }
