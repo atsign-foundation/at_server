@@ -51,8 +51,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogExpiryInDays =
       AtSecondaryConfig.accessLogExpiryInDays;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final int? maxNotificationEntries =
-      AtSecondaryConfig.maxNotificationEntries;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   late bool _isPaused;
@@ -187,16 +185,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var certificateReload = AtCertificateValidationJob.getInstance();
     await certificateReload.runCertificateExpiryCheckJob();
 
-    // Notification job
-    var resourceManager = ResourceManager.getInstance();
-    if (!resourceManager.isRunning) {
-      resourceManager.schedule();
-    }
-
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
+
+    // Notification job
+    ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
     StatsNotificationService.getInstance().schedule();
