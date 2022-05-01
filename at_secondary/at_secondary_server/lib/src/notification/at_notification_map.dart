@@ -13,15 +13,11 @@ class AtNotificationMap {
     return _singleton;
   }
 
-  final _notificationMap = <String?, Map<String, NotificationStrategy>>{};
-  final _waitTimeMap = <String?, NotificationWaitTime>{};
-  var _quarantineMap = <String?, DateTime>{};
+  final Map<String?, Map<String, NotificationStrategy>> _notificationMap = <String?, Map<String, NotificationStrategy>>{};
+  final Map<String?, NotificationWaitTime> _waitTimeMap = <String?, NotificationWaitTime>{};
+  final Map<String?, DateTime> _quarantineMap = <String?, DateTime>{};
 
   Map<String?, DateTime> get quarantineMap => _quarantineMap;
-
-  set quarantineMap(value) {
-    _quarantineMap = value;
-  }
 
   /// Adds the notifications to map where key is [AtNotification.toAtSign] and value is classes implementing [NotificationStrategy]
   void add(AtNotification atNotification) {
@@ -30,6 +26,18 @@ class AtNotificationMap {
     var notificationsMap = _notificationMap[atNotification.toAtSign]!;
     notificationsMap[atNotification.strategy!]!.add(atNotification);
     _computeWaitTime(atNotification);
+  }
+
+  int numQueued(String atSign) {
+    // If map is empty, or map doesn't contain the atSign, return an iterator for an empty list
+    if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
+      return 0;
+    } else {
+      Map<String, NotificationStrategy>? tempMap = _notificationMap[atSign]!; // can't be null, we've just checked containsKey
+      LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
+      AllNotifications allList = tempMap['all'] as AllNotifications;
+      return latestList.length + allList.length;
+    }
   }
 
   /// Returns the map of first N entries.

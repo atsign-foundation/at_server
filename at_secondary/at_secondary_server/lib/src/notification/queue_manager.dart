@@ -35,4 +35,8 @@ class QueueManager {
     var mapInstance = AtNotificationMap.getInstance();
     return mapInstance.remove(atsign);
   }
+
+  int numQueued(String atSign) {
+    return AtNotificationMap.getInstance().numQueued(atSign);
+  }
 }

@@ -68,10 +68,10 @@ class ResourceManager {
       while (atSignIterator.moveNext()) {
         atSign = atSignIterator.current;
         notificationIterator = QueueManager.getInstance().dequeue(atSign);
-        //3. Connect to the atSign
+        //3. Connect to the atSign and send the notifications
         var outboundClient = await _connect(atSign);
         if (outboundClient != null) {
-          _sendNotifications(outboundClient, notificationIterator);
+          _sendNotifications(atSign!, outboundClient, notificationIterator);
         }
       }
     } on ConnectionInvalidException catch (e) {
@@ -114,8 +114,7 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(
-      OutboundClient outBoundClient, Iterator iterator) async {
+  void _sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
     // ignore: prefer_typing_uninitialized_variables
     var notifyResponse, atNotification;
     var errorList = [];
@@ -127,6 +126,10 @@ class ResourceManager {
         notifyResponse = await outBoundClient.notify(key);
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
+      }
+      if (QueueManager.getInstance().numQueued(atSign) == 0) {
+        // All notifications for this atSign have been cleared; we can remove the waitTimeEntry for this atSign
+        AtNotificationMap.getInstance().removeWaitTimeEntry(atSign);
       }
     } on Exception catch (e) {
       logger.severe(
@@ -213,6 +216,7 @@ class ResourceManager {
           .put(atNotification?.id, atNotification);
       // If number retries are equal to maximum number of notifications, notifications are not further processed
       // hence remove entries from waitTimeMap and quarantineMap
+      // TODO This should only be done when *all* of the pending notifications for this atSign have reached maxRetries
       if (atNotification.retryCount == maxRetries) {
         AtNotificationMap.getInstance()
             .removeWaitTimeEntry(atNotification.toAtSign);
