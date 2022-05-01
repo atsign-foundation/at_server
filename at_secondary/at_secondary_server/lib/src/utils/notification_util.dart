@@ -7,7 +7,7 @@ import 'package:at_utils/at_utils.dart';
 /// Util class for Notifications
 class NotificationUtil {
   static var logger = AtSignLogger('NotificationUtil');
-  static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
+  static final autoNotify = AtSecondaryConfig.autoNotify;
 
   /// Method to store notification in data store
   /// Accepts fromAtSign, forAtSign, key, Notification and Operation type,
