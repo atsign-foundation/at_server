@@ -49,7 +49,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     key = '$key$atSign';
     var operation = verbParams[OPERATION];
-    bool? byPassCache = verbParams[byPassCache];
+    String? byPassCacheStr = verbParams[byPassCache];
 
     logger.finer(
         'fromAtSign : $fromAtSign \n atSign : ${atSign.toString()} \n key : $key');
@@ -82,7 +82,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         //If cached value is null or byPassCache is true, lookup for the value.
         if (response.data == null ||
             response.data == '' ||
-            byPassCache == true) {
+            byPassCacheStr == 'true') {
           var outBoundClient = OutboundClientManager.getInstance()
               .getClient(atSign, atConnection)!;
           // Need not connect again if the client's handshake is already done
