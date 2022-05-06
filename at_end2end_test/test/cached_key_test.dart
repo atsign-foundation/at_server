@@ -126,6 +126,61 @@ void main() {
     expect(response, contains('data:$value'));
   }, timeout: Timeout(Duration(seconds: 100)));
 
+  /// The purpose of this test verify the following:
+  /// 1. Share a key from atsign_1 to atsign_2 with ttr
+  /// 2. lookup from atsign_2 returns the correct value
+  /// 3. Update the existing key to a new value
+  /// 4. lookup with bypass_cache set to true should return the updated value
+  /// 5. lookup with bypass_cache set to false should return the old value
+  test('update-lookup verb passing bypass_cache ', () async {
+    ///Update verb on atsign_1
+    var value = 'user_1';
+    await sh1
+        .writeCommand('update:ttr:1000:$atSign_2:username$atSign_1  $value');
+    String response = await sh1.read();
+    print('update verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///lookup verb alice  atsign_2
+    await sh2.writeCommand('lookup:username$atSign_1');
+    response = await sh2.read();
+    print('lookup verb response : $response');
+    expect(response, contains('data:$value'));
+
+    // TODO
+    // stop the atsign_2 server
+    var newValue = 'a_user';
+    await sh1.writeCommand('update:$atSign_2:username$atSign_1  $newValue');
+    response = await sh1.read();
+    print('update verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // TODO
+    // Start the atsign_2 server after the maximum retries for notification is reached
+
+    ///lookup should return the old value
+    await sh2.writeCommand('lookup:username$atSign_1');
+    response = await sh2.read();
+    print('lookup verb response : $response');
+    expect(response, contains('data:$value'));
+
+    /// lookup with bypass_cache set to true
+    /// should return the newly updated value
+    await sh2.writeCommand('lookup:bypass_cache:true:username$atSign_1');
+    response = await sh2.read();
+    print('lookup verb response : $response');
+    expect(response, contains('data:$newValue'));
+
+    /// lookup with bypass_cache set to false
+    /// should return the old value
+    await sh2.writeCommand('lookup:bypass_cache:true:username$atSign_1');
+    response = await sh2.read();
+    print('lookup verb response : $response');
+    expect(response, contains('data:$newValue'));
+  }, timeout: Timeout(Duration(minutes: 3)));
+
   // Will uncomment after validations are in place
   // test('update-llookup verb without ttr and with ccd', () async {
   //   /// UPDATE VERB
