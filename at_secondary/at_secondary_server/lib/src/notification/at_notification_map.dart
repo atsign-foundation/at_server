@@ -32,12 +32,12 @@ class AtNotificationMap {
     // If map is empty, or map doesn't contain the atSign, return an iterator for an empty list
     if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
       return 0;
-    } else {
-      Map<String, NotificationStrategy>? tempMap = _notificationMap[atSign]!; // can't be null, we've just checked containsKey
-      LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
-      AllNotifications allList = tempMap['all'] as AllNotifications;
-      return latestList.length + allList.length;
     }
+
+    Map<String, NotificationStrategy>? tempMap = _notificationMap[atSign]!; // can't be null, we've just checked containsKey
+    LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
+    AllNotifications allList = tempMap['all'] as AllNotifications;
+    return latestList.length + allList.length;
   }
 
   /// Returns the map of first N entries.
