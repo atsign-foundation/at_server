@@ -1,3 +1,6 @@
+## 3.0.24
+- Introduced a cache to speed up metaData retrieval.
+- Removed unnecessary print statements
 ## 3.0.23
 - Add remove method in NotificationManagerSpec.
 ## 3.0.22
