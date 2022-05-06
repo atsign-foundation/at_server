@@ -4,9 +4,6 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
@@ -15,7 +12,7 @@ class CommitLogKeyStore
     implements LogKeyStore<int, CommitEntry?> {
   final _logger = AtSignLogger('CommitLogKeyStore');
   bool enableCommitId = true;
-  final _currentAtSign;
+  final String _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
   int _latestCommitId = -1;
@@ -60,7 +57,7 @@ class CommitLogKeyStore
 
   @override
   Future<int> add(CommitEntry? commitEntry) async {
-    var internalKey;
+    int internalKey;
     try {
       internalKey = await _getBox().add(commitEntry);
       //set the hive generated key as commit id
@@ -129,6 +126,7 @@ class CommitLogKeyStore
   }
 
   Future<CommitEntry?> lastSyncedEntry({String? regex}) async {
+    // ignore: prefer_typing_uninitialized_variables
     var lastSyncedEntry;
     var values = await _getValues();
     if (regex != null) {
@@ -198,19 +196,25 @@ class CommitLogKeyStore
   Future<List> getDuplicateEntries() async {
     var commitLogMap = await toMap();
     //defensive fix for commit entries with commitId equal to null
+    Set keysWithNullCommitIdsInValue = {};
     commitLogMap.forEach((key, value) {
       if (value.commitId == null) {
+        keysWithNullCommitIdsInValue.add(key);
         commitLogMap.remove(key);
-        _logger.severe('Commit ID is null for $value');
+        _logger.severe('Commit ID is null for key $key with value $value');
       }
     });
+    for (var key in keysWithNullCommitIdsInValue) {
+      commitLogMap.remove(key);
+    }
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
     var tempSet = <String>{};
     var expiredKeys = [];
-    sortedKeys.forEach(
-        (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
+    for (var entry in sortedKeys) {
+      _processEntry(entry, tempSet, expiredKeys, commitLogMap);
+    }
     return expiredKeys;
   }
 
@@ -230,28 +234,28 @@ class CommitLogKeyStore
     var values = await _getValues();
     try {
       var keys = _getBox().keys;
-      if (keys == null || keys.isEmpty) {
+      if (keys.isEmpty) {
         return changes;
       }
       var startKey = sequenceNumber + 1;
       _logger.finer('startKey: $startKey all commit log entries: $values');
       if (limit != null) {
-        values.forEach((element) {
+        for (var element in values) {
           if (element.key >= startKey &&
               _isRegexMatches(element.atKey, regexString) &&
               changes.length <= limit) {
             changes.add(element);
           }
-        });
+        }
         return changes;
       }
-      values.forEach((f) {
+      for (var f in values) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {
             changes.add(f);
           }
         }
-      });
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -309,6 +313,7 @@ class CommitLogKeyStore
     if (_commitLogCacheMap.containsKey(key)) {
       return _commitLogCacheMap[key]!;
     }
+    return null;
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
@@ -342,10 +347,12 @@ class CommitLogKeyStore
   Future<Map> toMap() async {
     var commitLogMap = {};
     var keys = _getBox().keys;
-    var value;
+
     await Future.forEach(keys, (key) async {
-      value = await getValue(key);
-      commitLogMap.putIfAbsent(key, () => value);
+      var value = await getValue(key);
+      if (value != null && value.commitId != null) {
+        commitLogMap.putIfAbsent(key, () => value);
+      }
     });
     return commitLogMap;
   }
