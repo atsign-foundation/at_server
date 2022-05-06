@@ -350,9 +350,7 @@ class CommitLogKeyStore
 
     await Future.forEach(keys, (key) async {
       var value = await getValue(key);
-      if (value != null && value.commitId != null) {
-        commitLogMap.putIfAbsent(key, () => value);
-      }
+      commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
   }
