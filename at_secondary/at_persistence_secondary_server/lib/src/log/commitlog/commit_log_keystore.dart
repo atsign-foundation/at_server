@@ -200,7 +200,6 @@ class CommitLogKeyStore
     commitLogMap.forEach((key, value) {
       if (value.commitId == null) {
         keysWithNullCommitIdsInValue.add(key);
-        commitLogMap.remove(key);
         _logger.severe('Commit ID is null for key $key with value $value');
       }
     });
