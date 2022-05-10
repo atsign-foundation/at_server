@@ -1,9 +1,9 @@
 import 'dart:io';
 
+import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'commons.dart';
-import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
   var firstAtsign =
@@ -47,7 +47,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync:$regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('Invalid syntax')));
+    assert((response.contains('error:AT0003-invalid command')));
   });
 
   test('sync verb in an incorrect format ', () async {
@@ -56,7 +56,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync $regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('Invalid syntax')));
+    assert((response.contains('error:AT0003-invalid command')));
   });
 
   tearDown(() {

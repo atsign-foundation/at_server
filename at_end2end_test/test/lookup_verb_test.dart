@@ -36,7 +36,8 @@ void main() {
     await sh1.writeCommand('llookup:random$atSign_1');
     String response = await sh1.read();
     print('llookup verb response : $response');
-    expect(response, contains('key not found : random$atSign_1 does not exist in keystore'));
+    expect(response, contains('error:AT0015'));
+    expect(response, contains('random$atSign_1 does not exist in keystore'));
   }, timeout: Timeout(Duration(minutes: 3)));
 
   test('update-lookup verb on private key - positive verb', () async {
@@ -62,7 +63,10 @@ void main() {
     await sh1.writeCommand('lokup:public:phone$atSign_2');
     String response = await sh1.read();
     print('lookup verb response from : $response');
-    expect(response, contains('Invalid syntax'));
+    // Asserts error code
+    expect(response, contains('error:AT0003'));
+    // Asserts error description
+    expect(response, contains('invalid command'));
     // Going to reconnect, because invalid syntax causes server to close connection
     sh1.close();
     sh1 = await e2e.getSocketHandler(atSign_1);

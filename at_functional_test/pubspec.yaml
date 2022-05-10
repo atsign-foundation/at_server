@@ -17,7 +17,12 @@ dependencies:
   at_client: ^3.0.9
   
 
-# dependency_overrides:
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: exception_handling_changes
 #  at_client:
 #   git:
 #       url: https://github.com/atsign-foundation/at_client_sdk.git

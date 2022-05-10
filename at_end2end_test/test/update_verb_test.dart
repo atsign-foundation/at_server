@@ -68,7 +68,8 @@ void main() {
     await sh1.writeCommand('llookup:country$atSign_1');
     response = await sh1.read();
     print('llookup verb response without private key in llookup verb: $response');
-    expect(response, contains('error:AT0015-key not found : country$atSign_1 does not exist in keystore'));
+    expect(response, contains('error:AT0015'));
+    expect(response, contains('country$atSign_1 does not exist in keystore'));
   });
 
   test('update verb with special characters', () async {

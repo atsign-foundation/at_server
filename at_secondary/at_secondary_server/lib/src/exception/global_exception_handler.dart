@@ -119,9 +119,9 @@ class GlobalExceptionHandler {
         var errorCode = getErrorCode(exception);
         errorCode ??= 'AT0011';
 
-        var errorDescription;
+        String errorDescription;
         if (exception is AtException) {
-          errorDescription = '${getErrorDescription(errorCode)} : ${exception.message}';
+          errorDescription = '${exception.message}';
         } else {
           errorDescription = '${getErrorDescription(errorCode)} : ${exception.toString()}';
         }

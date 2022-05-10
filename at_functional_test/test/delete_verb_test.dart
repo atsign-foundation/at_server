@@ -1,8 +1,9 @@
+import 'dart:io';
+
+import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'commons.dart';
-import 'package:at_functional_test/conf/config_util.dart';
-import 'dart:io';
 
 void main() {
   var firstAtsign =
@@ -58,7 +59,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
-    expect(response, contains('Invalid syntax'));
+    expect(response, contains('error:AT0003-invalid command'));
   });
 
   test('delete verb for an emoji key', () async {

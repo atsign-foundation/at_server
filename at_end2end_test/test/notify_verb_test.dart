@@ -177,12 +177,20 @@ void main() {
   });
 
   test('notify verb without giving notifier for strategy latest', () async {
-    //   /// NOTIFY VERB
+    /// NOTIFY VERB
     await sh1.writeCommand(
         'notify:update:messageType:key:strategy:latest:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
     print('notify verb response : $response');
-    assert((response.contains('Invalid syntax')));
+    if(atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
+      assert((response.contains(
+          'error:AT0003-For Strategy latest, notifier cannot be null')));
+    }
+    //TODO : The below condition is temporary fix until the changes are deployed to prod.
+    //TODO : Remove the condition once the changes are released to prod
+    if(atSign_1 == '@cicd5'){
+      assert((response.contains('Invalid syntax')));
+    }
     // Invalid syntax results in a closed connection so let's do some housekeeping
     sh1.close();
     sh1 = await e2e.getSocketHandler(atSign_1);
