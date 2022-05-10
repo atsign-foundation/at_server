@@ -59,7 +59,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
-    expect(response, contains('error:AT0003-invalid command'));
+    expect(response, contains('error:AT0003-Invalid syntax : invalid command'));
   });
 
   test('delete verb for an emoji key', () async {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:test/test.dart';
@@ -62,8 +63,7 @@ void main() {
   test('notify verb without messageType and operation', () async {
     /// NOTIFY VERB
     var value = '+91-901282346$lastValue';
-    await sh2
-        .writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
+    await sh2.writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
@@ -132,10 +132,8 @@ void main() {
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
     print('notify list verb response : $response');
-    expect(
-        response,
-        contains(
-            '"key":"$atSign_1:$value","value":null,"operation":"update"'));
+    expect(response,
+        contains('"key":"$atSign_1:$value","value":null,"operation":"update"'));
   });
 
   test('notify verb for deleting a key for other atsign', () async {
@@ -182,13 +180,15 @@ void main() {
         'notify:update:messageType:key:strategy:latest:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
     print('notify verb response : $response');
-    if(atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
-      assert((response.contains(
-          'error:AT0003-For Strategy latest, notifier cannot be null')));
+    if (atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
+      var decodedResponse = jsonDecode(response);
+      expect(decodedResponse['errorCode'], 'AT0003');
+      expect(decodedResponse['errorDescription'],
+          'For Strategy latest, notifier cannot be null');
     }
     //TODO : The below condition is temporary fix until the changes are deployed to prod.
     //TODO : Remove the condition once the changes are released to prod
-    if(atSign_1 == '@cicd5'){
+    if (atSign_1 == '@cicd5') {
       assert((response.contains('Invalid syntax')));
     }
     // Invalid syntax results in a closed connection so let's do some housekeeping
@@ -213,7 +213,7 @@ void main() {
   });
 
   test('notify verb with space in the value', () async {
-     /// NOTIFY VERB
+    /// NOTIFY VERB
     var value = '$lastValue Shris Infotech Services';
     await sh1.writeCommand(
         'notify:update:messageType:key:$atSign_2:company$atSign_1:$value');
@@ -384,7 +384,9 @@ void main() {
         returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
-  },skip: 'Non existent atSign. Skipping the test for now to avoid connection issue');
+  },
+      skip:
+          'Non existent atSign. Skipping the test for now to avoid connection issue');
 
   test('notify verb with notification expiry with messageType text', () async {
     //   /// NOTIFY VERB

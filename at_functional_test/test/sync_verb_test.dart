@@ -47,7 +47,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync:$regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('error:AT0003-invalid command')));
+    assert((response.contains('error:AT0003-Invalid syntax : invalid command')));
   });
 
   test('sync verb in an incorrect format ', () async {
@@ -56,7 +56,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync $regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('error:AT0003-invalid command')));
+    assert((response.contains('error:AT0003-Invalid syntax : invalid command')));
   });
 
   tearDown(() {
