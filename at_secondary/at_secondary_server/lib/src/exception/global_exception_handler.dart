@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -151,6 +152,9 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? errorCode, String errorDescription) {
-    atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+    atConnection.write('${jsonEncode({
+          'errorCode': errorCode,
+          'errorDescription': errorDescription
+        })}\n$prompt');
   }
 }

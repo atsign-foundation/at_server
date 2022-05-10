@@ -77,14 +77,13 @@ class OutboundMessageListener {
         if (result.startsWith('data:') ||
             (result.startsWith('@') && result.endsWith('@'))) {
           return result;
-        } else if (result.startsWith('error:')) {
+        } else if (result.contains('errorCode')) {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
-          result = result.toString().replaceAll('error:', '');
-          var errorCode = result.toString().split('-')[0];
-          var errorDescription = result.toString().split('-')[1];
-          throw AtExceptionUtils.get(errorCode)..message = errorDescription;
+          var decodedResult = jsonDecode(result);
+          throw AtExceptionUtils.get(
+              decodedResult['errorCode'], decodedResult['errorDescription']);
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();
