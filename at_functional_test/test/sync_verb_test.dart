@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -11,7 +12,8 @@ void main() {
   Socket? socketFirstAtsign;
 
   setUp(() async {
-    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignServer =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -34,7 +36,8 @@ void main() {
     var regex = '.persona';
 
     // sync with regex
-    await socket_writer(socketFirstAtsign!, 'sync:from:${syncId - 1}:limit:5:$regex');
+    await socket_writer(
+        socketFirstAtsign!, 'sync:from:${syncId - 1}:limit:5:$regex');
     response = await read();
     print('sync response is : $response');
     assert((response.contains('"atKey":"public:twitter$regex$firstAtsign')));
@@ -47,7 +50,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync:$regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('error:AT0003-Invalid syntax : invalid command')));
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['errorCode'], 'AT0003');
   });
 
   test('sync verb in an incorrect format ', () async {
@@ -56,7 +60,10 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync $regex');
     var response = await read();
     print('update verb response : $response');
-    assert((response.contains('error:AT0003-Invalid syntax : invalid command')));
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['errorCode'], 'AT0003');
+    expect(decodedResponse['errorDescription'],
+        'invalid command');
   });
 
   tearDown(() {

@@ -103,8 +103,8 @@ Future<String> read({int maxWaitMilliSeconds = 5000}) async {
       result = _queue.removeFirst();
       // result from another secondary is either data or a @<atSign>@ denoting complete
       // of the handshake
-      if (result.startsWith('data:') ||
-          (result.startsWith('error:')) ||
+      if (result.contains('data') ||
+          (result.contains('error')) ||
           (result.startsWith('@') && result.endsWith('@'))) {
         return result;
       } else {
