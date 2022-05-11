@@ -4,6 +4,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
@@ -17,10 +18,13 @@ void main() async {
     serverContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
+
+    NotifyConnectionsPool.getInstance().init(2);
   });
 
   tearDown(() {
     outboundClientPool.clearAllClients();
+    NotifyConnectionsPool.getInstance().pool.clearAllClients();
   });
 
   group('A group of outbound client pool test', () {
@@ -139,5 +143,52 @@ void main() async {
 
       poolInstance.clearAllClients();
     });
+
+    test('test notify connections pool removes least recently used when at capacity, with lastUsed as per order of OutboundClient creation', () async {
+      NotifyConnectionsPool notifyConnectionPool = NotifyConnectionsPool.getInstance();
+
+      notifyConnectionPool.init(2);
+      expect (notifyConnectionPool.getCapacity(), 2);
+
+      var alice = notifyConnectionPool.get('alice');
+      expect (notifyConnectionPool.getCapacity(), 1);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      var bob = notifyConnectionPool.get('bob');
+      expect (notifyConnectionPool.getCapacity(), 0);
+      expect (notifyConnectionPool.pool.clients()[0], alice);
+      expect (notifyConnectionPool.pool.clients()[1], bob);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      var charlie = notifyConnectionPool.get('charlie'); // as there is no capacity, alice should be evicted as the least recently used
+      expect (notifyConnectionPool.getCapacity(), 0);
+      expect (notifyConnectionPool.pool.clients()[0], bob);
+      expect (notifyConnectionPool.pool.clients()[1], charlie);
+    });
+
+    test('test notify connections pool removes least recently used when at capacity, with lastUsed CHANGED compared with order of object creation', () async {
+      NotifyConnectionsPool notifyConnectionPool = NotifyConnectionsPool.getInstance();
+
+      notifyConnectionPool.init(2);
+      expect (notifyConnectionPool.getCapacity(), 2);
+
+      var alice = notifyConnectionPool.get('alice');
+      expect (notifyConnectionPool.getCapacity(), 1);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      var bob = notifyConnectionPool.get('bob');
+      expect (notifyConnectionPool.getCapacity(), 0);
+
+      alice.lastUsed = DateTime.now();
+      expect (notifyConnectionPool.pool.clients()[0], bob);
+      expect (notifyConnectionPool.pool.clients()[1], alice);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      var charlie = notifyConnectionPool.get('charlie'); // as there is no capacity, bob should be evicted as the least recently used
+      expect (notifyConnectionPool.getCapacity(), 0);
+      expect (notifyConnectionPool.pool.clients()[0], alice);
+      expect (notifyConnectionPool.pool.clients()[1], charlie);
+    });
+
   });
 }

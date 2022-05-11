@@ -5,11 +5,10 @@ import 'package:at_server_spec/at_server_spec.dart';
 class OutboundClientPool {
   late int _size;
 
-  late List<OutboundClient> _clients;
+  final List<OutboundClient> _clients = [];
 
   void init(int size) {
     _size = size;
-    _clients = [];
   }
 
   bool hasCapacity() {
@@ -25,6 +24,12 @@ class OutboundClientPool {
       _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
       return _clients.removeAt(0);
     }
+  }
+
+  // Returns a copy of the list of clients in this pool, sorted by lastUsed, ascending
+  List<OutboundClient> clients() {
+    _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
+    return [..._clients];
   }
 
   void add(OutboundClient outBoundClient) => _clients.add(outBoundClient);

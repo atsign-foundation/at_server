@@ -3,6 +3,7 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
@@ -12,6 +13,8 @@ class NotifyConnectionsPool {
   var logger = AtSignLogger('NotifyConnectionPool');
 
   late OutboundClientPool _pool;
+  OutboundClientPool get pool => _pool;
+
   static const int defaultPoolSize = 50;
 
   bool isInitialised = false;
@@ -28,7 +31,13 @@ class NotifyConnectionsPool {
   void init(int size) {
     if (isInitialised) {
       return;
+    } else {
+      privateInit(size);
     }
+  }
+
+  @visibleForTesting
+  void privateInit(int size) {
     _size = size;
     isInitialised = true;
     _pool = OutboundClientPool();
