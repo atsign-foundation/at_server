@@ -25,13 +25,11 @@ class NotifyConnectionsPool {
     return _singleton;
   }
 
-  void init(int? size) {
+  void init(int size) {
     if (isInitialised) {
       return;
     }
-    if (size != null) {
-      _size = size;
-    }
+    _size = size;
     isInitialised = true;
     _pool = OutboundClientPool();
     _pool.init(_size);
@@ -60,7 +58,11 @@ class NotifyConnectionsPool {
     }
 
     if (!_pool.hasCapacity()) {
-      throw OutboundConnectionLimitException('max limit $_size reached on outbound pool');
+      OutboundClient? evictedClient = _pool.removeLeastRecentlyUsed();
+      logger.info("Evicted LRU client from pool : $evictedClient");
+      if (!_pool.hasCapacity()) {
+        throw OutboundConnectionLimitException('max limit $_size reached on outbound pool');
+      }
     }
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool

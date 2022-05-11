@@ -52,20 +52,20 @@ class AtSecondaryConfig {
   static final int? _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
-  static int? _runRefreshJobHour = 3;
+  static final int _runRefreshJobHour = 3;
 
   //Connection
-  static final int _inbound_max_limit = 10;
-  static final int _outbound_max_limit = 10;
-  static final int _inbound_idletime_millis = 600000;
-  static final int _outbound_idletime_millis = 600000;
+  static final int _inboundMaxLimit = 10;
+  static final int _outboundMaxLimit = 10;
+  static final int _inboundIdleTimeMillis = 600000;
+  static final int _outboundIdleTimeMillis = 600000;
 
   //Lookup
-  static final int? _lookup_depth_of_resolution = 3;
+  static final int _lookupDepthOfResolution = 3;
 
   //Stats
-  static final int? _stats_top_keys = 5;
-  static final int? _stats_top_visits = 5;
+  static final int _statsTopKeys = 5;
+  static final int _statsTopVisits = 5;
 
   //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
   static final String _defaultLogLevel = 'INFO';
@@ -355,7 +355,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _outbound_idletime_millis;
+      return _outboundIdleTimeMillis;
     }
   }
 
@@ -368,7 +368,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _inbound_idletime_millis;
+      return _inboundIdleTimeMillis;
     }
   }
 
@@ -381,7 +381,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_max_limit']);
     } on ElementNotFoundException {
-      return _outbound_max_limit;
+      return _outboundMaxLimit;
     }
   }
 
@@ -394,7 +394,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
     } on ElementNotFoundException {
-      return _inbound_max_limit;
+      return _inboundMaxLimit;
     }
   }
 
@@ -407,7 +407,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['lookup', 'depth_of_resolution']);
     } on ElementNotFoundException {
-      return _lookup_depth_of_resolution;
+      return _lookupDepthOfResolution;
     }
   }
 
@@ -420,7 +420,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_visits']);
     } on ElementNotFoundException {
-      return _stats_top_visits;
+      return _statsTopVisits;
     }
   }
 
@@ -433,7 +433,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_keys']);
     } on ElementNotFoundException {
-      return _stats_top_keys;
+      return _statsTopKeys;
     }
   }
 

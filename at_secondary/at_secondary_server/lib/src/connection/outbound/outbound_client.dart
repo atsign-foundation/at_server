@@ -32,6 +32,8 @@ class OutboundClient {
 
   bool isHandShakeDone = false;
 
+  DateTime lastUsed = DateTime.now();
+
 
   @override
   String toString() {
@@ -86,6 +88,7 @@ class OutboundClient {
       logger.severe('HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     }
+    lastUsed = DateTime.now();
     return result;
   }
 
@@ -195,6 +198,7 @@ class OutboundClient {
     if (lookupResult != null) {
       lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     }
+    lastUsed = DateTime.now();
     return lookupResult;
   }
 
@@ -221,6 +225,7 @@ class OutboundClient {
     if (scanResult != null) {
       scanResult = scanResult.replaceFirst(RegExp(r'\n\S+'), '');
     }
+    lastUsed = DateTime.now();
     return scanResult;
   }
 
@@ -231,6 +236,7 @@ class OutboundClient {
   /// Throws a [LookupException] if there is exception during lookup
   Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
+    lastUsed = DateTime.now();
     return result;
   }
 
@@ -245,13 +251,13 @@ class OutboundClient {
         (outboundConnection != null && outboundConnection!.isInValid());
   }
 
-  Future<String?> notify(String key, {bool handshake = true}) async {
+  Future<String?> notify(String notifyCommandBody, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
     }
     try {
-      var notificationRequest = 'notify:$key\n';
+      var notificationRequest = 'notify:$notifyCommandBody\n';
       outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -264,6 +270,7 @@ class OutboundClient {
     // response.
     var notifyResult = await messageListener.read(maxWaitMilliSeconds: 30000);
     //notifyResult = notifyResult.replaceFirst(RegExp(r'\n\S+'), '');
+    lastUsed = DateTime.now();
     return notifyResult;
   }
 
@@ -290,6 +297,7 @@ class OutboundClient {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
+    lastUsed = DateTime.now();
     return notifyResult.sentNotifications;
   }
 }

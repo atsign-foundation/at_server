@@ -86,6 +86,7 @@ void main() {
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
+
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
@@ -95,6 +96,8 @@ void main() {
       updateVerbParams.putIfAbsent('value', () => '99899');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
+
+      int ttb = 1000; // ttb, in milliseconds
       //Update Meta
       var updateMetaVerbHandler =
           UpdateMetaVerbHandler(keyStoreManager.getKeyStore());
@@ -102,9 +105,10 @@ void main() {
       var updateMetaVerbParam = HashMap<String, String>();
       updateMetaVerbParam.putIfAbsent('atSign', () => '@sitaram');
       updateMetaVerbParam.putIfAbsent('atKey', () => 'phone');
-      updateMetaVerbParam.putIfAbsent('ttb', () => '10000');
+      updateMetaVerbParam.putIfAbsent('ttb', () => ttb.toString());
       await updateMetaVerbHandler.processVerb(
           updateMetaResponse, updateMetaVerbParam, atConnection);
+
       // Look Up verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
@@ -113,8 +117,9 @@ void main() {
       localLookVerbParam.putIfAbsent('atKey', () => 'phone');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
-      expect(localLookUpResponse.data, null);
-      await Future.delayed(Duration(seconds: 12));
+      expect(localLookUpResponse.data, null); // should be null, as we have not yet reached ttb
+
+      await Future.delayed(Duration(milliseconds: ttb));
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, '99899');
@@ -148,6 +153,7 @@ void main() {
           atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
+
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
@@ -157,6 +163,9 @@ void main() {
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
+
+      int ttl = 1000; // in milliseconds
+
       //Update Meta
       var updateMetaVerbHandler =
           UpdateMetaVerbHandler(keyStoreManager.getKeyStore());
@@ -164,9 +173,10 @@ void main() {
       var updateMetaVerbParam = HashMap<String, String>();
       updateMetaVerbParam.putIfAbsent('atSign', () => '@sitaram');
       updateMetaVerbParam.putIfAbsent('atKey', () => 'location');
-      updateMetaVerbParam.putIfAbsent('ttl', () => '10000');
+      updateMetaVerbParam.putIfAbsent('ttl', () => ttl.toString());
       await updateMetaVerbHandler.processVerb(
           updateMetaResponse, updateMetaVerbParam, atConnection);
+
       // Look Up verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
@@ -175,12 +185,13 @@ void main() {
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
-      expect(localLookUpResponse.data, 'hyderabad');
-      await Future.delayed(Duration(seconds: 10));
+      expect(localLookUpResponse.data, 'hyderabad'); // ttl not yet reached, value will be live
+
+      await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponse1 = Response();
       await localLookupVerbHandler.processVerb(
           localLookUpResponse1, localLookVerbParam, atConnection);
-      expect(localLookUpResponse1.data, null);
+      expect(localLookUpResponse1.data, null); // ttl has passed, value should no longer be live
     });
     tearDown(() async => await tearDownFunc());
   });

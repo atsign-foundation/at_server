@@ -25,7 +25,7 @@ class ResourceManager {
     return _singleton;
   }
 
-  void init(int? outboundConnectionLimit) {
+  void init(int outboundConnectionLimit) {
     NotifyConnectionsPool.getInstance().init(outboundConnectionLimit);
     _isStarted = true;
     Future.delayed(Duration(milliseconds: 0)).then((value) {
@@ -122,8 +122,8 @@ class ResourceManager {
     try {
       while (iterator.moveNext()) {
         atNotification = iterator.current;
-        var key = _prepareNotificationKey(atNotification);
-        notifyResponse = await outBoundClient.notify(key);
+        var notifyCommandBody = _prepareNotifyCommandBody(atNotification);
+        notifyResponse = await outBoundClient.notify(notifyCommandBody);
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
       }
@@ -162,43 +162,43 @@ class ResourceManager {
   /// Prepares the notification key.
   /// Accepts [AtNotification]
   /// Returns the key of notification key.
-  String _prepareNotificationKey(AtNotification atNotification) {
-    String key;
-    key = '${atNotification.notification}';
+  String _prepareNotifyCommandBody(AtNotification atNotification) {
+    String commandBody;
+    commandBody = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.pubKeyCS != null) {
-        key =
-            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$key';
+        commandBody =
+            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
       }
       if (atNotification.atMetadata!.sharedKeyEnc != null) {
-        key =
-            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$key';
+        commandBody =
+            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
       if (atMetaData.ttr != null) {
-        key =
-            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
+        commandBody =
+            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody:${atNotification.atValue}';
       }
       if (atMetaData.ttb != null) {
-        key = 'ttb:${atMetaData.ttb}:$key';
+        commandBody = 'ttb:${atMetaData.ttb}:$commandBody';
       }
       if (atMetaData.ttl != null) {
-        key = 'ttl:${atMetaData.ttl}:$key';
+        commandBody = 'ttl:${atMetaData.ttl}:$commandBody';
       }
     }
     if (atNotification.ttl != null) {
-      key = 'ttln:${atNotification.ttl}:$key';
+      commandBody = 'ttln:${atNotification.ttl}:$commandBody';
     }
 
-    key = 'notifier:${atNotification.notifier}:$key';
-    key =
-        'messageType:${atNotification.messageType.toString().split('.').last}:$key';
+    commandBody = 'notifier:${atNotification.notifier}:$commandBody';
+    commandBody =
+        'messageType:${atNotification.messageType.toString().split('.').last}:$commandBody';
     if (atNotification.opType != null) {
-      key = '${atNotification.opType.toString().split('.').last}:$key';
+      commandBody = '${atNotification.opType.toString().split('.').last}:$commandBody';
     }
     // appending id to the notify command.
-    key = 'id:${atNotification.id}:$key';
-    return key;
+    commandBody = 'id:${atNotification.id}:$commandBody';
+    return commandBody;
   }
 
   ///Adds the errored notifications back to queue.
