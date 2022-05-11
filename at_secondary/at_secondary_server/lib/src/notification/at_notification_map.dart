@@ -3,9 +3,11 @@ import 'package:at_secondary/src/notification/notification_wait_time.dart';
 import 'package:at_secondary/src/notification/strategy/all_notifications.dart';
 import 'package:at_secondary/src/notification/strategy/latest_notifications.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_utils/at_logger.dart';
 
 class AtNotificationMap {
   static final AtNotificationMap _singleton = AtNotificationMap._internal();
+  final logger = AtSignLogger('AtNotificationMap');
 
   AtNotificationMap._internal();
 
@@ -49,11 +51,25 @@ class AtNotificationMap {
     } else {
       Map<String, NotificationStrategy> tempMap = _notificationMap.remove(atSign)!;
       var latestList = tempMap['latest'] as LatestNotifications;
-      var list = tempMap['all'] as AllNotifications;
+      var allList = tempMap['all'] as AllNotifications;
       returnList = List<AtNotification>.from(latestList.toList())
-        ..addAll(list.toList()!);
+        ..addAll(allList.toList()!);
       tempMap.clear();
     }
+    returnList.sort((a, b) {
+      if(a.notificationDateTime == null && b.notificationDateTime == null) {
+        return 0;
+      }
+      if(a.notificationDateTime == null) {
+        return 1;
+      }
+      if(b.notificationDateTime == null) {
+        return -1;
+      }
+
+      return a.notificationDateTime!.compareTo(b.notificationDateTime!);
+    });
+
     return returnList.iterator;
   }
 

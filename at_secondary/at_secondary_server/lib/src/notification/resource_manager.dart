@@ -71,7 +71,7 @@ class ResourceManager {
         //3. Connect to the atSign and send the notifications
         var outboundClient = await _connect(atSign);
         if (outboundClient != null) {
-          _sendNotifications(atSign!, outboundClient, notificationIterator);
+          await _sendNotifications(atSign!, outboundClient, notificationIterator);
         }
       }
     } on ConnectionInvalidException catch (e) {
@@ -114,7 +114,7 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
+  Future<void> _sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
     // ignore: prefer_typing_uninitialized_variables
     var notifyResponse, atNotification;
     var errorList = [];
