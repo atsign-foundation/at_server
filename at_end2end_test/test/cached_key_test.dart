@@ -43,7 +43,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
     await notification.getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 30000);
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 60000);
 
     ///LLOOKUP VERB in the receiving atsign
     await Future.delayed(Duration(seconds: 2));
