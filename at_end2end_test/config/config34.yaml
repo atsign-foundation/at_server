@@ -19,3 +19,18 @@ second_atsign_server:
   second_atsign_port: 6465
   # # The url to connect to second atsign server
   second_atsign_url: cicd4.atsign.wtf
+
+notification:
+  ### Setting configuration more amenable to the end-to-end tests
+  autoNotify: true
+  # The maximum number of retries for a notification.
+  max_retries: 3
+  # The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
+  quarantineDuration: 3
+  # The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
+  # *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
+  # seconds have passed since the last queue-processing run completed.
+  jobFrequency: 2
+  # The time interval(in seconds) to notify latest commitID to monitor connections
+  # To disable to the feature, set to -1.
+  statsNotificationJobTimeInterval: 15
