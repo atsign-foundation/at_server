@@ -98,9 +98,9 @@ stats:
 notification:
   autoNotify: true
   # The maximum number of retries for a notification.
-  max_retries: 60
+  max_retries: 30
   # The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
-  quarantineDuration: 5
+  quarantineDuration: 10
   # The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
   # *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
   # seconds have passed since the last queue-processing run completed.
