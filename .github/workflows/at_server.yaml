@@ -106,15 +106,16 @@ jobs:
         working-directory: ${{ env.secondary-working-directory }}
         run: dart test --concurrency=1 --coverage="coverage"
 
-      - name: Convert coverage to LCOV format
-        working-directory: ${{ env.secondary-working-directory }}
-        run: pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3.1.0
-        with:
-          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
-          file: ${{ env.secondary-working-directory }}/coverage.lcov
+#     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
+#      - name: Convert coverage to LCOV format
+#        working-directory: ${{ env.secondary-working-directory }}
+#        run: dart pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
+#
+#      - name: Upload coverage to Codecov
+#        uses: codecov/codecov-action@v3.1.0
+#        with:
+#          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+#          file: ${{ env.secondary-working-directory }}/coverage.lcov
 
   # Runs functional tests on at_secondary.
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
