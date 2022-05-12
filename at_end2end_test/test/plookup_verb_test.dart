@@ -69,6 +69,7 @@ void main() {
     String response = await sh1.read();
     print('plookup verb response $response');
     if (atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
+      response = response.replaceFirst('error:', '');
       var decodedResponse = jsonDecode(response);
       expect(decodedResponse['errorCode'], 'AT0015');
       expect(decodedResponse['errorDescription'],

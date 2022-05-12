@@ -152,7 +152,7 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? errorCode, String errorDescription) {
-    atConnection.write('${jsonEncode({
+    atConnection.write('error:${jsonEncode({
           'errorCode': errorCode,
           'errorDescription': errorDescription
         })}\n$prompt');

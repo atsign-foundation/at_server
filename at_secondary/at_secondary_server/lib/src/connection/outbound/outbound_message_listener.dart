@@ -77,13 +77,21 @@ class OutboundMessageListener {
         if (result.startsWith('data:') ||
             (result.startsWith('@') && result.endsWith('@'))) {
           return result;
-        } else if (result.contains('errorCode')) {
+        } else if (result.startsWith('error:')) {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
-          var decodedResult = jsonDecode(result);
-          throw AtExceptionUtils.get(
-              decodedResult['errorCode'], decodedResult['errorDescription']);
+          // Replace the error: in the ServerResponse. If the response if JSON encodedString, decode
+          // the String and throw specific exception. On exception, fallback to earlier implementation.
+          result = result.toString().replaceFirst('error:', '');
+          try {
+            var decodedResult = jsonDecode(result);
+            throw AtExceptionUtils.get(
+                decodedResult['errorCode'], decodedResult['errorDescription']);
+          } on Exception {
+            throw AtConnectException(
+                "Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
+          }
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();

@@ -62,6 +62,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'scan@');
     var response = await read();
     print('scan verb response : $response');
+    response = response.replaceFirst('error:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['errorCode'], 'AT0003');
     expect(decodedResponse['errorDescription'], 'Invalid syntax. scan');

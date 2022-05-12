@@ -69,6 +69,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'config:block:add:');
     var response = await read();
     print('config verb response : $response');
+    response = response.replaceFirst('error:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['errorCode'], 'AT0003');
     expect(decodedResponse['errorDescription'], contains('Invalid syntax'));
@@ -81,6 +82,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'config:block:add:@@kevin');
     var response = await read();
     print('config verb response : $response');
+    response = response.replaceFirst('error:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['errorCode'], 'AT0003');
     expect(decodedResponse['errorDescription'], contains('Invalid syntax'));
@@ -91,6 +93,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'config:block:list');
     var response = await read();
     print('config verb response : $response');
+    response = response.replaceFirst('error:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['errorCode'], 'AT0003');
     expect(decodedResponse['errorDescription'], contains('Invalid syntax'));

@@ -60,6 +60,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
+    response = response.replaceFirst('error:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['errorCode'], 'AT0003');
     expect(decodedResponse['errorDescription'], contains('invalid command'));

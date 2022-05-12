@@ -71,6 +71,7 @@ void main() {
     print(
         'llookup verb response without private key in llookup verb: $response');
     if(atSign_1 == '@cicd1' || atSign_2 == '@cicd3') {
+      response = response.replaceFirst('error:', '');
       var decodedResponse = jsonDecode(response);
       expect(decodedResponse['errorCode'], 'AT0015');
       expect(decodedResponse['errorDescription'],
