@@ -69,20 +69,22 @@ class ResourceManager {
         atSign = atSignIterator.current;
         notificationIterator = QueueManager.getInstance().dequeue(atSign);
         //3. Connect to the atSign and send the notifications
-        var outboundClient = await _connect(atSign);
-        if (outboundClient != null) {
-          await _sendNotifications(atSign!, outboundClient, notificationIterator);
+        OutboundClient outboundClient;
+        try {
+          outboundClient = await _connect(atSign);
+        } on ConnectionInvalidException catch (e) {
+          var errorList = [];
+          logger.warning('Connection failed for $atSign : ${e.toString()}');
+          AtNotificationMap.getInstance().quarantineMap[atSign] =
+              DateTime.now().add(Duration(seconds: quarantineDuration!));
+          while (notificationIterator.moveNext()) {
+            errorList.add(notificationIterator.current);
+          }
+          await _enqueueErrorList(errorList);
+          continue;
         }
+        await _sendNotifications(atSign!, outboundClient, notificationIterator);
       }
-    } on ConnectionInvalidException catch (e) {
-      var errorList = [];
-      logger.warning('Connection failed for $atSign : ${e.toString()}');
-      AtNotificationMap.getInstance().quarantineMap[atSign] =
-          DateTime.now().add(Duration(seconds: quarantineDuration!));
-      while (notificationIterator.moveNext()) {
-        errorList.add(notificationIterator.current);
-      }
-      await _enqueueErrorList(errorList);
     } on Exception catch (ex, stackTrace) {
       logger.severe("_processNotificationQueue() caught exception $ex");
       logger.severe(stackTrace.toString());
@@ -97,7 +99,7 @@ class ResourceManager {
   /// Establish an outbound connection to [toAtSign]
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
-  Future<OutboundClient?> _connect(String? toAtSign) async {
+  Future<OutboundClient> _connect(String? toAtSign) async {
     var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
