@@ -88,7 +88,7 @@ class OutboundMessageListener {
             var decodedResult = jsonDecode(result);
             throw AtExceptionUtils.get(
                 decodedResult['errorCode'], decodedResult['errorDescription']);
-          } on Exception {
+          } on FormatException {
             throw AtConnectException(
                 "Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
           }
