@@ -47,11 +47,23 @@ abstract class BaseConnection extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
+      logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
       getSocket().write(data);
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
       getMetaData().isStale = true;
       throw AtIOException(e.toString());
     }
+  }
+
+  static String truncateForLogging(String toLog, {int cutOffAfter = 1000}) {
+    if (toLog.length > cutOffAfter) {
+      toLog = '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
+    }
+    var lastNewLinePos = toLog.lastIndexOf("\n");
+    if (lastNewLinePos > -1) {
+      toLog = toLog.substring(0, lastNewLinePos);
+    }
+    return toLog;
   }
 }

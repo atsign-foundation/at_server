@@ -1,6 +1,5 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
@@ -11,9 +10,14 @@ import 'package:at_utils/at_logger.dart';
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
   static final ResourceManager _singleton = ResourceManager._internal();
-  bool _isRunning = false;
+  bool _isProcessingQueue = false;
 
-  bool get isRunning => _isRunning;
+  bool get isProcessingQueue => _isProcessingQueue;
+
+  bool _isStarted = false;
+  bool get isStarted => _isStarted;
+
+  bool _nudged = false;
 
   ResourceManager._internal();
 
@@ -21,86 +25,113 @@ class ResourceManager {
     return _singleton;
   }
 
+  void init(int outboundConnectionLimit) {
+    NotifyConnectionsPool.getInstance().init(outboundConnectionLimit);
+    _isStarted = true;
+    Future.delayed(Duration(milliseconds: 0)).then((value) {
+      _schedule();
+    });
+  }
+
   final logger = AtSignLogger('NotificationResourceManager');
   var quarantineDuration = AtSecondaryConfig.notificationQuarantineDuration;
-  var notificationJobFrequency = AtSecondaryConfig.notificationJobFrequency;
+  int notificationJobFrequency = AtSecondaryConfig.notificationJobFrequency;
+
+  /// Ensures that notification processing starts immediately if it's not already
+  void nudge() async {
+    _nudged = true;
+    _processNotificationQueue();
+  }
 
   ///Runs for every configured number of seconds(5).
-  void schedule() async {
-    _isRunning = true;
+  Future<void> _schedule() async {
+    await _processNotificationQueue();
+    var millisBetweenRuns = notificationJobFrequency * 1000;
+    Future.delayed(Duration(milliseconds: millisBetweenRuns)).then((value) => _schedule());
+  }
+
+  Future<void> _processNotificationQueue() async {
+    if (_isProcessingQueue) {
+      return;
+    }
+    _isProcessingQueue = true;
+    _nudged = false;
     String? atSign;
     late Iterator notificationIterator;
     try {
       //1. Check how many outbound connections are free.
-      var N = NotifyConnectionsPool.getInstance().getCapacity();
+      var N = NotifyConnectionsPool.getInstance().size;
 
       //2. Get the atsign on priority basis.
-      var atsignIterator = AtNotificationMap.getInstance().getAtSignToNotify(N);
+      var atSignIterator = AtNotificationMap.getInstance().getAtSignToNotify(N);
 
-      while (atsignIterator.moveNext()) {
-        atSign = atsignIterator.current;
+      while (atSignIterator.moveNext()) {
+        atSign = atSignIterator.current;
         notificationIterator = QueueManager.getInstance().dequeue(atSign);
-        //3. Connect to the atSign
-        var outboundClient = await _connect(atSign);
-        if (outboundClient != null) {
-          // If outbound connection is established, remove the atSign from the _waitTimeMap
-          // to avoid getting same atSign.
-          AtNotificationMap.getInstance().removeWaitTimeEntry(atSign);
-          _sendNotifications(outboundClient, notificationIterator);
+        //3. Connect to the atSign and send the notifications
+        OutboundClient outboundClient;
+        try {
+          outboundClient = await _connect(atSign);
+        } on ConnectionInvalidException catch (e) {
+          var errorList = [];
+          logger.warning('Connection failed for $atSign : ${e.toString()}');
+          AtNotificationMap.getInstance().quarantineMap[atSign] =
+              DateTime.now().add(Duration(seconds: quarantineDuration!));
+          while (notificationIterator.moveNext()) {
+            errorList.add(notificationIterator.current);
+          }
+          await _enqueueErrorList(errorList);
+          continue;
         }
+        await _sendNotifications(atSign!, outboundClient, notificationIterator);
       }
-    } on ConnectionInvalidException catch (e) {
-      var errorList = [];
-      logger.severe('Connection failed for $atSign : ${e.toString()}');
-      AtNotificationMap.getInstance().quarantineMap[atSign] =
-          DateTime.now().add(Duration(seconds: quarantineDuration!));
-      while (notificationIterator.moveNext()) {
-        errorList.add(notificationIterator.current);
-      }
-      await _enqueueErrorList(errorList);
+    } on Exception catch (ex, stackTrace) {
+      logger.severe("_processNotificationQueue() caught exception $ex");
+      logger.severe(stackTrace.toString());
     } finally {
-      //4. sleep for 5 seconds to refrain blocking main thread and call schedule again.
-      return Future.delayed(Duration(seconds: notificationJobFrequency!))
-          .then((value) => schedule());
+      _isProcessingQueue = false;
+      if (_nudged) {
+        Future.delayed(Duration(milliseconds: 0)).then((value) => _processNotificationQueue());
+      }
     }
   }
 
   /// Establish an outbound connection to [toAtSign]
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
-  Future<OutboundClient?> _connect(String? toAtSign) async {
+  Future<OutboundClient> _connect(String? toAtSign) async {
     var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
         var isConnected = await outBoundClient.connect();
-        logger.finer('connect result: $isConnected');
-        if (isConnected) {
-          return outBoundClient;
-        }
+        logger.finest('outBoundClient.connect() result: $isConnected');
       }
+      return outBoundClient;
     } on Exception catch (e) {
+      var msg = 'Connection failed to $toAtSign with exception: $e';
+      logger.warning(msg);
       outBoundClient.inboundConnection.getMetaData().isClosed = true;
-      logger.finer('connect result: $e');
-      throw ConnectionInvalidException('Connection failed');
+      throw ConnectionInvalidException(msg);
     }
-    return null;
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  void _sendNotifications(
-      OutboundClient outBoundClient, Iterator iterator) async {
-    var notifyResponse;
-    var atNotification;
+  Future<void> _sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
+    // ignore: prefer_typing_uninitialized_variables
+    var notifyResponse, atNotification;
     var errorList = [];
     // For list of notifications, iterate on each notification and process the notification.
     try {
       while (iterator.moveNext()) {
         atNotification = iterator.current;
-        var key = _prepareNotificationKey(atNotification);
-        notifyResponse = await outBoundClient.notify(key);
-        logger.info('notifyResult : $notifyResponse');
+        var notifyCommandBody = _prepareNotifyCommandBody(atNotification);
+        notifyResponse = await outBoundClient.notify(notifyCommandBody);
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
+      }
+      if (QueueManager.getInstance().numQueued(atSign) == 0) {
+        // All notifications for this atSign have been cleared; we can remove the waitTimeEntry for this atSign
+        AtNotificationMap.getInstance().removeWaitTimeEntry(atSign);
       }
     } on Exception catch (e) {
       logger.severe(
@@ -112,10 +143,6 @@ class ResourceManager {
     } finally {
       //1. Adds errored notifications back to queue.
       await _enqueueErrorList(errorList);
-
-      //2. Setting isStale on  outbound connection metadata to true to remove the connection from
-      //   Notification Connection Pool.
-      await outBoundClient.outboundConnection!.close();
     }
   }
 
@@ -137,43 +164,43 @@ class ResourceManager {
   /// Prepares the notification key.
   /// Accepts [AtNotification]
   /// Returns the key of notification key.
-  String _prepareNotificationKey(AtNotification atNotification) {
-    var key;
-    key = '${atNotification.notification}';
+  String _prepareNotifyCommandBody(AtNotification atNotification) {
+    String commandBody;
+    commandBody = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.pubKeyCS != null) {
-        key =
-            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$key';
+        commandBody =
+            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
       }
       if (atNotification.atMetadata!.sharedKeyEnc != null) {
-        key =
-            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$key';
+        commandBody =
+            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
       if (atMetaData.ttr != null) {
-        key =
-            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$key:${atNotification.atValue}';
+        commandBody =
+            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody:${atNotification.atValue}';
       }
       if (atMetaData.ttb != null) {
-        key = 'ttb:${atMetaData.ttb}:$key';
+        commandBody = 'ttb:${atMetaData.ttb}:$commandBody';
       }
       if (atMetaData.ttl != null) {
-        key = 'ttl:${atMetaData.ttl}:$key';
+        commandBody = 'ttl:${atMetaData.ttl}:$commandBody';
       }
     }
     if (atNotification.ttl != null) {
-      key = 'ttln:${atNotification.ttl}:$key';
+      commandBody = 'ttln:${atNotification.ttl}:$commandBody';
     }
 
-    key = 'notifier:${atNotification.notifier}:$key';
-    key =
-        'messageType:${atNotification.messageType.toString().split('.').last}:$key';
+    commandBody = 'notifier:${atNotification.notifier}:$commandBody';
+    commandBody =
+        'messageType:${atNotification.messageType.toString().split('.').last}:$commandBody';
     if (atNotification.opType != null) {
-      key = '${atNotification.opType.toString().split('.').last}:$key';
+      commandBody = '${atNotification.opType.toString().split('.').last}:$commandBody';
     }
     // appending id to the notify command.
-    key = 'id:${atNotification.id}:$key';
-    return key;
+    commandBody = 'id:${atNotification.id}:$commandBody';
+    return commandBody;
   }
 
   ///Adds the errored notifications back to queue.
@@ -191,17 +218,19 @@ class ResourceManager {
           .put(atNotification?.id, atNotification);
       // If number retries are equal to maximum number of notifications, notifications are not further processed
       // hence remove entries from waitTimeMap and quarantineMap
+      // TODO This should only be done when *all* of the pending notifications for this atSign have reached maxRetries
       if (atNotification.retryCount == maxRetries) {
         AtNotificationMap.getInstance()
             .removeWaitTimeEntry(atNotification.toAtSign);
         AtNotificationMap.getInstance()
             .removeQuarantineEntry(atNotification.toAtSign);
-        logger.info(
-            'Failed to notify ${atNotification.id}. Maximum retries reached');
+        logger.warning(
+            'Failed to notify ${atNotification.id} from ${atNotification.fromAtSign} to ${atNotification.toAtSign}. Maximum retries ($maxRetries) reached');
         continue;
       }
-      logger.info(
-          'Retrying to notify: ${atNotification.id} retry count: ${atNotification.retryCount}');
+      logger.info('Retrying to notify: ${atNotification.id}'
+          ' from ${atNotification.fromAtSign} to ${atNotification.toAtSign}.'
+          ' Retry count: ${atNotification.retryCount}');
       QueueManager.getInstance().enqueue(atNotification);
     }
   }

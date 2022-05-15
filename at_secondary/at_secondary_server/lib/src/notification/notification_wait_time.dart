@@ -59,4 +59,9 @@ class NotificationWaitTime {
     waitTime = prioritiesSum + meanValue;
     return waitTime;
   }
+
+  @override
+  String toString() {
+    return 'NotificationWaitTime{_totalPriorities: $_totalPriorities, _prioritiesSum: $_prioritiesSum, _lastComputedAt: $_lastComputedAt, _waitTime: $_waitTime}';
+  }
 }

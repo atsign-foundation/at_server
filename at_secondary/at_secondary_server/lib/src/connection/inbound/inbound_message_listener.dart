@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -66,8 +67,7 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.finer(
-            'command received: $command sessionID:${connection.getMetaData().sessionID}');
+        logger.info('RCVD: [${connection.getMetaData().sessionID}] ${BaseConnection.truncateForLogging(command)}');
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();

@@ -1,13 +1,12 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 
 /// Util class for Notifications
 class NotificationUtil {
   static var logger = AtSignLogger('NotificationUtil');
-  static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
+  static final autoNotify = AtSecondaryConfig.autoNotify;
 
   /// Method to store notification in data store
   /// Accepts fromAtSign, forAtSign, key, Notification and Operation type,
@@ -19,7 +18,7 @@ class NotificationUtil {
       NotificationType notificationType,
       OperationType? operationType,
       {MessageType messageType = MessageType.key,
-      int? ttl_ms,
+      int? ttlMillis,
       String? value,
       NotificationStatus? notificationStatus,
       String? id}) async {
@@ -39,10 +38,10 @@ class NotificationUtil {
         ..atValue = value
         ..notificationStatus = notificationStatus;
       //setting ttl only when it has a valid value
-      if (ttl_ms != null && ttl_ms > 0) {
-        notificationBuilder.ttl = ttl_ms;
+      if (ttlMillis != null && ttlMillis > 0) {
+        notificationBuilder.ttl = ttlMillis;
         notificationBuilder.expiresAt =
-            DateTime.now().toUtc().add(Duration(milliseconds: ttl_ms));
+            DateTime.now().toUtc().add(Duration(milliseconds: ttlMillis));
       }
       if(id != null && id.isNotEmpty){
         notificationBuilder.id = id;
@@ -65,12 +64,12 @@ class NotificationUtil {
       return;
     }
     var values = await _notificationLog.getValues();
-    values.forEach((element) {
+    for (var element in values) {
       //_notificationLog.getValues().forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.
       if (element.type == NotificationType.sent) {
         QueueManager.getInstance().enqueue(element);
       }
-    });
+    }
   }
 }

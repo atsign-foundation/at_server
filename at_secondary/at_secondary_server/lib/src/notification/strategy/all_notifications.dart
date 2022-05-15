@@ -7,6 +7,8 @@ import 'package:at_secondary/src/notification/priority_queue_impl.dart';
 class AllNotifications implements NotificationStrategy {
   final _priorityQueue = AtNotificationPriorityQueue();
 
+  int get length => _priorityQueue.size();
+
   @override
   void add(AtNotification atNotification) {
     _priorityQueue.addNotification(atNotification);

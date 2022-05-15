@@ -3,11 +3,10 @@ import 'package:collection/src/priority_queue.dart';
 
 /// Class implementing the priority queue.
 class AtNotificationPriorityQueue {
-  final _priorityQueue;
+  final PriorityQueue<AtNotification> _priorityQueue;
 
   AtNotificationPriorityQueue({priorityQueue, comparison})
-      : _priorityQueue =
-            PriorityQueue<AtNotification>(comparison ??= _comparePriority);
+      : _priorityQueue = PriorityQueue<AtNotification>(comparison ??= _comparePriority);
 
   /// Adds [AtNotification] to the priority queue.
   /// Accepts [AtNotification] as input param.
@@ -27,7 +26,7 @@ class AtNotificationPriorityQueue {
   }
 
   /// Returns the size of the priority queue
-  int? size() {
+  int size() {
     return _priorityQueue.length;
   }
 

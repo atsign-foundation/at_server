@@ -3,17 +3,33 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// Pool to hold [OutboundClient]
 class OutboundClientPool {
-  int? _size;
+  late int _size;
 
-  late List<OutboundClient> _clients;
+  final List<OutboundClient> _clients = [];
 
-  void init(int? size) {
+  void init(int size) {
     _size = size;
-    _clients = [];
   }
 
   bool hasCapacity() {
-    return _clients.length < _size!;
+    return _clients.length < _size;
+  }
+
+  /// Removes the least recently used OutboundClient from the pool. Returns the removed client,
+  /// or returns null if there are fewer than 2 items currently in the pool.
+  OutboundClient? removeLeastRecentlyUsed() {
+    if (_clients.length < 2) {
+      return null;
+    } else {
+      _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
+      return _clients.removeAt(0);
+    }
+  }
+
+  // Returns a copy of the list of clients in this pool, sorted by lastUsed, ascending
+  List<OutboundClient> clients() {
+    _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
+    return [..._clients];
   }
 
   void add(OutboundClient outBoundClient) => _clients.add(outBoundClient);
@@ -35,12 +51,12 @@ class OutboundClientPool {
 
   void clearInvalidClients() {
     var invalidClients = [];
-    _clients.forEach((client) {
+    for (var client in _clients) {
       if (client.isInValid()) {
         invalidClients.add(client);
         client.close();
       }
-    });
+    }
     _clients.removeWhere((client) => invalidClients.contains(client));
   }
 
@@ -50,11 +66,11 @@ class OutboundClientPool {
 
   int getActiveConnectionSize() {
     var count = 0;
-    _clients.forEach((client) {
+    for (var client in _clients) {
       if (!client.isInValid()) {
         count++;
       }
-    });
+    }
     return count;
   }
 
@@ -63,9 +79,9 @@ class OutboundClientPool {
   }
 
   bool clearAllClients() {
-    _clients.forEach((client) {
+    for (var client in _clients) {
       client.close();
-    });
+    }
     _clients.clear();
     return true;
   }
