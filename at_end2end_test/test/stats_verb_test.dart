@@ -218,7 +218,7 @@ void main() {
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
     await notification
-        .getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['errored']);
+        .getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['errored'], timeOutMillis: 15000);
     var afterUpdate = await notificationStats(sh1);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['failed'];

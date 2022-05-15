@@ -1,4 +1,4 @@
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 
@@ -34,5 +34,9 @@ class QueueManager {
   Iterator<AtNotification> dequeue(String? atsign) {
     var mapInstance = AtNotificationMap.getInstance();
     return mapInstance.remove(atsign);
+  }
+
+  int numQueued(String atSign) {
+    return AtNotificationMap.getInstance().numQueued(atSign);
   }
 }

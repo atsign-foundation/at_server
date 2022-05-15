@@ -13,7 +13,7 @@ class OutboundClientManager {
 
   late OutboundClientPool _pool;
 
-  static const int default_pool_size = 10;
+  static const int defaultPoolSize = 10;
 
   bool isInitialised = false;
 
@@ -25,7 +25,7 @@ class OutboundClientManager {
 
   /// Initialises outbound client pool with a given size.
   /// @param - size - Maximum clients the pool can hold
-  void init(int? size) {
+  void init(int size) {
     _pool = OutboundClientPool();
     _pool.init(size);
     isInitialised = true;
@@ -33,14 +33,14 @@ class OutboundClientManager {
 
   /// If the pool is already initialized, checks and returns an outbound client if it is already in pool.
   /// Otherwise clears idle clients and creates a new outbound client if the pool has capacity. Returns null if pool does not have capacity.
-  ///  If the pool is not initialized, initializes the pool with [default_pool_size] and creates a new client
+  ///  If the pool is not initialized, initializes the pool with [defaultPoolSize] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
   OutboundClient? getClient(
       String? toAtSign, InboundConnection inboundConnection,
       {bool isHandShake = true}) {
     // Initialize the pool if not already done
     if (!isInitialised) {
-      init(default_pool_size);
+      init(defaultPoolSize);
     }
     _pool.clearInvalidClients();
     // Get OutboundClient for a given atSign and InboundConnection
@@ -53,8 +53,11 @@ class OutboundClientManager {
     }
 
     if (!_pool.hasCapacity()) {
-      throw OutboundConnectionLimitException(
-          'max limit reached on outbound pool');
+      OutboundClient? evictedClient = _pool.removeLeastRecentlyUsed();
+      logger.info("Evicted LRU client from pool : $evictedClient");
+      if (!_pool.hasCapacity()) {
+        throw OutboundConnectionLimitException('max limit reached on outbound pool');
+      }
     }
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
