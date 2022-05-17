@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -50,9 +49,7 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync:$regex');
     var response = await read();
     print('update verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
+    expect(response.contains('AT0003'), true);
   });
 
   test('sync verb in an incorrect format ', () async {
@@ -61,11 +58,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'sync $regex');
     var response = await read();
     print('update verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'],
-        'invalid command');
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('invalid command'), true);
   });
 
   tearDown(() {

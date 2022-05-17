@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -69,10 +68,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'config:block:add:');
     var response = await read();
     print('config verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'], contains('Invalid syntax'));
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('Invalid syntax'), true);
   });
 
   test(
@@ -83,9 +80,8 @@ void main() {
     var response = await read();
     print('config verb response : $response');
     response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'], contains('Invalid syntax'));
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('Invalid syntax'), true);
   });
 
   test('config verb by giving list instead of show (Negative case)', () async {
@@ -93,10 +89,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'config:block:list');
     var response = await read();
     print('config verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'], contains('Invalid syntax'));
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('Invalid syntax'), true);
   });
 
   tearDown(() {

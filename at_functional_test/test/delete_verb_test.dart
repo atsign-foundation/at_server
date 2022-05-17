@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -60,10 +59,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'], contains('invalid command'));
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('invalid command'), true);
   });
 
   test('delete verb for an emoji key', () async {

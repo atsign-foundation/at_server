@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -62,10 +61,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'scan@');
     var response = await read();
     print('scan verb response : $response');
-    response = response.replaceFirst('error:', '');
-    var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['errorCode'], 'AT0003');
-    expect(decodedResponse['errorDescription'], 'Invalid syntax. scan');
+    expect(response.contains('AT0003'), true);
+    expect(response.contains('Invalid syntax'), true);
   });
 
   test('Scan verb with regex', () async {

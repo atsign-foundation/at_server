@@ -66,7 +66,7 @@ void main() {
     await sh1.writeCommand('plookup:no-key$atSign_1');
     String response = await sh1.read();
     print('plookup verb response $response');
-    assert(response.startsWith('error:AT0011'));
+    assert(response.contains('error:AT0015'));
     //Commenting the below line because at the moment the error response string
     // split on '-' causing incorrect error decription.
     //expect(response,contains('public:no-key$atSign_1 does not exist in keystore'));

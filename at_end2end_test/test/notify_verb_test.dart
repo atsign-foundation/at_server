@@ -179,7 +179,7 @@ void main() {
         'notify:update:messageType:key:strategy:latest:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
     print('notify verb response : $response');
-    assert((response.contains('Invalid syntax')));
+    assert((response.contains('error:AT0003')));
     // Invalid syntax results in a closed connection so let's do some housekeeping
     sh1.close();
     sh1 = await e2e.getSocketHandler(atSign_1);
