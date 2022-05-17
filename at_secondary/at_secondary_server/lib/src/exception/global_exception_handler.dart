@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -35,7 +34,6 @@ class GlobalExceptionHandler {
       await _sendResponseForException(exception, atConnection);
       // TODO but do they necessarily need the connection to be closed?
       _closeConnection(atConnection);
-
     } else if (exception is BlockedConnectionException ||
         exception is InvalidSyntaxException) {
       // This is normal behaviour, log as INFO
@@ -46,18 +44,15 @@ class GlobalExceptionHandler {
       //   BlockedConnectionException thrown when the "from" atsign is on the "do not allow" list
       //   InvalidSyntaxException is thrown because invalid syntax is rude, so we're rude in return
       _closeConnection(atConnection);
-
     } else if (exception is DataStoreException) {
       logger.severe(exception.toString());
       // TODO should we keep the connection open rather than closing it?
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
-
     } else if (exception is InboundConnectionLimitException) {
       // This is SEVERE and requires different handling so we use _handleInboundLimit
       logger.severe(exception.toString());
       await _handleInboundLimit(exception, clientSocket!);
-
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -72,16 +67,13 @@ class GlobalExceptionHandler {
       // TODO Not sure some of these are really worthy of WARNINGS, but let's leave as is for now
       logger.warning(exception.toString());
       await _sendResponseForException(exception, atConnection);
-
     } else if (exception is AtServerException ||
         exception is ArgParserException) {
       // In case of AtServerException terminate the server
       logger.shout("Terminating secondary due to ${exception.toString()}");
       _terminateSecondary();
-
     } else if (exception is InternalServerError) {
       await _handleInternalException(exception, atConnection);
-
     } else {
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
@@ -124,7 +116,8 @@ class GlobalExceptionHandler {
         if (exception is AtException) {
           errorDescription = '${exception.message}';
         } else {
-          errorDescription = '${getErrorDescription(errorCode)} : ${exception.toString()}';
+          errorDescription =
+              '${getErrorDescription(errorCode)} : ${exception.toString()}';
         }
         _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
@@ -152,9 +145,6 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? errorCode, String errorDescription) {
-    atConnection.write('error:${jsonEncode({
-          'errorCode': errorCode,
-          'errorDescription': errorDescription
-        })}\n$prompt');
+    atConnection.write('error:$errorCode-$errorDescription\n$prompt');
   }
 }
