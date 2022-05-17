@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:test/test.dart';
@@ -36,17 +35,8 @@ void main() {
     await sh1.writeCommand('llookup:random$atSign_1');
     String response = await sh1.read();
     print('llookup verb response : $response');
-    if (atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
-      response = response.replaceFirst('error:', '');
-      var decodedResponse = jsonDecode(response);
-      expect(decodedResponse['errorCode'], 'AT0015');
-      expect(decodedResponse['errorDescription'],
-          'random$atSign_1 does not exist in keystore');
-    }
-    if (atSign_1 == '@cicd5') {
-      assert(response.startsWith('error:AT0015'));
-    }
-  }, timeout: Timeout(Duration(minutes: 3)));
+    assert(response.startsWith('error:AT0015'));
+  });
 
   test('update-lookup verb on private key - positive verb', () async {
     ///Update verb on bob atsign
@@ -70,16 +60,7 @@ void main() {
     await sh1.writeCommand('lokup:public:phone$atSign_2');
     String response = await sh1.read();
     print('lookup verb response from : $response');
-    if (atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
-      response = response.replaceFirst('error:', '');
-      var decodedResponse = jsonDecode(response);
-      expect(decodedResponse['errorCode'], 'AT0003');
-      // Asserts error description
-      expect(decodedResponse['errorDescription'], contains('invalid command'));
-    }
-    if(atSign_1 == '@cicd5'){
-      assert(response.startsWith('error:AT0003'));
-    }
+    assert(response.startsWith('error:AT0003'));
     // Going to reconnect, because invalid syntax causes server to close connection
     sh1.close();
     sh1 = await e2e.getSocketHandler(atSign_1);

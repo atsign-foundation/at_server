@@ -104,7 +104,7 @@ class OutboundClient {
           context: secConConnect);
       outboundConnection = OutboundConnectionImpl(secureSocket, toAtSign);
     } on SocketException {
-      throw SecondaryNotFoundException('unable to connect to secondary');
+      throw SecondaryNotFoundException('unable to connect to secondary $toAtSign on $host:$port');
     }
     return true;
   }

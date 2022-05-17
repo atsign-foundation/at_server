@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:test/test.dart';
 
 import 'e2e_test_utils.dart' as e2e;
@@ -68,17 +66,9 @@ void main() {
     await sh1.writeCommand('plookup:no-key$atSign_1');
     String response = await sh1.read();
     print('plookup verb response $response');
-    if (atSign_1 == '@cicd1' || atSign_1 == '@cicd3') {
-      response = response.replaceFirst('error:', '');
-      var decodedResponse = jsonDecode(response);
-      expect(decodedResponse['errorCode'], 'AT0015');
-      expect(decodedResponse['errorDescription'],
-          'public:no-key$atSign_1 does not exist in keystore');
-    }
-    if (atSign_1 == '@cicd5') {
-      assert(response.startsWith('error:AT0011'));
-    }
-    //Commenting the below line untill the changes are merged into prod.
+    assert(response.startsWith('error:AT0011'));
+    //Commenting the below line because at the moment the error response string
+    // split on '-' causing incorrect error decription.
     //expect(response,contains('public:no-key$atSign_1 does not exist in keystore'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
