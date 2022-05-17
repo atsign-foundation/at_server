@@ -32,6 +32,15 @@ class OutboundClient {
 
   bool isHandShakeDone = false;
 
+  DateTime lastUsed = DateTime.now();
+
+
+  @override
+  String toString() {
+    return 'OutboundClient{toAtSign: $toAtSign, toHost: $toHost, toPort: $toPort, '
+        'isConnectionCreated: $isConnectionCreated, isHandShakeDone: $isHandShakeDone}';
+  }
+
   late OutboundMessageListener messageListener;
 
   OutboundClient(this.inboundConnection, this.toAtSign);
@@ -76,9 +85,10 @@ class OutboundClient {
           'socket exception connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     } on HandShakeException catch (e) {
-      logger.severe('HandShakeException for $toAtSign: ${e.toString()}');
+      logger.severe('HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     }
+    lastUsed = DateTime.now();
     return result;
   }
 
@@ -122,7 +132,6 @@ class OutboundClient {
 
       //2. Receive proof
       var fromResult = await messageListener.read();
-      logger.info('fromResult : $fromResult');
       if (fromResult == null || fromResult == '') {
         throw HandShakeException(
             'no response received for From:$toAtSign command');
@@ -142,7 +151,6 @@ class OutboundClient {
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
-      logger.finer('handShakeResult: $handShakeResult');
       if (handShakeResult == null) {
         await outboundConnection!.close();
         throw HandShakeException('no response received for pol command');
@@ -175,7 +183,6 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
-      logger.finer('writing to outbound connection: $lookUpRequest');
       outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -191,7 +198,7 @@ class OutboundClient {
     if (lookupResult != null) {
       lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     }
-    logger.finer('lookup result after format: $lookupResult');
+    lastUsed = DateTime.now();
     return lookupResult;
   }
 
@@ -206,7 +213,6 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
-      logger.finer('writing to outbound connection: $scanRequest');
       outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -219,7 +225,7 @@ class OutboundClient {
     if (scanResult != null) {
       scanResult = scanResult.replaceFirst(RegExp(r'\n\S+'), '');
     }
-    logger.finer('scan result after format: $scanResult');
+    lastUsed = DateTime.now();
     return scanResult;
   }
 
@@ -230,6 +236,7 @@ class OutboundClient {
   /// Throws a [LookupException] if there is exception during lookup
   Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
+    lastUsed = DateTime.now();
     return result;
   }
 
@@ -244,14 +251,13 @@ class OutboundClient {
         (outboundConnection != null && outboundConnection!.isInValid());
   }
 
-  Future<String?> notify(String key, {bool handshake = true}) async {
+  Future<String?> notify(String notifyCommandBody, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
     }
     try {
-      var notificationRequest = 'notify:$key\n';
-      logger.info('notificationRequest : $notificationRequest');
+      var notificationRequest = 'notify:$notifyCommandBody\n';
       outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -260,12 +266,11 @@ class OutboundClient {
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
-    logger.info('waiting for response from outbound connection');
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
     // response.
     var notifyResult = await messageListener.read(maxWaitMilliSeconds: 30000);
     //notifyResult = notifyResult.replaceFirst(RegExp(r'\n\S+'), '');
-    logger.info('notifyResult result after format: $notifyResult');
+    lastUsed = DateTime.now();
     return notifyResult;
   }
 
@@ -292,6 +297,7 @@ class OutboundClient {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
+    lastUsed = DateTime.now();
     return notifyResult.sentNotifications;
   }
 }

@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.15
+version: 3.0.16
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -26,6 +26,11 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: exception_handling_changes
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_secondary/at_persistence_secondary_server
+      ref: straight_through_notify
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -36,11 +41,6 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_utils
 #      ref: trunk
-#   at_persistence_secondary_server:
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_secondary/at_persistence_secondary_server
-#       ref: meta_data_cache
 #   at_server_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git

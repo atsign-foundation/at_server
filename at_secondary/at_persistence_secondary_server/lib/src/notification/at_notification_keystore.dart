@@ -73,8 +73,8 @@ class AtNotificationKeystore
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum}) async {
-    await _getBox().put(key, value);
     AtNotificationCallback.getInstance().invokeCallbacks(value);
+    await _getBox().put(key, value);
   }
 
   @override
