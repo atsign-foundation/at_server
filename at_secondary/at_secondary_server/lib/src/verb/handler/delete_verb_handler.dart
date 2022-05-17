@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -14,7 +13,7 @@ import 'package:at_utils/at_utils.dart';
 
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
-  static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
+  static final autoNotify = AtSecondaryConfig.autoNotify;
 
   DeleteVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
@@ -46,6 +45,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       InboundConnection atConnection) async {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
+    // ignore: prefer_typing_uninitialized_variables
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
     deleteKey = verbParams[AT_KEY];
@@ -80,8 +80,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       forAtSign = AtUtils.formatAtSign(forAtSign);
       atSign = AtUtils.formatAtSign(atSign);
 
-      // send notification to other secondary is AUTO_NOTIFY is enabled
-      if (AUTO_NOTIFY! && (forAtSign != atSign)) {
+      // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
+      if (autoNotify! && (forAtSign != atSign)) {
         try {
           _notify(forAtSign, atSign, key,
               SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
@@ -98,7 +98,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
 
   void _notify(forAtSign, atSign, key, priority) {
     if (forAtSign == null) {
-      return null;
+      return;
     }
     key = '$forAtSign:$key$atSign';
     var atNotification = (AtNotificationBuilder()

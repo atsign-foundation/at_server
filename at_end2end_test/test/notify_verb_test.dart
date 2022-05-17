@@ -373,9 +373,7 @@ void main() {
         returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
-  },
-      skip:
-          'Non existent atSign. Skipping the test for now to avoid connection issue');
+  });
 
   test('notify verb with notification expiry with messageType text', () async {
     //   /// NOTIFY VERB

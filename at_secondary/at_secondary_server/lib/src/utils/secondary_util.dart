@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 
@@ -69,14 +68,14 @@ class SecondaryUtil {
       var ttl = atData.metaData!.expiresAt;
       if (ttb == null && ttl == null) return true;
       if (ttb != null) {
-        var ttb_ms = ttb.toUtc().millisecondsSinceEpoch;
-        if (ttb_ms > now) {
+        var ttbMillis = ttb.toUtc().millisecondsSinceEpoch;
+        if (ttbMillis > now) {
           return false;
         }
       }
       if (ttl != null) {
-        var ttl_ms = ttl.toUtc().millisecondsSinceEpoch;
-        if (ttl_ms < now) {
+        var ttlMillis = ttl.toUtc().millisecondsSinceEpoch;
+        if (ttlMillis < now) {
           return false;
         }
       }
@@ -95,7 +94,7 @@ class SecondaryUtil {
   }
 
   static String? prepareResponseData(String? operation, AtData? atData) {
-    var result;
+    String? result;
     if (atData == null) {
       return result;
     }
