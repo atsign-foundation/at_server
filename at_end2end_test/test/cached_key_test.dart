@@ -152,7 +152,7 @@ void main() {
     await sh2.writeCommand('lookup:username$atSign_1');
     response = await sh2.read();
     print('lookup verb response : $response');
-    expect(response, contains('data:$value'));
+    expect(response, contains('data: $value'));
 
     // TODO
     // stop the atsign_2 server
@@ -167,6 +167,7 @@ void main() {
     // Start the atsign_2 server after the maximum retries for notification is reached
 
     ///lookup should return the old value
+    await Future.delayed(Duration(seconds: 10));
     await sh2.writeCommand('lookup:username$atSign_1');
     response = await sh2.read();
     print('lookup verb response : $response');
