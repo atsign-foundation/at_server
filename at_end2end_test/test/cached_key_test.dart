@@ -169,17 +169,17 @@ void main() {
 
     /// lookup with bypass_cache set to true
     /// should return the newly updated value
-    await sh2.writeCommand('lookup:bypass_cache:true:username$atSign_1');
+    await sh2.writeCommand('lookup:bypassCache:true:username$atSign_1');
     response = await sh2.read();
     print('lookup verb response : $response');
     expect(response, contains('data:$newValue'));
 
     /// lookup with bypass_cache set to false
     /// should return the old value
-    await sh2.writeCommand('lookup:bypass_cache:true:username$atSign_1');
+    await sh2.writeCommand('lookup:bypassCache:false:username$atSign_1');
     response = await sh2.read();
     print('lookup verb response : $response');
-    expect(response, contains('data:$newValue'));
+    expect(response, contains('data:$value'));
   }, timeout: Timeout(Duration(minutes: 3)));
 
   // Will uncomment after validations are in place
