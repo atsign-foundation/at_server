@@ -594,38 +594,46 @@ void main() {
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
+
+      int ttl = 1000; // in milliseconds
+      int ttb = 1000; // in milliseconds
+
       updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTL, () => '10000');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '10000');
+      updateVerbParams.putIfAbsent(AT_TTL, () => ttl.toString());
+      updateVerbParams.putIfAbsent(AT_TTB, () => ttb.toString());
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
-      //LLOOKUP Verb - TTB
-      var localLookUpResponse_ttb = Response();
+
+      //LLOOKUP Verb - Before TTB
+      var localLookUpResponseBeforeTtb = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttb, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttb.data, null);
-      await Future.delayed(Duration(seconds: 10));
+          localLookUpResponseBeforeTtb, localLookVerbParam, atConnection);
+      expect(localLookUpResponseBeforeTtb.data, null); // should be null, value has not passed ttb
+
       //LLOOKUP Verb - After TTB
-      var localLookUpResponse_ttb1 = Response();
+      await Future.delayed(Duration(milliseconds: ttb));
+      var localLookUpResponseAfterTtb = Response();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttb1, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttb1.data, 'hyderabad');
-      await Future.delayed(Duration(seconds: 10));
+          localLookUpResponseAfterTtb, localLookVerbParam, atConnection);
+      expect(localLookUpResponseAfterTtb.data, 'hyderabad'); // after ttb has passed, the value should exist
+
       //LLOOKUP Verb - After TTL
-      var localLookUpResponse_ttl = Response();
+      await Future.delayed(Duration(milliseconds: ttl));
+      var localLookUpResponseAfterTtl = Response();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse_ttl, localLookVerbParam, atConnection);
-      expect(localLookUpResponse_ttl.data, null);
+          localLookUpResponseAfterTtl, localLookVerbParam, atConnection);
+      expect(localLookUpResponseAfterTtl.data, null); // after ttl has passed, the value should no longer be live
     });
 
     test('Test to verify reset of TTB', () async {

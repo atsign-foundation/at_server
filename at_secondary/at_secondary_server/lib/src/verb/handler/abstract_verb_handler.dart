@@ -15,7 +15,7 @@ final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 abstract class AbstractVerbHandler implements VerbHandler {
   SecondaryKeyStore? keyStore;
 
-  late var logger;
+  late AtSignLogger logger;
   ResponseHandlerManager responseManager = DefaultResponseHandlerManager();
 
   AbstractVerbHandler(this.keyStore) {

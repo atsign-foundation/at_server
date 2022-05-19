@@ -1,3 +1,5 @@
+## 3.0.25
+- To reduce latency on notifications, publish the event for the notification before persisting the notification 
 ## 3.0.24
 - Introduced a cache to speed up metaData retrieval.
 - Removed unnecessary print statements

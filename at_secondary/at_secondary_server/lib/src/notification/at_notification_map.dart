@@ -3,9 +3,11 @@ import 'package:at_secondary/src/notification/notification_wait_time.dart';
 import 'package:at_secondary/src/notification/strategy/all_notifications.dart';
 import 'package:at_secondary/src/notification/strategy/latest_notifications.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_utils/at_logger.dart';
 
 class AtNotificationMap {
   static final AtNotificationMap _singleton = AtNotificationMap._internal();
+  final logger = AtSignLogger('AtNotificationMap');
 
   AtNotificationMap._internal();
 
@@ -13,15 +15,11 @@ class AtNotificationMap {
     return _singleton;
   }
 
-  final _notificationMap = <String?, Map<String, NotificationStrategy>>{};
-  final _waitTimeMap = <String?, NotificationWaitTime>{};
-  var _quarantineMap = <String?, DateTime>{};
+  final Map<String?, Map<String, NotificationStrategy>> _notificationMap = <String?, Map<String, NotificationStrategy>>{};
+  final Map<String?, NotificationWaitTime> _waitTimeMap = <String?, NotificationWaitTime>{};
+  final Map<String?, DateTime> _quarantineMap = <String?, DateTime>{};
 
   Map<String?, DateTime> get quarantineMap => _quarantineMap;
-
-  set quarantineMap(value) {
-    _quarantineMap = value;
-  }
 
   /// Adds the notifications to map where key is [AtNotification.toAtSign] and value is classes implementing [NotificationStrategy]
   void add(AtNotification atNotification) {
@@ -32,22 +30,46 @@ class AtNotificationMap {
     _computeWaitTime(atNotification);
   }
 
+  int numQueued(String atSign) {
+    // If map is empty, or map doesn't contain the atSign, return an iterator for an empty list
+    if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
+      return 0;
+    }
+
+    Map<String, NotificationStrategy>? tempMap = _notificationMap[atSign]!; // can't be null, we've just checked containsKey
+    LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
+    AllNotifications allList = tempMap['all'] as AllNotifications;
+    return latestList.length + allList.length;
+  }
+
   /// Returns the map of first N entries.
-  Iterator<AtNotification> remove(String? atsign) {
-    // If map is empty, return empty map
-    if (_notificationMap.isEmpty) {
-      return [].iterator as Iterator<AtNotification>;
+  Iterator<AtNotification> remove(String? atSign) {
+    List<AtNotification> returnList;
+    // If map is empty, or map doesn't contain the atSign, return an iterator for an empty list
+    if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
+      returnList = [];
+    } else {
+      Map<String, NotificationStrategy> tempMap = _notificationMap.remove(atSign)!;
+      var latestList = tempMap['latest'] as LatestNotifications;
+      var allList = tempMap['all'] as AllNotifications;
+      returnList = List<AtNotification>.from(latestList.toList())
+        ..addAll(allList.toList()!);
+      tempMap.clear();
     }
-    // If map does not contain the atsign, return empty map.
-    if (!_notificationMap.containsKey(atsign)) {
-      return [].iterator as Iterator<AtNotification>;
-    }
-    var tempMap = _notificationMap.remove(atsign)!;
-    var latestList = tempMap['latest'] as LatestNotifications;
-    var list = tempMap['all'] as AllNotifications;
-    var returnList = List<AtNotification>.from(latestList.toList())
-      ..addAll(list.toList()!);
-    tempMap.clear();
+    returnList.sort((a, b) {
+      if(a.notificationDateTime == null && b.notificationDateTime == null) {
+        return 0;
+      }
+      if(a.notificationDateTime == null) {
+        return 1;
+      }
+      if(b.notificationDateTime == null) {
+        return -1;
+      }
+
+      return a.notificationDateTime!.compareTo(b.notificationDateTime!);
+    });
+
     return returnList.iterator;
   }
 
@@ -78,7 +100,7 @@ class AtNotificationMap {
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
     notificationWaitTime.prioritiesSum = atNotification.priority!.index;
     notificationWaitTime.totalPriorities += 1;
-    var date;
+    DateTime? date;
     if (notificationWaitTime.totalPriorities == 1) {
       date = atNotification.notificationDateTime;
     }
