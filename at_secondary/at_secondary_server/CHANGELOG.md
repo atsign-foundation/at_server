@@ -1,3 +1,5 @@
+## 3.0.17
+- FEAT: Support to bypass cache
 ## 3.0.16
 - Significant decreases in inter-at-sign notification latency from 1 to 6 seconds to 5 to 100 milliseconds
 ## 3.0.15
