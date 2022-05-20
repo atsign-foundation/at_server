@@ -60,4 +60,4 @@ jobs:
         # Deploy the Docker image to the GKE cluster
         - name: Deploy
           run: |-
-            kubect get pod -n root
+            kubectl get pod -n root
