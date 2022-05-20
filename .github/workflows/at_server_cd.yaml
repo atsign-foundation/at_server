@@ -1,0 +1,32 @@
+name: at_root
+  push:
+    branches:
+      - ci-cd-test 
+jobs:
+  Dart_Docker_Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        
+      # Extract branch for docker tag
+      - name: Get branch name
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      # Build the Docker image for Dev
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          file: at_root/at_root_server/Dockerfile
+          context: at_root/at_root_server
+          push: true
+          tags: atsigncompany/root:nkumar-${{ env.BRANCH }}-gha${{ github.run_number }}
