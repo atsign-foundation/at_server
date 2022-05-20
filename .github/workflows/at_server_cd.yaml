@@ -4,7 +4,7 @@ on:
     branches:
       - ci-cd-test
 jobs:
-  Dart_Docker_Build:
+  Docker_Build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,4 +30,34 @@ jobs:
           file: at_root/at_root_server/Dockerfile
           context: at_root/at_root_server
           push: true
-          tags: atsigncompany/root:nkumar-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+
+  Deploy_On_Dev_K8:
+      needs: Docker_Build
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v3
+          
+        # Extract branch for docker tag
+        - name: Get branch name
+          run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+        # Setup gcloud CLI
+        - uses: google-github-actions/setup-gcloud@v0.6.0
+          with:
+            service_account_key: ${{ secrets.GKE_SA_DEV_KEY }}
+            project_id: ${{ secrets.GKE_DEV_PROJECT }}
+
+        # Get the GKE credentials so we can deploy to the cluster
+        - uses: google-github-actions/get-gke-credentials@v0.7.0
+          with:
+            cluster_name: ${{ secrets.GKE_DEV_CLUSTER }}
+            location: ${{ secrets.GKE_DEV_ZONE }}
+            credentials: ${{ secrets.GKE_SA_DEV_KEY }}
+
+
+        # Deploy the Docker image to the GKE cluster
+        - name: Deploy
+          run: |-
+            kubect get pod -n root
