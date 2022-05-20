@@ -1,0 +1,158 @@
+import 'dart:io';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
+import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/queue_manager.dart';
+import 'package:at_secondary/src/notification/resource_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockOutboundClient extends Mock implements OutboundClient {}
+
+void main() async {
+  OutboundClient mockOutboundClient = MockOutboundClient();
+  ResourceManager rm = ResourceManager.getInstance();
+  var storageDir = Directory.current.path + '/test/hive';
+
+  setUp(() {
+    reset(mockOutboundClient);
+    when(() => mockOutboundClient.notify(any())).thenAnswer((_) async {
+      throw Exception('Failed to Notify');
+    });
+  });
+
+  group('A group of notify verb test', () {
+    setUp(() async => await setUpFunc(storageDir));
+    test('Test send notifications', () async {
+      var atNotification1 = (AtNotificationBuilder()
+            ..id = '121'
+            ..atValue = 'bob@gmail.com'
+            ..notification = 'email'
+            ..fromAtSign = '@bob'
+            ..toAtSign = '@alice'
+            ..strategy = 'all'
+            ..opType = OperationType.update
+            ..ttl = -1
+            ..retryCount = 1)
+          .build();
+      var atNotification2 = (AtNotificationBuilder()
+            ..id = '122'
+            ..atValue = '90192019021'
+            ..fromAtSign = '@bob'
+            ..toAtSign = '@alice'
+            ..strategy = 'all'
+            ..opType = OperationType.update
+            ..notification = 'phone'
+            ..retryCount = 1)
+          .build();
+      var atNotification3 = (AtNotificationBuilder()
+            ..id = '123'
+            ..fromAtSign = '@bob'
+            ..toAtSign = '@alice'
+            ..atValue = 'USA'
+            ..strategy = 'all'
+            ..opType = OperationType.update
+            ..notification = 'location'
+            ..retryCount = 1)
+          .build();
+      var atsign = '@alice';
+      Iterator notificationIterator =
+          [atNotification1, atNotification2, atNotification3].iterator;
+      await rm.sendNotifications(
+          atsign, mockOutboundClient, notificationIterator);
+      var atNotificationList = [];
+      var itr = QueueManager.getInstance().dequeue(atsign);
+      while (itr.moveNext()) {
+        atNotificationList.add(itr.current);
+      }
+      expect(atNotificationList[0].id, '121');
+      expect(atNotificationList[1].id, '122');
+      expect(atNotificationList[2].id, '123');
+    }, timeout: Timeout(Duration(seconds: 10)));
+  });
+
+  group('A group of tests to resource_manager', () {
+    test('Test to verify prepare notification command', () {
+      var atNotification = (AtNotificationBuilder()
+            ..id = '1234'
+            ..notification = '@bob:phone@alice')
+          .build();
+
+      var notifyCommand = ResourceManager.getInstance()
+          .prepareNotifyCommandBody(atNotification);
+      expect(notifyCommand,
+          'id:1234:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
+    });
+
+    test('Test to verify prepare notification without passing any fields', () {
+      var atNotification = (AtNotificationBuilder()..id = '1122').build();
+      var notifyCommand = ResourceManager.getInstance()
+          .prepareNotifyCommandBody(atNotification);
+      expect(notifyCommand,
+          'id:1122:messageType:key:notifier:system:ttln:86400000:null');
+    });
+
+    test('Test to verify prepare notification command for delete notification',
+        () {
+      var atNotification = (AtNotificationBuilder()
+            ..id = '1234'
+            ..notification = '@bob:phone@alice'
+            ..opType = OperationType.delete)
+          .build();
+
+      var notifyCommand = ResourceManager.getInstance()
+          .prepareNotifyCommandBody(atNotification);
+      expect(notifyCommand,
+          'id:1234:delete:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
+    });
+
+    test('Test to verify prepare notification command for message type text',
+        () {
+      var atNotification = (AtNotificationBuilder()
+            ..id = '1234'
+            ..notification = '@bob:phone@alice'
+            ..notifier = 'wavi'
+            ..messageType = MessageType.text)
+          .build();
+
+      var notifyCommand = ResourceManager.getInstance()
+          .prepareNotifyCommandBody(atNotification);
+      expect(notifyCommand,
+          'id:1234:messageType:text:notifier:wavi:ttln:86400000:@bob:phone@alice');
+    });
+  });
+}
+
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
+  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@bob';
+  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
+  var persistenceManager =
+      secondaryPersistenceStore.getHivePersistenceManager()!;
+  await persistenceManager.init(storageDir);
+//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
+  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  var keyStoreManager =
+      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  keyStoreManager.keyStore = hiveKeyStore;
+  hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(atsign ?? '@bob', commitLogPath: storageDir);
+  await AtAccessLogManagerImpl.getInstance()
+      .getAccessLog(atsign ?? '@bob', accessLogPath: storageDir);
+  var notificationInstance = AtNotificationKeystore.getInstance();
+  notificationInstance.currentAtSign = atsign ?? '@bob';
+  await notificationInstance.init(storageDir);
+  return keyStoreManager;
+}
+
+Future<void> tearDownFunc() async {
+  var isExists = await Directory('test/hive').exists();
+  AtNotificationMap.getInstance().clear();
+  await AtNotificationKeystore.getInstance().close();
+  if (isExists) {
+    await Directory('test/hive').delete(recursive: true);
+  }
+}
