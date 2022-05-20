@@ -60,4 +60,5 @@ jobs:
         # Deploy the Docker image to the GKE cluster
         - name: Deploy
           run: |-
-            kubectl get pod -n root
+            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+            kubect get pod -n root
