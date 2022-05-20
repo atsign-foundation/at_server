@@ -61,4 +61,4 @@ jobs:
         - name: Deploy
           run: |-
             kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
-            kubect get pod -n root
+            kubectl get pod -n root
