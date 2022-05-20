@@ -1,7 +1,8 @@
-name: at_root
+name: root
+on:
   push:
     branches:
-      - ci-cd-test 
+      - ci-cd-test
 jobs:
   Dart_Docker_Build:
     runs-on: ubuntu-latest
