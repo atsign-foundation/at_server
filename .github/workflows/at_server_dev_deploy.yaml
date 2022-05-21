@@ -1,8 +1,8 @@
-name: root
+name: root_server
 on:
   push:
     branches:
-      - ci-cd-test
+      - trunk
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
@@ -56,9 +56,7 @@ jobs:
             location: ${{ secrets.GKE_DEV_ZONE }}
             credentials: ${{ secrets.GKE_SA_DEV_KEY }}
 
-
         # Deploy the Docker image to the GKE cluster
         - name: Deploy
           run: |-
             kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
-            kubectl get pod -n root
