@@ -65,4 +65,5 @@ jobs:
       # Deploy the Docker image to the GKE cluster
       - name: Deploy
         run: |-
-          kubectl get po -n root-api
+          kubectl -n root set image deployment/root root=atsigncompany/root:prod-${{ env.BRANCH }}-gha${{ github.run_number }}
+          kubectl get pod -n root
