@@ -1,14 +1,8 @@
-# name: root
-# on:
-#   push:
-#     tags:
-#       - 'v*.*.*'
-
-name: root
+name: root_server
 on:
   push:
-    branches:
-      - ci-cd-test
+    tags:
+      - 'v*.*.*'
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
@@ -66,4 +60,3 @@ jobs:
       - name: Deploy
         run: |-
           kubectl -n root set image deployment/root root=atsigncompany/root:prod-${{ env.BRANCH }}-gha${{ github.run_number }}
-          kubectl get pod -n root
