@@ -72,16 +72,21 @@ class GlobalExceptionHandler {
       logger.warning(exception.toString());
       await _sendResponseForException(exception, atConnection);
 
-    } else if (exception is AtServerException ||
-        exception is ArgParserException) {
-      // In case of AtServerException terminate the server
+    } else if (exception is ArgParserException) {
+      // TODO [gkc] I suspect this code block is not reachable. Verify and delete
       logger.shout("Terminating secondary due to ${exception.toString()}");
-      _terminateSecondary();
+      try {
+        await AtSecondaryServerImpl.getInstance().stop();
+      } finally {
+        exit(1);
+      }
 
     } else if (exception is InternalServerError) {
+      logger.severe(exception.toString());
       await _handleInternalException(exception, atConnection);
 
     } else {
+      logger.shout("Unexpected exception '${exception.toString()}'");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);
@@ -128,10 +133,6 @@ class GlobalExceptionHandler {
         _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
     }
-  }
-
-  void _terminateSecondary() {
-    exit(0);
   }
 
   String _getPrompt(AtConnection atConnection) {
