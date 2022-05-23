@@ -12,10 +12,12 @@ import 'package:mocktail/mocktail.dart';
 class MockOutboundClient extends Mock implements OutboundClient {}
 
 void main() async {
+  // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
   ResourceManager rm = ResourceManager.getInstance();
   var storageDir = Directory.current.path + '/test/hive';
 
+  //  forcing the notification sending to fail with an exception
   setUp(() {
     reset(mockOutboundClient);
     when(() => mockOutboundClient.notify(any())).thenAnswer((_) async {
@@ -23,6 +25,10 @@ void main() async {
     });
   });
 
+  /// Purpose of the test is to do the following
+  /// 1) Passing an notification iterator having valid & invalid notifications.
+  /// 2) Verifying that all of the queued notifications are still enqueued when one of the notification is invalid.
+  /// 3) dequeue() should return the same 3 notifications as the one's we passed
   group('A group of notify verb test', () {
     setUp(() async => await setUpFunc(storageDir));
     test('Test send notifications', () async {
@@ -58,6 +64,7 @@ void main() async {
             ..retryCount = 1)
           .build();
       var atsign = '@alice';
+      // Iterator containing all the notifications
       Iterator notificationIterator =
           [atNotification1, atNotification2, atNotification3].iterator;
       await rm.sendNotifications(
@@ -67,8 +74,11 @@ void main() async {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
+      // Expecting that the atNotificationList[0] returned from the dequeue() is same as the notification we passed i.e., atNotificationid1.id
       expect(atNotificationList[0].id, '121');
+      // Expecting that the atNotificationList[1] returned from the dequeue() is same as the notification we passed i.e., atNotificationid2.id
       expect(atNotificationList[1].id, '122');
+      // Expecting that the atNotificationList[2] returned from the dequeue() is same as the notification we passed i.e., atNotificationid3.id
       expect(atNotificationList[2].id, '123');
     }, timeout: Timeout(Duration(seconds: 10)));
   });
@@ -82,6 +92,8 @@ void main() async {
 
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
+
+      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
           'id:1234:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
     });
@@ -90,6 +102,8 @@ void main() async {
       var atNotification = (AtNotificationBuilder()..id = '1122').build();
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
+
+      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
           'id:1122:messageType:key:notifier:system:ttln:86400000:null');
     });
@@ -101,9 +115,10 @@ void main() async {
             ..notification = '@bob:phone@alice'
             ..opType = OperationType.delete)
           .build();
-
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
+
+      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
           'id:1234:delete:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
     });
@@ -116,9 +131,10 @@ void main() async {
             ..notifier = 'wavi'
             ..messageType = MessageType.text)
           .build();
-
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
+
+      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
           'id:1234:messageType:text:notifier:wavi:ttln:86400000:@bob:phone@alice');
     });
