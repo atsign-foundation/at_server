@@ -1,4 +1,4 @@
-name: root_server
+name: at_root
 on:
   push:
     branches:
@@ -8,21 +8,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        
+        uses: actions/checkout@v3.0.2
+
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-        
+        uses: docker/setup-buildx-action@v2.0.0
+
       - name: Login to DockerHub
-        uses: docker/login-action@v1 
+        uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       # Build the Docker image for Dev
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -30,15 +30,14 @@ jobs:
           file: at_root/at_root_server/Dockerfile
           context: at_root/at_root_server
           push: true
-          tags: atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: |
+            atsigncompany/root:dev_env
+            atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
 
   Deploy_On_Dev_K8:
       needs: Docker_Build
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout
-          uses: actions/checkout@v3
-          
         # Extract branch for docker tag
         - name: Get branch name
           run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -59,4 +58,4 @@ jobs:
         # Deploy the Docker image to the GKE cluster
         - name: Deploy
           run: |-
-            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env
