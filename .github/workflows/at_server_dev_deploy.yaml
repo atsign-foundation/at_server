@@ -2,7 +2,7 @@ name: at_root
 on:
   push:
     branches:
-      - ci-cd-test
+      - trunk
     paths:
       - at_root/**
 jobs:
