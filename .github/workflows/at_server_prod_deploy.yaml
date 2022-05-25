@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - 'r*.*.*'
+  paths:
+      - at_root/**
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
