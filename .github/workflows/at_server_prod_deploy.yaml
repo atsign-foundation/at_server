@@ -3,7 +3,7 @@ on:
   push:
     tags:
       - 'r*.*.*'
-  paths:
+    paths:
       - at_root/**
 jobs:
   Docker_Build:
