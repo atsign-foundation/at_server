@@ -230,7 +230,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         return;
       }
       var _sessionID = '_' + Uuid().v4();
-      var connection;
+      InboundConnection? connection;
       try {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
@@ -244,9 +244,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .handle(e, atConnection: connection, clientSocket: clientSocket);
       }
     }), onError: (error) {
-      logger.severe(error);
-      GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(error.toString()));
+      // We've got no action to take here, let's just log a warning
+      logger.warning("ServerSocket.listen called onError with '$error'");
     });
   }
 
