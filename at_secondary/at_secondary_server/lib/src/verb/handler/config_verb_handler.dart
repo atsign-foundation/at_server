@@ -1,11 +1,12 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'dart:ffi';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
@@ -55,6 +56,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
+      String? setOperation = verbParams[SET_OPERATION];
 
       switch (operation) {
         case 'show':
@@ -80,7 +82,25 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
           break;
         default:
-          result = 'unknown operation';
+          //do nothing
+          break;
+      }
+
+      switch (setOperation) {
+        case 'set':
+          result = _modifyServerConfig(
+                      verbParams[CONFIG_NAME]!, verbParams[CONFIG_VALUE]!)
+                  .toString() +
+              'is the present pool size';
+          break;
+        case 'reset':
+          result = 'reset operation';
+          break;
+        case 'print':
+          result = 'print operation';
+          break;
+        default:
+          result = 'invalid operation/setOperation';
           break;
       }
       response.data = result?.toString();
@@ -103,6 +123,16 @@ Set<String> _retainNonCurrentAtsign(String currentAtSign, String atsign) {
   var nonCurrentAtSignsList = _toSet(atsign);
   nonCurrentAtSignsList.removeWhere((data) => data == currentAtSign);
   return nonCurrentAtSignsList;
+}
+
+int? _modifyServerConfig(String configName, String configValue) {
+  switch (configName) {
+    case 'inbound_connection_limit':
+      InboundConnectionManager.getInstance()
+          .init(int.parse(configValue), isColdInit: false);
+
+      return InboundConnectionPool.getInstance().getCapacity();
+  }
 }
 
 ///converts [data] into json.
