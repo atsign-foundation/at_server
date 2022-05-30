@@ -6,6 +6,7 @@ import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
@@ -83,7 +84,7 @@ class ResourceManager {
           await _enqueueErrorList(errorList);
           continue;
         }
-        await _sendNotifications(atSign!, outboundClient, notificationIterator);
+        await sendNotifications(atSign!, outboundClient, notificationIterator);
       }
     } on Exception catch (ex, stackTrace) {
       logger.severe("_processNotificationQueue() caught exception $ex");
@@ -116,7 +117,8 @@ class ResourceManager {
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
-  Future<void> _sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
+  @visibleForTesting
+  Future<void> sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
     // ignore: prefer_typing_uninitialized_variables
     var notifyResponse, atNotification;
     var errorList = [];
@@ -124,7 +126,7 @@ class ResourceManager {
     try {
       while (iterator.moveNext()) {
         atNotification = iterator.current;
-        var notifyCommandBody = _prepareNotifyCommandBody(atNotification);
+        var notifyCommandBody = prepareNotifyCommandBody(atNotification);
         notifyResponse = await outBoundClient.notify(notifyCommandBody);
         await _notifyResponseProcessor(
             notifyResponse, atNotification, errorList);
@@ -164,7 +166,8 @@ class ResourceManager {
   /// Prepares the notification key.
   /// Accepts [AtNotification]
   /// Returns the key of notification key.
-  String _prepareNotifyCommandBody(AtNotification atNotification) {
+  @visibleForTesting
+  String prepareNotifyCommandBody(AtNotification atNotification) {
     String commandBody;
     commandBody = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
