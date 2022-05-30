@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -92,7 +92,7 @@ jobs:
         run: |
           chmod +x add_dependency_overrides.py
           python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
-      
+
       # Runs dart lint rules and unit tests on at_secondary_server
       - name: Install dependencies in at_secondary_server
         working-directory: ${{ env.secondary-working-directory }}
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -163,7 +163,7 @@ jobs:
           cp at_secondary/at_secondary_server/secondary at_virtual_environment/ve/contents/atsign/secondary/
           chmod 755 at_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR at_virtual_environment/ve/*
-          
+
       - name: Build docker image
         uses: docker/build-push-action@v3.0.0
         with:
@@ -174,7 +174,7 @@ jobs:
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
-        
+
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: at_functional_test
@@ -198,8 +198,8 @@ jobs:
       # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
       - name: Remove docker image
         run: docker rmi at_virtual_env:trunk
-  
-  
+
+
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
@@ -207,7 +207,7 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
@@ -252,7 +252,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -310,7 +310,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -345,7 +345,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
@@ -397,7 +397,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
@@ -450,7 +450,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
@@ -521,7 +521,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       # Extract version for docker tag
       - name: Get version
@@ -568,7 +568,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.2
 
       # Extract version for docker tag
       - name: Get version
@@ -645,7 +645,7 @@ jobs:
             --amend atsigncompany/secondary:dess-arm64 \
             --amend atsigncompany/secondary:dess-x64
           docker manifest push atsigncompany/secondary:dess
-      
+
   push_prod_virtualenv_image:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
@@ -658,7 +658,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0 
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -685,7 +685,7 @@ jobs:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
- 
+
 #  # Deploy root server image to cluster
 #  deploy_root_sever:
 #    needs: [ unit_tests, functional_tests, end2end_tests ]
