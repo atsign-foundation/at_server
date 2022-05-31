@@ -15,6 +15,11 @@ class CommitLogKeyStore
   final String _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
+
+  /// Contains the entries that are last synced by the client SDK.
+  /// The key represents the regex and value represents the [CommitEntry]
+  final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
+
   int _latestCommitId = -1;
 
   int get latestCommitId => _latestCommitId;
@@ -82,10 +87,21 @@ class CommitLogKeyStore
   }
 
   @override
-  Future update(int commitId, CommitEntry? commitEntry) async {
+  Future<void> update(int commitId, CommitEntry? commitEntry) async {
     try {
       commitEntry!.commitId = commitId;
       await _getBox().put(commitEntry.key, commitEntry);
+
+      if (_lastSyncedEntryCacheMap.isEmpty) {
+        return;
+      }
+      // Iterate through the regex's in the _lastSyncedEntryCacheMap.
+      // Updates the commitEntry against the matching regexes.
+      for (var regex in _lastSyncedEntryCacheMap.keys) {
+        if (RegExp(regex).hasMatch(commitEntry.atKey!)) {
+          _lastSyncedEntryCacheMap[regex] = commitEntry;
+        }
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -125,20 +141,42 @@ class CommitLogKeyStore
     return lastCommittedSequenceNum;
   }
 
-  Future<CommitEntry?> lastSyncedEntry({String? regex}) async {
-    // ignore: prefer_typing_uninitialized_variables
-    var lastSyncedEntry;
-    var values = await _getValues();
-    if (regex != null) {
-      lastSyncedEntry = values.lastWhere(
-          (entry) =>
-              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
-          orElse: () => null);
-    } else {
-      lastSyncedEntry = values.lastWhere((entry) => entry.commitId != null,
-          orElse: () => null);
+  /// Returns the lastSyncedEntry to commitLog keystore.
+  ///
+  /// Optionally accepts the regex. Matches the regex against the [CommitEntry.AtKey] and returns the
+  /// matching [CommitEntry]. Defaulted to accept all patterns.
+  Future<CommitEntry?> lastSyncedEntry({String regex = '.*'}) async {
+    if (_lastSyncedEntryCacheMap.containsKey(regex)) {
+      return _lastSyncedEntryCacheMap[regex];
     }
+
+    CommitEntry? lastSyncedEntry;
+    var values = await _getValues()
+      ..sort(_sortByCommitId);
+    lastSyncedEntry = values.lastWhere(
+        (entry) =>
+            (_isRegexMatches(entry.atKey!, regex) && (entry.commitId != null)),
+        orElse: () => null);
+
+    if (lastSyncedEntry == null) {
+      return null;
+    }
+
+    _lastSyncedEntryCacheMap.putIfAbsent(regex, () => lastSyncedEntry!);
     return lastSyncedEntry;
+  }
+
+  int _sortByCommitId(dynamic c1, dynamic c2) {
+    if (c1.commitId == null && c2.commitId == null) {
+      return 0;
+    }
+    if (c1.commitId != null && c2.commitId == null) {
+      return 1;
+    }
+    if (c1.commitId == null && c2.commitId != null) {
+      return -1;
+    }
+    return c1.commitId.compareTo(c2.commitId);
   }
 
   /// Returns the first committed sequence number
@@ -357,5 +395,10 @@ class CommitLogKeyStore
   ///Returns the total number of keys in commit log keystore.
   int getEntriesCount() {
     return _getBox().length;
+  }
+
+  ///Not a part of API. Exposed for Unit test
+  List<CommitEntry> getLastSyncedEntryCacheMapValues() {
+    return _lastSyncedEntryCacheMap.values.toList();
   }
 }
