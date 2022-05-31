@@ -36,31 +36,39 @@ class AtSecondaryConfig {
   static final int? _accessLogSizeInKB = 2;
 
   //Notification
-  static final int _maxNotificationRetries = 5;
-  static final int? _maxNotificationEntries = 5;
   static final bool? _autoNotify = true;
+  // The maximum number of retries for a notification.
+  static final int _maxNotificationRetries = 30;
+  // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
   static final int _notificationQuarantineDuration = 10;
-  static final int _notificationJobFrequency = 5;
+  // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
+  // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
+  // seconds have passed since the last queue-processing run completed.
+  static final int _notificationJobFrequency = 11;
+  // The time interval(in seconds) to notify latest commitID to monitor connections
+  // To disable to the feature, set to -1.
+  static final int _statsNotificationJobTimeInterval = 15;
+
   static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
   static final int? _notificationKeyStoreCompactionPercentage = 30;
   static final int? _notificationKeyStoreExpiryInDays = 1;
   static final int? _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
-  static int? _runRefreshJobHour = 3;
+  static final int _runRefreshJobHour = 3;
 
   //Connection
-  static final int _inbound_max_limit = 10;
-  static final int _outbound_max_limit = 10;
-  static final int _inbound_idletime_millis = 600000;
-  static final int _outbound_idletime_millis = 600000;
+  static final int _inboundMaxLimit = 10;
+  static final int _outboundMaxLimit = 10;
+  static final int _inboundIdleTimeMillis = 600000;
+  static final int _outboundIdleTimeMillis = 600000;
 
   //Lookup
-  static final int? _lookup_depth_of_resolution = 3;
+  static final int _lookupDepthOfResolution = 3;
 
   //Stats
-  static final int? _stats_top_keys = 5;
-  static final int? _stats_top_visits = 5;
+  static final int _statsTopKeys = 5;
+  static final int _statsTopVisits = 5;
 
   //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
   static final String _defaultLogLevel = 'INFO';
@@ -71,9 +79,6 @@ class AtSecondaryConfig {
 
   //force restart
   static final bool _isForceRestart = false;
-
-  //StatsNotificationService
-  static final int _statsNotificationJobTimeInterval = 15;
 
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
@@ -141,18 +146,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['refreshJob', 'runJobHour']);
     } on ElementNotFoundException {
       return _runRefreshJobHour;
-    }
-  }
-
-  static int? get maxNotificationEntries {
-    var result = _getIntEnvVar('maxNotificationEntries');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['notification', 'max_entries']);
-    } on ElementNotFoundException {
-      return _maxNotificationEntries;
     }
   }
 
@@ -373,7 +366,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _outbound_idletime_millis;
+      return _outboundIdleTimeMillis;
     }
   }
 
@@ -386,7 +379,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _inbound_idletime_millis;
+      return _inboundIdleTimeMillis;
     }
   }
 
@@ -399,7 +392,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_max_limit']);
     } on ElementNotFoundException {
-      return _outbound_max_limit;
+      return _outboundMaxLimit;
     }
   }
 
@@ -412,7 +405,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
     } on ElementNotFoundException {
-      return _inbound_max_limit;
+      return _inboundMaxLimit;
     }
   }
 
@@ -425,7 +418,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['lookup', 'depth_of_resolution']);
     } on ElementNotFoundException {
-      return _lookup_depth_of_resolution;
+      return _lookupDepthOfResolution;
     }
   }
 
@@ -438,7 +431,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_visits']);
     } on ElementNotFoundException {
-      return _stats_top_visits;
+      return _statsTopVisits;
     }
   }
 
@@ -451,7 +444,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_keys']);
     } on ElementNotFoundException {
-      return _stats_top_keys;
+      return _statsTopKeys;
     }
   }
 
@@ -559,10 +552,10 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get notificationJobFrequency {
+  static int get notificationJobFrequency {
     var result = _getIntEnvVar('notificationJobFrequency');
     if (result != null) {
-      return _getIntEnvVar('notificationJobFrequency');
+      return result;
     }
     try {
       return getConfigFromYaml(['notification', 'jobFrequency']);

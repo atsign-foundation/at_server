@@ -7,6 +7,8 @@ import 'package:at_secondary/src/notification/priority_queue_impl.dart';
 class LatestNotifications implements NotificationStrategy {
   final _latestNotificationsMap = <String?, AtNotificationPriorityQueue>{};
 
+  int get length => _latestNotificationsMap.length;
+
   @override
   void add(AtNotification atNotification) {
     if (!_latestNotificationsMap.containsKey(atNotification.notifier)) {
@@ -14,8 +16,8 @@ class LatestNotifications implements NotificationStrategy {
           () => AtNotificationPriorityQueue(comparison: _comparePriorityDates));
     }
     var list = _latestNotificationsMap[atNotification.notifier]!;
-    if (atNotification.depth! <= list.size()!) {
-      var n = atNotification.depth! - list.size()!;
+    if (atNotification.depth! <= list.size()) {
+      var n = atNotification.depth! - list.size();
       while (n == 0) {
         list.removeNotification();
         n--;
@@ -28,9 +30,9 @@ class LatestNotifications implements NotificationStrategy {
   /// Returns a List of AtNotifications.
   List<AtNotification> toList() {
     var tempList = <AtNotification>[];
-    _latestNotificationsMap.keys.forEach((element) {
+    for (var element in _latestNotificationsMap.keys) {
       tempList.addAll(_latestNotificationsMap[element]!.toList()!);
-    });
+    }
     return tempList;
   }
 
