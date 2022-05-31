@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
+  static Map<String, StreamController> _streamListeners = {};
   //Certs
   static final bool? _useSSL = true;
   static final bool? _clientCertificateRequired = true;
+  static final bool? _testingMode = false;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
@@ -107,6 +110,14 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _useSSL;
     }
+  }
+
+  static bool? get testingMode {
+    var result = _getBoolEnvVar('testingMode');
+    if (result != null) {
+      return result;
+    }
+    return getConfigFromYaml(['testing', 'testingMode']) ?? _testingMode;
   }
 
   static bool? get clientCertificateRequired {
@@ -594,6 +605,24 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['sync', 'pageLimit']);
     } on ElementNotFoundException {
       return _syncPageLimit;
+    }
+  }
+
+  static Stream<int>? subscribe(String configName) {
+    if (testingMode!) {
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = StreamController<int>.broadcast();
+      }
+      return _streamListeners[configName]!.stream as Stream<int>;
+    }
+  }
+
+  static void broadcastConfigChange(String configName, int newConfigValue) {
+    if (testingMode!) {
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = StreamController<int>.broadcast();
+      }
+      _streamListeners[configName]?.add(newConfigValue);
     }
   }
 

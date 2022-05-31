@@ -11,6 +11,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
 
+import '../../server/at_secondary_config.dart';
+
 enum ConfigOp { ADD, REMOVE, SHOW }
 
 extension Value on ConfigOp {
@@ -88,10 +90,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
 
       switch (setOperation) {
         case 'set':
-          result = _modifyServerConfig(
-                      verbParams[CONFIG_NAME]!, verbParams[CONFIG_VALUE]!)
-                  .toString() +
-              'is the present pool size';
+          AtSecondaryConfig.broadcastConfigChange(
+              verbParams[CONFIG_NAME]!, int.parse(verbParams[CONFIG_VALUE]!));
           break;
         case 'reset':
           result = 'reset operation';

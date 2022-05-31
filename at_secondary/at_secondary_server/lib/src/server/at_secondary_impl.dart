@@ -195,6 +195,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
+    if (AtSecondaryConfig.testingMode!) {
+      AtSecondaryConfig.subscribe('inbound_max_limit')?.listen((newSize) {
+        inboundConnectionFactory.init(newSize, isColdInit: false);
+        logger.info(
+            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
+      });
+      logger.info('Subscribing to inbound_max_limit');
+    }
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
 
