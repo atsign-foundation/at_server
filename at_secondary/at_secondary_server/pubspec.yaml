@@ -20,12 +20,12 @@ dependencies:
   at_lookup: ^3.0.22
   at_server_spec: ^3.0.7
 
-#dependency_overrides:
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: new_set_verb
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -41,11 +41,11 @@ dependencies:
 #       url: https://github.com/atsign-foundation/at_server.git
 #       path: at_secondary/at_persistence_secondary_server
 #       ref: meta_data_cache
-#   at_server_spec:
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_server_spec
-#       ref: trunk
+  at_server_spec:
+     git:
+       url: https://github.com/atsign-foundation/at_server.git
+       path: at_server_spec
+       ref: set_verb
 
 dev_dependencies:
   test: ^1.17.3
