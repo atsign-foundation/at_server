@@ -27,11 +27,11 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
       ref: new_set_verb
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_secondary/at_persistence_secondary_server
-#      ref: straight_through_notify
+ at_persistence_secondary_server:
+   git:
+     url: https://github.com/atsign-foundation/at_server.git
+     path: at_secondary/at_persistence_secondary_server
+     ref: set_verb
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
