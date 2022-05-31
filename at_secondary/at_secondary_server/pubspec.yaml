@@ -47,7 +47,7 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_utils
 #      ref: trunk
-  at_server_spec:
+at_server_spec:
      git:
        url: https://github.com/atsign-foundation/at_server.git
        path: at_server_spec
