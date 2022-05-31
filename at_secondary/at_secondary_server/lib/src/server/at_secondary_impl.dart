@@ -155,6 +155,24 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
+    if (AtSecondaryConfig.testingMode!) {
+      logger.finest(
+          'Subscribing to dynamic changes made to commitLogCompactionFreq');
+      AtSecondaryConfig.subscribe('commitLogCompactionFrequencyMins')
+          ?.listen((newFrequency) async {
+        logger.finest(
+            'Received new frequency for commitLogCompaction: $newFrequency');
+        if (await commitLogCompactionJobInstance.stopCompactionJob()) {
+          logger.finest('Existing cron job of commitLogCompaction terminated');
+        }
+        atCommitLogCompactionConfig.compactionFrequencyMins = newFrequency;
+        await commitLogCompactionJobInstance
+            .scheduleCompactionJob(atCommitLogCompactionConfig);
+        logger.finest(
+            'New cron job started for commitLogCompaction with updated frequency');
+      });
+    }
+
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, _secondaryPersistenceStore);
@@ -165,6 +183,24 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
+
+    if (AtSecondaryConfig.testingMode!) {
+      logger.finest(
+          'Subscribing to dynamic changes made to accessLogCompactionFreq');
+      AtSecondaryConfig.subscribe('accessLogCompactionFrequencyMins')
+          ?.listen((newFrequency) async {
+        logger.finest(
+            'Received new frequency for accessLogCompaction: $newFrequency');
+        if (await commitLogCompactionJobInstance.stopCompactionJob()) {
+          logger.finest('Existing cron job of accessLogCompaction terminated');
+        }
+        atAccessLogCompactionConfig.compactionFrequencyMins = newFrequency;
+        await accessLogCompactionJobInstance
+            .scheduleCompactionJob(atAccessLogCompactionConfig);
+        logger.finest(
+            'New cron job started for accessLogCompaction with updated frequency');
+      });
+    }
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
@@ -177,6 +213,25 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
+    if (AtSecondaryConfig.testingMode!) {
+      logger.finest(
+          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+      AtSecondaryConfig.subscribe('notificationKeyStoreCompactionFrequencyMins')
+          ?.listen((newFrequency) async {
+        logger.finest(
+            'Received new frequency for notificationKeyStoreCompaction: $newFrequency');
+        if (await notificationKeyStoreCompactionJobInstance
+            .stopCompactionJob()) {
+          logger.finest(
+              'Existing cron job of notificationKeyStoreCompaction terminated');
+        }
+        atNotificationCompactionConfig.compactionFrequencyMins = newFrequency;
+        await notificationKeyStoreCompactionJobInstance
+            .scheduleCompactionJob(atCommitLogCompactionConfig);
+        logger.finest(
+            'New cron job started for notificationKeyStoreCompaction with updated frequency');
+      });
+    }
     // Refresh Cached Keys
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -201,7 +256,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.info(
             'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
       });
-      logger.info('Subscribing to inbound_max_limit');
+      logger.info('Subscribing to dynamic changes made to inbound_max_limit');
     }
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
