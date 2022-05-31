@@ -133,10 +133,12 @@ class AtNotification {
 
   @override
   String toString() {
-    return 'AtNotification{id: $_id,fromAtSign: $_fromAtSign, '
-        'notificationDateTime: $_notificationDateTime, '
-        'toAtSign:$_toAtSign, notification:$_notification, '
-        'type:$_type, opType:$_opType, ttl: $_ttl, expiresAt:$_expiresAt : priority:$priority : notificationStatus:$notificationStatus : atValue:$atValue';
+    return 'AtNotification{id: $_id, notificationStatus:$notificationStatus, '
+        'fromAtSign: $_fromAtSign, toAtSign:$_toAtSign, '
+        'strategy:$_strategy, notificationDateTime: $_notificationDateTime, '
+        'notification:$_notification, type:$_type, opType:$_opType, '
+        'ttl: $_ttl, expiresAt:$_expiresAt, priority:$priority, '
+        'atValue:$atValue';
   }
 
   bool isExpired() {

@@ -51,8 +51,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogExpiryInDays =
       AtSecondaryConfig.accessLogExpiryInDays;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final int? maxNotificationEntries =
-      AtSecondaryConfig.maxNotificationEntries;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   late bool _isPaused;
@@ -242,12 +240,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var certificateReload = AtCertificateValidationJob.getInstance();
     await certificateReload.runCertificateExpiryCheckJob();
 
-    // Notification job
-    var resourceManager = ResourceManager.getInstance();
-    if (!resourceManager.isRunning) {
-      resourceManager.schedule();
-    }
-
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
     if (AtSecondaryConfig.testingMode!) {
@@ -260,6 +252,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
+
+    // Notification job
+    ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
     StatsNotificationService.getInstance().schedule();
@@ -298,7 +293,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         return;
       }
       var _sessionID = '_' + Uuid().v4();
-      var connection;
+      InboundConnection? connection;
       try {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
@@ -312,9 +307,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .handle(e, atConnection: connection, clientSocket: clientSocket);
       }
     }), onError: (error) {
-      logger.severe(error);
-      GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(error.toString()));
+      // We've got no action to take here, let's just log a warning
+      logger.warning("ServerSocket.listen called onError with '$error'");
     });
   }
 
