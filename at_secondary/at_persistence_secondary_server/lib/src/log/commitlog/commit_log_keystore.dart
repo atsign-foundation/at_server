@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
+import 'package:meta/meta.dart';
 
 class CommitLogKeyStore
     with HiveBase<CommitEntry?>
@@ -39,10 +40,16 @@ class CommitLogKeyStore
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
-    // Cache the latest commitId of each key.
-    // Add entries to commitLogCacheMap when initialized from at_secondary_server
-    // and refrain for at_client_sdk.
+    // Ensures the below code runs only when initialized from secondary server.
+    // enableCommitId is set to true in secondary server and to false in client SDK.
     if (enableCommitId) {
+      // Repairs the commit log.
+      // If null commit id's exist in commitEntry, replaces the commitId with
+      // respective hive internal key
+      await repairCommitLog(await toMap());
+      // Cache the latest commitId of each key.
+      // Add entries to commitLogCacheMap when initialized from at_secondary_server
+      // and refrain for at_client_sdk.
       _commitLogCacheMap.addAll(await _getCommitIdMap());
     }
   }
@@ -262,7 +269,7 @@ class CommitLogKeyStore
     }
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
-          commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
+          commitLogMap[k2]!.commitId!.compareTo(commitLogMap[k1]!.commitId!));
     var tempSet = <String>{};
     var expiredKeys = [];
     for (var entry in sortedKeys) {
@@ -397,13 +404,13 @@ class CommitLogKeyStore
 
   ///Returns the key-value pair of commit-log where key is hive internal key and
   ///value is [CommitEntry]
-  Future<Map> toMap() async {
-    var commitLogMap = {};
+  Future<Map<int, CommitEntry>> toMap() async {
+    var commitLogMap = <int, CommitEntry>{};
     var keys = _getBox().keys;
 
     await Future.forEach(keys, (key) async {
-      var value = await getValue(key);
-      commitLogMap.putIfAbsent(key, () => value);
+      var value = await getValue(key) as CommitEntry;
+      commitLogMap.putIfAbsent(key as int, () => value);
     });
     return commitLogMap;
   }
@@ -416,5 +423,16 @@ class CommitLogKeyStore
   ///Not a part of API. Exposed for Unit test
   List<CommitEntry> getLastSyncedEntryCacheMapValues() {
     return _lastSyncedEntryCacheMap.values.toList();
+  }
+
+  /// Replaces the null commit id's with hive internal key's
+  @visibleForTesting
+  Future<void> repairCommitLog(Map<int, CommitEntry> commitLogMap) async {
+    await Future.forEach(commitLogMap.keys, (key) async {
+      CommitEntry? commitEntry = commitLogMap[key];
+      if (commitEntry?.commitId == null) {
+        await update(key as int, commitEntry);
+      }
+    });
   }
 }
