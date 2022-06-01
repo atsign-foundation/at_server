@@ -141,13 +141,18 @@ class CommitLogKeyStore
     return lastCommittedSequenceNum;
   }
 
-  /// Returns the lastSyncedEntry to commitLog keystore.
+  /// Returns the lastSyncedEntry to the local secondary commitLog keystore by the clients.
   ///
   /// Optionally accepts the regex. Matches the regex against the [CommitEntry.AtKey] and returns the
   /// matching [CommitEntry]. Defaulted to accept all patterns.
+  ///
+  /// This is used by the clients which have local secondary keystore. Not used by the secondary server.
   Future<CommitEntry?> lastSyncedEntry({String regex = '.*'}) async {
     if (_lastSyncedEntryCacheMap.containsKey(regex)) {
-      return _lastSyncedEntryCacheMap[regex];
+      CommitEntry? lastSyncedEntry = _lastSyncedEntryCacheMap[regex];
+      _logger.finer(
+          'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
+      return lastSyncedEntry;
     }
 
     CommitEntry? lastSyncedEntry;
@@ -159,9 +164,12 @@ class CommitLogKeyStore
         orElse: () => null);
 
     if (lastSyncedEntry == null) {
+      _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
       return null;
     }
 
+    _logger.finer(
+        'Updating the lastSyncedEntry matching regex $regex to the cache. Returning lastSyncedEntry with key : ${lastSyncedEntry.atKey} and commitId ${lastSyncedEntry.commitId}');
     _lastSyncedEntryCacheMap.putIfAbsent(regex, () => lastSyncedEntry!);
     return lastSyncedEntry;
   }
