@@ -86,6 +86,14 @@ class CommitLogKeyStore
     return internalKey;
   }
 
+  /// Updates the [commitEntry.commitId] with the given [commitId].
+  ///
+  /// This method is only called by the client(s) because when a key is created on the
+  /// client side, a record is created in the [CommitLogKeyStore] with a null commitId.
+  /// At the time sync, a key is created/updated in cloud secondary server and generates
+  /// the commitId sends it back to client which the gets updated against the commitEntry
+  /// of the key synced.
+  ///
   @override
   Future<void> update(int commitId, CommitEntry? commitEntry) async {
     try {
