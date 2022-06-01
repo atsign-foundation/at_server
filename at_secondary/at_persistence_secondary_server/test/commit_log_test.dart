@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:test/test.dart';
 
 void main() async {
@@ -125,11 +123,66 @@ void main() async {
     });
     tearDown(() async => await tearDownFunc());
   });
+
+  group('A group of tests to verify repair commit log', () {
+    setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
+    test('A test to verify null commit id gets replaced with hive internal key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
+      expect(commitLogMap?.values.first.commitId, null);
+      await commitLogInstance?.commitLogKeyStore.repairCommitLog(commitLogMap!);
+      commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
+      expect(commitLogMap?.values.first.commitId, 0);
+    });
+
+    test(
+        'A test to verify multiple null commit id gets replaced with hive internal key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      // Inserting commitEntry with commitId 0
+      await commitLogInstance!.commitLogKeyStore.getBox().add(
+          CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 0);
+      // Inserting commitEntry with null commitId
+      await commitLogInstance.commitLogKeyStore
+          .getBox()
+          .add(CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
+      // Inserting commitEntry with commitId 2
+      await commitLogInstance.commitLogKeyStore.getBox().add(
+          CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 2);
+      // Inserting commitEntry with null commitId
+      await commitLogInstance.commitLogKeyStore
+          .getBox()
+          .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
+
+      var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+      await commitLogInstance.commitLogKeyStore.repairCommitLog(commitLogMap);
+      commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+      commitLogMap.forEach((key, value) {
+        assert(value.commitId != null);
+        expect(value.commitId, key);
+      });
+
+      // verify the commit id's return correct key's
+      expect((await commitLogInstance.commitLogKeyStore.get(1))?.atKey,
+          'location@alice');
+      expect((await commitLogInstance.commitLogKeyStore.get(3))?.atKey,
+          'mobile@alice');
+    });
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
+    {bool enableCommitId = true}) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
+      .getCommitLog('@alice',
+          commitLogPath: storageDir, enableCommitId: enableCommitId);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice')!;
   var persistenceManager =
