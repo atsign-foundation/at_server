@@ -1,8 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:ffi';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -10,8 +8,6 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
-
-import '../../server/at_secondary_config.dart';
 
 enum ConfigOp { ADD, REMOVE, SHOW }
 
@@ -84,23 +80,33 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
           break;
         default:
-          //do nothing
+          result = 'unknown operation';
           break;
       }
 
       switch (setOperation) {
         case 'set':
-          AtSecondaryConfig.broadcastConfigChange(
-              verbParams[CONFIG_NAME]!, int.parse(verbParams[CONFIG_VALUE]!));
+          if (ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+            AtSecondaryConfig.broadcastConfigChange(
+                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!),
+                int.parse(verbParams[CONFIG_VALUE]!));
+            result = 'ok';
+          } else {
+            result = 'please enter valid config name';
+          }
           break;
         case 'reset':
-          result = 'reset operation';
+          if (ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+            AtSecondaryConfig.broadcastConfigChange(
+                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!), null,
+                isReset: true);
+          }
           break;
         case 'print':
           result = 'print operation';
           break;
         default:
-          result = 'invalid operation/setOperation';
+          result = 'invalid setOperation';
           break;
       }
       response.data = result?.toString();
@@ -123,16 +129,6 @@ Set<String> _retainNonCurrentAtsign(String currentAtSign, String atsign) {
   var nonCurrentAtSignsList = _toSet(atsign);
   nonCurrentAtSignsList.removeWhere((data) => data == currentAtSign);
   return nonCurrentAtSignsList;
-}
-
-int? _modifyServerConfig(String configName, String configValue) {
-  switch (configName) {
-    case 'inbound_connection_limit':
-      InboundConnectionManager.getInstance()
-          .init(int.parse(configValue), isColdInit: false);
-
-      return InboundConnectionPool.getInstance().getCapacity();
-  }
 }
 
 ///converts [data] into json.

@@ -5,7 +5,8 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
-  static Map<String, StreamController> _streamListeners = {};
+  static Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners =
+      {};
   //Certs
   static final bool? _useSSL = true;
   static final bool? _clientCertificateRequired = true;
@@ -601,21 +602,31 @@ class AtSecondaryConfig {
     }
   }
 
-  static Stream<int>? subscribe(String configName) {
+  static Stream<int>? subscribe(ModifiableConfigs configName) {
     if (testingMode!) {
       if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = StreamController<int>.broadcast();
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<int>.broadcast()
+          ..defaultValue = AtSecondaryConfig.${configName};
       }
-      return _streamListeners[configName]!.stream as Stream<int>;
+      return _streamListeners[configName]!.streamController as Stream<int>;
     }
+    return null;
   }
 
-  static void broadcastConfigChange(String configName, int newConfigValue) {
+  static void broadcastConfigChange(
+      ModifiableConfigs configName, int? newConfigValue, {bool isReset = false}) {
     if (testingMode!) {
       if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = StreamController<int>.broadcast();
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<int>.broadcast()
+          ..defaultValue = AtSecondaryConfig.${configName};
       }
-      _streamListeners[configName]?.add(newConfigValue);
+      if(isReset){
+        _streamListeners[configName]?.streamController.add(_streamListeners[configName]!.defaultValue);
+      } else {
+        _streamListeners[configName]?.streamController.add(newConfigValue!);
+      }
     }
   }
 
@@ -684,6 +695,18 @@ String? getStringValueFromYaml(List<String> keyParts) {
   } else {
     return value.toString();
   }
+}
+
+enum ModifiableConfigs {
+  inbound_max_limit,
+  commitLogCompactionFrequencyMins,
+  accessLogCompactionFrequencyMins,
+  notificationKeyStoreCompactionFrequencyMins
+}
+
+class ModifiableConfigurationEntry {
+  late StreamController<int> streamController;
+  late int defaultValue;
 }
 
 class ElementNotFoundException extends AtException {

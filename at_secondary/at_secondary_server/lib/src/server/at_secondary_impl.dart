@@ -156,7 +156,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (AtSecondaryConfig.testingMode!) {
       logger.finest(
           'Subscribing to dynamic changes made to commitLogCompactionFreq');
-      AtSecondaryConfig.subscribe('commitLogCompactionFrequencyMins')
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         logger.finest(
             'Received new frequency for commitLogCompaction: $newFrequency');
@@ -185,7 +186,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (AtSecondaryConfig.testingMode!) {
       logger.finest(
           'Subscribing to dynamic changes made to accessLogCompactionFreq');
-      AtSecondaryConfig.subscribe('accessLogCompactionFrequencyMins')
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         logger.finest(
             'Received new frequency for accessLogCompaction: $newFrequency');
@@ -214,7 +216,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (AtSecondaryConfig.testingMode!) {
       logger.finest(
           'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
-      AtSecondaryConfig.subscribe('notificationKeyStoreCompactionFrequencyMins')
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         logger.finest(
             'Received new frequency for notificationKeyStoreCompaction: $newFrequency');
@@ -243,7 +246,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
     if (AtSecondaryConfig.testingMode!) {
-      AtSecondaryConfig.subscribe('inbound_max_limit')?.listen((newSize) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
+          ?.listen((newSize) {
         inboundConnectionFactory.init(newSize, isColdInit: false);
         logger.info(
             'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
