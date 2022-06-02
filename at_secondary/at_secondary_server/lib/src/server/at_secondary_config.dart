@@ -118,7 +118,7 @@ class AtSecondaryConfig {
     }
   }
 
-  static bool? get testingMode {
+  static bool get testingMode {
     var result = _getBoolEnvVar('testingMode');
     if (result != null) {
       return result;
@@ -630,6 +630,13 @@ class AtSecondaryConfig {
     }
   }
 
+  static int? getLatestConfigValue(ModifiableConfigs configName){
+    if(_streamListeners.containsKey(configName)) {
+      return _streamListeners[configName]?.currentValue;
+    }
+    return null;
+  }
+
   static int? _getIntEnvVar(String envVar) {
     if (_envVars.containsKey(envVar)) {
       return int.parse(_envVars[envVar]!);
@@ -707,6 +714,7 @@ enum ModifiableConfigs {
 class ModifiableConfigurationEntry {
   late StreamController<int> streamController;
   late int defaultValue;
+  int? currentValue;
 }
 
 class ElementNotFoundException extends AtException {

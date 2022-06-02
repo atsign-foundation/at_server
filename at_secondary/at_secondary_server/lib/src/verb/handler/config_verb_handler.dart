@@ -86,7 +86,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
 
       switch (setOperation) {
         case 'set':
-          if (ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+          if (AtSecondaryConfig.testingMode &&
+              ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
             AtSecondaryConfig.broadcastConfigChange(
                 ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!),
                 int.parse(verbParams[CONFIG_VALUE]!));
@@ -96,10 +97,20 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           }
           break;
         case 'reset':
-          if (ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+          if (AtSecondaryConfig.testingMode &&
+              ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
             AtSecondaryConfig.broadcastConfigChange(
                 ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!), null,
                 isReset: true);
+            result = 'ok';
+          } else {
+            if (AtSecondaryConfig.testingMode &&
+                ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+              result = AtSecondaryConfig.getLatestConfigValue(
+                  ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!));
+            } else {
+              result = 'null';
+            }
           }
           break;
         case 'print':
