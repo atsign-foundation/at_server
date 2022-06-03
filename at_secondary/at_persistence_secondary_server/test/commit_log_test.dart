@@ -139,6 +139,29 @@ void main() async {
           .getLastSyncedEntryCacheMapValues();
       expect(lastSyncedEntriesList.length, 2);
     });
+
+    test(
+        'Test to verify that null is returned when no values are present in local keystore',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
+      expect(lastSyncedEntry, null);
+    });
+
+    test(
+        'Test to verify that null is returned when matches entry for regex is not found',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
+      CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
+      await commitLogInstance?.update(commitEntry0!, 2);
+      var lastSyncedEntry =
+          await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
+      expect(lastSyncedEntry, null);
+    });
     tearDown(() async => await tearDownFunc());
   });
 

@@ -163,22 +163,27 @@ class CommitLogKeyStore
   ///
   /// This is used by the clients which have local secondary keystore. Not used by the secondary server.
   Future<CommitEntry?> lastSyncedEntry({String regex = '.*'}) async {
+    CommitEntry? lastSyncedEntry;
     if (_lastSyncedEntryCacheMap.containsKey(regex)) {
-      CommitEntry? lastSyncedEntry = _lastSyncedEntryCacheMap[regex];
+      lastSyncedEntry = _lastSyncedEntryCacheMap[regex];
       _logger.finer(
           'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
       return lastSyncedEntry;
     }
 
-    CommitEntry? lastSyncedEntry;
-    var values = await _getValues()
-      ..sort(_sortByCommitId);
+    var values = (await _getValues())..sort(_sortByCommitId);
+    if (values.isEmpty) {
+      return null;
+    }
+
+    // Returns the commitEntry with maximum commitId matching the given regex.
+    // otherwise returns NullCommitEntry
     lastSyncedEntry = values.lastWhere(
         (entry) =>
-            (_isRegexMatches(entry.atKey!, regex) && (entry.commitId != null)),
-        orElse: () => null);
+            (_isRegexMatches(entry!.atKey!, regex) && (entry.commitId != null)),
+        orElse: () => NullCommitEntry());
 
-    if (lastSyncedEntry == null) {
+    if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
       _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
       return null;
     }
