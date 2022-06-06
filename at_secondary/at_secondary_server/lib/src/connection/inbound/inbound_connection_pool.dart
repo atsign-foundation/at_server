@@ -19,6 +19,8 @@ class InboundConnectionPool {
 
   late List<InboundConnection> _connections;
 
+  /// [isColdInit] set to true will create new list of connections, set to true while server start.
+  /// setting it to false will change size of pool, will not overwrite existing connections.
   void init(int size, {bool isColdInit = true}) {
     _size = size;
     if (isColdInit) {

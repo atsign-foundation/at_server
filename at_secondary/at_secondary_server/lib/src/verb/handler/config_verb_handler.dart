@@ -92,8 +92,11 @@ class ConfigVerbHandler extends AbstractVerbHandler {
                 ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!),
                 int.parse(verbParams[CONFIG_VALUE]!));
             result = 'ok';
+          } else if (ModifiableConfigs.values
+              .contains(verbParams[CONFIG_NAME])) {
+            result = 'invalid config name';
           } else {
-            result = 'please enter valid config name';
+            result = 'testing mode disabled by default';
           }
           break;
         case 'reset':
@@ -103,18 +106,20 @@ class ConfigVerbHandler extends AbstractVerbHandler {
                 ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!), null,
                 isReset: true);
             result = 'ok';
+          } else if (ModifiableConfigs.values
+              .contains(verbParams[CONFIG_NAME])) {
+            result = 'invalid config name';
           } else {
-            if (AtSecondaryConfig.testingMode &&
-                ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
-              result = AtSecondaryConfig.getLatestConfigValue(
-                  ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!));
-            } else {
-              result = 'null';
-            }
+            result = 'testing mode disabled by default';
           }
           break;
         case 'print':
-          result = 'print operation';
+          if (AtSecondaryConfig.testingMode) {
+            result = AtSecondaryConfig.getLatestConfigValue(
+                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!));
+          } else {
+            result = 'testing mode disabled by default';
+          }
           break;
         default:
           result = 'invalid setOperation';

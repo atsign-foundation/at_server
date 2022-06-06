@@ -159,16 +159,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        logger.finest(
-            'Received new frequency for commitLogCompaction: $newFrequency');
-        if (await commitLogCompactionJobInstance.stopCompactionJob()) {
-          logger.finest('Existing cron job of commitLogCompaction terminated');
-        }
-        atCommitLogCompactionConfig.compactionFrequencyMins = newFrequency;
-        await commitLogCompactionJobInstance
-            .scheduleCompactionJob(atCommitLogCompactionConfig);
-        logger.finest(
-            'New cron job started for commitLogCompaction with updated frequency');
+        restartCompaction(commitLogCompactionJobInstance,
+            atCommitLogCompactionConfig, newFrequency, _commitLog);
       });
     }
 
@@ -189,16 +181,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        logger.finest(
-            'Received new frequency for accessLogCompaction: $newFrequency');
-        if (await commitLogCompactionJobInstance.stopCompactionJob()) {
-          logger.finest('Existing cron job of accessLogCompaction terminated');
-        }
-        atAccessLogCompactionConfig.compactionFrequencyMins = newFrequency;
-        await accessLogCompactionJobInstance
-            .scheduleCompactionJob(atAccessLogCompactionConfig);
-        logger.finest(
-            'New cron job started for accessLogCompaction with updated frequency');
+        restartCompaction(accessLogCompactionJobInstance,
+            atAccessLogCompactionConfig, newFrequency, _accessLog);
       });
     }
 
@@ -219,18 +203,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        logger.finest(
-            'Received new frequency for notificationKeyStoreCompaction: $newFrequency');
-        if (await notificationKeyStoreCompactionJobInstance
-            .stopCompactionJob()) {
-          logger.finest(
-              'Existing cron job of notificationKeyStoreCompaction terminated');
-        }
-        atNotificationCompactionConfig.compactionFrequencyMins = newFrequency;
-        await notificationKeyStoreCompactionJobInstance
-            .scheduleCompactionJob(atCommitLogCompactionConfig);
-        logger.finest(
-            'New cron job started for notificationKeyStoreCompaction with updated frequency');
+        restartCompaction(
+            notificationKeyStoreCompactionJobInstance,
+            atNotificationCompactionConfig,
+            newFrequency,
+            AtNotificationKeystore.getInstance());
       });
     }
     // Refresh Cached Keys
@@ -282,6 +259,23 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(error.toString());
     }
     resume();
+  }
+
+  ///restarts compaction with new compaction frequency
+  Future<void> restartCompaction(
+      AtCompactionJob atCompactionJob,
+      AtCompactionConfig atCompactionConfig,
+      int newFrequency,
+      AtLogType atLogType) async {
+    logger.finest(
+        'Received new frequency for accessLogCompaction: $newFrequency');
+    if (await commitLogCompactionJobInstance.stopCompactionJob()) {
+      logger.finest('Existing cron job of accessLogCompaction terminated');
+    }
+    atCompactionConfig.compactionFrequencyMins = newFrequency;
+    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
+    logger.finest(
+        'New cron job started for accessLogCompaction with updated frequency');
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket

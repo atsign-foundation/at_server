@@ -607,7 +607,7 @@ class AtSecondaryConfig {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
-          ..defaultValue = AtSecondaryConfig.${configName};
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
       return _streamListeners[configName]!.streamController as Stream<int>;
     }
@@ -615,26 +615,40 @@ class AtSecondaryConfig {
   }
 
   static void broadcastConfigChange(
-      ModifiableConfigs configName, int? newConfigValue, {bool isReset = false}) {
+      ModifiableConfigs configName, int? newConfigValue,
+      {bool isReset = false}) {
     if (testingMode!) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
-          ..defaultValue = AtSecondaryConfig.${configName};
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
-      if(isReset){
-        _streamListeners[configName]?.streamController.add(_streamListeners[configName]!.defaultValue);
+      if (isReset) {
+        _streamListeners[configName]
+            ?.streamController
+            .add(_streamListeners[configName]!.defaultValue);
       } else {
         _streamListeners[configName]?.streamController.add(newConfigValue!);
       }
     }
   }
 
-  static int? getLatestConfigValue(ModifiableConfigs configName){
-    if(_streamListeners.containsKey(configName)) {
+  static int? getLatestConfigValue(ModifiableConfigs configName) {
+    if (_streamListeners.containsKey(configName)) {
       return _streamListeners[configName]?.currentValue;
     }
     return null;
+  }
+
+  static int? getDefaultValue(ModifiableConfigs configName) {
+    switch (configName) {
+      case ModifiableConfigs.accessLogCompactionFrequencyMins:
+        return accessLogCompactionFrequencyMins;
+      case ModifiableConfigs.commitLogCompactionFrequencyMins:
+        return commitLogCompactionFrequencyMins;
+      case ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins:
+        return notificationKeyStoreCompactionFrequencyMins;
+    }
   }
 
   static int? _getIntEnvVar(String envVar) {
