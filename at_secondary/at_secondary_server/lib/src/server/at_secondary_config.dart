@@ -603,7 +603,7 @@ class AtSecondaryConfig {
   }
 
   static Stream<int>? subscribe(ModifiableConfigs configName) {
-    if (testingMode!) {
+    if (testingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
@@ -617,7 +617,7 @@ class AtSecondaryConfig {
   static void broadcastConfigChange(
       ModifiableConfigs configName, int? newConfigValue,
       {bool isReset = false}) {
-    if (testingMode!) {
+    if (testingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
@@ -648,6 +648,8 @@ class AtSecondaryConfig {
         return commitLogCompactionFrequencyMins;
       case ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins:
         return notificationKeyStoreCompactionFrequencyMins;
+      case ModifiableConfigs.inbound_max_limit:
+        return inbound_max_limit;
     }
   }
 

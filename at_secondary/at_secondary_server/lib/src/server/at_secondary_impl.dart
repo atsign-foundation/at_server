@@ -153,7 +153,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
-    if (AtSecondaryConfig.testingMode!) {
+    if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to commitLogCompactionFreq');
       AtSecondaryConfig.subscribe(
@@ -175,7 +175,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
-    if (AtSecondaryConfig.testingMode!) {
+    if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to accessLogCompactionFreq');
       AtSecondaryConfig.subscribe(
@@ -197,7 +197,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
-    if (AtSecondaryConfig.testingMode!) {
+    if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
       AtSecondaryConfig.subscribe(
@@ -222,7 +222,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
-    if (AtSecondaryConfig.testingMode!) {
+    if (AtSecondaryConfig.testingMode) {
       AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
           ?.listen((newSize) {
         inboundConnectionFactory.init(newSize, isColdInit: false);
