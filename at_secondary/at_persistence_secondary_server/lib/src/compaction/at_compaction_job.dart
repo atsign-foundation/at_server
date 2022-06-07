@@ -23,9 +23,8 @@ class AtCompactionJob {
     });
   }
 
-  Future<bool> stopCompactionJob() async {
+  Future<void> stopCompactionJob() async {
     await _schedule.cancel();
-    return true;
   }
 
   void close() {
