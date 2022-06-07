@@ -33,6 +33,6 @@ class Config extends Verb {
 
   @override
   String usage() {
-    return 'configure syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow';
+    return 'configure block syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow \n configure set syntax config:set:<configName>=<configValue> \n config:reset(or)print:<configName>';
   }
 }
