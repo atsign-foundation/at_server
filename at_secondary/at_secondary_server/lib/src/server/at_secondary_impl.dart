@@ -194,7 +194,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    StatsNotificationService.getInstance().schedule();
+    StatsNotificationService.getInstance().schedule(currentAtSign);
 
     try {
       _isRunning = true;
@@ -310,10 +310,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
-    } on Exception catch (e, trace) {
+    } on Exception catch (e) {
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
-    } on Error catch (e, trace) {
+    } on Error catch (e) {
       logger.severe(e.toString());
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
