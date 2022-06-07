@@ -13,12 +13,14 @@ class AtCompactionService {
     return _singleton;
   }
 
+  static const atServer = AtServerAnnotation();
   late AtCompactionStatsService atCompactionStatsService;
   late AtCompactionStats? atCompactionStats;
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
+  @atServer
   Future<void> executeCompaction(
       AtCompactionConfig atCompactionConfig,
       AtLogType atLogType,

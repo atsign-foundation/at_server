@@ -8,6 +8,7 @@ import 'package:at_utils/at_logger.dart';
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late SecondaryPersistenceStore _secondaryPersistenceStore;
   late var _keyStore;
+  static const atServer = AtServerAnnotation();
 
   AtCompactionStatsServiceImpl(
       this.atLogType, this._secondaryPersistenceStore) {
@@ -21,6 +22,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   final _logger = AtSignLogger("AtCompactionStats");
 
   @override
+  @atServer
   Future<void> handleStats(atCompactionStats) async {
     if (atCompactionStats != null) {
       _logger.finer('$atLogType: ${atCompactionStats?.toString()}');
