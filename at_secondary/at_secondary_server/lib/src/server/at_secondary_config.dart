@@ -602,14 +602,14 @@ class AtSecondaryConfig {
     }
   }
 
-  static Stream<int>? subscribe(ModifiableConfigs configName) {
+  static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
           ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
-      return _streamListeners[configName]!.streamController as Stream<int>;
+      return _streamListeners[configName]!.streamController.stream;
     }
     return null;
   }
