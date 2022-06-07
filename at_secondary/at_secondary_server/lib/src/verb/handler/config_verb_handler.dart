@@ -30,6 +30,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   late var atConfigInstance;
+  late ModifiableConfigs? setConfigName;
+  late String? setConfigValue;
 
   @override
   bool accept(String command) =>
@@ -55,6 +57,11 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
+      if (setOperation != null) {
+        setConfigName =
+            ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!);
+        setConfigValue = verbParams[CONFIG_VALUE];
+      }
 
       switch (operation) {
         case 'show':
@@ -84,31 +91,22 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
       }
 
+      //implementation for config:set
       switch (setOperation) {
         case 'set':
-          if (AtSecondaryConfig.testingMode &&
-              ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
+          if (AtSecondaryConfig.testingMode) {
             AtSecondaryConfig.broadcastConfigChange(
-                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!),
-                int.parse(verbParams[CONFIG_VALUE]!));
+                setConfigName!, int.parse(setConfigValue!));
             result = 'ok';
-          } else if (ModifiableConfigs.values
-              .contains(verbParams[CONFIG_NAME])) {
-            result = 'invalid config name';
           } else {
             result = 'testing mode disabled by default';
           }
           break;
         case 'reset':
-          if (AtSecondaryConfig.testingMode &&
-              ModifiableConfigs.values.contains(verbParams[CONFIG_NAME])) {
-            AtSecondaryConfig.broadcastConfigChange(
-                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!), null,
+          if (AtSecondaryConfig.testingMode) {
+            AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
                 isReset: true);
             result = 'ok';
-          } else if (ModifiableConfigs.values
-              .contains(verbParams[CONFIG_NAME])) {
-            result = 'invalid config name';
           } else {
             result = 'testing mode disabled by default';
           }
