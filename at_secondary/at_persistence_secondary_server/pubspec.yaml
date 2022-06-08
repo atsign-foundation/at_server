@@ -18,12 +18,12 @@ dependencies:
   at_commons: ^3.0.11
   at_utf7: ^1.0.0
 
-#dependency_overrides:
-#  at_persistence_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_persistence/at_persistence_spec
-#      ref: compaction_stats_patch1
+dependency_overrides:
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: at_annotation
 #  at_utils:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
