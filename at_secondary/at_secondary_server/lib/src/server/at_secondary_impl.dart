@@ -269,12 +269,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtLogType atLogType) async {
     logger.finest(
         'Received new frequency for $atLogType compaction: $newFrequency');
-    await atCompactionJobInstance.stopCompactionJob()
+    await atCompactionJob.stopCompactionJob();
     logger.finest('Existing cron job of accessLogCompaction terminated');
     atCompactionConfig.compactionFrequencyMins = newFrequency;
     atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-    logger.finest(
-        'New compaction cron job started for $atLogType');
+    logger.finest('New compaction cron job started for $atLogType');
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
