@@ -2,7 +2,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_size_based_compaction.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_time_based_compaction.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
@@ -13,14 +12,14 @@ class AtCompactionService {
     return _singleton;
   }
 
-  static const atServer = AtServerAnnotation();
+  static const server = AtServerAnnotation();
   late AtCompactionStatsService atCompactionStatsService;
   late AtCompactionStats? atCompactionStats;
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
-  @atServer
+  @server
   Future<void> executeCompaction(
       AtCompactionConfig atCompactionConfig,
       AtLogType atLogType,

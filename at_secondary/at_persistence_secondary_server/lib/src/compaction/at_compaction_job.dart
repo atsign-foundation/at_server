@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/src/compaction/at_compaction_ser
 import 'package:cron/cron.dart';
 
 class AtCompactionJob {
-  static const atServer = AtServerAnnotation();
+  static const server = AtServerAnnotation();
   late Cron _cron;
   late ScheduledTask _schedule;
   AtLogType atLogType;
@@ -13,7 +13,7 @@ class AtCompactionJob {
 
   AtCompactionJob(this.atLogType, this._secondaryPersistenceStore);
 
-  @atServer
+  @server
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
     _cron = Cron();
@@ -25,7 +25,7 @@ class AtCompactionJob {
     });
   }
 
-  @atServer
+  @server
   void close() {
     _cron.close();
   }
