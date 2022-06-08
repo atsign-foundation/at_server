@@ -139,6 +139,29 @@ void main() async {
           .getLastSyncedEntryCacheMapValues();
       expect(lastSyncedEntriesList.length, 2);
     });
+
+    test(
+        'Test to verify that null is returned when no values are present in local keystore',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
+      expect(lastSyncedEntry, null);
+    });
+
+    test(
+        'Test to verify that null is returned when matches entry for regex is not found',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
+      CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
+      await commitLogInstance?.update(commitEntry0!, 2);
+      var lastSyncedEntry =
+          await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
+      expect(lastSyncedEntry, null);
+    });
     tearDown(() async => await tearDownFunc());
   });
 
@@ -173,6 +196,59 @@ void main() async {
       var countryList = compactionService.getEntries('country@alice');
       expect(locationList!.getSize(), 1);
       expect(countryList!.getSize(), 1);
+    });
+    tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of tests to verify repair commit log', () {
+    setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
+    test('A test to verify null commit id gets replaced with hive internal key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
+      expect(commitLogMap?.values.first.commitId, null);
+      await commitLogInstance?.commitLogKeyStore.repairCommitLog(commitLogMap!);
+      commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
+      expect(commitLogMap?.values.first.commitId, 0);
+    });
+
+    test(
+        'A test to verify multiple null commit id gets replaced with hive internal key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      // Inserting commitEntry with commitId 0
+      await commitLogInstance!.commitLogKeyStore.getBox().add(
+          CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 0);
+      // Inserting commitEntry with null commitId
+      await commitLogInstance.commitLogKeyStore
+          .getBox()
+          .add(CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
+      // Inserting commitEntry with commitId 2
+      await commitLogInstance.commitLogKeyStore.getBox().add(
+          CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 2);
+      // Inserting commitEntry with null commitId
+      await commitLogInstance.commitLogKeyStore
+          .getBox()
+          .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
+
+      var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+      await commitLogInstance.commitLogKeyStore.repairCommitLog(commitLogMap);
+      commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+      commitLogMap.forEach((key, value) {
+        assert(value.commitId != null);
+        expect(value.commitId, key);
+      });
+
+      // verify the commit id's return correct key's
+      expect((await commitLogInstance.commitLogKeyStore.get(1))?.atKey,
+          'location@alice');
+      expect((await commitLogInstance.commitLogKeyStore.get(3))?.atKey,
+          'mobile@alice');
     });
     tearDown(() async => await tearDownFunc());
   });
