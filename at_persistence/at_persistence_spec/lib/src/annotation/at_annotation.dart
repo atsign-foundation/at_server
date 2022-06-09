@@ -10,5 +10,5 @@ class AtClientAnnotation {
   const AtClientAnnotation();
 }
 
-const server = AtServerAnnotation();
-const client = AtClientAnnotation();
+const AtServerAnnotation server = AtServerAnnotation();
+const AtClientAnnotation client = AtClientAnnotation();
