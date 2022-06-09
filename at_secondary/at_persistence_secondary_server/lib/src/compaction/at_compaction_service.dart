@@ -12,7 +12,6 @@ class AtCompactionService {
     return _singleton;
   }
 
-  static const server = AtServerAnnotation();
   late AtCompactionStatsService atCompactionStatsService;
   late AtCompactionStats? atCompactionStats;
 

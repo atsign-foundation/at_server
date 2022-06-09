@@ -12,7 +12,6 @@ class CommitLogCompactionService implements AtChangeEventListener {
   final _commitLogEntriesMap = <String, CompactionSortedList>{};
   int keysToCompactCount = 0;
   final _logger = AtSignLogger('CommitLogCompactionService');
-  static const server = AtServerAnnotation();
 
   /// Initializes the [CommitLogCompactionService] and loads the keys in [AtCommitLog]
   /// into [_commitLogEntriesMap].
@@ -29,8 +28,9 @@ class CommitLogCompactionService implements AtChangeEventListener {
           _commitLogEntriesMap[commitEntry.atKey]!.add(key);
         }));
   }
-  @server
+
   @override
+  @server
   Future<void> listen(AtPersistenceChangeEvent atChangeEvent) async {
     if (_commitLogEntriesMap.containsKey(atChangeEvent.key)) {
       keysToCompactCount = keysToCompactCount + 1;
@@ -79,6 +79,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   ///Returns the list[CompactionSortedList] for a given key.
+  @server
   CompactionSortedList? getEntries(var key) {
     return _commitLogEntriesMap[key];
   }

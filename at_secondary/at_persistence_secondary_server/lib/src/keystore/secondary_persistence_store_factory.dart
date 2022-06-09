@@ -8,8 +8,6 @@ class SecondaryPersistenceStoreFactory {
 
   SecondaryPersistenceStoreFactory._internal();
 
-  @Annotations.client
-  @Annotations.server
   factory SecondaryPersistenceStoreFactory.getInstance() {
     return _singleton;
   }
@@ -19,8 +17,8 @@ class SecondaryPersistenceStoreFactory {
   final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
       {};
 
-  @Annotations.client
-  @Annotations.server
+  @server
+  @client
   SecondaryPersistenceStore? getSecondaryPersistenceStore(String? atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
       var secondaryPersistenceStore = SecondaryPersistenceStore(atSign);

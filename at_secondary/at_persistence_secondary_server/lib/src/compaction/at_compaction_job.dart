@@ -4,7 +4,6 @@ import 'package:at_persistence_secondary_server/src/compaction/at_compaction_ser
 import 'package:cron/cron.dart';
 
 class AtCompactionJob {
-  static const server = AtServerAnnotation();
   late Cron _cron;
   late ScheduledTask _schedule;
   AtLogType atLogType;

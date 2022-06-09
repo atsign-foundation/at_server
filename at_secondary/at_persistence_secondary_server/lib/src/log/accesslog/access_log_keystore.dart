@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
@@ -13,7 +14,6 @@ class AccessLogKeyStore
     with HiveBase<AccessLogEntry?>
     implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
-  static const server = AtServerAnnotation();
 
   final _currentAtSign;
   late String _boxName;
@@ -21,7 +21,6 @@ class AccessLogKeyStore
   AccessLogKeyStore(this._currentAtSign);
 
   @override
-  @server
   Future<void> initialize() async {
     _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
 

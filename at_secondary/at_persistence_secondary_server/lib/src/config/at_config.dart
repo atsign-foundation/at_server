@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
@@ -31,7 +29,6 @@ class AtConfig {
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.
-  @server
   Future<String> addToBlockList(Set<String> data) async {
     var result;
     try {
@@ -53,7 +50,6 @@ class AtConfig {
   }
 
   ///removes [data] from blocklist if satisfies basic conditions.
-  @server
   Future<String?> removeFromBlockList(Set<String> data) async {
     var result;
     try {
@@ -76,7 +72,6 @@ class AtConfig {
   }
 
   ///Returns blocklist by fetching from atsign's secondary.
-  @server
   Future<Set<String>> getBlockList() async {
     var result = <String>{};
     try {
@@ -96,7 +91,6 @@ class AtConfig {
   }
 
   ///Returns [AtData] value for given [key].
-  @server
   Future<AtData?> get(String key) async {
     var value;
     try {
@@ -113,7 +107,6 @@ class AtConfig {
   }
 
   ///Returns 'true' if blocklist contains [atsign].
-  @server
   Future<bool> checkInBlockList(String atsign) async {
     var result = false;
     try {
@@ -130,7 +123,6 @@ class AtConfig {
   }
 
   ///Returns 'success' after successfully persisiting data into secondary.
-  @server
   Future<String> prepareAndStoreData(config, [existingData]) async {
     var result;
     configKey = keyStoreHelper.prepareKey(configKey);

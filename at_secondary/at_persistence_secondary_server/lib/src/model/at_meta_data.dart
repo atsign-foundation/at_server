@@ -3,7 +3,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
-@Annotations.server
 @HiveType(typeId: 1)
 class AtMetaData extends HiveObject {
   @HiveField(0)

@@ -8,7 +8,6 @@ import 'package:at_utils/at_logger.dart';
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late SecondaryPersistenceStore _secondaryPersistenceStore;
   late var _keyStore;
-  static const server = AtServerAnnotation();
 
   AtCompactionStatsServiceImpl(
       this.atLogType, this._secondaryPersistenceStore) {

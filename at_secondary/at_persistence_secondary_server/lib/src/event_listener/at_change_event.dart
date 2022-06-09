@@ -9,7 +9,6 @@ class AtPersistenceChangeEvent {
   static const server = AtServerAnnotation();
 
   /// Returns an [AtPersistenceChangeEvent] for a given key, value, operation and keystore source
-  @server
   static AtPersistenceChangeEvent from(dynamic key,
       {dynamic value,
       required CommitOp commitOp,
@@ -22,7 +21,6 @@ class AtPersistenceChangeEvent {
   }
 
   ///Adapter method to convert [CommitOp] to [ChangeOperation]
-  @server
   static ChangeOperation changeOperationAdapter(CommitOp commitOp) {
     if (commitOp == CommitOp.UPDATE) {
       return ChangeOperation.update;
@@ -48,14 +46,12 @@ class CompactionSortedList {
   static const server = AtServerAnnotation();
 
   /// Adds the hive key of [CommitEntry] to the list and sort's the keys in descending order.
-  @server
   void add(int commitEntryKey) {
     _list.add(commitEntryKey);
     _list.sort((a, b) => b.compareTo(a));
   }
 
   /// Returns the keys to compact.
-  @server
   List getKeysToCompact() {
     // _list.sublist(1) to retain the latest key and return the remaining.
     var expiredKeys = _list.sublist(1);
@@ -63,13 +59,11 @@ class CompactionSortedList {
   }
 
   /// Removes the compacted keys from the list.
-  @server
   void deleteCompactedKeys(var expiredKeys) {
     _list.removeWhere((element) => expiredKeys.contains(element));
   }
 
   /// Returns the size of list.
-  @server
   int getSize() {
     return _list.length;
   }

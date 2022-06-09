@@ -17,6 +17,8 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
   final Map<String, AtCommitLog> _commitLogMap = {};
 
   @override
+  @server
+  @client
   Future<AtCommitLog?> getCommitLog(String atSign,
       {String? commitLogPath, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.

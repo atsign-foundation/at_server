@@ -25,5 +25,4 @@ export 'package:at_persistence_secondary_server/src/notification/at_notification
 export 'package:at_persistence_secondary_server/src/notification/at_notification_manager.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_strategy.dart';
 export 'package:at_persistence_secondary_server/src/utils/at_metadata_adapter.dart';
-export 'package:at_persistence_secondary_server/src/utils/annotations.dart';
 export 'package:at_persistence_spec/at_persistence_spec.dart';

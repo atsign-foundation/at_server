@@ -22,6 +22,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     _commitLog = value;
   }
 
+  @server
+  @client
   Future<void> init() async {
     await _initMetaDataCache();
   }
@@ -32,14 +34,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
-    logger.finer('Metadata cache initialization started');
+    logger.finest('Metadata cache initialization started');
     var keys = persistenceManager.getBox().keys;
     await Future.forEach(
         keys,
         (key) => persistenceManager.getBox().get(key).then((atData) {
               _metaDataCache[key.toString()] = atData.metaData!;
             }));
-    logger.finer('Metadata cache initialization complete');
+    logger.finest('Metadata cache initialization complete');
   }
 
   @override

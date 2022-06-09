@@ -14,20 +14,20 @@ class SecondaryPersistenceStore {
     _init();
   }
 
-  @Annotations.client
-  @Annotations.server
+  @server
+  @client
   HiveKeystore? getSecondaryKeyStore() {
     return _hiveKeystore;
   }
 
-  @Annotations.client
-  @Annotations.server
+  @server
+  @client
   HivePersistenceManager? getHivePersistenceManager() {
     return _hivePersistenceManager;
   }
 
-  @Annotations.client
-  @Annotations.server
+  @server
+  @client
   SecondaryKeyStoreManager? getSecondaryKeyStoreManager() {
     return _secondaryKeyStoreManager;
   }

@@ -2,7 +2,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class TimeBasedCompaction implements AtCompactionStrategy {
-  static const server = AtServerAnnotation();
   late int timeInDays;
   int? compactionPercentage;
   late AtCompactionStats atCompactionStats;
@@ -13,8 +12,8 @@ class TimeBasedCompaction implements AtCompactionStrategy {
 
   ///Compaction procedure when compaction invocation criteria is time(frequency of compaction)
   ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
-  @server
   @override
+  @server
   Future<AtCompactionStats?> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
     var expiredKeys = await atLogType.getExpired(timeInDays);
