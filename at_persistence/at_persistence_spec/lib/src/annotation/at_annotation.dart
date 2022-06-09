@@ -9,3 +9,6 @@ class AtServerAnnotation {
 class AtClientAnnotation {
   const AtClientAnnotation();
 }
+
+const server = AtServerAnnotation();
+const client = AtClientAnnotation();
