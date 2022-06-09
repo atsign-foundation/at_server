@@ -13,6 +13,7 @@ class AccessLogKeyStore
     with HiveBase<AccessLogEntry?>
     implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
+  static const server = AtServerAnnotation();
 
   final _currentAtSign;
   late String _boxName;
@@ -20,6 +21,7 @@ class AccessLogKeyStore
   AccessLogKeyStore(this._currentAtSign);
 
   @override
+  @server
   Future<void> initialize() async {
     _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
 

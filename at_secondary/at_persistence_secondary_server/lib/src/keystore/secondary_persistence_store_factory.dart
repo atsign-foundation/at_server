@@ -1,3 +1,4 @@
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -7,6 +8,8 @@ class SecondaryPersistenceStoreFactory {
 
   SecondaryPersistenceStoreFactory._internal();
 
+  @Annotations.client
+  @Annotations.server
   factory SecondaryPersistenceStoreFactory.getInstance() {
     return _singleton;
   }
@@ -16,6 +19,8 @@ class SecondaryPersistenceStoreFactory {
   final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
       {};
 
+  @Annotations.client
+  @Annotations.server
   SecondaryPersistenceStore? getSecondaryPersistenceStore(String? atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
       var secondaryPersistenceStore = SecondaryPersistenceStore(atSign);
