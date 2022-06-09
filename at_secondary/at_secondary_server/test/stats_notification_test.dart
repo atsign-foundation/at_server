@@ -1,4 +1,7 @@
+import 'dart:collection';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -9,10 +12,20 @@ class MockAtCommitLog extends Mock implements AtCommitLog {}
 
 class MockInboundConnection extends Mock implements InboundConnection {}
 
+InboundConnection mockInboundConnection1 = MockInboundConnection();
+InboundConnection mockInboundConnection2 = MockInboundConnection();
+
+class MockInboundConnectionPool extends Mock implements InboundConnectionPool {
+  @override
+  UnmodifiableListView<InboundConnection> getConnections() {
+    return UnmodifiableListView<InboundConnection>(
+        [mockInboundConnection1, mockInboundConnection2]);
+  }
+}
+
 void main() {
   AtCommitLog mockAtCommitLog = MockAtCommitLog();
-  InboundConnection mockInboundConnection1 = MockInboundConnection();
-  InboundConnection mockInboundConnection2 = MockInboundConnection();
+  InboundConnectionPool mockInboundConnectionPool = MockInboundConnectionPool();
 
   test(
       'stats notification service test - stats written only to monitor connection',
@@ -22,10 +35,7 @@ void main() {
     StatsNotificationService statsNotificationService =
         StatsNotificationService.getInstance();
     statsNotificationService.atCommitLog = mockAtCommitLog;
-    statsNotificationService.connectionsList = [
-      mockInboundConnection1,
-      mockInboundConnection2
-    ];
+    statsNotificationService.inboundConnectionPool = mockInboundConnectionPool;
 
     when(() => mockAtCommitLog.lastCommittedSequenceNumber())
         .thenAnswer((_) => 4);

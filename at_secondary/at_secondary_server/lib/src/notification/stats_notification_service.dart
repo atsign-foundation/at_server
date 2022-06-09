@@ -6,7 +6,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
@@ -41,7 +40,9 @@ class StatsNotificationService {
   final _logger = AtSignLogger('StatsNotificationService');
   late String currentAtSign;
   AtCommitLog? atCommitLog;
-  List<InboundConnection>? connectionsList;
+  InboundConnectionPool inboundConnectionPool =
+      InboundConnectionPool.getInstance();
+
 
   // Counter for number of active monitor connections. Used for logging purpose.
   int numOfMonitorConn = 0;
@@ -83,9 +84,9 @@ class StatsNotificationService {
     try {
       latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
       // Gets the list of active connections.
-      connectionsList ??= InboundConnectionPool.getInstance().getConnections();
+      var connectionsList = inboundConnectionPool.getConnections();
       // Iterates on the list of active connections.
-      for (var connection in connectionsList!) {
+      for (var connection in connectionsList) {
         if (connection.isMonitor != null && connection.isMonitor!) {
           numOfMonitorConn = numOfMonitorConn + 1;
           //Construct a stats notification
