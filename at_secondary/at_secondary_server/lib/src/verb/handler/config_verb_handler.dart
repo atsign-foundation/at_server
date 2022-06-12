@@ -57,11 +57,6 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
-      if (setOperation != null) {
-        setConfigName =
-            ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!);
-        setConfigValue = verbParams[CONFIG_VALUE];
-      }
 
       switch (operation) {
         case 'show':
@@ -91,10 +86,25 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
       }
 
+      //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separated config name to config value
+      if (setOperation == 'set') {
+        //split 'config=value' to array of strings
+        var newConfig = verbParams[CONFIG_NEW]?.split('=');
+        //first element of array is config name
+        setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
+        //second element of array is config value
+        setConfigValue = newConfig[1];
+      } else {
+        //in other cases reset/print only config name is received
+        setConfigName =
+            ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
+      }
+
       //implementation for config:set
       switch (setOperation) {
         case 'set':
           if (AtSecondaryConfig.testingMode) {
+            //broadcast new config change
             AtSecondaryConfig.broadcastConfigChange(
                 setConfigName!, int.parse(setConfigValue!));
             result = 'ok';
@@ -104,6 +114,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'reset':
           if (AtSecondaryConfig.testingMode) {
+            //broadcast reset
             AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
                 isReset: true);
             result = 'ok';
@@ -113,8 +124,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'print':
           if (AtSecondaryConfig.testingMode) {
-            result = AtSecondaryConfig.getLatestConfigValue(
-                ModifiableConfigs.values.byName(verbParams[CONFIG_NAME]!));
+            result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
           } else {
             result = 'testing mode disabled by default';
           }

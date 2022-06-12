@@ -602,6 +602,7 @@ class AtSecondaryConfig {
     }
   }
 
+  //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
       if (!_streamListeners.containsKey(configName)) {
@@ -614,32 +615,43 @@ class AtSecondaryConfig {
     return null;
   }
 
+  //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, int? newConfigValue,
       {bool isReset = false}) {
     if (testingMode) {
+      //if an entry for the config does not exist new entry is created
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<int>.broadcast()
           ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
+      //in case of reset, the default value of that config is broadcast
       if (isReset) {
         _streamListeners[configName]
             ?.streamController
             .add(_streamListeners[configName]!.defaultValue);
+        _streamListeners[configName]?.currentValue =
+            _streamListeners[configName]!.defaultValue;
+        // this else case broadcast new config value
       } else {
         _streamListeners[configName]?.streamController.add(newConfigValue!);
+        _streamListeners[configName]?.currentValue = newConfigValue;
       }
     }
   }
 
+  //implementation for config:Set. Returns current value of modifiable configs
   static int? getLatestConfigValue(ModifiableConfigs configName) {
     if (_streamListeners.containsKey(configName)) {
-      return _streamListeners[configName]?.currentValue;
+      return _streamListeners[configName]?.currentValue ??
+          _streamListeners[configName]?.defaultValue;
     }
     return null;
   }
 
+  //implementation for config:set
+  //switch case that returns default value of modifiable configs
   static int? getDefaultValue(ModifiableConfigs configName) {
     switch (configName) {
       case ModifiableConfigs.accessLogCompactionFrequencyMins:

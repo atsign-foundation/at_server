@@ -153,6 +153,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
+    //code to support dynamic config modifications 'config:set'
+    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
     if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to commitLogCompactionFreq');
@@ -175,6 +177,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
+    //code to support dynamic config modifications 'config:set'
+    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
     if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to accessLogCompactionFreq');
@@ -197,6 +201,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
+    //code to support dynamic config modifications 'config:set'
+    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
     if (AtSecondaryConfig.testingMode) {
       logger.finest(
           'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
@@ -222,6 +228,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
+
+    //code to support dynamic server configuration change 'config:set'
+    //below code listens to changes of inbound_max_limit, re-initializes connection pool when new config received
     if (AtSecondaryConfig.testingMode) {
       AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
           ?.listen((newSize) {
@@ -261,19 +270,21 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     resume();
   }
 
-  ///restarts compaction with new compaction frequency
+  ///restarts compaction with new compaction frequency. Works only when testingMode set to true.
   Future<void> restartCompaction(
       AtCompactionJob atCompactionJob,
       AtCompactionConfig atCompactionConfig,
       int newFrequency,
       AtLogType atLogType) async {
-    logger.finest(
-        'Received new frequency for $atLogType compaction: $newFrequency');
-    await atCompactionJob.stopCompactionJob();
-    logger.finest('Existing cron job of accessLogCompaction terminated');
-    atCompactionConfig.compactionFrequencyMins = newFrequency;
-    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-    logger.finest('New compaction cron job started for $atLogType');
+    if (AtSecondaryConfig.testingMode) {
+      logger.finest(
+          'Received new frequency for $atLogType compaction: $newFrequency');
+      await atCompactionJob.stopCompactionJob();
+      logger.finest('Existing cron job of accessLogCompaction terminated');
+      atCompactionConfig.compactionFrequencyMins = newFrequency;
+      atCompactionJob.scheduleCompactionJob(atCompactionConfig);
+      logger.finest('New compaction cron job started for $atLogType');
+    }
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
