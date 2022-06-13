@@ -263,16 +263,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> initDynamicConfigListeners() async {
+    //only works if testingMode is set to true
     if (AtSecondaryConfig.testingMode) {
       logger.warning(
           'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
+
+      //subscriber for inbound_max_limit change
+      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
       AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
           ?.listen((newSize) {
         inboundConnectionFactory.init(newSize, isColdInit: false);
         logger.finest(
             'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
       });
-      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
 
       //subscriber for notification keystore compaction freq change
       logger.finest(
