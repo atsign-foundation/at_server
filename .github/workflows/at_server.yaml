@@ -30,7 +30,7 @@ jobs:
           sdk: stable
       # Setup python
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       # Install python packages
@@ -130,7 +130,7 @@ jobs:
 
       # Setup python
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
 
@@ -474,7 +474,7 @@ jobs:
 
       # Setup python
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
 

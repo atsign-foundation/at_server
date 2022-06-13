@@ -129,3 +129,11 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
       ..write(commitOp.name);
   }
 }
+
+/// Represents a CommitEntry with all instances pointing to null/defaults.
+///
+/// A NullCommitEntry will be returned when none of CommitEntry matches the given criteria
+/// (in place where a null has to returned when a matching CommitEntry is not found).
+class NullCommitEntry extends CommitEntry {
+  NullCommitEntry() : super('', CommitOp.UPDATE, DateTime.now());
+}
