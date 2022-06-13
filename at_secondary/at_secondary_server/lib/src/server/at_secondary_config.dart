@@ -37,7 +37,7 @@ class AtSecondaryConfig {
   static final int? _accessLogSizeInKB = 2;
 
   //Notification
-  static final bool? _autoNotify = true;
+  static final bool _autoNotify = true;
   // The maximum number of retries for a notification.
   static final int _maxNotificationRetries = 30;
   // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
@@ -449,7 +449,7 @@ class AtSecondaryConfig {
     }
   }
 
-  static bool? get autoNotify {
+  static bool get autoNotify {
     var result = _getBoolEnvVar('autoNotify');
     if (result != null) {
       return result;
@@ -607,7 +607,7 @@ class AtSecondaryConfig {
     if (testingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<int>.broadcast()
+          ..streamController = StreamController<dynamic>.broadcast()
           ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
       return _streamListeners[configName]!.streamController.stream;
@@ -617,13 +617,13 @@ class AtSecondaryConfig {
 
   //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
-      ModifiableConfigs configName, int? newConfigValue,
+      ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
     if (testingMode) {
       //if an entry for the config does not exist new entry is created
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<int>.broadcast()
+          ..streamController = StreamController<dynamic>.broadcast()
           ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
       }
       //in case of reset, the default value of that config is broadcast
@@ -642,7 +642,7 @@ class AtSecondaryConfig {
   }
 
   //implementation for config:Set. Returns current value of modifiable configs
-  static int? getLatestConfigValue(ModifiableConfigs configName) {
+  static dynamic getLatestConfigValue(ModifiableConfigs configName) {
     if (_streamListeners.containsKey(configName)) {
       return _streamListeners[configName]?.currentValue ??
           _streamListeners[configName]?.defaultValue;
@@ -652,7 +652,7 @@ class AtSecondaryConfig {
 
   //implementation for config:set
   //switch case that returns default value of modifiable configs
-  static int? getDefaultValue(ModifiableConfigs configName) {
+  static dynamic getDefaultValue(ModifiableConfigs configName) {
     switch (configName) {
       case ModifiableConfigs.accessLogCompactionFrequencyMins:
         return accessLogCompactionFrequencyMins;
@@ -662,6 +662,10 @@ class AtSecondaryConfig {
         return notificationKeyStoreCompactionFrequencyMins;
       case ModifiableConfigs.inbound_max_limit:
         return inbound_max_limit;
+      case ModifiableConfigs.autoNotify:
+        return autoNotify;
+      case ModifiableConfigs.maxNotificationRetries:
+        return maxNotificationRetries;
     }
   }
 
@@ -736,13 +740,15 @@ enum ModifiableConfigs {
   inbound_max_limit,
   commitLogCompactionFrequencyMins,
   accessLogCompactionFrequencyMins,
-  notificationKeyStoreCompactionFrequencyMins
+  notificationKeyStoreCompactionFrequencyMins,
+  autoNotify,
+  maxNotificationRetries
 }
 
 class ModifiableConfigurationEntry {
-  late StreamController<int> streamController;
-  late int defaultValue;
-  int? currentValue;
+  late StreamController<dynamic> streamController;
+  late var defaultValue;
+  var currentValue;
 }
 
 class ElementNotFoundException extends AtException {

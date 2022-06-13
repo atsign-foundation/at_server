@@ -13,6 +13,12 @@ class QueueManager {
 
   var noOfRetries = AtSecondaryConfig.maxNotificationRetries;
 
+  //setter to set maxNotificationRetries value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  void setMaxRetries(int newValue) {
+    noOfRetries = newValue;
+  }
+
   /// 1. Called by notification manager to queue the notifications.
   /// 2. Makes use of persistent priority queue to queue the notifications
   void enqueue(AtNotification atNotification) {

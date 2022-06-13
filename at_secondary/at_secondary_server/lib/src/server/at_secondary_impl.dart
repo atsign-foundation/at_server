@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.d
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
@@ -16,6 +17,10 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -77,6 +82,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
   late SecondaryPersistenceStore _secondaryPersistenceStore;
+  late var atCommitLogCompactionConfig;
+  late var atAccessLogCompactionConfig;
+  late var atNotificationCompactionConfig;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -145,7 +153,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance =
         AtCompactionJob(_commitLog, _secondaryPersistenceStore);
-    var atCommitLogCompactionConfig = AtCompactionConfig(
+    atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
         commitLogExpiryInDays!,
         commitLogCompactionPercentage!,
@@ -155,21 +163,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //code to support dynamic config modifications 'config:set'
     //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {
-      logger.finest(
-          'Subscribing to dynamic changes made to commitLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.commitLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        restartCompaction(commitLogCompactionJobInstance,
-            atCommitLogCompactionConfig, newFrequency, _commitLog);
-      });
-    }
+    if (AtSecondaryConfig.testingMode) {}
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, _secondaryPersistenceStore);
-    var atAccessLogCompactionConfig = AtCompactionConfig(
+    atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB!,
         accessLogExpiryInDays!,
         accessLogCompactionPercentage!,
@@ -179,21 +178,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //code to support dynamic config modifications 'config:set'
     //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {
-      logger.finest(
-          'Subscribing to dynamic changes made to accessLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.accessLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        restartCompaction(accessLogCompactionJobInstance,
-            atAccessLogCompactionConfig, newFrequency, _accessLog);
-      });
-    }
+    if (AtSecondaryConfig.testingMode) {}
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(), _secondaryPersistenceStore);
-    var atNotificationCompactionConfig = AtCompactionConfig(
+    atNotificationCompactionConfig = AtCompactionConfig(
         AtSecondaryConfig.notificationKeyStoreSizeInKB!,
         AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
         AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
@@ -203,19 +193,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //code to support dynamic config modifications 'config:set'
     //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {
-      logger.finest(
-          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        restartCompaction(
-            notificationKeyStoreCompactionJobInstance,
-            atNotificationCompactionConfig,
-            newFrequency,
-            AtNotificationKeystore.getInstance());
-      });
-    }
+    if (AtSecondaryConfig.testingMode) {}
     // Refresh Cached Keys
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -231,15 +209,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //code to support dynamic server configuration change 'config:set'
     //below code listens to changes of inbound_max_limit, re-initializes connection pool when new config received
-    if (AtSecondaryConfig.testingMode) {
-      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
-          ?.listen((newSize) {
-        inboundConnectionFactory.init(newSize, isColdInit: false);
-        logger.info(
-            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
-      });
-      logger.info('Subscribing to dynamic changes made to inbound_max_limit');
-    }
+    if (AtSecondaryConfig.testingMode) {}
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
 
@@ -248,6 +218,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Starts StatsNotificationService to keep monitor connections alive
     StatsNotificationService.getInstance().schedule();
+
+    //initializes subscribers for dynamic config change 'config:Set'
+    if (AtSecondaryConfig.testingMode) {
+      await initDynamicConfigListeners();
+    }
 
     try {
       _isRunning = true;
@@ -284,6 +259,77 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       atCompactionConfig.compactionFrequencyMins = newFrequency;
       atCompactionJob.scheduleCompactionJob(atCompactionConfig);
       logger.finest('New compaction cron job started for $atLogType');
+    }
+  }
+
+  Future<void> initDynamicConfigListeners() async {
+    if (AtSecondaryConfig.testingMode) {
+      logger.warning(
+          'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
+      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
+          ?.listen((newSize) {
+        inboundConnectionFactory.init(newSize, isColdInit: false);
+        logger.finest(
+            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
+      });
+      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
+
+      //subscriber for notification keystore compaction freq change
+      logger.finest(
+          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(
+            notificationKeyStoreCompactionJobInstance,
+            atNotificationCompactionConfig,
+            newFrequency,
+            AtNotificationKeystore.getInstance());
+      });
+
+      //subscriber for access log compaction frequency change
+      logger.finest(
+          'Subscribing to dynamic changes made to accessLogCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.accessLogCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(accessLogCompactionJobInstance,
+            atAccessLogCompactionConfig, newFrequency, _accessLog);
+      });
+
+      //subscriber for commit log compaction frequency change
+      logger.finest(
+          'Subscribing to dynamic changes made to commitLogCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.commitLogCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(commitLogCompactionJobInstance,
+            atCommitLogCompactionConfig, newFrequency, _commitLog);
+      });
+
+      //subscriber for autoNotify state change
+      logger.finest('Subscribing to dynamic changes made to autoNotify');
+      late bool autoNotifyState;
+      AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
+          ?.listen((newValue) {
+        //parse bool from string
+        newValue == 'true' ? autoNotifyState = true : autoNotifyState = false;
+        logger.finest(
+            'Received new value for config \'autoNotify\': $autoNotifyState');
+        UpdateVerbHandler.setAutoNotify(autoNotifyState);
+        DeleteVerbHandler.setAutoNotify(autoNotifyState);
+        UpdateMetaVerbHandler.setAutoNotify(autoNotifyState);
+      });
+
+      //subscriber for maxNotificationRetries count change
+      logger.finest('Subscribing to dynamic changes made to max_retries');
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
+          ?.listen((newCount) {
+        logger.finest(
+            'Received new value for config \'maxNotificationRetries\': $newCount');
+        ResourceManager.getInstance().setMaxRetries(newCount);
+        QueueManager.getInstance().setMaxRetries(newCount);
+      });
     }
   }
 

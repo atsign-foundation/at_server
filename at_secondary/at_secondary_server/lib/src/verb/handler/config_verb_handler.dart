@@ -105,8 +105,14 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         case 'set':
           if (AtSecondaryConfig.testingMode) {
             //broadcast new config change
-            AtSecondaryConfig.broadcastConfigChange(
-                setConfigName!, int.parse(setConfigValue!));
+            try {
+              AtSecondaryConfig.broadcastConfigChange(
+                  setConfigName!, int.parse(setConfigValue!));
+            } catch (e) {
+              AtSecondaryConfig.broadcastConfigChange(
+                  setConfigName!, setConfigValue!);
+            }
+            ;
             result = 'ok';
           } else {
             result = 'testing mode disabled by default';
