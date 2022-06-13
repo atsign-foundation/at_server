@@ -255,7 +255,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Received new frequency for $atLogType compaction: $newFrequency');
       await atCompactionJob.stopCompactionJob();
-      logger.finest('Existing cron job of accessLogCompaction terminated');
+      logger.finest('Existing cron job of $atLogType compaction terminated');
       atCompactionConfig.compactionFrequencyMins = newFrequency;
       atCompactionJob.scheduleCompactionJob(atCompactionConfig);
       logger.finest('New compaction cron job started for $atLogType');
