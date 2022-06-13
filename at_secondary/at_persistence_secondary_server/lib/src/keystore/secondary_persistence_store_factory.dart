@@ -17,8 +17,6 @@ class SecondaryPersistenceStoreFactory {
   final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
       {};
 
-  @server
-  @client
   SecondaryPersistenceStore? getSecondaryPersistenceStore(String? atSign) {
     if (!_secondaryPersistenceStoreMap.containsKey(atSign)) {
       var secondaryPersistenceStore = SecondaryPersistenceStore(atSign);

@@ -22,8 +22,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     _commitLog = value;
   }
 
-  @server
-  @client
   Future<void> init() async {
     await _initMetaDataCache();
   }
@@ -252,7 +250,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  @client
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {
@@ -310,6 +307,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @client
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
     try {
       var result;

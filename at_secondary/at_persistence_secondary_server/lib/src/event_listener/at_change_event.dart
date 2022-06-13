@@ -6,7 +6,6 @@ class AtPersistenceChangeEvent {
   dynamic value;
   late ChangeOperation changeOperation;
   late KeyStoreType keyStoreType;
-  static const server = AtServerAnnotation();
 
   /// Returns an [AtPersistenceChangeEvent] for a given key, value, operation and keystore source
   static AtPersistenceChangeEvent from(dynamic key,
@@ -43,7 +42,6 @@ enum KeyStoreType {
 /// Represents the list of keys of [CommitEntry].
 class CompactionSortedList {
   final _list = [];
-  static const server = AtServerAnnotation();
 
   /// Adds the hive key of [CommitEntry] to the list and sort's the keys in descending order.
   void add(int commitEntryKey) {

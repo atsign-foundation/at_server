@@ -12,7 +12,6 @@ class AtConfig {
 
   ///stores 'Configuration' type under [configkey] in secondary.
   String configKey = 'configKey';
-  static const server = AtServerAnnotation();
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   final String? _atSign;
   var _commitLog;
