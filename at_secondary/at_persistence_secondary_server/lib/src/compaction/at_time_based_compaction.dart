@@ -13,7 +13,6 @@ class TimeBasedCompaction implements AtCompactionStrategy {
   ///Compaction procedure when compaction invocation criteria is time(frequency of compaction)
   ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
   @override
-  @server
   Future<AtCompactionStats?> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
     var expiredKeys = await atLogType.getExpired(timeInDays);

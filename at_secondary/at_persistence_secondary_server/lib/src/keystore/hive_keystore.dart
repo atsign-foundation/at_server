@@ -252,6 +252,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @client
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {

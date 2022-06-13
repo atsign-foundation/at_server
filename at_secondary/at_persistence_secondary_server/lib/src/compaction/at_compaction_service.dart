@@ -18,7 +18,6 @@ class AtCompactionService {
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
-  @server
   Future<void> executeCompaction(
       AtCompactionConfig atCompactionConfig,
       AtLogType atLogType,

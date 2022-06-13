@@ -13,7 +13,6 @@ class SizeBasedCompaction implements AtCompactionStrategy {
   ///Compaction triggered when [AtLogType] size meets compaction criteria
   ///Returns [AtCompactionStats] object with statistics calculated from pre and post compaction data
   @override
-  @server
   Future<AtCompactionStats?> performCompaction(AtLogType atLogType) async {
     DateTime compactionStartTime = DateTime.now().toUtc();
     var isRequired = _isCompactionRequired(atLogType);

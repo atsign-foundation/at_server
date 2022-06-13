@@ -24,6 +24,7 @@ class AtCommitLog implements AtLogType {
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
   /// returns the sequence number corresponding to the new commit
   /// throws [DataStoreException] if there is an exception writing to hive box
+  @client
   Future<int?> commit(String key, CommitOp operation) async {
     if (key.startsWith(RegExp('private:|privatekey:|public:_'))) {
       // do not add private key and keys with public_ to commit log.

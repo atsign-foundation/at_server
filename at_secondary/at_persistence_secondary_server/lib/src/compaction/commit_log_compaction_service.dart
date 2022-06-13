@@ -30,7 +30,6 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   @override
-  @server
   Future<void> listen(AtPersistenceChangeEvent atChangeEvent) async {
     if (_commitLogEntriesMap.containsKey(atChangeEvent.key)) {
       keysToCompactCount = keysToCompactCount + 1;
@@ -42,7 +41,6 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   /// Removes the duplicate [CommitEntry] when reaches the threshold.
-  @server
   Future<void> compact() async {
     if (_isCompactionRequired()) {
       var keysBeforeCompaction = _commitLogKeyStore.getEntriesCount();
@@ -79,7 +77,6 @@ class CommitLogCompactionService implements AtChangeEventListener {
   }
 
   ///Returns the list[CompactionSortedList] for a given key.
-  @server
   CompactionSortedList? getEntries(var key) {
     return _commitLogEntriesMap[key];
   }

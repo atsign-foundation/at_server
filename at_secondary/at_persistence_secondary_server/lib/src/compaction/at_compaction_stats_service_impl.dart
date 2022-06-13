@@ -21,7 +21,6 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   final _logger = AtSignLogger("AtCompactionStats");
 
   @override
-  @server
   Future<void> handleStats(atCompactionStats) async {
     if (atCompactionStats != null) {
       _logger.finer('$atLogType: ${atCompactionStats?.toString()}');

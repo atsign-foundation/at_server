@@ -11,7 +11,6 @@ class AtCompactionJob {
 
   AtCompactionJob(this.atLogType, this._secondaryPersistenceStore);
 
-  @server
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
     _cron = Cron();
@@ -22,7 +21,6 @@ class AtCompactionJob {
     });
   }
 
-  @server
   void close() {
     _cron.close();
   }
