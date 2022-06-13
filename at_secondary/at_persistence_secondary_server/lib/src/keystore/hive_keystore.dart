@@ -142,6 +142,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<dynamic> create(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
@@ -226,6 +227,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<bool> deleteExpiredKeys() async {
     bool result = true;
     try {
@@ -250,6 +252,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {
@@ -371,6 +374,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   /// Returns true if key exists in [HiveKeystore]; else false.
   @override
+  @server
   bool isKeyExists(String key) {
     return persistenceManager
         .getBox()
