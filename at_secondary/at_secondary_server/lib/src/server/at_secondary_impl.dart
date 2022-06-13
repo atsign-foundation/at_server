@@ -161,10 +161,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
-    //code to support dynamic config modifications 'config:set'
-    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {}
-
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, _secondaryPersistenceStore);
@@ -175,10 +171,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLogCompactionFrequencyMins!);
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
-
-    //code to support dynamic config modifications 'config:set'
-    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {}
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
@@ -191,9 +183,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
-    //code to support dynamic config modifications 'config:set'
-    //adds listeners to certain server configurations. restarts compaction on receiving new compaction frequency
-    if (AtSecondaryConfig.testingMode) {}
     // Refresh Cached Keys
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -207,9 +196,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
 
-    //code to support dynamic server configuration change 'config:set'
-    //below code listens to changes of inbound_max_limit, re-initializes connection pool when new config received
-    if (AtSecondaryConfig.testingMode) {}
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
 
