@@ -10,7 +10,7 @@ class AtSecondaryConfig {
   //Certs
   static final bool? _useSSL = true;
   static final bool? _clientCertificateRequired = true;
-  static final bool? _testingMode = false;
+  static final bool _testingMode = false;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
@@ -123,7 +123,11 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
-    return getConfigFromYaml(['testing', 'testingMode']) ?? _testingMode;
+    try {
+      return getConfigFromYaml(['testing', 'testingMode']);
+    } on ElementNotFoundException {
+      return _testingMode;
+    }
   }
 
   static bool? get clientCertificateRequired {
@@ -708,7 +712,8 @@ dynamic getConfigFromYaml(List<String> args) {
   }
   // If value not found throw exception
   if (value == Null || value == null) {
-    throw ElementNotFoundException('Element Not Found in yaml');
+    throw ElementNotFoundException(
+        'Element ${args.toString()} Not Found in yaml');
   }
   return value;
 }
