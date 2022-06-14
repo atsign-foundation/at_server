@@ -38,6 +38,6 @@ class Config extends Verb {
 
   @override
   String usage() {
-    return 'configure block syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow \n configure set syntax config:set:<configName>=<configValue> \n config:reset(or)print:<configName>';
+    return 'configure block syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow \n configure set syntax \n e.g. config:set:<configName>=<configValue> \n config:reset(or)print:<configName>';
   }
 }

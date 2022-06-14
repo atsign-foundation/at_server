@@ -57,36 +57,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
-
-      switch (operation) {
-        case 'show':
-          var blockList = await atConfigInstance.getBlockList();
-          result = (blockList != null && blockList.isNotEmpty)
-              ? _toJsonResponse(blockList)
-              : null;
-          break;
-        case 'add':
-          var nonCurrentAtSignList =
-              _retainNonCurrentAtsign(currentAtSign, atsigns!);
-          if (nonCurrentAtSignList.isNotEmpty) {
-            result =
-                await atConfigInstance.addToBlockList(nonCurrentAtSignList);
-          }
-
-          ///if list contains only currentAtSign
-          else {
-            result = 'success';
-          }
-          break;
-        case 'remove':
-          result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
-          break;
-        default:
-          result = 'unknown operation';
-          break;
-      }
-
-      //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separated config name to config value
+      //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
       if (setOperation == 'set') {
         //split 'config=value' to array of strings
         var newConfig = verbParams[CONFIG_NEW]?.split('=');
@@ -100,44 +71,75 @@ class ConfigVerbHandler extends AbstractVerbHandler {
             ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
       }
 
-      //implementation for config:set
-      switch (setOperation) {
-        case 'set':
-          if (AtSecondaryConfig.testingMode) {
-            //broadcast new config change
-            try {
-              AtSecondaryConfig.broadcastConfigChange(
-                  setConfigName!, int.parse(setConfigValue!));
-            } catch (e) {
-              AtSecondaryConfig.broadcastConfigChange(
-                  setConfigName!, setConfigValue!);
+      if (operation != null) {
+        switch (operation) {
+          case 'show':
+            var blockList = await atConfigInstance.getBlockList();
+            result = (blockList != null && blockList.isNotEmpty)
+                ? _toJsonResponse(blockList)
+                : null;
+            break;
+          case 'add':
+            var nonCurrentAtSignList =
+                _retainNonCurrentAtsign(currentAtSign, atsigns!);
+            if (nonCurrentAtSignList.isNotEmpty) {
+              result =
+                  await atConfigInstance.addToBlockList(nonCurrentAtSignList);
             }
-            ;
-            result = 'ok';
-          } else {
-            result = 'testing mode disabled by default';
-          }
-          break;
-        case 'reset':
-          if (AtSecondaryConfig.testingMode) {
-            //broadcast reset
-            AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
-                isReset: true);
-            result = 'ok';
-          } else {
-            result = 'testing mode disabled by default';
-          }
-          break;
-        case 'print':
-          if (AtSecondaryConfig.testingMode) {
-            result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
-          } else {
-            result = 'testing mode disabled by default';
-          }
-          break;
-        default:
-          result = 'invalid setOperation';
-          break;
+
+            ///if list contains only currentAtSign
+            else {
+              result = 'success';
+            }
+            break;
+          case 'remove':
+            result =
+                await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
+            break;
+          default:
+            result = 'unknown operation';
+            break;
+        }
+      } else {
+        //implementation for config:set
+        switch (setOperation) {
+          case 'set':
+            if (AtSecondaryConfig.testingMode) {
+              //broadcast new config change
+              try {
+                AtSecondaryConfig.broadcastConfigChange(
+                    setConfigName!, int.parse(setConfigValue!));
+              } catch (e) {
+                AtSecondaryConfig.broadcastConfigChange(
+                    setConfigName!, setConfigValue!);
+              }
+              ;
+              result = 'ok';
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          case 'reset':
+            if (AtSecondaryConfig.testingMode) {
+              //broadcast reset
+              AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
+                  isReset: true);
+              result = 'ok';
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          case 'print':
+            if (AtSecondaryConfig.testingMode) {
+              result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          default:
+            result = 'invalid setOperation';
+            break;
+        }
       }
       response.data = result?.toString();
     } catch (exception) {
