@@ -20,7 +20,7 @@ class ResourceManager {
 
   bool _nudged = false;
 
-  var maxRetries;
+  static var maxRetries = AtSecondaryConfig.maxNotificationRetries;
 
   ResourceManager._internal();
 
@@ -218,7 +218,6 @@ class ResourceManager {
       return;
     }
     var iterator = errorList.iterator;
-    maxRetries = AtSecondaryConfig.maxNotificationRetries;
     while (iterator.moveNext()) {
       var atNotification = iterator.current;
       // Update the status to errored and persist the notification to keystore.
@@ -228,7 +227,7 @@ class ResourceManager {
       // If number retries are equal to maximum number of notifications, notifications are not further processed
       // hence remove entries from waitTimeMap and quarantineMap
       // TODO This should only be done when *all* of the pending notifications for this atSign have reached maxRetries
-      if (atNotification.retryCount == maxRetries) {
+      if (atNotification.retryCount >= maxRetries) {
         AtNotificationMap.getInstance()
             .removeWaitTimeEntry(atNotification.toAtSign);
         AtNotificationMap.getInstance()

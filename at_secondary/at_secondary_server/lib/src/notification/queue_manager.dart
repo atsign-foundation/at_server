@@ -11,7 +11,7 @@ class QueueManager {
     return _singleton;
   }
 
-  var noOfRetries = AtSecondaryConfig.maxNotificationRetries;
+  static var noOfRetries = AtSecondaryConfig.maxNotificationRetries;
 
   //setter to set maxNotificationRetries value from dynamic server config "config:set".
   //only works when testingMode is set to true
