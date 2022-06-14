@@ -302,7 +302,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
           ?.listen((newValue) {
         //parse bool from string
-        newValue == 'true' ? autoNotifyState = true : autoNotifyState = false;
+        if (newValue.toString() == 'true') {
+          autoNotifyState = true;
+        } else if (newValue.toString() == 'false') {
+          autoNotifyState = false;
+        }
         logger.finest(
             'Received new value for config \'autoNotify\': $autoNotifyState');
         UpdateVerbHandler.setAutoNotify(autoNotifyState);

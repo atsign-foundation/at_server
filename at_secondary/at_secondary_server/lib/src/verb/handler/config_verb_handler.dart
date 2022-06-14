@@ -57,19 +57,6 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
-      //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
-      if (setOperation == 'set') {
-        //split 'config=value' to array of strings
-        var newConfig = verbParams[CONFIG_NEW]?.split('=');
-        //first element of array is config name
-        setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
-        //second element of array is config value
-        setConfigValue = newConfig[1];
-      } else {
-        //in other cases reset/print only config name is received
-        setConfigName =
-            ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
-      }
 
       if (operation != null) {
         switch (operation) {
@@ -101,6 +88,20 @@ class ConfigVerbHandler extends AbstractVerbHandler {
             break;
         }
       } else {
+        //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
+        if (setOperation == 'set') {
+          //split 'config=value' to array of strings
+          var newConfig = verbParams[CONFIG_NEW]?.split('=');
+          //first element of array is config name
+          setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
+          //second element of array is config value
+          setConfigValue = newConfig[1];
+        } else {
+          //in other cases reset/print only config name is received
+          setConfigName =
+              ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
+        }
+
         //implementation for config:set
         switch (setOperation) {
           case 'set':
