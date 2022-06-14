@@ -98,7 +98,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           verbParams[AT_TTL_NOTIFICATION] == '0') {
         ttlnMillis = Duration(hours: 24).inMilliseconds;
       } else {
-        ttlnMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+        ttlnMillis =
+            AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
       }
       if (AtMetadataUtil.validateTTB(verbParams[AT_TTB]) > 0) {
         ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
@@ -167,7 +168,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         ..atMetaData = atMetadata
         ..type = NotificationType.sent
         ..ttl = ttlnMillis;
-      if(id != null && id.isNotEmpty){
+      if (id != null && id.isNotEmpty) {
         notificationBuilder.id = id;
       }
       var notificationId = await NotificationManager.getInstance()
@@ -193,7 +194,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (operation == 'delete') {
         cachedKeyCommitId = await _removeCachedKey(notifyKey);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -217,7 +218,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         cachedKeyCommitId =
             await _storeCachedKeys(key, metadata, atValue: atValue);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -234,7 +235,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -269,7 +270,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Removed cached key $key');
       return await keyStore!.remove(key);
     } else {
-      return  null;
+      return null;
     }
   }
 
@@ -281,10 +282,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   ///Sends the latest commitId to the StatsNotificationService
-  Future<void> _writeStats(
-      int? cachedKeyCommitId, String? operationType) async {
+  void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      await StatsNotificationService.getInstance().writeStatsToMonitor(
+      StatsNotificationService.getInstance().writeStatsToMonitor(
           latestCommitID: '$cachedKeyCommitId', operationType: operationType);
     }
   }
