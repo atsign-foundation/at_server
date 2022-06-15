@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
@@ -316,7 +315,7 @@ void main() async {
       await keystore?.put('key_test_$i', atData);
     }
 
-    List<String>? keys = await keystore?.getKeys();
+    List<String>? keys = keystore?.getKeys();
 
     keys?.forEach((String key) async {
       atData = await keystore?.get(key);
