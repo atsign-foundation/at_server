@@ -24,7 +24,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
             keysToCompactCount = keysToCompactCount + 1;
           }
           _commitLogEntriesMap.putIfAbsent(
-              commitEntry.atKey, () => CompactionSortedList());
+              commitEntry.atKey!, () => CompactionSortedList());
           _commitLogEntriesMap[commitEntry.atKey]!.add(key);
         }));
   }
