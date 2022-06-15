@@ -1,6 +1,5 @@
 library at_persistence_spec;
 
-export 'package:at_persistence_spec/src/annotation/at_annotation.dart';
 export 'package:at_persistence_spec/src/compaction/at_compaction_strategy.dart';
 export 'package:at_persistence_spec/src/compaction/at_compaction_stats.dart';
 export 'package:at_persistence_spec/src/compaction/at_compaction_type.dart';
