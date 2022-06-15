@@ -1,3 +1,7 @@
+## 3.0.26
+- Replace null commitId's with hive internal key on secondary server startup
+- Return commit entry with highest commitId from lastSyncedEntry
+- Upgrade at_commons version for AtException hierarchy
 ## 3.0.25
 - To reduce latency on notifications, publish the event for the notification before persisting the notification 
 ## 3.0.24
