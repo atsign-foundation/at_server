@@ -1,12 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
@@ -39,15 +38,19 @@ class StatsNotificationService {
   }
 
   final _logger = AtSignLogger('StatsNotificationService');
-  final String _currentAtSign =
-      AtSecondaryServerImpl.getInstance().currentAtSign;
-  AtCommitLog? _atCommitLog;
-  DateTime _lastSentTime = DateTime.now().toUtc();
+  late String currentAtSign;
+  AtCommitLog? atCommitLog;
+  InboundConnectionPool inboundConnectionPool =
+      InboundConnectionPool.getInstance();
+
+
+  // Counter for number of active monitor connections. Used for logging purpose.
+  int numOfMonitorConn = 0;
 
   /// Starts the [StatsNotificationService] and notifies the latest commitID
   /// to the active monitor connections.
   /// The [AtSecondaryConfig.statsNotificationJobTimeInterval] represents the time interval between the jobs.
-  void schedule() async {
+  Future<void> schedule(String currentAtSign) async {
     // If set to -1, the feature is disabled. Do nothing.
     if (AtSecondaryConfig.statsNotificationJobTimeInterval == -1) {
       _logger.info('StatsNotificationService is disabled');
@@ -55,54 +58,57 @@ class StatsNotificationService {
     }
     _logger.info(
         'StatsNotificationService is enabled. Runs every ${AtSecondaryConfig.statsNotificationJobTimeInterval} seconds');
-    _atCommitLog =
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(_currentAtSign);
-    // Setting while(true) to form an infinite loop.
-    // Runs the _schedule method as long as server is up and running.
-    while (true) {
-      await Future.delayed(
-          Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
-          _schedule);
-    }
-  }
+    this.currentAtSign = currentAtSign;
+    atCommitLog ??=
+        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
 
-  Future<void> _schedule() async {
-    await writeStatsToMonitor();
+    // Runs the _schedule method as long as server is up and running.
+    Timer.periodic(
+        Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
+        (timer) {
+      try {
+        _logger.finer('Stats Notification Job triggered');
+        writeStatsToMonitor();
+        _logger.finer('Stats Notification Job completed');
+      } on Exception catch (exception) {
+        _logger.severe(
+            'Exception occurred when writing stats ${exception.toString()}');
+      } on Error catch (error) {
+        _logger.severe('Error occurred when writing stats ${error.toString()}');
+      }
+    });
   }
 
   /// Writes the lastCommitID to the monitor connection for every [AtSecondaryConfig.statsNotificationJobTimeInterval] seconds. Defaulted to 15 seconds
-  Future<void> writeStatsToMonitor(
-      {String? latestCommitID, String? operationType}) async {
+  void writeStatsToMonitor({String? latestCommitID, String? operationType}) {
     try {
-      latestCommitID ??= _atCommitLog!.lastCommittedSequenceNumber().toString();
+      latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
       // Gets the list of active connections.
-      var connectionsList =
-          InboundConnectionPool.getInstance().getConnections();
+      var connectionsList = inboundConnectionPool.getConnections();
       // Iterates on the list of active connections.
-      await Future.forEach(connectionsList,
-          (InboundConnection connection) async {
-        if (connection.isMonitor != null &&
-            connection.isMonitor! &&
-            DateTime.now().toUtc().difference(_lastSentTime).inSeconds >
-                AtSecondaryConfig.statsNotificationJobTimeInterval) {
+      for (var connection in connectionsList) {
+        if (connection.isMonitor != null && connection.isMonitor!) {
+          numOfMonitorConn = numOfMonitorConn + 1;
           //Construct a stats notification
           var atNotificationBuilder = AtNotificationBuilder()
             ..id = '-1'
-            ..fromAtSign = _currentAtSign
-            ..notification = 'statsNotification.$_currentAtSign'
-            ..toAtSign = _currentAtSign
+            ..fromAtSign = currentAtSign
+            ..notification = 'statsNotification.$currentAtSign'
+            ..toAtSign = currentAtSign
             ..notificationDateTime = DateTime.now().toUtc()
             ..opType = SecondaryUtil.getOperationType(operationType)
             ..atValue = latestCommitID;
           var notification = Notification(atNotificationBuilder.build());
           connection.write(
               'notification: ' + jsonEncode(notification.toJson()) + '\n');
-          _lastSentTime = DateTime.now().toUtc();
         }
-      });
-    } on Exception catch (exception) {
-      _logger.severe(
-          'Exception occurred when writing stats ${exception.toString()}');
+      }
+      if (numOfMonitorConn == 0) {
+        _logger.finer(
+            'No monitor connections found. Skipping writing stats to monitor connection');
+      }
+    } finally {
+      numOfMonitorConn = 0;
     }
   }
 }

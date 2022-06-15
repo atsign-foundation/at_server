@@ -203,7 +203,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    StatsNotificationService.getInstance().schedule();
+    StatsNotificationService.getInstance().schedule(currentAtSign);
 
     //initializes subscribers for dynamic config change 'config:Set'
     if (AtSecondaryConfig.testingMode) {
@@ -419,11 +419,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
-    } on Exception catch (e, trace) {
+    } on Exception catch (e) {
+      logger.severe(
+          'Exception occurred in executing the verb: $command ${e.toString()}');
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
-    } on Error catch (e, trace) {
-      logger.severe(e.toString());
+    } on Error catch (e) {
+      logger.severe(
+          'Error occurred in executing the verb: $command ${e.toString()}');
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }

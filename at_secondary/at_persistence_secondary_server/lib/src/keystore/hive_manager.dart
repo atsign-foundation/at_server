@@ -11,7 +11,6 @@ import 'hive_base.dart';
 import 'secondary_persistence_store_factory.dart';
 
 class HivePersistenceManager with HiveBase {
-
   final logger = AtSignLogger('HivePersistenceManager');
 
   String? _atsign;
