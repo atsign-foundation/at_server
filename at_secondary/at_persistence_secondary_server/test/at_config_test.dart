@@ -1,9 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_manager_impl.dart';
-import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() async {

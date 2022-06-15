@@ -1,8 +1,6 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
-import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 
 void main() async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
@@ -24,9 +22,9 @@ void main() async {
       .getKeyStore()
       .put('123', atData, time_to_live: 30 * 1000);
   print('end');
-  var at_data = await keyStoreManager.getKeyStore().get('123');
-  print(at_data?.data);
-  assert(at_data?.data == 'abc');
+  var atDataResponse = await keyStoreManager.getKeyStore().get('123');
+  print(atDataResponse?.data);
+  assert(atDataResponse?.data == 'abc');
   var expiredKey =
       await Future.delayed(Duration(minutes: 2), () => getKey(keyStoreManager));
   assert(expiredKey == null);
@@ -35,6 +33,6 @@ void main() async {
 }
 
 Future<String?> getKey(keyStoreManager) async {
-  AtData? at_data = await keyStoreManager.getKeyStore().get('123');
-  return at_data?.data;
+  AtData? atData = await keyStoreManager.getKeyStore().get('123');
+  return atData?.data;
 }
