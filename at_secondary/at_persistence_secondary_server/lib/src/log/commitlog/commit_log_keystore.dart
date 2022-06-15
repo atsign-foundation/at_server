@@ -113,7 +113,7 @@ class CommitLogKeyStore
       // Iterate through the regex's in the _lastSyncedEntryCacheMap.
       // Updates the commitEntry against the matching regexes.
       for (var regex in _lastSyncedEntryCacheMap.keys) {
-        if (RegExp(regex).hasMatch(commitEntry.atKey!)) {
+        if (_isRegexMatches(commitEntry.atKey!, regex)) {
           _lastSyncedEntryCacheMap[regex] = commitEntry;
         }
       }
@@ -150,7 +150,7 @@ class CommitLogKeyStore
     var values = await _getValues();
     var lastCommittedEntry = values.lastWhere(
         (entry) => (_isRegexMatches(entry.atKey, regex)),
-        orElse: () => null);
+        orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
     return lastCommittedSequenceNum;
