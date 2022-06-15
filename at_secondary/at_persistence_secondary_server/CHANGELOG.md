@@ -1,3 +1,5 @@
+## 3.0.27
+- Downgrade meta package to 1.7.0(minimum) version
 ## 3.0.26
 - Replace null commitId's with hive internal key on secondary server startup
 - Return commit entry with highest commitId from lastSyncedEntry
