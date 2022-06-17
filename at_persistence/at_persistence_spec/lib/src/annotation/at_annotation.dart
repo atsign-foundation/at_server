@@ -10,5 +10,8 @@ class AtClientAnnotation {
   const AtClientAnnotation();
 }
 
+///use @server to mark methods exclusively used by at_secondary_server
 const AtServerAnnotation server = AtServerAnnotation();
+
+///use @server to mark methods exclusively used by at_client
 const AtClientAnnotation client = AtClientAnnotation();
