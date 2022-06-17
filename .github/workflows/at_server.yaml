@@ -176,7 +176,7 @@ jobs:
         run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
       - name: add env variable testingMode
-        run: ENV testingMode=true
+        run: docker env testingMode=true
 
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
