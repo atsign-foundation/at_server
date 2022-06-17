@@ -24,6 +24,7 @@ class AtCommitLog implements AtLogType {
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
   /// returns the sequence number corresponding to the new commit
   /// throws [DataStoreException] if there is an exception writing to hive box
+  @server
   Future<int?> commit(String key, CommitOp operation) async {
     if (key.startsWith(RegExp('private:|privatekey:|public:_'))) {
       // do not add private key and keys with public_ to commit log.
@@ -47,6 +48,7 @@ class AtCommitLog implements AtLogType {
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry
+  @client
   Future<CommitEntry?> getEntry(int? sequenceNumber) async {
     try {
       var commitEntry = await _commitLogKeyStore.get(sequenceNumber!);
@@ -79,6 +81,7 @@ class AtCommitLog implements AtLogType {
     return changes;
   }
 
+  @client
   Future<void> update(CommitEntry commitEntry, int commitId) async {
     try {
       await _commitLogKeyStore.update(commitId, commitEntry);
@@ -91,29 +94,35 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
+  @server
   Future<List> getExpired(int expiryInDays) {
     return _commitLogKeyStore.getExpired(expiryInDays);
   }
 
   /// Returns the latest committed sequence number
+  @server
   int? lastCommittedSequenceNumber() {
     return _commitLogKeyStore.latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex
+  @server
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
     return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
   }
 
+  @client
   Future<CommitEntry?> lastSyncedEntry() async {
     return await _commitLogKeyStore.lastSyncedEntry();
   }
 
+  @client
   Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
     return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
   }
 
   /// Returns the first committed sequence number
+  @server
   int? firstCommittedSequenceNumber() {
     return _commitLogKeyStore.firstCommittedSequenceNumber();
   }
@@ -121,6 +130,7 @@ class AtCommitLog implements AtLogType {
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
+  @server
   int entriesCount() {
     return _commitLogKeyStore.entriesCount();
   }
@@ -129,6 +139,7 @@ class AtCommitLog implements AtLogType {
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
+  @server
   Future<List> getFirstNEntries(int N) async {
     List<dynamic>? entries = [];
     try {
@@ -146,26 +157,31 @@ class AtCommitLog implements AtLogType {
   /// Removes the expired keys from the log.
   /// @param - expiredKeys : The expired keys to remove
   @override
+  @server
   Future<void> delete(dynamic expiredKeys) async {
     await _commitLogKeyStore.delete(expiredKeys);
   }
 
   @override
+  @server
   int getSize() {
     return _commitLogKeyStore.getSize();
   }
 
   /// Returns the latest commitEntry of the key.
+  @server
   CommitEntry? getLatestCommitEntry(String key) {
     return _commitLogKeyStore.getLatestCommitEntry(key);
   }
 
   /// Closes the [CommitLogKeyStore] instance.
+  @server
   Future<void> close() async {
     await _commitLogKeyStore.close();
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
+  @server
   Iterator getEntries(int commitId, {String? regex}) {
     // If regex is null or isEmpty set regex to match all keys
     if (regex == null || regex.isEmpty) {
