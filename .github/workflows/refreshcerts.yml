@@ -75,18 +75,18 @@ jobs:
         uses: peter-evans/create-pull-request@v4
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
-          commit-message: New certificates for at_server
+          commit-message: 'Chore: New certificates for at_server'
           committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: false
           add-paths: ./at_virtual_environment
           branch: bot-new-certs
           delete-branch: true
-          title: 'New certificates generated'
+          title: 'Chore: New certificates generated'
           body: |
             Fresh certificates generated.
           labels: |
             operations
           assignees: cpswan
-          reviewers: cpswan
+          reviewers: gkc
           draft: false
