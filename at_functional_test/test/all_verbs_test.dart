@@ -101,35 +101,35 @@ void main() async {
   });
 //FOR THESE TESTS TO WORK/PASS SET testingMode TO TRUE THROUGH ENV VARIABLES
 //THE FOLLOWING TESTS ONLY WORK WHEN IN TESTING MODE
-//   test('config verb test set/reset operation', () async {
-//     await socket_writer(
-//         socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
-//     var response = await read();
-//     print('config verb response $response');
-//     expect(response, contains('data:ok'));
-//
-//     await socket_writer(
-//         socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
-//     await Future.delayed(Duration(seconds: 2));
-//     response = await read();
-//     print('config verb response $response');
-//     expect(response, contains('data:ok'));
-//   });
-//
-//   test('config verb test set/print', () async {
-//     await socket_writer(
-//         socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
-//     var response = await read();
-//     print('config verb response $response');
-//     expect(response, contains('data:ok'));
-//
-//     await socket_writer(
-//         socketFirstAtsign!, 'config:print:maxNotificationRetries');
-//     await Future.delayed(Duration(seconds: 2));
-//     response = await read();
-//     print('config verb response $response');
-//     expect(response, contains('data:25'));
-//   });
+  test('config verb test set/reset operation', () async {
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+
+    await socket_writer(
+        socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+  });
+
+  test('config verb test set/print', () async {
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:maxNotificationRetries');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:25'));
+  });
 
   tearDown(() {
     //Closing the socket connection
