@@ -32,14 +32,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
-    logger.finer('Metadata cache initialization started');
+    logger.finest('Metadata cache initialization started');
     var keys = persistenceManager.getBox().keys;
     await Future.forEach(
         keys,
         (key) => persistenceManager.getBox().get(key).then((atData) {
               _metaDataCache[key.toString()] = atData.metaData!;
             }));
-    logger.finer('Metadata cache initialization complete');
+    logger.finest('Metadata cache initialization complete');
   }
 
   @override
@@ -142,6 +142,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<dynamic> create(String key, AtData? value,
       {int? time_to_live,
       int? time_to_born,
@@ -226,6 +227,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<bool> deleteExpiredKeys() async {
     bool result = true;
     try {
@@ -250,6 +252,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @server
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {
@@ -307,6 +310,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
+  @client
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
     try {
       var result;
@@ -370,6 +374,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   /// Returns true if key exists in [HiveKeystore]; else false.
   @override
+  @server
   bool isKeyExists(String key) {
     return persistenceManager
         .getBox()
