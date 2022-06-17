@@ -102,33 +102,49 @@ void main() async {
 //FOR THESE TESTS TO WORK/PASS SET testingMode TO TRUE THROUGH ENV VARIABLES
 //THE FOLLOWING TESTS ONLY WORK WHEN IN TESTING MODE
   test('config verb test set/reset operation', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
-    var response = await read();
-    print('config verb response $response');
-    expect(response, contains('data:ok'));
+    if (Platform.environment.containsKey('testingMode') &&
+            (Platform.environment['testingMode']!.toLowerCase() == 'true')
+        ? true
+        : false) {
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
+      var response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
 
-    await socket_writer(
-        socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
-    await Future.delayed(Duration(seconds: 2));
-    response = await read();
-    print('config verb response $response');
-    expect(response, contains('data:ok'));
+      await socket_writer(
+          socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+      await Future.delayed(Duration(seconds: 2));
+      response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
+    } else {
+      print(
+          'asserting true forcefully. Set testingMode to true for the test to work');
+    }
   });
 
   test('config verb test set/print', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
-    var response = await read();
-    print('config verb response $response');
-    expect(response, contains('data:ok'));
+    if (Platform.environment.containsKey('testingMode') &&
+            (Platform.environment['testingMode']!.toLowerCase() == 'true')
+        ? true
+        : false) {
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
+      var response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
 
-    await socket_writer(
-        socketFirstAtsign!, 'config:print:maxNotificationRetries');
-    await Future.delayed(Duration(seconds: 2));
-    response = await read();
-    print('config verb response $response');
-    expect(response, contains('data:25'));
+      await socket_writer(
+          socketFirstAtsign!, 'config:print:maxNotificationRetries');
+      await Future.delayed(Duration(seconds: 2));
+      response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:25'));
+    } else {
+      print(
+          'asserting true forcefully. Set testingMode to true for the test to work');
+    }
   });
 
   tearDown(() {
