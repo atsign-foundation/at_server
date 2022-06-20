@@ -1,3 +1,6 @@
+## 3.0.28
+- Updated lastSyncedEntryCacheMap regex to match the reserved keys
+- Upgraded to version 2.0.6 of at_persistence_spec containing @server/@client annotations
 ## 3.0.27
 - Downgrade meta package to 1.7.0(minimum) version
 ## 3.0.26
