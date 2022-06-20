@@ -3,16 +3,7 @@ name: at_server
 # 1. on pull request raised to trunk branch.
 # 2. on push event to trunk branch.
 # 3. on tagging a release
-on:
-  push:
-    tags:
-      - 'v*.*.*'
-      - 'c*.*.*'
-    branches:
-      - trunk
-  pull_request:
-    branches:
-      - trunk
+on: push
 
 jobs:
   unit_tests:
