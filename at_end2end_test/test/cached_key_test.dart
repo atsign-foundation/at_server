@@ -196,13 +196,6 @@ void main() {
     expect(response, contains('data:ok'));
   }, timeout: Timeout(Duration(minutes: 3)));
 
-
-  test('byPassCache with incorrect value', () async {
-    await sh2.writeCommand('lookup:bypass_Cache:true:fav-city$atSign_1');
-    var response = await sh2.read();
-    print('lookup verb response : $response');
-    expect(response, contains('data: Invalid Syntax'));
-  });
   // Will uncomment after validations are in place
   // test('update-llookup verb without ttr and with ccd', () async {
   //   /// UPDATE VERB
