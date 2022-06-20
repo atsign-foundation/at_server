@@ -1,6 +1,5 @@
-<img src="https://atsign.dev/assets/img/@developersmall.png?sanitize=true">
+<img width=250px src="https://atsign.dev/assets/img/@platform_logo_grey.svg?sanitize=true">
 
-### Now for a little internet optimism
 [![Pub Package](https://img.shields.io/pub/v/at_server_spec)](https://pub.dev/packages/at_server_spec)
 
 # at_server_spec

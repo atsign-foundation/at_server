@@ -4,20 +4,23 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
+import 'package:meta/meta.dart';
 
 class CommitLogKeyStore
     with HiveBase<CommitEntry?>
     implements LogKeyStore<int, CommitEntry?> {
   final _logger = AtSignLogger('CommitLogKeyStore');
   bool enableCommitId = true;
-  final _currentAtSign;
+  final String _currentAtSign;
   late String _boxName;
   final _commitLogCacheMap = <String, CommitEntry>{};
+
+  /// Contains the entries that are last synced by the client SDK.
+  /// The key represents the regex and value represents the [CommitEntry]
+  final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
+
   int _latestCommitId = -1;
 
   int get latestCommitId => _latestCommitId;
@@ -37,10 +40,16 @@ class CommitLogKeyStore
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
-    // Cache the latest commitId of each key.
-    // Add entries to commitLogCacheMap when initialized from at_secondary_server
-    // and refrain for at_client_sdk.
+    // Ensures the below code runs only when initialized from secondary server.
+    // enableCommitId is set to true in secondary server and to false in client SDK.
     if (enableCommitId) {
+      // Repairs the commit log.
+      // If null commit id's exist in commitEntry, replaces the commitId with
+      // respective hive internal key
+      await repairCommitLog(await toMap());
+      // Cache the latest commitId of each key.
+      // Add entries to commitLogCacheMap when initialized from at_secondary_server
+      // and refrain for at_client_sdk.
       _commitLogCacheMap.addAll(await _getCommitIdMap());
     }
   }
@@ -60,7 +69,7 @@ class CommitLogKeyStore
 
   @override
   Future<int> add(CommitEntry? commitEntry) async {
-    var internalKey;
+    int internalKey;
     try {
       internalKey = await _getBox().add(commitEntry);
       //set the hive generated key as commit id
@@ -84,11 +93,30 @@ class CommitLogKeyStore
     return internalKey;
   }
 
+  /// Updates the [commitEntry.commitId] with the given [commitId].
+  ///
+  /// This method is only called by the client(s) because when a key is created on the
+  /// client side, a record is created in the [CommitLogKeyStore] with a null commitId.
+  /// At the time sync, a key is created/updated in cloud secondary server and generates
+  /// the commitId sends it back to client which the gets updated against the commitEntry
+  /// of the key synced.
+  ///
   @override
-  Future update(int commitId, CommitEntry? commitEntry) async {
+  Future<void> update(int commitId, CommitEntry? commitEntry) async {
     try {
       commitEntry!.commitId = commitId;
       await _getBox().put(commitEntry.key, commitEntry);
+
+      if (_lastSyncedEntryCacheMap.isEmpty) {
+        return;
+      }
+      // Iterate through the regex's in the _lastSyncedEntryCacheMap.
+      // Updates the commitEntry against the matching regexes.
+      for (var regex in _lastSyncedEntryCacheMap.keys) {
+        if (_isRegexMatches(commitEntry.atKey!, regex)) {
+          _lastSyncedEntryCacheMap[regex] = commitEntry;
+        }
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -122,25 +150,61 @@ class CommitLogKeyStore
     var values = await _getValues();
     var lastCommittedEntry = values.lastWhere(
         (entry) => (_isRegexMatches(entry.atKey, regex)),
-        orElse: () => null);
+        orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
     return lastCommittedSequenceNum;
   }
 
-  Future<CommitEntry?> lastSyncedEntry({String? regex}) async {
-    var lastSyncedEntry;
-    var values = await _getValues();
-    if (regex != null) {
-      lastSyncedEntry = values.lastWhere(
-          (entry) =>
-              (_isRegexMatches(entry.atKey, regex) && (entry.commitId != null)),
-          orElse: () => null);
-    } else {
-      lastSyncedEntry = values.lastWhere((entry) => entry.commitId != null,
-          orElse: () => null);
+  /// Returns the lastSyncedEntry to the local secondary commitLog keystore by the clients.
+  ///
+  /// Optionally accepts the regex. Matches the regex against the [CommitEntry.AtKey] and returns the
+  /// matching [CommitEntry]. Defaulted to accept all patterns.
+  ///
+  /// This is used by the clients which have local secondary keystore. Not used by the secondary server.
+  Future<CommitEntry?> lastSyncedEntry({String regex = '.*'}) async {
+    CommitEntry? lastSyncedEntry;
+    if (_lastSyncedEntryCacheMap.containsKey(regex)) {
+      lastSyncedEntry = _lastSyncedEntryCacheMap[regex];
+      _logger.finer(
+          'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
+      return lastSyncedEntry;
     }
+
+    var values = (await _getValues())..sort(_sortByCommitId);
+    if (values.isEmpty) {
+      return null;
+    }
+
+    // Returns the commitEntry with maximum commitId matching the given regex.
+    // otherwise returns NullCommitEntry
+    lastSyncedEntry = values.lastWhere(
+        (entry) =>
+            (_isRegexMatches(entry!.atKey!, regex) && (entry.commitId != null)),
+        orElse: () => NullCommitEntry());
+
+    if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
+      _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
+      return null;
+    }
+
+    _logger.finer(
+        'Updating the lastSyncedEntry matching regex $regex to the cache. Returning lastSyncedEntry with key : ${lastSyncedEntry.atKey} and commitId ${lastSyncedEntry.commitId}');
+    _lastSyncedEntryCacheMap.putIfAbsent(regex, () => lastSyncedEntry!);
     return lastSyncedEntry;
+  }
+
+  int _sortByCommitId(dynamic c1, dynamic c2) {
+    if (c1.commitId == null && c2.commitId == null) {
+      return 0;
+    }
+    if (c1.commitId != null && c2.commitId == null) {
+      return 1;
+    }
+    if (c1.commitId == null && c2.commitId != null) {
+      return -1;
+    }
+    return c1.commitId.compareTo(c2.commitId);
   }
 
   /// Returns the first committed sequence number
@@ -198,19 +262,24 @@ class CommitLogKeyStore
   Future<List> getDuplicateEntries() async {
     var commitLogMap = await toMap();
     //defensive fix for commit entries with commitId equal to null
+    Set keysWithNullCommitIdsInValue = {};
     commitLogMap.forEach((key, value) {
       if (value.commitId == null) {
-        commitLogMap.remove(key);
-        _logger.severe('Commit ID is null for $value');
+        keysWithNullCommitIdsInValue.add(key);
+        _logger.severe('Commit ID is null for key $key with value $value');
       }
     });
+    for (var key in keysWithNullCommitIdsInValue) {
+      commitLogMap.remove(key);
+    }
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
-          commitLogMap[k2].commitId.compareTo(commitLogMap[k1].commitId));
+          commitLogMap[k2]!.commitId!.compareTo(commitLogMap[k1]!.commitId!));
     var tempSet = <String>{};
     var expiredKeys = [];
-    sortedKeys.forEach(
-        (entry) => _processEntry(entry, tempSet, expiredKeys, commitLogMap));
+    for (var entry in sortedKeys) {
+      _processEntry(entry, tempSet, expiredKeys, commitLogMap);
+    }
     return expiredKeys;
   }
 
@@ -230,28 +299,28 @@ class CommitLogKeyStore
     var values = await _getValues();
     try {
       var keys = _getBox().keys;
-      if (keys == null || keys.isEmpty) {
+      if (keys.isEmpty) {
         return changes;
       }
       var startKey = sequenceNumber + 1;
       _logger.finer('startKey: $startKey all commit log entries: $values');
       if (limit != null) {
-        values.forEach((element) {
+        for (var element in values) {
           if (element.key >= startKey &&
               _isRegexMatches(element.atKey, regexString) &&
               changes.length <= limit) {
             changes.add(element);
           }
-        });
+        }
         return changes;
       }
-      values.forEach((f) {
+      for (var f in values) {
         if (f.key >= startKey) {
           if (_isRegexMatches(f.atKey, regexString)) {
             changes.add(f);
           }
         }
-      });
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
@@ -309,6 +378,7 @@ class CommitLogKeyStore
     if (_commitLogCacheMap.containsKey(key)) {
       return _commitLogCacheMap[key]!;
     }
+    return null;
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
@@ -339,13 +409,13 @@ class CommitLogKeyStore
 
   ///Returns the key-value pair of commit-log where key is hive internal key and
   ///value is [CommitEntry]
-  Future<Map> toMap() async {
-    var commitLogMap = {};
+  Future<Map<int, CommitEntry>> toMap() async {
+    var commitLogMap = <int, CommitEntry>{};
     var keys = _getBox().keys;
-    var value;
+
     await Future.forEach(keys, (key) async {
-      value = await getValue(key);
-      commitLogMap.putIfAbsent(key, () => value);
+      var value = await getValue(key) as CommitEntry;
+      commitLogMap.putIfAbsent(key as int, () => value);
     });
     return commitLogMap;
   }
@@ -353,5 +423,21 @@ class CommitLogKeyStore
   ///Returns the total number of keys in commit log keystore.
   int getEntriesCount() {
     return _getBox().length;
+  }
+
+  ///Not a part of API. Exposed for Unit test
+  List<CommitEntry> getLastSyncedEntryCacheMapValues() {
+    return _lastSyncedEntryCacheMap.values.toList();
+  }
+
+  /// Replaces the null commit id's with hive internal key's
+  @visibleForTesting
+  Future<void> repairCommitLog(Map<int, CommitEntry> commitLogMap) async {
+    await Future.forEach(commitLogMap.keys, (key) async {
+      CommitEntry? commitEntry = commitLogMap[key];
+      if (commitEntry?.commitId == null) {
+        await update(key as int, commitEntry);
+      }
+    });
   }
 }

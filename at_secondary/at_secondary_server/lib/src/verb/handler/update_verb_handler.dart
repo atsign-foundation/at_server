@@ -18,10 +18,17 @@ import 'package:at_utils/at_utils.dart';
 // update can be used to update the public/private keys
 // Ex: update:public:email@alice alice@atsign.com \n
 class UpdateVerbHandler extends ChangeVerbHandler {
-  static final AUTO_NOTIFY = AtSecondaryConfig.autoNotify;
+  static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
-
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+
+  //setter to set autoNotify value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  static setAutoNotify(bool newState) {
+    if (AtSecondaryConfig.testingMode) {
+      _autoNotify = newState;
+    }
+  }
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -66,9 +73,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var atData = AtData();
       atData.data = value;
       atData.metaData = AtMetaData();
-      var ttl_ms = updateParams.metadata!.ttl;
-      var ttb_ms = updateParams.metadata!.ttb;
-      var ttr_ms = updateParams.metadata!.ttr;
+      var ttlMillis = updateParams.metadata!.ttl;
+      var ttbMillis = updateParams.metadata!.ttb;
+      var ttrMillis = updateParams.metadata!.ttr;
       var isBinary = updateParams.metadata!.isBinary;
       var isEncrypted = updateParams.metadata!.isEncrypted;
       var dataSignature = updateParams.metadata!.dataSignature;
@@ -90,23 +97,23 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         key = 'public:$key';
       }
       var metadata = await keyStore!.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttr_ms, ccd);
-      ttr_ms = cacheRefreshMetaMap[AT_TTR];
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
+      ttrMillis = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
 
       //If ttr is set and atsign is not equal to currentAtSign, the key is
       //cached key.
-      if (ttr_ms != null &&
-          ttr_ms > 0 &&
+      if (ttrMillis != null &&
+          ttrMillis > 0 &&
           atSign != null &&
           atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
         key = 'cached:$key';
       }
 
       var atMetadata = AtMetaData()
-        ..ttl = ttl_ms
-        ..ttb = ttb_ms
-        ..ttr = ttr_ms
+        ..ttl = ttlMillis
+        ..ttb = ttbMillis
+        ..ttr = ttrMillis
         ..isCascade = ccd
         ..isBinary = isBinary
         ..isEncrypted = isEncrypted
@@ -114,19 +121,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..sharedKeyEnc = sharedKeyEncrypted
         ..pubKeyCS = publicKeyChecksum;
 
-      // update the key in data store
-      var result = await keyStore!.put(key, atData,
-          time_to_live: ttl_ms,
-          time_to_born: ttb_ms,
-          time_to_refresh: ttr_ms,
-          isCascade: ccd,
-          isBinary: isBinary,
-          isEncrypted: isEncrypted,
-          dataSignature: dataSignature,
-          sharedKeyEncrypted: sharedKeyEncrypted,
-          publicKeyChecksum: publicKeyChecksum);
-      response.data = result?.toString();
-      if (AUTO_NOTIFY!) {
+      if (_autoNotify!) {
         _notify(
             atSign,
             forAtSign,
@@ -135,6 +130,19 @@ class UpdateVerbHandler extends ChangeVerbHandler {
             SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
             atMetadata);
       }
+
+      // update the key in data store
+      var result = await keyStore!.put(key, atData,
+          time_to_live: ttlMillis,
+          time_to_born: ttbMillis,
+          time_to_refresh: ttrMillis,
+          isCascade: ccd,
+          isBinary: isBinary,
+          isEncrypted: isEncrypted,
+          dataSignature: dataSignature,
+          sharedKeyEncrypted: sharedKeyEncrypted,
+          publicKeyChecksum: publicKeyChecksum);
+      response.data = result?.toString();
     } on InvalidSyntaxException {
       rethrow;
     } catch (exception) {
@@ -147,10 +155,10 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   void _notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
-      return null;
+      return;
     }
     key = '$forAtSign:$key$atSign';
-    var expiresAt;
+    DateTime? expiresAt;
     if (atMetaData.ttl != null) {
       expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
     }
@@ -199,4 +207,6 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     updateParams.metadata = metadata;
     return updateParams;
   }
+
+  void _autoNotifyChange() {}
 }

@@ -3,20 +3,20 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
-    
+
 jobs:
   refresh-ACME-cert:
     runs-on: ubuntu-latest
 
     steps:
       - name: checkout repo content
-        uses: actions/checkout@v2 # checkout the repository content to github runner.
+        uses: actions/checkout@v3.0.2 # checkout the repository content to github runner.
 
       - name: setup python
-        uses: actions/setup-python@v2.3.1
+        uses: actions/setup-python@v4
         with:
           python-version: 3.9 #install the python needed
-      
+
       - name: setup certinfo
         uses: atsign-company/certinfo-action@v1
 
@@ -62,7 +62,7 @@ jobs:
         env:
           GITHUB_API_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
           DO_KEY: ${{ secrets.DO_KEY }}
-      
+
       - name: store logs and responses
         if: always()
         uses: actions/upload-artifact@v3

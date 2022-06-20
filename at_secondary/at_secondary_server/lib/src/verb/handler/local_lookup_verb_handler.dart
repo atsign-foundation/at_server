@@ -60,7 +60,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     var isActive = false;
     isActive = SecondaryUtil.isActiveKey(lookup_data);
     if (isActive) {
-      logger.info('isActiveKey : $isActive');
+      logger.finer('isActiveKey($key) : $isActive');
       response.data = SecondaryUtil.prepareResponseData(operation, lookup_data);
     }
   }

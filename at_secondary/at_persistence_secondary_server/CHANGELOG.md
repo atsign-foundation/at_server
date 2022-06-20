@@ -1,3 +1,14 @@
+## 3.0.28
+- Updated lastSyncedEntryCacheMap regex to match the reserved keys
+- Upgraded to version 2.0.6 of at_persistence_spec containing @server/@client annotations
+## 3.0.27
+- Downgrade meta package to 1.7.0(minimum) version
+## 3.0.26
+- Replace null commitId's with hive internal key on secondary server startup
+- Return commit entry with highest commitId from lastSyncedEntry
+- Upgrade at_commons version for AtException hierarchy
+## 3.0.25
+- To reduce latency on notifications, publish the event for the notification before persisting the notification 
 ## 3.0.24
 - Introduced a cache to speed up metaData retrieval.
 - Removed unnecessary print statements

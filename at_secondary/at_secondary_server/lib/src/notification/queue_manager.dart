@@ -1,4 +1,4 @@
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 
@@ -11,7 +11,13 @@ class QueueManager {
     return _singleton;
   }
 
-  var noOfRetries = AtSecondaryConfig.maxNotificationRetries;
+  static var noOfRetries = AtSecondaryConfig.maxNotificationRetries;
+
+  //setter to set maxNotificationRetries value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  void setMaxRetries(int newValue) {
+    noOfRetries = newValue;
+  }
 
   /// 1. Called by notification manager to queue the notifications.
   /// 2. Makes use of persistent priority queue to queue the notifications
@@ -34,5 +40,9 @@ class QueueManager {
   Iterator<AtNotification> dequeue(String? atsign) {
     var mapInstance = AtNotificationMap.getInstance();
     return mapInstance.remove(atsign);
+  }
+
+  int numQueued(String atSign) {
+    return AtNotificationMap.getInstance().numQueued(atSign);
   }
 }

@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.d
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/refresh/at_refresh_job.dart';
@@ -16,6 +17,10 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -51,8 +56,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogExpiryInDays =
       AtSecondaryConfig.accessLogExpiryInDays;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final int? maxNotificationEntries =
-      AtSecondaryConfig.maxNotificationEntries;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
   late bool _isPaused;
@@ -79,6 +82,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
   late SecondaryPersistenceStore _secondaryPersistenceStore;
+  late var atCommitLogCompactionConfig;
+  late var atAccessLogCompactionConfig;
+  late var atNotificationCompactionConfig;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -147,7 +153,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance =
         AtCompactionJob(_commitLog, _secondaryPersistenceStore);
-    var atCommitLogCompactionConfig = AtCompactionConfig(
+    atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
         commitLogExpiryInDays!,
         commitLogCompactionPercentage!,
@@ -158,7 +164,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, _secondaryPersistenceStore);
-    var atAccessLogCompactionConfig = AtCompactionConfig(
+    atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB!,
         accessLogExpiryInDays!,
         accessLogCompactionPercentage!,
@@ -169,7 +175,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(), _secondaryPersistenceStore);
-    var atNotificationCompactionConfig = AtCompactionConfig(
+    atNotificationCompactionConfig = AtCompactionConfig(
         AtSecondaryConfig.notificationKeyStoreSizeInKB!,
         AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
         AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
@@ -187,19 +193,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var certificateReload = AtCertificateValidationJob.getInstance();
     await certificateReload.runCertificateExpiryCheckJob();
 
-    // Notification job
-    var resourceManager = ResourceManager.getInstance();
-    if (!resourceManager.isRunning) {
-      resourceManager.schedule();
-    }
-
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
+
     OutboundClientManager.getInstance()
         .init(serverContext!.outboundConnectionLimit);
 
+    // Notification job
+    ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
+
     // Starts StatsNotificationService to keep monitor connections alive
-    StatsNotificationService.getInstance().schedule();
+    StatsNotificationService.getInstance().schedule(currentAtSign);
+
+    //initializes subscribers for dynamic config change 'config:Set'
+    if (AtSecondaryConfig.testingMode) {
+      await initDynamicConfigListeners();
+    }
 
     try {
       _isRunning = true;
@@ -222,6 +231,101 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     resume();
   }
 
+  ///restarts compaction with new compaction frequency. Works only when testingMode set to true.
+  Future<void> restartCompaction(
+      AtCompactionJob atCompactionJob,
+      AtCompactionConfig atCompactionConfig,
+      int newFrequency,
+      AtLogType atLogType) async {
+    if (AtSecondaryConfig.testingMode) {
+      logger.finest(
+          'Received new frequency for $atLogType compaction: $newFrequency');
+      await atCompactionJob.stopCompactionJob();
+      logger.finest('Existing cron job of $atLogType compaction terminated');
+      atCompactionConfig.compactionFrequencyMins = newFrequency;
+      atCompactionJob.scheduleCompactionJob(atCompactionConfig);
+      logger.finest('New compaction cron job started for $atLogType');
+    }
+  }
+
+  Future<void> initDynamicConfigListeners() async {
+    //only works if testingMode is set to true
+    if (AtSecondaryConfig.testingMode) {
+      logger.warning(
+          'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
+
+      //subscriber for inbound_max_limit change
+      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
+      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
+          ?.listen((newSize) {
+        inboundConnectionFactory.init(newSize, isColdInit: false);
+        logger.finest(
+            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
+      });
+
+      //subscriber for notification keystore compaction freq change
+      logger.finest(
+          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(
+            notificationKeyStoreCompactionJobInstance,
+            atNotificationCompactionConfig,
+            newFrequency,
+            AtNotificationKeystore.getInstance());
+      });
+
+      //subscriber for access log compaction frequency change
+      logger.finest(
+          'Subscribing to dynamic changes made to accessLogCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.accessLogCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(accessLogCompactionJobInstance,
+            atAccessLogCompactionConfig, newFrequency, _accessLog);
+      });
+
+      //subscriber for commit log compaction frequency change
+      logger.finest(
+          'Subscribing to dynamic changes made to commitLogCompactionFreq');
+      AtSecondaryConfig.subscribe(
+              ModifiableConfigs.commitLogCompactionFrequencyMins)
+          ?.listen((newFrequency) async {
+        restartCompaction(commitLogCompactionJobInstance,
+            atCommitLogCompactionConfig, newFrequency, _commitLog);
+      });
+
+      //subscriber for autoNotify state change
+      logger.finest('Subscribing to dynamic changes made to autoNotify');
+      late bool autoNotifyState;
+      AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
+          ?.listen((newValue) {
+        //parse bool from string
+        if (newValue.toString() == 'true') {
+          autoNotifyState = true;
+        } else if (newValue.toString() == 'false') {
+          autoNotifyState = false;
+        }
+        logger.finest(
+            'Received new value for config \'autoNotify\': $autoNotifyState');
+        UpdateVerbHandler.setAutoNotify(autoNotifyState);
+        DeleteVerbHandler.setAutoNotify(autoNotifyState);
+        UpdateMetaVerbHandler.setAutoNotify(autoNotifyState);
+      });
+
+      //subscriber for maxNotificationRetries count change
+      logger.finest('Subscribing to dynamic changes made to max_retries');
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
+          ?.listen((newCount) {
+        logger.finest(
+            'Received new value for config \'maxNotificationRetries\': $newCount');
+        ResourceManager.getInstance().setMaxRetries(newCount);
+        QueueManager.getInstance().setMaxRetries(newCount);
+      });
+    }
+  }
+
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
   /// Throws [AtConnection] if unable to create a connection
   /// Throws [SocketException] for exceptions on socket
@@ -235,7 +339,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         return;
       }
       var _sessionID = '_' + Uuid().v4();
-      var connection;
+      InboundConnection? connection;
       try {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
@@ -249,9 +353,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .handle(e, atConnection: connection, clientSocket: clientSocket);
       }
     }), onError: (error) {
-      logger.severe(error);
-      GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(error.toString()));
+      // We've got no action to take here, let's just log a warning
+      logger.warning("ServerSocket.listen called onError with '$error'");
     });
   }
 
@@ -316,11 +419,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       command = SecondaryUtil.convertCommand(command);
       await executor!.execute(command, connection, verbManager!);
-    } on Exception catch (e, trace) {
+    } on Exception catch (e) {
+      logger.severe(
+          'Exception occurred in executing the verb: $command ${e.toString()}');
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
-    } on Error catch (e, trace) {
-      logger.severe(e.toString());
+    } on Error catch (e) {
+      logger.severe(
+          'Error occurred in executing the verb: $command ${e.toString()}');
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }
