@@ -1,6 +1,7 @@
 FROM dart:2.17.3 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
+ENV testingMode="true"
 WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
