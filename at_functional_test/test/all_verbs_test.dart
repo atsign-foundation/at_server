@@ -125,7 +125,7 @@ void main() async {
   });
 
   test('config verb test set/print', () async {
-    print(Platform.environment['testingMode']);
+    print(Platform.environment);
     if (Platform.environment.containsKey('testingMode') &&
             (Platform.environment['testingMode']!.toLowerCase() == 'true')
         ? true
