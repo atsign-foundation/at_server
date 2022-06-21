@@ -126,10 +126,6 @@ void main() async {
 
   test('config verb test set/print', () async {
     print(Platform.environment);
-    if (Platform.environment.containsKey('testingMode') &&
-            (Platform.environment['testingMode']!.toLowerCase() == 'true')
-        ? true
-        : false) {
       await socket_writer(
           socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
       var response = await read();
@@ -142,10 +138,6 @@ void main() async {
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:25'));
-    } else {
-      print(
-          'asserting true forcefully. Set testingMode to true for the test to work');
-    }
   });
 
   tearDown(() {
