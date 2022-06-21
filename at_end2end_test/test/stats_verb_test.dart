@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
 import 'e2e_test_utils.dart' as e2e;
 import 'notify_verb_test.dart' as notification;
-
 
 void main() {
   late String atSign_1;
@@ -12,6 +12,8 @@ void main() {
 
   late String atSign_2;
   late e2e.SimpleOutboundSocketHandler sh2;
+
+  var lastValue = Random().nextInt(20);
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -37,17 +39,18 @@ void main() {
     await sh1.writeCommand('stats');
     var statsResponse = await sh1.read();
     print('stats verb response : $statsResponse');
-    assert(
-        (!statsResponse.contains('Invalid syntax')) && (!statsResponse.contains('data:null')));
+    assert((!statsResponse.contains('Invalid syntax')) &&
+        (!statsResponse.contains('data:null')));
   });
 
   test('stats verb for id 3 ', () async {
     /// STATS VERB
-    await sh1.writeCommand('update:public:username$atSign_1 Bob!');
+    var value = 'Bob_$lastValue';
+    await sh1.writeCommand('update:public:username$atSign_1 $value');
     var updateResponse = await sh1.read();
     print('update verb response : $updateResponse');
-    assert(
-        (!updateResponse.contains('Invalid syntax')) && (!updateResponse.contains('null')));
+    assert((!updateResponse.contains('Invalid syntax')) &&
+        (!updateResponse.contains('null')));
     String commitId = updateResponse.trim().replaceAll('data:', '');
     print(commitId);
 
@@ -70,7 +73,6 @@ void main() {
     sh1 = await e2e.getSocketHandler(atSign_1);
   });
 
-
   test(
       'stats verb for id 11 - update operation count from sender for the messageType key',
       () async {
@@ -81,12 +83,16 @@ void main() {
     var keyCountBeforeUpdate = await beforeUpdate['messageType']['key'];
 
     /// notify command
-    await sh1.writeCommand('notify:update:ttr:-1:$atSign_2:country$atSign_1:India');
+    var value = '$lastValue-India';
+    await sh1
+        .writeCommand('notify:update:ttr:-1:$atSign_2:country$atSign_1:$value');
     var notifyResponse = await sh1.read();
     print('notify verb response $notifyResponse');
-    assert((!notifyResponse.contains('Invalid syntax')) && (!notifyResponse.contains('null')));
+    assert((!notifyResponse.contains('Invalid syntax')) &&
+        (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     var afterUpdate = await notificationStats(sh1);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['delivered'];
@@ -106,12 +112,15 @@ void main() {
     var receivedCountBeforeUpdate = beforeUpdateCount['type']['received'];
 
     /// update command
-    await sh1.writeCommand('notify:update:$atSign_2:country$atSign_1:India');
+    var value = '$lastValue-UK';
+    await sh1.writeCommand('notify:update:$atSign_2:country$atSign_1:$value');
     var notifyResponse = await sh1.read();
     print('notify verb response $notifyResponse');
-    assert((!notifyResponse.contains('Invalid syntax')) && (!notifyResponse.contains('null')));
+    assert((!notifyResponse.contains('Invalid syntax')) &&
+        (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     var afterUpdateCount = await notificationStats(sh2);
     var receivedCountAfterUpdate = afterUpdateCount['type']['received'];
     expect(afterUpdateCount['operations']['update'],
@@ -134,7 +143,8 @@ void main() {
     assert((!deleteResponse.contains('Invalid syntax')) &&
         (!deleteResponse.contains('null')));
     String notificationId = deleteResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     var afterDelete = await notificationStats(sh1);
     var sentCountAfterDelete = await afterDelete['type']['sent'];
     var statusAfterDelete = await afterDelete['status']['delivered'];
@@ -144,7 +154,7 @@ void main() {
     expect(statusAfterDelete, statusBeforeDelete + 1);
   });
 
-   test('stats verb for id 11 - delete operation count from receiver', () async {
+  test('stats verb for id 11 - delete operation count from receiver', () async {
     /// stats:11 verb response
     var beforeDelete = await notificationStats(sh2);
     var sentCountBeforeDelete = await beforeDelete['type']['received'];
@@ -156,7 +166,8 @@ void main() {
     assert((!deleteResponse.contains('Invalid syntax')) &&
         (!deleteResponse.contains('null')));
     String notificationId = deleteResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     var afterDelete = await notificationStats(sh2);
     var sentCountAfterDelete = await afterDelete['type']['received'];
     expect(afterDelete['operations']['delete'],
@@ -172,13 +183,16 @@ void main() {
     var textCountBeforeNotify = await beforeNotify['messageType']['text'];
 
     /// update command
-    await sh1.writeCommand('notify:messageType:text:ttr:-1:$atSign_2:message$atSign_1:Hi!!!');
+    var value = 'Hey $lastValue';
+    await sh1.writeCommand(
+        'notify:messageType:text:ttr:-1:$atSign_2:message$atSign_1:$value');
     var notifyResponse = await sh1.read();
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     var afterNotify = await notificationStats(sh1);
     var sentCountAfterNotify = await afterNotify['type']['sent'];
     var statusAfterNotify = await afterNotify['status']['delivered'];
@@ -196,13 +210,15 @@ void main() {
     var keyCountBeforeUpdate = await beforeUpdate['messageType']['key'];
 
     /// update command
-    await sh1.writeCommand('notify:update:@xxx:country$atSign_1:India');
+    var value = '$lastValue-randomNumber';
+    await sh1.writeCommand('notify:update:@xxx:no-key$atSign_1:$value');
     var notifyResponse = await sh1.read();
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['errored']);
+    await notification
+        .getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['errored'], timeOutMillis: 15000);
     var afterUpdate = await notificationStats(sh1);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['failed'];
@@ -213,7 +229,6 @@ void main() {
     expect(statusAfterUpdate, statusBeforeUpdate + 1);
     expect(keyCountAfterUpdate, keyCountBeforeUpdate + 1);
   });
-
 }
 
 Future<Map> notificationStats(e2e.SimpleOutboundSocketHandler sh) async {

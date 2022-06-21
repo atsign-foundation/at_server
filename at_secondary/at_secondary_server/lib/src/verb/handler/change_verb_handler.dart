@@ -21,7 +21,7 @@ abstract class ChangeVerbHandler extends AbstractVerbHandler {
     if (_responseInternal != null &&
         _responseInternal!.isError == false &&
         _responseInternal!.data != null) {
-      await StatsNotificationService.getInstance().writeStatsToMonitor(
+      StatsNotificationService.getInstance().writeStatsToMonitor(
           latestCommitID: _responseInternal!.data,
           operationType: getVerb().name());
     }

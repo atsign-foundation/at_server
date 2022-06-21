@@ -113,7 +113,11 @@ def get_crt(config, log=LOGGER):
                     sys.exit(3)
 
     def delete_txt(txt_id,domain):
-        base_domain=domain.split(".",2)[2]
+        split_domain=domain.split(".",2)
+        if rootdomain:
+            base_domain=split_domain[1]+"."+split_domain[2]
+        else:
+            base_domain=split_domain[2]
         log.info('Deleting TXT record')
         api_url = f'{do_base}domains/{base_domain}/records/{txt_id}'
 
@@ -161,8 +165,12 @@ def get_crt(config, log=LOGGER):
                 if backoff > 64:
                     raise RuntimeError("Unable to get response from ACME "
                         "server after multiple retries.")
+                elif response.status_code == 429:
+                    raise RuntimeError("Hit the rate limit "
+                        f"{response.text}")
                 else:
-                    log.info(f"Can't reach ACME server, retrying in {backoff}s")
+                    log.info(f"Can't reach ACME server at {url}, retrying in {backoff}s")
+                    log.info(f"{response.text}")
                     time.sleep(backoff)
 
     # main code
@@ -317,21 +325,22 @@ def get_crt(config, log=LOGGER):
                 if challenge_status["status"] == "valid":
                     log.info("ACME has verified challenge for domain: %s", domain)
                     break
-                elif backoff > 256:
+                elif backoff > 128:
                     log.warning(f"Validation failed after multiple retries")
                     delete_txt(txt_id,dnsrr_domain)
                     sys.exit(4)
                 elif challenge_status["status"] == "processing":
-                    log.info("Ceritificate isn't ready yet - processing "
+                    log.info("Certificate isn't ready yet - processing "
                             f", backing off for {backoff}s")
                     time.sleep(backoff)
                 elif challenge_status["status"] == "pending":
-                    log.info("Ceritificate isn't ready yet - pending "
+                    log.info("Certificate isn't ready yet - pending "
                             f", backing off for {backoff}s")
                     time.sleep(backoff)
                 elif challenge_status["status"] == "invalid":
                     log.info("Validation failed, maybe DNS not propogated "
                             f"yet, backing off for {backoff}s")
+                    log.info(http_response.text)
                     time.sleep(backoff)
                 else:
                     raise ValueError(f"Challenge for domain {domain} did not"
@@ -400,6 +409,10 @@ Example: requests certificate chain and store it in chain.crt
                         help="show all debug informations on stderr")
     parser.add_argument("-z","--zerossl", action="store_true",
                         help="use ZeroSSL")
+    parser.add_argument("-g","--google", action="store_true",
+                        help="use Google")
+    parser.add_argument("-n","--googlestaging", action="store_true",
+                        help="use Google Staging")
     parser.add_argument("cert_name", help="FQDN of certificate to be generated")
     args = parser.parse_args(argv)
 
@@ -413,6 +426,14 @@ Example: requests certificate chain and store it in chain.crt
         config.read_dict({"acmednstiny":
             {"accountkeyfile": "/gluster/@/api/keys/zerossl.key",
             "ACMEDirectory": "https://acme.zerossl.com/v2/DV90"}})
+    elif args.google:
+        config.read_dict({"acmednstiny":
+            {"accountkeyfile": "/gluster/@/api/keys/google.key",
+            "ACMEDirectory": "https://dv.acme-v02.api.pki.goog/directory"}})
+    elif args.googlestaging:
+        config.read_dict({"acmednstiny":
+            {"accountkeyfile": "/gluster/@/api/keys/google-staging.key",
+            "ACMEDirectory": "https://dv.acme-v02.test-api.pki.goog/directory"}})
     else:
         config.read_dict({"acmednstiny":
             {"accountkeyfile": "/gluster/@/api/keys/letsencrypt.key",
@@ -421,7 +442,7 @@ Example: requests certificate chain and store it in chain.crt
     if args.root:
         global rootdomain
         rootdomain = True
-    
+
     logformat = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
     logfile = logging.FileHandler(f'{args.cert_name}.log')
     logfile.setFormatter(logformat)

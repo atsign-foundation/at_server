@@ -42,13 +42,14 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AT_SIGN];
     var key = verbParams[AT_KEY];
     var operation = verbParams[OPERATION];
+    String? byPassCacheStr = verbParams[byPassCache];
     // Generate query using key, atSign from verbParams
     atSign = AtUtils.formatAtSign(atSign);
     key = '$key$atSign';
     //If key is cached, return cached value.
     var result = await _getCachedValue(operation, key);
-    // If cached key value is null, perform a remote plookup.
-    if (result == null) {
+    // If cached key value is null or byPassCache is true, perform a remote plookup.
+    if (result == null || byPassCacheStr == 'true') {
       result = await _getRemoteValue(key, atSign, atConnection);
       // OutboundMessageListener will throw exceptions upon any 'error:' responses, malformed response, or timeouts
       // So we only have to worry about 'data:' response here

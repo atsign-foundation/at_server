@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
+  static Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners =
+      {};
   //Certs
   static final bool? _useSSL = true;
   static final bool? _clientCertificateRequired = true;
+  static final bool _testingMode = false;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
@@ -33,31 +37,39 @@ class AtSecondaryConfig {
   static final int? _accessLogSizeInKB = 2;
 
   //Notification
-  static final int _maxNotificationRetries = 5;
-  static final int? _maxNotificationEntries = 5;
-  static final bool? _autoNotify = true;
+  static final bool _autoNotify = true;
+  // The maximum number of retries for a notification.
+  static final int _maxNotificationRetries = 30;
+  // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
   static final int _notificationQuarantineDuration = 10;
-  static final int _notificationJobFrequency = 5;
+  // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
+  // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
+  // seconds have passed since the last queue-processing run completed.
+  static final int _notificationJobFrequency = 11;
+  // The time interval(in seconds) to notify latest commitID to monitor connections
+  // To disable to the feature, set to -1.
+  static final int _statsNotificationJobTimeInterval = 15;
+
   static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
   static final int? _notificationKeyStoreCompactionPercentage = 30;
   static final int? _notificationKeyStoreExpiryInDays = 1;
   static final int? _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
-  static int? _runRefreshJobHour = 3;
+  static final int _runRefreshJobHour = 3;
 
   //Connection
-  static final int? _inbound_max_limit = 10;
-  static final int? _outbound_max_limit = 10;
-  static final int? _inbound_idletime_millis = 600000;
-  static final int? _outbound_idletime_millis = 600000;
+  static final int _inboundMaxLimit = 10;
+  static final int _outboundMaxLimit = 10;
+  static final int _inboundIdleTimeMillis = 600000;
+  static final int _outboundIdleTimeMillis = 600000;
 
   //Lookup
-  static final int? _lookup_depth_of_resolution = 3;
+  static final int _lookupDepthOfResolution = 3;
 
   //Stats
-  static final int? _stats_top_keys = 5;
-  static final int? _stats_top_visits = 5;
+  static final int _statsTopKeys = 5;
+  static final int _statsTopVisits = 5;
 
   //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
   static final String _defaultLogLevel = 'INFO';
@@ -68,9 +80,6 @@ class AtSecondaryConfig {
 
   //force restart
   static final bool _isForceRestart = false;
-
-  //StatsNotificationService
-  static final int _statsNotificationJobTimeInterval = 15;
 
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
@@ -109,6 +118,18 @@ class AtSecondaryConfig {
     }
   }
 
+  static bool get testingMode {
+    var result = _getBoolEnvVar('testingMode');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['testing', 'testingMode']);
+    } on ElementNotFoundException {
+      return _testingMode;
+    }
+  }
+
   static bool? get clientCertificateRequired {
     var result = _getBoolEnvVar('clientCertificateRequired');
     if (result != null) {
@@ -130,18 +151,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['refreshJob', 'runJobHour']);
     } on ElementNotFoundException {
       return _runRefreshJobHour;
-    }
-  }
-
-  static int? get maxNotificationEntries {
-    var result = _getIntEnvVar('maxNotificationEntries');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['notification', 'max_entries']);
-    } on ElementNotFoundException {
-      return _maxNotificationEntries;
     }
   }
 
@@ -354,7 +363,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int? get outbound_idletime_millis {
+  static int get outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
       return result;
@@ -362,12 +371,12 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _outbound_idletime_millis;
+      return _outboundIdleTimeMillis;
     }
   }
 
   // ignore: non_constant_identifier_names
-  static int? get inbound_idletime_millis {
+  static int get inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
       return result;
@@ -375,12 +384,12 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _inbound_idletime_millis;
+      return _inboundIdleTimeMillis;
     }
   }
 
   // ignore: non_constant_identifier_names
-  static int? get outbound_max_limit {
+  static int get outbound_max_limit {
     var result = _getIntEnvVar('outbound_max_limit');
     if (result != null) {
       return result;
@@ -388,12 +397,12 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_max_limit']);
     } on ElementNotFoundException {
-      return _outbound_max_limit;
+      return _outboundMaxLimit;
     }
   }
 
   // ignore: non_constant_identifier_names
-  static int? get inbound_max_limit {
+  static int get inbound_max_limit {
     var result = _getIntEnvVar('inbound_max_limit');
     if (result != null) {
       return result;
@@ -401,7 +410,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_max_limit']);
     } on ElementNotFoundException {
-      return _inbound_max_limit;
+      return _inboundMaxLimit;
     }
   }
 
@@ -414,7 +423,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['lookup', 'depth_of_resolution']);
     } on ElementNotFoundException {
-      return _lookup_depth_of_resolution;
+      return _lookupDepthOfResolution;
     }
   }
 
@@ -427,7 +436,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_visits']);
     } on ElementNotFoundException {
-      return _stats_top_visits;
+      return _statsTopVisits;
     }
   }
 
@@ -440,11 +449,11 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['stats', 'top_keys']);
     } on ElementNotFoundException {
-      return _stats_top_keys;
+      return _statsTopKeys;
     }
   }
 
-  static bool? get autoNotify {
+  static bool get autoNotify {
     var result = _getBoolEnvVar('autoNotify');
     if (result != null) {
       return result;
@@ -548,10 +557,10 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get notificationJobFrequency {
+  static int get notificationJobFrequency {
     var result = _getIntEnvVar('notificationJobFrequency');
     if (result != null) {
-      return _getIntEnvVar('notificationJobFrequency');
+      return result;
     }
     try {
       return getConfigFromYaml(['notification', 'jobFrequency']);
@@ -597,6 +606,73 @@ class AtSecondaryConfig {
     }
   }
 
+  //implementation for config:set. This method returns a data stream which subscribers listen to for updates
+  static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
+    if (testingMode) {
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<dynamic>.broadcast()
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+      }
+      return _streamListeners[configName]!.streamController.stream;
+    }
+    return null;
+  }
+
+  //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
+  static void broadcastConfigChange(
+      ModifiableConfigs configName, var newConfigValue,
+      {bool isReset = false}) {
+    if (testingMode) {
+      //if an entry for the config does not exist new entry is created
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<dynamic>.broadcast()
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+      }
+      //in case of reset, the default value of that config is broadcast
+      if (isReset) {
+        _streamListeners[configName]
+            ?.streamController
+            .add(_streamListeners[configName]!.defaultValue);
+        _streamListeners[configName]?.currentValue =
+            _streamListeners[configName]!.defaultValue;
+        // this else case broadcast new config value
+      } else {
+        _streamListeners[configName]?.streamController.add(newConfigValue!);
+        _streamListeners[configName]?.currentValue = newConfigValue;
+      }
+    }
+  }
+
+  //implementation for config:Set. Returns current value of modifiable configs
+  static dynamic getLatestConfigValue(ModifiableConfigs configName) {
+    if (_streamListeners.containsKey(configName)) {
+      return _streamListeners[configName]?.currentValue ??
+          _streamListeners[configName]?.defaultValue;
+    }
+    return null;
+  }
+
+  //implementation for config:set
+  //switch case that returns default value of modifiable configs
+  static dynamic getDefaultValue(ModifiableConfigs configName) {
+    switch (configName) {
+      case ModifiableConfigs.accessLogCompactionFrequencyMins:
+        return accessLogCompactionFrequencyMins;
+      case ModifiableConfigs.commitLogCompactionFrequencyMins:
+        return commitLogCompactionFrequencyMins;
+      case ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins:
+        return notificationKeyStoreCompactionFrequencyMins;
+      case ModifiableConfigs.inbound_max_limit:
+        return inbound_max_limit;
+      case ModifiableConfigs.autoNotify:
+        return autoNotify;
+      case ModifiableConfigs.maxNotificationRetries:
+        return maxNotificationRetries;
+    }
+  }
+
   static int? _getIntEnvVar(String envVar) {
     if (_envVars.containsKey(envVar)) {
       return int.parse(_envVars[envVar]!);
@@ -636,7 +712,8 @@ dynamic getConfigFromYaml(List<String> args) {
   }
   // If value not found throw exception
   if (value == Null || value == null) {
-    throw ElementNotFoundException('Element Not Found in yaml');
+    throw ElementNotFoundException(
+        'Element ${args.toString()} Not Found in yaml');
   }
   return value;
 }
@@ -662,6 +739,21 @@ String? getStringValueFromYaml(List<String> keyParts) {
   } else {
     return value.toString();
   }
+}
+
+enum ModifiableConfigs {
+  inbound_max_limit,
+  commitLogCompactionFrequencyMins,
+  accessLogCompactionFrequencyMins,
+  notificationKeyStoreCompactionFrequencyMins,
+  autoNotify,
+  maxNotificationRetries
+}
+
+class ModifiableConfigurationEntry {
+  late StreamController<dynamic> streamController;
+  late var defaultValue;
+  var currentValue;
 }
 
 class ElementNotFoundException extends AtException {

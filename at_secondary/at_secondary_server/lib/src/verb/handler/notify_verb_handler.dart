@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -27,7 +26,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       command.startsWith(getName(VerbEnum.notify) + ':') &&
       !command.startsWith('${getName(VerbEnum.notify)}:list') &&
       !command.startsWith('${getName(VerbEnum.notify)}:status') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:all');
+      !command.startsWith('${getName(VerbEnum.notify)}:all') &&
+      !command.startsWith('${getName(VerbEnum.notify)}:remove');
 
   @override
   Verb getVerb() {
@@ -42,21 +42,25 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var cachedKeyCommitId;
+    int? cachedKeyCommitId;
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var fromAtSign = atConnectionMetadata.fromAtSign;
-    var ttl_ms;
-    var ttb_ms;
-    var ttr_ms;
-    var ttln_ms;
-    var isCascade;
+    int? ttlMillis;
+    int? ttbMillis;
+    int? ttrMillis;
+    int ttlnMillis;
+    bool? isCascade;
+    // The notification id received from the SDK.
+    var id = verbParams['id'];
     var forAtSign = verbParams[FOR_AT_SIGN];
     var atSign = verbParams[AT_SIGN];
     var atValue = verbParams[AT_VALUE];
     atSign = AtUtils.formatAtSign(atSign);
     var key = verbParams[AT_KEY];
+    String? sharedKeyEncrypted = verbParams[SHARED_KEY_ENCRYPTED];
+    String? pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
     var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
     // If strategy is null, default it to strategy all.
@@ -82,28 +86,29 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       key = '$forAtSign:$key';
     }
     var operation = verbParams[AT_OPERATION];
-    var opType;
+    OperationType? opType;
     if (operation != null) {
       opType = SecondaryUtil.getOperationType(operation);
     }
     try {
       if (AtMetadataUtil.validateTTL(verbParams[AT_TTL]) > 0) {
-        ttl_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+        ttlMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttln_ms = Duration(hours: 24).inMilliseconds;
+        ttlnMillis = Duration(hours: 24).inMilliseconds;
       } else {
-        ttln_ms = AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+        ttlnMillis =
+            AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
       }
       if (AtMetadataUtil.validateTTB(verbParams[AT_TTB]) > 0) {
-        ttb_ms = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+        ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
       }
       if (verbParams[AT_TTR] != null) {
-        ttr_ms = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
-          ttr_ms, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
+          ttrMillis, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
     } on InvalidSyntaxException {
       rethrow;
     }
@@ -117,7 +122,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue, ttl_ms: ttln_ms);
+            value: atValue, ttlMillis: ttlnMillis, id: id);
         response.data = notificationId;
         return;
       }
@@ -126,17 +131,23 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // If operation type is update, set value and ttr to cache a key
       // If operation type is delete, set ttr when not null to delete the cached key.
       if ((opType == OperationType.update &&
-              ttr_ms != null &&
+              ttrMillis != null &&
               atValue != null) ||
-          (opType == OperationType.delete && ttr_ms != null)) {
-        atMetadata.ttr = ttr_ms;
+          (opType == OperationType.delete && ttrMillis != null)) {
+        atMetadata.ttr = ttrMillis;
         atMetadata.isCascade = isCascade;
       }
-      if (ttb_ms != null) {
-        atMetadata.ttb = ttb_ms;
+      if (ttbMillis != null) {
+        atMetadata.ttb = ttbMillis;
       }
-      if (ttl_ms != null) {
-        atMetadata.ttl = ttl_ms;
+      if (ttlMillis != null) {
+        atMetadata.ttl = ttlMillis;
+      }
+      if (sharedKeyEncrypted != null) {
+        atMetadata.sharedKeyEnc = sharedKeyEncrypted;
+      }
+      if (pubKeyCS != null) {
+        atMetadata.pubKeyCS = pubKeyCS;
       }
       final notificationBuilder = AtNotificationBuilder()
         ..fromAtSign = atSign
@@ -156,7 +167,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         ..notificationStatus = NotificationStatus.queued
         ..atMetaData = atMetadata
         ..type = NotificationType.sent
-        ..ttl = ttln_ms;
+        ..ttl = ttlnMillis;
+      if (id != null && id.isNotEmpty) {
+        notificationBuilder.id = id;
+      }
       var notificationId = await NotificationManager.getInstance()
           .notify(notificationBuilder.build());
       response.data = notificationId;
@@ -166,7 +180,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttl_ms: ttln_ms, value: atValue);
+          ttlMillis: ttlnMillis, value: atValue, id: id);
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;
@@ -180,29 +194,31 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (operation == 'delete') {
         cachedKeyCommitId = await _removeCachedKey(notifyKey);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
 
       var isKeyPresent = keyStore!.isKeyExists(notifyKey);
-      var atMetadata;
+      AtMetaData? atMetadata;
       if (isKeyPresent) {
         atMetadata = await keyStore!.getMeta(notifyKey);
       }
-      if (atValue != null && ttr_ms != null) {
+      if (atValue != null && ttrMillis != null) {
         var metadata = AtMetadataBuilder(
                 newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
+                ttl: ttlMillis,
+                ttb: ttbMillis,
+                ttr: ttrMillis,
                 ccd: isCascade,
-                isEncrypted: isEncrypted)
+                isEncrypted: isEncrypted,
+                sharedKeyEncrypted: sharedKeyEncrypted,
+                publicKeyChecksum: pubKeyCS)
             .build();
         cachedKeyCommitId =
             await _storeCachedKeys(key, metadata, atValue: atValue);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -211,15 +227,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (isKeyPresent) {
         var atMetaData = AtMetadataBuilder(
                 newAtMetaData: atMetadata,
-                ttl: ttl_ms,
-                ttb: ttb_ms,
-                ttr: ttr_ms,
+                ttl: ttlMillis,
+                ttb: ttbMillis,
+                ttr: ttrMillis,
                 ccd: isCascade,
                 isEncrypted: isEncrypted)
             .build();
         cachedKeyCommitId = await _updateMetadata(notifyKey, atMetaData);
         //write the latest commit id to the StatsNotificationService
-        await _writeStats(cachedKeyCommitId, operation);
+        _writeStats(cachedKeyCommitId, operation);
         response.data = 'data:success';
         return;
       }
@@ -253,6 +269,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (metadata != null && metadata.isCascade) {
       logger.info('Removed cached key $key');
       return await keyStore!.remove(key);
+    } else {
+      return null;
     }
   }
 
@@ -264,10 +282,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   ///Sends the latest commitId to the StatsNotificationService
-  Future<void> _writeStats(
-      int? cachedKeyCommitId, String? operationType) async {
+  void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      await StatsNotificationService.getInstance().writeStatsToMonitor(
+      StatsNotificationService.getInstance().writeStatsToMonitor(
           latestCommitID: '$cachedKeyCommitId', operationType: operationType);
     }
   }

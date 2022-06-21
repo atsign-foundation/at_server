@@ -7,15 +7,6 @@ import 'package:at_server_spec/at_server_spec.dart';
 class DummyInboundConnection implements InboundConnection {
   var metadata = InboundConnectionMetadata();
 
-  static final DummyInboundConnection _singleton =
-      DummyInboundConnection._internal();
-
-  factory DummyInboundConnection.getInstance() {
-    return _singleton;
-  }
-
-  DummyInboundConnection._internal();
-
   @override
   void acceptRequests(Function(String p1, InboundConnection p2) callback,
       Function(List<int>, InboundConnection) streamCallback) {}

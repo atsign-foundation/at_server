@@ -6,10 +6,14 @@ class AtSecondaryContext extends AtServerContext {
   String host = 'localhost';
   late int port;
   bool isKeyStoreInitialized = false;
-  int? inboundConnectionLimit = 10;
-  int? outboundConnectionLimit = 10;
-  int? inboundIdleTimeMillis = 600000;
-  int? outboundIdleTimeMillis = 600000;
+  int inboundConnectionLimit = 50;
+  int outboundConnectionLimit = 50;
+  int inboundIdleTimeMillis = 600000;
+  int outboundIdleTimeMillis = 600000;
+
+  int unauthenticatedMinAllowableIdleTimeMillis = 5000; // have to allow time for connection handshakes // TODO Run tests to identify a p99.999 value
+  double inboundConnectionLowWaterMarkRatio = 0.5;
+  bool progressivelyReduceAllowableInboundIdleTime = true;
   String? currentAtSign;
   String? sharedSecret;
   AtSecurityContext? securityContext;

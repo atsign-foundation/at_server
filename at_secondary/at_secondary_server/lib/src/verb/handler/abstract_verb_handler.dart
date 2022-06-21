@@ -10,10 +10,12 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
+final String paramFullCommandAsReceived = 'FullCommandAsReceived';
+
 abstract class AbstractVerbHandler implements VerbHandler {
   SecondaryKeyStore? keyStore;
 
-  late var logger;
+  late AtSignLogger logger;
   ResponseHandlerManager responseManager = DefaultResponseHandlerManager();
 
   AbstractVerbHandler(this.keyStore) {
@@ -47,6 +49,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       // Parse the command
       var verbParams = parse(command);
+      // TODO This is not ideal. Would be better to make it so that processVerb takes command as an argument also.
+      verbParams[paramFullCommandAsReceived] = command;
       // Syntax is valid. Process the verb now.
       await processVerb(response, verbParams, atConnection);
       if (this is SyncVerbHandler || this is SyncFromVerbHandler) {

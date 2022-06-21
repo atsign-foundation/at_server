@@ -95,7 +95,7 @@ class SimpleOutboundSocketHandler {
   Future<void> sendFromAndPkam() async {
     // FROM VERB
     await writeCommand('from:$atSign');
-    var response = await read(timeoutMillis:2000);
+    var response = await read(timeoutMillis:4000);
     response = response.replaceAll('data:', '');
     var pkamDigest = generatePKAMDigest(atSign, response);
 
@@ -146,7 +146,7 @@ class SimpleOutboundSocketHandler {
   /// A message which is returned from [read] if throwTimeoutException is set to false
   static String readTimedOutMessage = 'E2E_SIMPLE_SOCKET_HANDLER_TIMED_OUT';
 
-  Future<String> read({bool log = true, int timeoutMillis = 2000, bool throwTimeoutException = true}) async {
+  Future<String> read({bool log = true, int timeoutMillis = 4000, bool throwTimeoutException = true}) async {
     String result;
 
     // Wait this many milliseconds between checks on the queue

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
@@ -220,6 +221,125 @@ void main() async {
       expect(locationList?.getSize(), 50);
       await keyStore.put('@bob:location@test_user_1', atData);
       expect(locationList?.getSize(), 1);
+    });
+  });
+
+  group('Verify metadata cache', () {
+    test('test to verify put and remove', () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+      atData.data = 'value_test_1';
+      AtMetaData meta = AtMetaData();
+      meta.ttl = 11;
+      atData.metaData = meta;
+      await keystore?.put('key_test_1', atData);
+      AtMetaData? getMetaResult = await keystore?.getMeta('key_test_1');
+      expect(getMetaResult?.ttl, 11);
+      await keystore?.remove('key_test_1');
+      AtMetaData? getMetaResult1 = await keystore?.getMeta('key_test_1');
+      expect(getMetaResult1?.ttl, null);
+    });
+
+    test('test to verify putMeta', () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+      atData.data = 'value_test_2';
+      AtMetaData meta = AtMetaData();
+      meta.ttl = 112;
+      atData.metaData = meta;
+      await keystore?.put('key_test_2', atData);
+      meta.ttl = 131;
+      await keystore?.putMeta('key_test_2', meta);
+      AtMetaData? newMeta = await keystore?.getMeta('key_test_2');
+      expect(newMeta?.ttl, 131);
+    });
+  });
+
+  test('test to verify if getKeys returns expired keys', () async {
+    SecondaryPersistenceStore? keyStoreManager =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+    AtData atData = AtData();
+    atData.data = 'value_test_4';
+    AtMetaData meta = AtMetaData();
+    meta.expiresAt =
+        DateTime.now().toUtc().subtract(const Duration(minutes: 100));
+    atData.metaData = meta;
+    await keystore?.put('key_test_4', atData);
+    List<String>? keysList = keystore?.getKeys();
+    expect(keysList!.contains('key_test_4'), false);
+  });
+
+  test('test to verify if getKeys returns unborn keys', () async {
+    SecondaryPersistenceStore? keyStoreManager =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+    AtData atData = AtData();
+    atData.data = 'value_test_3';
+    AtMetaData meta = AtMetaData();
+    meta.availableAt = DateTime.now().toUtc().add(const Duration(minutes: 100));
+    atData.metaData = meta;
+    await keystore?.put('key_test_3', atData);
+    List<String>? keysList = keystore?.getKeys();
+    expect(keysList!.contains('key_test_3'), false);
+  });
+
+  test('test to verify metadata of all keys is cached', () async {
+    SecondaryPersistenceStore? keystoreManager =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore('@test_user_1');
+    HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
+    AtData? atData = AtData();
+    AtMetaData? metaData;
+    //inserting sample keys
+    for (int i = 0; i < 30; i++) {
+      if (i % 2 == 0) {
+        //inserting random metaData to induce variance in data
+        metaData = AtMetaData();
+        metaData.ttl = 12000 + i.toInt();
+        metaData.ttb = i;
+        metaData.createdBy = '$i';
+        metaData.updatedBy = '$i';
+        metaData.isBinary = true;
+      }
+      atData.data = 'value_test_$i';
+      atData.metaData = metaData;
+      await keystore?.put('key_test_$i', atData);
+    }
+
+    List<String>? keys = keystore?.getKeys();
+
+    keys?.forEach((String key) async {
+      atData = await keystore?.get(key);
+      metaData = atData?.metaData;
+      AtMetaData? getMeta = await keystore?.getMeta(key);
+      //parsing timestamps to remove microseconds as they differ precision
+      getMeta?.updatedAt =
+          DateTime.parse(getMeta.updatedAt.toString().substring(0, 19));
+      metaData?.updatedAt =
+          DateTime.parse(metaData!.updatedAt.toString().substring(0, 19));
+      getMeta?.createdAt =
+          DateTime.parse(getMeta.createdAt.toString().substring(0, 19));
+      metaData?.createdAt =
+          DateTime.parse(metaData!.createdAt.toString().substring(0, 19));
+      getMeta?.availableAt =
+          DateTime.parse(getMeta.availableAt.toString().substring(0, 19));
+      metaData?.availableAt =
+          DateTime.parse(metaData!.availableAt.toString().substring(0, 19));
+      getMeta?.expiresAt =
+          DateTime.parse(getMeta.expiresAt.toString().substring(0, 19));
+      metaData?.expiresAt =
+          DateTime.parse(metaData!.expiresAt.toString().substring(0, 19));
+
+      expect((await keystore?.getMeta(key)).toString(), metaData.toString());
     });
   });
 
