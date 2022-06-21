@@ -6,10 +6,10 @@ WORKDIR /app
 COPY . .
 RUN \
   cd at_persistence_secondary_server ; \
-  dart pub get --offline ; \
+  dart pub get ; \
   dart pub update ; \
   cd ../at_secondary_server ; \
-  dart pub get --offline ; \
+  dart pub get ; \
   dart pub update ; \
   dart compile jit-snapshot bin/main.dart -o secondary.jit ; \
   mkdir -p $HOMEDIR/storage ; \
