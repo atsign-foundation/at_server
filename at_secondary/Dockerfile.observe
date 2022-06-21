@@ -1,4 +1,4 @@
-FROM dart:2.17.3
+FROM dart:2.17.3 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
@@ -6,11 +6,12 @@ WORKDIR /app
 COPY . .
 RUN \
   cd at_persistence_secondary_server ; \
-  dart pub get ; \
+  dart pub get --offline ; \
   dart pub update ; \
   cd ../at_secondary_server ; \
-  dart pub get ; \
+  dart pub get --offline ; \
   dart pub update ; \
+  dart compile jit-snapshot bin/main.dart -o secondary.jit ; \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
   mkdir -p /etc/cacert ; \
@@ -25,6 +26,17 @@ RUN \
   cp config/config.yaml $HOMEDIR/config/ ; \
   cp cacert/cacert.pem /etc/cacert ; \
   cp pubspec.yaml $HOMEDIR/
+
+# Second stage of build FROM scratch
+FROM scratch
+COPY --from=buildimage /runtime/ /
+COPY --from=buildimage /etc/passwd /etc/passwd
+COPY --from=buildimage /etc/group /etc/group
+COPY --from=buildimage /etc/cacert /etc/cacert
+COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary.jit /usr/local/at/
+COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
+COPY --from=buildimage --chown=atsign:atsign /archive /archive/
+COPY --from=build /usr/lib/dart/bin/dart /usr/lib/dart/bin/
 WORKDIR /atsign
 USER atsign
-ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/app/at_secondary_server/bin/main.dart"]
+ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/usr/local/at/secondary.jit"]
