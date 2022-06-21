@@ -113,6 +113,9 @@ jobs:
   functional_tests:
     runs-on: ubuntu-latest
 
+    env:
+      testingMode: true
+
     steps:
       - uses: actions/checkout@v3.0.2
       - uses: dart-lang/setup-dart@v1.3
