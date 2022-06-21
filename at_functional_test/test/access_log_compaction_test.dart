@@ -16,8 +16,10 @@ void main() {
   Socket? socketFirstAtsign;
 
   setUp(() async {
+    var firstAtsignServer =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     socketFirstAtsign =
-        await secure_socket_connection('vip.ve.atsign.zone', firstAtsignPort);
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
     socket_listener(socketFirstAtsign!);
     await prepare(socketFirstAtsign!, firstAtsign);
   });
@@ -30,27 +32,48 @@ void main() {
   });
 
   test('Access log compaction', () async {
+    // setting access log compaction to 1minute
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:accessLogCompactionFrequencyMins= 1');
+    var response = await read();
+    print('config set verb response is $response');
+    expect(response, contains('data:ok'));
+
     int noOfTests = 30;
     for (int i = 1; i <= noOfTests; i++) {
       await socket_writer(
           socketFirstAtsign!, 'update:public:role$firstAtsign Dev');
-      var response = await read();
+      response = await read();
       print('update verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
     }
 
-    await Future.delayed(Duration(seconds: 50));
-    var afterUpdate = await  compactionStats(socketFirstAtsign!, 13);
+    // wait till the commit log compaction job runs
+    await Future.delayed(Duration(seconds: 30));
+    var afterUpdate = await compactionStats(socketFirstAtsign!, 13);
+    // pre compaction entries count
     var preCompactionCount = afterUpdate['preCompactionEntriesCount'];
+    // post compaction entries count
     var postCompactionCount = await afterUpdate['postCompactionEntriesCount'];
+    // Deleted entries count post compaction
     var deletedCountAfter = await afterUpdate['deletedKeysCount'];
     print('pre compaction entries count $preCompactionCount');
     print('post compaction entries count $postCompactionCount');
     print('deleted keys count after update is $deletedCountAfter');
+    // Verifying whether precompaction count is not equal to post compaction count
     expect((postCompactionCount != preCompactionCount), true);
-    int result = (int.parse(preCompactionCount) - (int.parse(postCompactionCount)));
-    expect(int.parse(deletedCountAfter),result );
+    int result =
+        (int.parse(preCompactionCount) - (int.parse(postCompactionCount)));
+    // Verifying whether the deleted entries count is same as the result
+    expect(int.parse(deletedCountAfter), result);
+
+    //  reset the access log compaction to default after the test
+    await socket_writer(
+        socketFirstAtsign!, 'config:reset:accessLogCompactionFrequencyMins');
+    response = await read();
+    print('config reset verb response is $response');
+    expect(response, contains('data:ok'));
   }, timeout: Timeout(Duration(seconds: 150)));
 
   tearDown(() {

@@ -32,10 +32,16 @@ void main() {
   });
 
   test('connection limit test', () async {
+    // setting the inbound connection limit to 2
+    await socket_writer(socketFirstAtsign!, 'config:set:inbound_max_limit=2');
+    var response = await read();
+    print('response of config verb is $response');
+    expect(response, contains('data:ok'));
+
     ///update verb alice  atsign
     await socket_writer(
         socketFirstAtsign!, 'update:$secondAtsign:code$firstAtsign 9900');
-    String response = await read();
+    response = await read();
     print('update verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -48,17 +54,22 @@ void main() {
     expect(response, contains('9900'));
 
     await socket_writer(socketSecondAtsign!,
-        'update:$firstAtsign:sample-text$secondAtsign Hey!');
+        'update:$firstAtsign:sample-text2$secondAtsign Hello!');
     response = await read();
     print('update verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    // lookup from receiver atsign
-    await socket_writer(socketFirstAtsign!, 'lookup:sample-text$secondAtsign');
+    await Future.delayed(Duration(seconds: 3));
+    await socket_writer(socketFirstAtsign!, 'lookup:sample-text2$secondAtsign');
     response = await read();
     print('lookup verb response : $response');
-    expect(
-        response, contains('error:AT0012-Inbound connection limit exceeded'));
+    expect(response, contains('error:AT0012-Inbound connection limit exceeded'));
+
+    // resetting the inbound connection limit to default
+    await socket_writer(socketFirstAtsign!, 'config:reset:inbound_max_limit');
+    response = await read();
+    print('response of config verb is $response');
+    expect(response, contains('data:ok'));
   });
 }
