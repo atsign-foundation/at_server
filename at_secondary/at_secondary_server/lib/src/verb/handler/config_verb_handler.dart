@@ -117,7 +117,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
               }
               result = 'ok';
             } else {
-              result = Platform.environment['testingMode'].runtimeType.toString() + Platform.environment['testingMode'].toString();
+              result = Platform.environment['testingMode'].runtimeType.toString() + Platform.environment['testingMode'].toString()+AtSecondaryConfig.testingMode.toString();
             }
             break;
           case 'reset':
