@@ -119,7 +119,7 @@ class AtSecondaryConfig {
   }
 
   static bool get testingMode {
-    var result = _getBoolEnvVar('testingMode');
+    bool? result = _getBoolEnvVar('testingMode');
     if (result != null) {
       return result;
     }
