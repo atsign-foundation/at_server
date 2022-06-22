@@ -106,7 +106,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         //implementation for config:set
         switch (setOperation) {
           case 'set':
-            if (AtSecondaryConfig.testingMode.toString() == 'true') {
+            if (AtSecondaryConfig.testingMode.toString() == 'true' || AtSecondaryConfig.testingMode) {
               //broadcast new config change
               try {
                 AtSecondaryConfig.broadcastConfigChange(
@@ -117,7 +117,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
               }
               result = 'ok';
             } else {
-              result = Platform.environment['testingMode'].runtimeType;
+              result = Platform.environment['testingMode'].runtimeType.toString() + Platform.environment['testingMode'].toString();
             }
             break;
           case 'reset':
