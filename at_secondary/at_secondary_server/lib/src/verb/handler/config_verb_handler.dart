@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -117,7 +118,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
               ;
               result = 'ok';
             } else {
-              result = AtSecondaryConfig.testingMode.toString();
+              result = Platform.environment['testingMode'].toString();
             }
             break;
           case 'reset':
