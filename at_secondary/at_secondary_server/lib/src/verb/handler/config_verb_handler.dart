@@ -97,7 +97,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           //second element of array is config value
           setConfigValue = newConfig[1];
         } else {
-          //in other cases reset/print only config name is received
+          //in other cases (reset/print) only config name is received
           setConfigName =
               ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
         }
@@ -117,7 +117,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
               ;
               result = 'ok';
             } else {
-              result = 'testing mode disabled by default';
+              result = AtSecondaryConfig.testingMode.toString();
             }
             break;
           case 'reset':
