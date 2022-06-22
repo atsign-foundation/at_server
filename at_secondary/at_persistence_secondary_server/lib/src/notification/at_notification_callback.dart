@@ -31,11 +31,11 @@ class AtNotificationCallback {
   void unregisterNotificationCallback(
       NotificationType notificationType, Function callback) {
     var functions = callbackMethods[notificationType]!;
-    functions.forEach((nfs) {
+    for (var nfs in functions) {
       if (nfs.function == callback) {
         nfs.isValid = false;
       }
-    });
+    }
   }
 
   /// Method to invoke registered callbacks
@@ -51,11 +51,11 @@ class AtNotificationCallback {
           //logger.info('No callback registered for received notifications');
           return;
         }
-        callbacks.forEach((callback) {
+        for (var callback in callbacks) {
           if (callback.isValid!) {
             callback.function!(atNotification);
           }
-        });
+        }
       }
     } on Exception catch (e) {
       throw InternalServerException(

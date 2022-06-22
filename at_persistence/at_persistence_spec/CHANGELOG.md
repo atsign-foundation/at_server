@@ -1,5 +1,5 @@
 ## 2.0.6
-- Added support for @server/@client annotation for seperating server-specific/client-specific methods
+- Added support for @server/@client annotation for separating server-specific/client-specific methods
 ## 2.0.5
 - Added encryption shared key and public key checksum to metadata
 - Compaction statistics measures entries count, previously measured log size
