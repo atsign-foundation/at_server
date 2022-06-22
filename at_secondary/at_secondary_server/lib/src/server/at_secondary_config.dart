@@ -11,7 +11,7 @@ class AtSecondaryConfig {
   //Certs
   static final bool? _useSSL = true;
   static final bool? _clientCertificateRequired = true;
-  static final bool _testingMode = false;
+  static final bool _testingMode = true;
 
   //Certificate Paths
   static final String _certificateChainLocation = 'certs/fullchain.pem';
