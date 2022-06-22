@@ -115,10 +115,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
                 AtSecondaryConfig.broadcastConfigChange(
                     setConfigName!, setConfigValue!);
               }
-              ;
               result = 'ok';
             } else {
-              result = Platform.environment['testingMode'].toString();
+              result = Platform.environment['testingMode'].runtimeType;
             }
             break;
           case 'reset':
