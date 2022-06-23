@@ -1,5 +1,11 @@
 import 'package:args/args.dart';
 
-void main() {
-  print('Hello World');
+void main(List<String> arguments) {
+
+  final parser = ArgParser()..addOption('example', abbr: 'e');
+
+  ArgResults argResults = parser.parse(arguments);
+  
+  print(argResults['example']);
+  
 }
