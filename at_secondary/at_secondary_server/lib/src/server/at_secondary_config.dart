@@ -120,15 +120,10 @@ class AtSecondaryConfig {
   }
 
   static bool get testingMode {
+    bool? result = Platform.environment['testingMode'] == 'true' ? true : false;
+    return result;
     try {
-      bool? result = _getBoolEnvVar('testingMode');
-      if (result != null) {
-        return result;
-      }
-    } on Exception {}
-
-    try {
-        return getConfigFromYaml(['testing', 'testingMode']);
+      return getConfigFromYaml(['testing', 'testingMode']);
     } on ElementNotFoundException {
       return _testingMode;
     }
