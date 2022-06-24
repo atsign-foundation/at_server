@@ -682,7 +682,7 @@ class AtSecondaryConfig {
 
   static bool? _getBoolEnvVar(String envVar) {
     if (_envVars.containsKey(envVar)) {
-      (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
+      return (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
     }
     return null;
   }
