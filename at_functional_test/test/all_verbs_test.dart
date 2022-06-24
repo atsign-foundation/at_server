@@ -131,7 +131,7 @@ void main() async {
       //await Future.delayed(Duration(seconds: 2));
       response = await read();
       print('config verb response $response');
-      expect(response, contains('data:60'));
+      expect(response, contains('data:30'));
     } else {
       print(
           'asserting true forcefully. Set testingMode to true for the test to work.'
