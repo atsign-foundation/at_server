@@ -122,7 +122,7 @@ jobs:
   functional_tests:
     runs-on: ubuntu-latest
     
-    # setting new env var "testingMode" to true. Needed for some of the tests to pass.
+    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
     env:
       testingMode: true
 
