@@ -23,10 +23,12 @@ class AtCompactionJob {
     });
   }
   
+  //Method to cancel the current schedule. The Cron instance is not close and can be re-used
   Future<void> stopCompactionJob() async {
     await _schedule.cancel();
   }
-
+  
+  //Method to stop compaction and also close the Cron instance.
   void close() {
     _cron.close();
   }
