@@ -10,15 +10,15 @@ on:
       rollback_prod_secondary_image:
         type: boolean
         default: true
-        description: Rollback Prod Secondary Image
+        description: Rollback Prod secondary image
       rollback_prod_virtualenv_image:
         type: boolean
         default: true
-        description: Rollback Virtual ENV Image
+        description: Rollback Virtual ENV image
       rollback_canary_secondary_image:
         type: boolean
         default: true
-        description: Rollback Canary secondary Image
+        description: Rollback Canary secondary image
   push:
     tags:
       - 'v*.*.*'
