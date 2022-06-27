@@ -20,6 +20,8 @@ class ResourceManager {
 
   bool _nudged = false;
 
+  static var maxRetries = AtSecondaryConfig.maxNotificationRetries;
+
   ResourceManager._internal();
 
   factory ResourceManager.getInstance() {
@@ -48,7 +50,8 @@ class ResourceManager {
   Future<void> _schedule() async {
     await _processNotificationQueue();
     var millisBetweenRuns = notificationJobFrequency * 1000;
-    Future.delayed(Duration(milliseconds: millisBetweenRuns)).then((value) => _schedule());
+    Future.delayed(Duration(milliseconds: millisBetweenRuns))
+        .then((value) => _schedule());
   }
 
   Future<void> _processNotificationQueue() async {
@@ -92,7 +95,8 @@ class ResourceManager {
     } finally {
       _isProcessingQueue = false;
       if (_nudged) {
-        Future.delayed(Duration(milliseconds: 0)).then((value) => _processNotificationQueue());
+        Future.delayed(Duration(milliseconds: 0))
+            .then((value) => _processNotificationQueue());
       }
     }
   }
@@ -118,7 +122,8 @@ class ResourceManager {
 
   /// Send the Notification to [atNotificationList.toAtSign]
   @visibleForTesting
-  Future<void> sendNotifications(String atSign, OutboundClient outBoundClient, Iterator iterator) async {
+  Future<void> sendNotifications(
+      String atSign, OutboundClient outBoundClient, Iterator iterator) async {
     // ignore: prefer_typing_uninitialized_variables
     var notifyResponse, atNotification;
     var errorList = [];
@@ -199,7 +204,8 @@ class ResourceManager {
     commandBody =
         'messageType:${atNotification.messageType.toString().split('.').last}:$commandBody';
     if (atNotification.opType != null) {
-      commandBody = '${atNotification.opType.toString().split('.').last}:$commandBody';
+      commandBody =
+          '${atNotification.opType.toString().split('.').last}:$commandBody';
     }
     // appending id to the notify command.
     commandBody = 'id:${atNotification.id}:$commandBody';
@@ -212,7 +218,6 @@ class ResourceManager {
       return;
     }
     var iterator = errorList.iterator;
-    var maxRetries = AtSecondaryConfig.maxNotificationRetries;
     while (iterator.moveNext()) {
       var atNotification = iterator.current;
       // Update the status to errored and persist the notification to keystore.
@@ -222,7 +227,7 @@ class ResourceManager {
       // If number retries are equal to maximum number of notifications, notifications are not further processed
       // hence remove entries from waitTimeMap and quarantineMap
       // TODO This should only be done when *all* of the pending notifications for this atSign have reached maxRetries
-      if (atNotification.retryCount == maxRetries) {
+      if (atNotification.retryCount >= maxRetries) {
         AtNotificationMap.getInstance()
             .removeWaitTimeEntry(atNotification.toAtSign);
         AtNotificationMap.getInstance()
@@ -236,5 +241,11 @@ class ResourceManager {
           ' Retry count: ${atNotification.retryCount}');
       QueueManager.getInstance().enqueue(atNotification);
     }
+  }
+
+  //setter to set maxNotificationRetries value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  void setMaxRetries(int newValue) {
+    maxRetries = newValue;
   }
 }
