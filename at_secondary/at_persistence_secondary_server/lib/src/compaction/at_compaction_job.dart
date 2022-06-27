@@ -5,8 +5,8 @@ import 'package:cron/cron.dart';
 
 class AtCompactionJob {
   late Cron _cron;
-  AtLogType atLogType;
   late ScheduledTask _schedule;
+  AtLogType atLogType;
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
 

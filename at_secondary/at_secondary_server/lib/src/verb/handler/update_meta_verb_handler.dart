@@ -12,10 +12,18 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 class UpdateMetaVerbHandler extends AbstractVerbHandler {
-  static final autoNotify = AtSecondaryConfig.autoNotify;
+  static bool _autoNotify = AtSecondaryConfig.autoNotify;
   static UpdateMeta updateMeta = UpdateMeta();
 
   UpdateMetaVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+
+  //setter to set autoNotify value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  static setAutoNotify(bool newState) {
+    if (AtSecondaryConfig.testingMode) {
+      _autoNotify = newState;
+    }
+  }
 
   @override
   bool accept(String command) =>
@@ -94,7 +102,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null || forAtSign.isEmpty) {
       return;
     }
-    if (autoNotify! && (atSign != forAtSign)) {
+    if (_autoNotify && (atSign != forAtSign)) {
       _notify(
           forAtSign,
           atSign,
