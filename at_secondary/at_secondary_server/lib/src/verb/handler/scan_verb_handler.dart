@@ -182,8 +182,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // So returning false
     // public hidden key: public:__location@alice
     // self hidden key: _location@alice
-    if ((key.toString().startsWith('public:__') || key.startsWith('_')) &&
-        showHiddenKeys) {
+    if (((key.toString().startsWith('public:__') || key.startsWith('_')) &&
+        showHiddenKeys)) {
       return false;
     }
     return key.toString().startsWith('private:') ||
