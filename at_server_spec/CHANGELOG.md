@@ -1,5 +1,6 @@
 ## 3.0.9
 - Added documentation for 'config' verb to support dynamic config change functionality
+- Upgraded at_commons dependency version to 3.0.18
 ## 3.0.8
 - Exported 'NotifyRemove' verbs in package export
 ## 3.0.7
