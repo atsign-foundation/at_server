@@ -22,7 +22,6 @@ import 'verb.dart';
 /// **reset** - config:reset:inbound_max_limit
 /// **print** - config:print:inbound_max_limit
 /// ```
-
 class Config extends Verb {
   @override
   Verb? dependsOn() {
