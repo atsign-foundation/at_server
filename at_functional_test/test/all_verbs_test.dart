@@ -16,7 +16,8 @@ void main() async {
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
   setUp(() async {
-    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignServer =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -36,8 +37,8 @@ void main() async {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///Update verb with private key
-    await socket_writer(socketFirstAtsign!,
-        'update:@alice:email$firstAtsign bob@atsign.com');
+    await socket_writer(
+        socketFirstAtsign!, 'update:@alice:email$firstAtsign bob@atsign.com');
     response = await read();
     print('update verb response $response');
     assert(
@@ -60,8 +61,7 @@ void main() async {
   });
 
   test('Delete verb test $firstAtsign', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'delete:public:mobile$firstAtsign');
+    await socket_writer(socketFirstAtsign!, 'delete:public:mobile$firstAtsign');
     var response = await read();
     print('Delete verb response $response');
     assert(!response.contains('data:null'));
@@ -75,8 +75,7 @@ void main() async {
   });
 
   test('config verb test -add block list $firstAtsign', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'config:block:add:$secondAtsign');
+    await socket_writer(socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response $response');
     expect(response, contains('data:success'));
