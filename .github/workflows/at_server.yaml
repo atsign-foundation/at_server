@@ -121,6 +121,9 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
+    env:
+      testingMode: true
 
     steps:
       - uses: actions/checkout@v3.0.2
@@ -173,7 +176,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
