@@ -51,6 +51,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData() as InboundConnectionMetadata;
     var forAtSign = verbParams[FOR_AT_SIGN];
     var scanRegex = verbParams[AT_REGEX];
+    var showHiddenKeys = verbParams[showHidden] == 'true' ? true : false;
 
     // Throw UnAuthenticatedException.
     // When looking up keys of another atsign and connection is not authenticated,
@@ -69,7 +70,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         List<String> keys = keyStore!.getKeys(regex: scanRegex) as List<String>;
-        List<String> keyString = _getLocalKeys(atConnectionMetadata, keys);
+        List<String> keyString =
+            _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         // Apply regex on keyString to remove unnecessary characters and spaces.
         logger.finer('response.data : $keyString');
         var keysArray = keyString;
@@ -124,15 +126,15 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// **Returns**
   ///
   /// Returns the list of keys of current atsign.
-  List<String> _getLocalKeys(
-      InboundConnectionMetadata atConnectionMetadata, List<String> keys) {
+  List<String> _getLocalKeys(InboundConnectionMetadata atConnectionMetadata,
+      List<String> keys, bool showHiddenKeys) {
     List<String> keysList = [];
     // Verify if the current user is authenticated or not
     // If authenticated get all the keys except for private keys
     // If not, get only public keys
     if (atConnectionMetadata.isAuthenticated) {
       //display all keys except private
-      keys.removeWhere((key) => _isPrivateKeyForAtSign(key));
+      keys.removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
       keysList = keys;
     } else {
       // When pol is performed, display keys that are private to the atsign.
@@ -173,11 +175,20 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.
   /// [key] : The key to check.
   /// Returns true if key starts with pattern, else false.
-  bool _isPrivateKeyForAtSign(
-    String key,
-  ) {
+  ///
+  /// When showHidden is set true, display hidden keys.
+  bool _isPrivateKeyForAtSign(String key, bool showHiddenKeys) {
+    // If showHidden is set to true, display hidden public keys/self hidden keys.
+    // So returning false
+    // public hidden key: public:__location@alice
+    // self hidden key: _location@alice
+    if ((key.toString().startsWith('public:__') || key.startsWith('_')) &&
+        showHiddenKeys) {
+      return false;
+    }
     return key.toString().startsWith('private:') ||
         key.toString().startsWith('privatekey:') ||
-        key.toString().startsWith('public:_');
+        key.toString().startsWith('public:_') ||
+        key.startsWith('_');
   }
 }
