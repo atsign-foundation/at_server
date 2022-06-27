@@ -35,7 +35,8 @@ Future<SecureSocket> secure_socket_connection(host, port) async {
         break;
       }
     } on Exception {
-      print('retrying for connection.. $retryCount');
+      print(
+          'Failed connecting to $host:$port. retrying for connection.. $retryCount');
       await Future.delayed(Duration(seconds: 5));
       retryCount++;
     }
@@ -89,7 +90,7 @@ void _messageHandler(data) {
   } else if (data.length > 1 && data.first == 64 && data.last == 64) {
     // pol responses do not end with '\n'. Add \n for buffer completion
     _queue.add(utf8.decode(data));
-  } 
+  }
 }
 
 Future<String> read({int maxWaitMilliSeconds = 5000}) async {

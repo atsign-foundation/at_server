@@ -5,7 +5,8 @@ import 'package:at_utils/at_logger.dart';
 
 /// Pool to hold [InboundConnection]
 class InboundConnectionPool {
-  static final InboundConnectionPool _singleton = InboundConnectionPool._internal();
+  static final InboundConnectionPool _singleton =
+      InboundConnectionPool._internal();
   late int _size;
 
   factory InboundConnectionPool.getInstance() {
@@ -18,9 +19,13 @@ class InboundConnectionPool {
 
   late List<InboundConnection> _connections;
 
-  void init(int size) {
+  /// [isColdInit] when set to true will create fresh/new connection pool, has to be set to true while server start.
+  /// setting it to false will change size of pool, will not overwrite existing connections. Will preserve the state of connection pool.
+  void init(int size, {bool isColdInit = true}) {
     _size = size;
-    _connections = [];
+    if (isColdInit) {
+      _connections = [];
+    }
   }
 
   bool hasCapacity() {
@@ -54,14 +59,16 @@ class InboundConnectionPool {
         try {
           connection.close();
         } catch (e) {
-          logger.severe("clearInvalidConnections: Exception while closing connection: $e");
+          logger.severe(
+              "clearInvalidConnections: Exception while closing connection: $e");
         }
       }
 
       _connections.removeWhere((client) => invalidConnections.contains(client));
       _checkWarningStatesOnRemove();
     } catch (e) {
-      logger.severe("clearInvalidConnections: Caught (and swallowing) exception $e");
+      logger.severe(
+          "clearInvalidConnections: Caught (and swallowing) exception $e");
     }
   }
 
