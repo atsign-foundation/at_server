@@ -14,6 +14,14 @@ import 'verb.dart';
 ///   2. config:block:remove:@alice //removes @alice from block list.
 ///   3. config:block:show //displays block list @signs.
 /// ```
+/// Config:set can be used to dynamically modify a limited number of server configurations.
+/// testingMode in server config.yaml has to be set to true for this to work.
+/// ```
+/// e.g.
+/// **set** - config:set:inbound_max_limit=2
+/// **reset** - config:reset:inbound_max_limit
+/// **print** - config:print:inbound_max_limit
+/// ```
 class Config extends Verb {
   @override
   Verb? dependsOn() {
@@ -33,6 +41,6 @@ class Config extends Verb {
 
   @override
   String usage() {
-    return 'configure syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow';
+    return 'configure block syntax config:block:<action>:@<atSign> \n e.g config:block:add:@alice \n view syntax config:show:<type> \n e.g config:shoe:allow \n configure set syntax \n e.g. config:set:<configName>=<configValue> \n config:reset(or)print:<configName>';
   }
 }
