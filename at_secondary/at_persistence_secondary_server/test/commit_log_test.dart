@@ -86,6 +86,28 @@ void main() async {
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
     });
+
+    test(
+        'test to verify commitId does not increment for public hidden keys with single _',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'public:_location@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test(
+        'test to verify commitId does increment for public hidden keys with multiple __',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'public:__location@alice', CommitOp.UPDATE);
+      expect(commitId, 0);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+    });
     tearDown(() async => await tearDownFunc());
   });
 
