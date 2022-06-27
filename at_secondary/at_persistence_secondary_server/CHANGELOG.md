@@ -1,5 +1,6 @@
 ## 3.0.29
 - Enable the public hidden keys to sync between local and cloud secondary
+- Uptake at_commons to 3.0.18 to optionally display hidden keys in scan
 ## 3.0.28
 - Updated lastSyncedEntryCacheMap regex to match the reserved keys
 - Upgraded to version 2.0.6 of at_persistence_spec containing @server/@client annotations
