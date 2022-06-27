@@ -53,10 +53,12 @@ class SecondaryServerBootStrapper {
           .setVerbHandlerManager(DefaultVerbHandlerManager());
 
       //starting secondary in a zone
+      //prevents secondary from terminating due to uncaught non-fatal errors
       runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, stackTrace) {
         logger.severe('Uncaught error: $error');
+        logger.severe('Stacktrace: $stackTrace');
       });
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
       ProcessSignal.sigint.watch().listen(handleTerminateSignal);
