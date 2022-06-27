@@ -5,7 +5,6 @@ import 'package:cron/cron.dart';
 
 class AtCompactionJob {
   late Cron _cron;
-  late ScheduledTask _schedule;
   AtLogType atLogType;
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
@@ -15,16 +14,11 @@ class AtCompactionJob {
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
     _cron = Cron();
-    _schedule =
-        _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+    _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var compactionService = AtCompactionService.getInstance();
       compactionService.executeCompaction(
           atCompactionConfig, atLogType, _secondaryPersistenceStore);
     });
-  }
-
-  Future<void> stopCompactionJob() async {
-    await _schedule.cancel();
   }
 
   void close() {
