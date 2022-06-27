@@ -7,6 +7,7 @@ class AtCompactionJob {
   late Cron _cron;
   late ScheduledTask _schedule;
   AtLogType atLogType;
+  late ScheduledTask _schedule;
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
 
@@ -22,11 +23,13 @@ class AtCompactionJob {
           atCompactionConfig, atLogType, _secondaryPersistenceStore);
     });
   }
-
+  
+  //Method to cancel the current schedule. The Cron instance is not close and can be re-used
   Future<void> stopCompactionJob() async {
     await _schedule.cancel();
   }
-
+  
+  //Method to stop compaction and also close the Cron instance.
   void close() {
     _cron.close();
   }
