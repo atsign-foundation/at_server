@@ -16,9 +16,13 @@ import 'verb.dart';
 /// ```
 /// Config:set can be used to dynamically modify a limited number of server configurations.
 /// testingMode in server config.yaml has to be set to true for this to work.
-/// Syntax to use this feature is provided below:
+/// ```
+/// e.g.
 /// **set** - config:set:inbound_max_limit=2
-/// **reset/print** - config:reset:inbound_max_limit \ config:print:inbound_max_limit
+/// **reset** - config:reset:inbound_max_limit
+/// **print** - config:print:inbound_max_limit
+/// ```
+
 class Config extends Verb {
   @override
   Verb? dependsOn() {
