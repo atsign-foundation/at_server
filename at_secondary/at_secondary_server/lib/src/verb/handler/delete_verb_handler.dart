@@ -13,9 +13,17 @@ import 'package:at_utils/at_utils.dart';
 
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
-  static final autoNotify = AtSecondaryConfig.autoNotify;
+  static bool _autoNotify = AtSecondaryConfig.autoNotify;
 
   DeleteVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+
+  //setter to set autoNotify value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  static setAutoNotify(bool newState) {
+    if (AtSecondaryConfig.testingMode) {
+      _autoNotify = newState;
+    }
+  }
 
   @override
   bool accept(String command) =>
@@ -81,7 +89,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       atSign = AtUtils.formatAtSign(atSign);
 
       // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
-      if (autoNotify! && (forAtSign != atSign)) {
+      if (_autoNotify && (forAtSign != atSign)) {
         try {
           _notify(forAtSign, atSign, key,
               SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));

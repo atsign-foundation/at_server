@@ -124,3 +124,8 @@ sync:
   bufferSize: 5242880
   # Represents the numbers of keys to send in each batch.
   pageLimit: 25
+
+#set to true in testing mode, false by default
+#IMPORTANT NOTE : please set testingMode to true only if you know what you're doing. Set to false when not testing
+testing:
+  testingMode: false

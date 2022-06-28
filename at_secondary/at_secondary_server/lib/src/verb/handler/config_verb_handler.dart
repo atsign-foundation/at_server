@@ -1,11 +1,10 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
@@ -31,6 +30,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   late var atConfigInstance;
+  late ModifiableConfigs? setConfigName;
+  late String? setConfigValue;
 
   @override
   bool accept(String command) =>
@@ -55,33 +56,91 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       var result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
+      String? setOperation = verbParams[SET_OPERATION];
 
-      switch (operation) {
-        case 'show':
-          var blockList = await atConfigInstance.getBlockList();
-          result = (blockList != null && blockList.isNotEmpty)
-              ? _toJsonResponse(blockList)
-              : null;
-          break;
-        case 'add':
-          var nonCurrentAtSignList =
-              _retainNonCurrentAtsign(currentAtSign, atsigns!);
-          if (nonCurrentAtSignList.isNotEmpty) {
+      if (operation != null) {
+        switch (operation) {
+          case 'show':
+            var blockList = await atConfigInstance.getBlockList();
+            result = (blockList != null && blockList.isNotEmpty)
+                ? _toJsonResponse(blockList)
+                : null;
+            break;
+          case 'add':
+            var nonCurrentAtSignList =
+                _retainNonCurrentAtsign(currentAtSign, atsigns!);
+            if (nonCurrentAtSignList.isNotEmpty) {
+              result =
+                  await atConfigInstance.addToBlockList(nonCurrentAtSignList);
+            }
+
+            ///if list contains only currentAtSign
+            else {
+              result = 'success';
+            }
+            break;
+          case 'remove':
             result =
-                await atConfigInstance.addToBlockList(nonCurrentAtSignList);
-          }
+                await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
+            break;
+          default:
+            result = 'unknown operation';
+            break;
+        }
+      } else {
+        //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
+        if (setOperation == 'set') {
+          //split 'config=value' to array of strings
+          var newConfig = verbParams[CONFIG_NEW]?.split('=');
+          //first element of array is config name
+          setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
+          //second element of array is config value
+          setConfigValue = newConfig[1];
+        } else {
+          //in other cases reset/print only config name is received
+          setConfigName =
+              ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
+        }
 
-          ///if list contains only currentAtSign
-          else {
-            result = 'success';
-          }
-          break;
-        case 'remove':
-          result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
-          break;
-        default:
-          result = 'unknown operation';
-          break;
+        //implementation for config:set
+        switch (setOperation) {
+          case 'set':
+            if (AtSecondaryConfig.testingMode) {
+              //broadcast new config change
+              try {
+                AtSecondaryConfig.broadcastConfigChange(
+                    setConfigName!, int.parse(setConfigValue!));
+              } catch (e) {
+                AtSecondaryConfig.broadcastConfigChange(
+                    setConfigName!, setConfigValue!);
+              }
+              ;
+              result = 'ok';
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          case 'reset':
+            if (AtSecondaryConfig.testingMode) {
+              //broadcast reset
+              AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
+                  isReset: true);
+              result = 'ok';
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          case 'print':
+            if (AtSecondaryConfig.testingMode) {
+              result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
+            } else {
+              result = 'testing mode disabled by default';
+            }
+            break;
+          default:
+            result = 'invalid setOperation';
+            break;
+        }
       }
       response.data = result?.toString();
     } catch (exception) {
