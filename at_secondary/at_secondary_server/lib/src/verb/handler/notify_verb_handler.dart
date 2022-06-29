@@ -97,7 +97,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttlnMillis = Duration(minutes: AtSecondaryConfig.notificationExpiresAfterMins).inMilliseconds;
+        ttlnMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins).inMilliseconds;
       } else {
         ttlnMillis =
             AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);

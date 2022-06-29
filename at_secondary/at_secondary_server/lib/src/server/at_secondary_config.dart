@@ -584,13 +584,13 @@ class AtSecondaryConfig {
     }
   }
 
-  static int get notificationExpiresAfterMins {
-    var result = _getIntEnvVar('notificationExpiresAfterMins');
+  static int get notificationExpiryInMins {
+    var result = _getIntEnvVar('notificationExpiryInMins');
     if (result != null) {
       return result;
     }
     try {
-      return getConfigFromYaml(['notification', 'expiresAfterMins']);
+      return getConfigFromYaml(['notification', 'expiryInMins']);
     } on ElementNotFoundException {
       return _notificationExpiresAfterMins;
     }

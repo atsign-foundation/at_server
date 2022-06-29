@@ -109,7 +109,7 @@ notification:
   # To disable to the feature, set to -1.
   statsNotificationJobTimeInterval: 15
   # The amount of time after which a notification expires in units of minutes. Defaults to 24 hours or 1440 minutes
-  expiresAfterMins: 1440
+  expiryInMins: 1440
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
