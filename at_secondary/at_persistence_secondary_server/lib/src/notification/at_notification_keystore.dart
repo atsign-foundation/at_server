@@ -122,9 +122,13 @@ class AtNotificationKeystore
       var expired = [];
       await Future.forEach(keys, (key) async {
         var value = await get(key);
+        //_logger.shout(value);
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
+        //Todo: remove obsolete code
+        //This method was introduced for backwards compatability to accomodate notifications without expiresAt.
+        // If concluded that all notifications have an epiresAt param defined, the below block of code is obsolete and can be removed.
         if (value?.expiresAt == null &&
             DateTime.now()
                     .toUtc()
@@ -155,7 +159,9 @@ class AtNotificationKeystore
         }
       });
 
-      expired.forEach((key) => expiredKeys.add(Utf7.encode(key)));
+      for (var key in expired) {
+        expiredKeys.add(Utf7.encode(key));
+      }
     } on Exception catch (e) {
       _logger.severe('exception in hive get expired keys:${e.toString()}');
       throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');

@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -96,7 +97,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttlnMillis = Duration(hours: 24).inMilliseconds;
+        ttlnMillis = Duration(minutes: AtSecondaryConfig.notificationExpiresAfterMins).inMilliseconds;
       } else {
         ttlnMillis =
             AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
