@@ -122,7 +122,6 @@ class AtNotificationKeystore
       var expired = [];
       await Future.forEach(keys, (key) async {
         var value = await get(key);
-        //_logger.shout(value);
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
