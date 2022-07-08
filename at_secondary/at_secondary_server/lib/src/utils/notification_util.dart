@@ -6,7 +6,7 @@ import 'package:at_utils/at_utils.dart';
 /// Util class for Notifications
 class NotificationUtil {
   static var logger = AtSignLogger('NotificationUtil');
-  static final autoNotify = AtSecondaryConfig.autoNotify;
+  //static final autoNotify = AtSecondaryConfig.autoNotify;
 
   /// Method to store notification in data store
   /// Accepts fromAtSign, forAtSign, key, Notification and Operation type,
@@ -43,7 +43,7 @@ class NotificationUtil {
         notificationBuilder.expiresAt =
             DateTime.now().toUtc().add(Duration(milliseconds: ttlMillis));
       }
-      if(id != null && id.isNotEmpty){
+      if (id != null && id.isNotEmpty) {
         notificationBuilder.id = id;
       }
       var atNotification = notificationBuilder.build();

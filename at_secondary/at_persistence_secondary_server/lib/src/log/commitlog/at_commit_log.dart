@@ -26,8 +26,13 @@ class AtCommitLog implements AtLogType {
   /// throws [DataStoreException] if there is an exception writing to hive box
   @server
   Future<int?> commit(String key, CommitOp operation) async {
-    if (key.startsWith(RegExp('private:|privatekey:|public:_'))) {
-      // do not add private key and keys with public_ to commit log.
+    // If key starts with "public:__", it is a public hidden key which gets synced
+    // between cloud and local secondary. So increment commitId.
+    // If key starts with "public:_" it is a public hidden key but does not get synced.
+    // So return -1.
+    // The private: and privatekey: are not synced. so return -1.
+    if (!key.startsWith('public:__') &&
+        key.startsWith(RegExp('private:|privatekey:|public:_'))) {
       return -1;
     }
     var result;
