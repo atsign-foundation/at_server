@@ -3,7 +3,6 @@ name: at_server
 # 1. on pull request raised to trunk branch.
 # 2. on push event to trunk branch.
 # 3. on tagging a release
-# 4. Run manual wokflow to rollback release
 on:
   workflow_dispatch:
     inputs:
@@ -11,10 +10,6 @@ on:
         type: boolean
         default: true
         description: Rollback Prod secondary image
-      rollback_prod_virtualenv_image:
-        type: boolean
-        default: true
-        description: Rollback Virtual ENV image
       rollback_canary_secondary_image:
         type: boolean
         default: true
@@ -136,6 +131,9 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
+    env:
+      testingMode: true
 
     steps:
       - uses: actions/checkout@v3.0.2
@@ -188,7 +186,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
@@ -530,7 +528,7 @@ jobs:
   push_canary_secondary_image:
     # Runs only after functional tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') || github.event.inputs.rollback_canary_secondary_image == 'true' }}
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
@@ -577,7 +575,7 @@ jobs:
   push_prod_secondary_image:
     # Runs only after functional tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') || github.event.inputs.rollback_prod_secondary_image == 'true' }}
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
       working-directory: at_server
     runs-on: ubuntu-latest
@@ -663,7 +661,7 @@ jobs:
 
   push_prod_virtualenv_image:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') || github.event.inputs.rollback_prod_virtualenv_image == 'true'}}
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
@@ -700,6 +698,83 @@ jobs:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
+  
+  # Rollback prod secondary image.
+  rollback_prod_secondary_image:
+    if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.0.2
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create amd64 labels
+        run: |
+          docker pull --platform=linux/amd64 atsigncompany/secondary:prod-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+
+      - name: Create arm64 labels
+        run: |
+          docker pull --platform=linux/arm64 atsigncompany/secondary:prod-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
+          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
+
+      - name: Create and push multi-arch  manifest
+        run: |
+          docker manifest create atsigncompany/secondary:prod \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:prod
+
+  # Rollback canary secondary image.
+  rollback_canary_secondary_image:
+    if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.0.2
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create amd64 labels
+        run: |
+          docker pull --platform=linux/amd64 atsigncompany/secondary:canary-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:canary-${{ env.VERSION }} atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+          docker push atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker manifest create atsigncompany/secondary:canary \
+            --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}
 
 #  # Deploy root server image to cluster
 #  deploy_root_sever:
