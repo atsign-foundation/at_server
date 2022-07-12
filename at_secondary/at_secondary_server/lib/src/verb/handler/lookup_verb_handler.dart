@@ -49,7 +49,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     key = '$key$atSign';
     var operation = verbParams[OPERATION];
-    String? byPassCacheStr = verbParams[byPassCache];
+    String? byPassCacheStr = verbParams[bypassCache];
 
     logger.finer(
         'fromAtSign : $fromAtSign \n atSign : ${atSign.toString()} \n key : $key');
