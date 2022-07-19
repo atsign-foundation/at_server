@@ -185,6 +185,10 @@ class ResourceManager {
         commandBody =
             '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
+      if (atNotification.atMetadata!.isEncrypted != null &&
+          atNotification.atMetadata!.isEncrypted == true) {
+        commandBody = '$IS_ENCRYPTED:true:$commandBody';
+      }
       if (atMetaData.ttr != null) {
         commandBody =
             'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody:${atNotification.atValue}';

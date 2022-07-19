@@ -3,12 +3,10 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
 
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
@@ -152,6 +150,8 @@ class Notification {
   String? notification;
   String? operation;
   String? value;
+  late String messageType;
+  late bool isTextMessageEncrypted = false;
 
   Notification(AtNotification atNotification) {
     id = atNotification.id;
@@ -162,6 +162,10 @@ class Notification {
     operation =
         atNotification.opType.toString().replaceAll('OperationType.', '');
     value = atNotification.atValue;
+    messageType = atNotification.messageType!.toString();
+    isTextMessageEncrypted = atNotification.atMetadata?.isEncrypted != null
+        ? atNotification.atMetadata!.isEncrypted!
+        : false;
   }
 
   Map toJson() => {
@@ -171,6 +175,8 @@ class Notification {
         KEY: notification,
         VALUE: value,
         OPERATION: operation,
-        EPOCH_MILLIS: dateTime
+        EPOCH_MILLIS: dateTime,
+        MESSAGE_TYPE: messageType,
+        IS_ENCRYPTED: isTextMessageEncrypted
       };
 }
