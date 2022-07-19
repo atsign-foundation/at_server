@@ -782,8 +782,8 @@ jobs:
             --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
           docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}  
 
+  # Deploy canary image to secondary image
   deploy_canary_image_to_prod_secondary_image:
-    # Runs only after functional tests are completed.
     if: ${{ github.event.inputs.deploy_canary_image_to_prod_secondary_image == 'true' }}
     env:
       working-directory: at_server
