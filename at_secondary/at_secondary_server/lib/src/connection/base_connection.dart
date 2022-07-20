@@ -56,13 +56,9 @@ abstract class BaseConnection extends AtConnection {
     }
   }
 
-  static String truncateForLogging(String toLog, {int cutOffAfter = 1000}) {
+  static String truncateForLogging(String toLog, {int cutOffAfter = 2100}) {
     if (toLog.length > cutOffAfter) {
       toLog = '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
-    }
-    var lastNewLinePos = toLog.lastIndexOf("\n");
-    if (lastNewLinePos > -1) {
-      toLog = toLog.substring(0, lastNewLinePos);
     }
     return toLog;
   }
