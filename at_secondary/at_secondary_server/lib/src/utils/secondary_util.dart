@@ -156,4 +156,11 @@ class SecondaryUtil {
         return OperationType.update;
     }
   }
+
+  static bool getBoolFromString(String? arg1) {
+    if ((arg1 != null && arg1.isNotEmpty) && arg1.toLowerCase() == 'true') {
+      return true;
+    }
+    return false;
+  }
 }

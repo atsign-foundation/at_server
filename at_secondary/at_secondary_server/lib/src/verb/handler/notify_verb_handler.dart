@@ -150,6 +150,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (pubKeyCS != null) {
         atMetadata.pubKeyCS = pubKeyCS;
       }
+      atMetadata.isEncrypted =
+          SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED]);
       final notificationBuilder = AtNotificationBuilder()
         ..fromAtSign = atSign
         ..toAtSign = forAtSign
@@ -181,7 +183,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttlMillis: ttlnMillis, value: atValue, id: id);
+          ttlMillis: ttlnMillis,
+          value: atValue,
+          id: id,
+          messageType: messageType,
+          atMetaData: (AtMetaData()
+            ..isEncrypted =
+                SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])));
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;

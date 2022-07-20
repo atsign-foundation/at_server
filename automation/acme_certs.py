@@ -459,7 +459,8 @@ Example: requests certificate chain and store it in chain.crt
     LOGGER.info(f'Creating CSR {args.cert_name}.csr')
     _openssl('req',['-new','-newkey','rsa:2048','-nodes',
         '-out',f'{args.cert_name}.csr','-keyout',f'{args.cert_name}.key',
-        '-subj',f'/CN={args.cert_name}'])
+        '-subj',f'/CN={args.cert_name}',
+        '-addext','extendedKeyUsage = serverAuth, clientAuth'])
     config.set("acmednstiny", "csrfile", f"{args.cert_name}.csr")
 
     if (set(["csrfile", "acmedirectory"]) - set(config.options("acmednstiny"))):
