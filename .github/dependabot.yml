@@ -21,4 +21,8 @@ updates:
     directory: "/at_root/at_root_server"
     schedule:
       interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/at_secondary/at_secondary_server"
+    schedule:
+      interval: "daily"
       
