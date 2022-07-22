@@ -1,7 +1,8 @@
 ## 3.0.20
 - fix: Bypass cache rename fix
 - feat: Set isEncrypted to true when notify text message is encrypted.
-- Update the at_lookup version to 3.0.27
+- Update the at_lookup version to 3.0.28
+- Update the at_persistence_secondary_server version to 3.0.30
 ## 3.0.19
 - Upgrade at_persistence_secondary_server version to 3.0.28 which replaces null commitId(s) with hive internal key(s) on server startup
 - Enhance scan verb to display hidden keys when showHiddenKeys is set to true
