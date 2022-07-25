@@ -60,7 +60,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       throw DataStoreException(error.message);
     }
     if (value == null) {
-      throw KeyNotFoundException('$key does not exist in keystore');
+      throw KeyNotFoundException('$key does not exist in keystore',
+          intent: Intent.fetchData,
+          exceptionScenario: ExceptionScenario.keyNotFound);
     }
     return value;
   }
