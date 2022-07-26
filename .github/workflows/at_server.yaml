@@ -516,7 +516,7 @@ jobs:
   # This job run's on trigger event 'push' and when a canary release is tagged.
   # The job builds the canary version of secondary server docker image and pushes to docker hub.
   push_canary_secondary_image:
-    # Runs only after functional tests are completed.
+    # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     env:
@@ -563,7 +563,7 @@ jobs:
   # This job run's on trigger event 'push' and when a release is tagged.
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
-    # Runs only after functional tests are completed.
+    # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
@@ -610,6 +610,28 @@ jobs:
             linux/amd64
             linux/arm64/v8
 
+  push_dess_secondary_image:
+    # Runs only after all tests are completed.
+    needs: [ push_prod_secondary_image ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3.0.2
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Retag prod x64 and Arm64 images as dess
       - name: Create dess-x64 label
         run: |
           docker pull atsigncompany/secondary:prod
@@ -634,6 +656,7 @@ jobs:
           host: "arm32cicd.atsign.wtf"
           username: pi
           key: ${{ secrets.CICD_SSH_KEY }}
+          command_timeout: 20m
           script: |
             cd /home/pi/git/github.com/atsign-foundation/at_server
             git pull
