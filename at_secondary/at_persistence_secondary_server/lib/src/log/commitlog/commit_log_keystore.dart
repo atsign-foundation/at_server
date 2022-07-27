@@ -133,10 +133,9 @@ class CommitLogKeyStore
       await _getBox().delete(commitId);
       // invalidate cache for the removed entry
       if (commitEntry != null) {
-        final key = commitEntry.atKey;
-        final value = _commitLogCacheMap.remove(key);
+        _commitLogCacheMap.remove(commitEntry.atKey);
         _logger.finest(
-            'removed key : ${commitEntry.atKey} from commit log. value: $value');
+            'removed key : ${commitEntry.atKey} from commit log.');
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
