@@ -21,17 +21,10 @@ dependencies:
 
 dependency_overrides:
   at_persistence_spec:
-    path: ../../at_persistence/at_persistence_spec
-#   at_persistence_spec:
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_persistence/at_persistence_spec
-#       ref: trunk
-#  at_utils:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_utils
-#      ref: trunk
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_persistence/at_persistence_spec
+      ref: encode_public_data
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
