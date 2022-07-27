@@ -129,7 +129,14 @@ class CommitLogKeyStore
   @override
   Future<void> remove(int commitId) async {
     try {
+      final commitEntry = (await _getBox() as Box).get(commitId);
       await _getBox().delete(commitId);
+      // invalidate cache for the removed entry
+      if (commitEntry != null) {
+        final key = commitEntry.atKey;
+        final value = _commitLogCacheMap.remove(key);
+        _logger.finest('removed value: $value');
+      }
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
     } on HiveError catch (e) {
