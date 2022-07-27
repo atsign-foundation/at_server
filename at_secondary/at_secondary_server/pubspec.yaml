@@ -10,12 +10,12 @@ environment:
   sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  args: 2.1.0
-  uuid: 3.0.4
-  convert: 3.0.0
-  crypto: 3.0.1
-  crypton: 2.0.1
-  collection: 1.15.0
+  args: 2.3.1
+  uuid: 3.0.6
+  convert: 3.0.2
+  crypto: 3.0.2
+  crypton: 2.0.5
+  collection: 1.16.0
   basic_utils: 4.4.2
   at_persistence_secondary_server: 3.0.30
   at_lookup: 3.0.28
