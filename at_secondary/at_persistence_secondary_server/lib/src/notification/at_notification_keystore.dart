@@ -70,7 +70,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -85,7 +86,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
     throw UnimplementedError();
   }
 

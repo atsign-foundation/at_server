@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
-  var atMetaData;
+  AtMetaData? atMetaData;
   var currentUtcTime = DateTime.now().toUtc();
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
@@ -22,14 +22,15 @@ class AtMetadataBuilder {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
+      String? publicKeyChecksum,
+      String? encoding}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
-    atMetaData.createdAt ??= currentUtcTime;
-    atMetaData.createdBy ??= atSign;
-    atMetaData.updatedBy = atSign;
-    atMetaData.updatedAt = currentUtcTime;
-    atMetaData.status = 'active';
+    atMetaData!.createdAt ??= currentUtcTime;
+    atMetaData!.createdBy ??= atSign;
+    atMetaData!.updatedBy = atSign;
+    atMetaData!.updatedAt = currentUtcTime;
+    atMetaData!.status = 'active';
 
     //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
     ttl ??= newAtMetaData.ttl;
@@ -50,6 +51,7 @@ class AtMetadataBuilder {
     dataSignature ??= newAtMetaData.dataSignature;
     sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
     publicKeyChecksum ??= newAtMetaData.pubKeyCS;
+    encoding ??= newAtMetaData.encoding;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -69,62 +71,69 @@ class AtMetadataBuilder {
     setDataSignature(dataSignature);
     setSharedKeyEncrypted(sharedKeyEncrypted);
     setPublicKeyChecksum(publicKeyChecksum);
+    setEncoding(encoding);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
     if (ttl != null) {
-      atMetaData.ttl = ttl;
-      atMetaData.expiresAt =
+      atMetaData!.ttl = ttl;
+      atMetaData!.expiresAt =
           _getExpiresAt(currentUtcTime.millisecondsSinceEpoch, ttl, ttb: ttb);
     }
   }
 
   void setTTB(int? ttb) {
     if (ttb != null) {
-      atMetaData.ttb = ttb;
-      atMetaData.availableAt =
+      atMetaData!.ttb = ttb;
+      atMetaData!.availableAt =
           _getAvailableAt(currentUtcTime.millisecondsSinceEpoch, ttb);
     }
   }
 
   void setTTR(int? ttr) {
     if (ttr != null) {
-      atMetaData.ttr = ttr;
-      atMetaData.refreshAt = _getRefreshAt(currentUtcTime, ttr);
+      atMetaData!.ttr = ttr;
+      atMetaData!.refreshAt = _getRefreshAt(currentUtcTime, ttr);
     }
   }
 
   void setCCD(bool ccd) {
-    atMetaData.isCascade = ccd;
+    atMetaData!.isCascade = ccd;
   }
 
   void setIsBinary(bool? isBinary) {
     if (isBinary != null) {
-      atMetaData.isBinary = isBinary;
+      atMetaData!.isBinary = isBinary;
     }
   }
 
   void setIsEncrypted(bool? isEncrypted) {
     if (isEncrypted != null) {
-      atMetaData.isEncrypted = isEncrypted;
+      atMetaData!.isEncrypted = isEncrypted;
     }
   }
 
   void setDataSignature(String? dataSignature) {
     if (dataSignature != null) {
-      atMetaData.dataSignature = dataSignature;
+      atMetaData!.dataSignature = dataSignature;
     }
   }
 
   void setSharedKeyEncrypted(String? sharedKeyEncrypted) {
     if (sharedKeyEncrypted != null) {
-      atMetaData.sharedKeyEnc = sharedKeyEncrypted;
+      atMetaData!.sharedKeyEnc = sharedKeyEncrypted;
     }
   }
 
   void setPublicKeyChecksum(String? publicKeyChecksum) {
     if (publicKeyChecksum != null) {
-      atMetaData.pubKeyCS = publicKeyChecksum;
+      atMetaData!.pubKeyCS = publicKeyChecksum;
+    }
+  }
+
+  void setEncoding(String? encoding) {
+    if (encoding != null && encoding.isNotEmpty) {
+      atMetaData!.encoding = encoding;
     }
   }
 
@@ -153,7 +162,7 @@ class AtMetadataBuilder {
     return today.add(Duration(seconds: ttr));
   }
 
-  AtMetaData? build() {
-    return atMetaData;
+  AtMetaData build() {
+    return atMetaData!;
   }
 }
