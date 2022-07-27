@@ -17,27 +17,22 @@ dependencies:
   crypton: 2.0.5
   collection: 1.16.0
   basic_utils: 4.4.3
-  at_persistence_secondary_server: 3.0.31
-  at_lookup: 3.0.28
+  at_persistence_secondary_server: 3.0.32
+  at_lookup: 3.0.29
   at_server_spec: 3.0.9
   at_utils: 3.0.10
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: trunk
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: json_decoding_response
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: new_set_verb
 #  at_persistence_secondary_server:
 #   git:
 #     url: https://github.com/atsign-foundation/at_server.git
 #     path: at_secondary/at_persistence_secondary_server
-#     ref: trunk
+#     ref: set_verb
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
