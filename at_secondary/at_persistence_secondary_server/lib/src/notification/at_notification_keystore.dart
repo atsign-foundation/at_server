@@ -12,9 +12,11 @@ class AtNotificationKeystore
       AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
+
   late String currentAtSign;
   late String _boxName;
   final _notificationExpiryInHours = 72;
+
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
@@ -70,7 +72,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      bool? isEncoded}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -85,7 +88,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      bool? isEncoded}) async {
     throw UnimplementedError();
   }
 

@@ -77,7 +77,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      bool? isEncoded}) async {
     var result;
     // Default the commit op to just the value update
     CommitOp commitOp = CommitOp.UPDATE;
@@ -109,7 +110,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            isEncoded: isEncoded);
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
@@ -123,7 +125,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            isEncoded: isEncoded);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager.getBox().put(hive_key, hive_value);
@@ -154,7 +157,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      bool? isEncoded}) async {
     var result;
     var commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
@@ -167,7 +171,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         isEncrypted: isEncrypted,
         dataSignature: dataSignature,
         sharedKeyEncrypted: sharedKeyEncrypted,
-        publicKeyChecksum: publicKeyChecksum);
+        publicKeyChecksum: publicKeyChecksum,
+        isEncoded: isEncoded);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -182,6 +187,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       dataSignature ??= value.metaData!.dataSignature;
       sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
       publicKeyChecksum ??= value.metaData!.pubKeyCS;
+      isEncoded ??= value.metaData!.isEncoded;
     }
 
     // If metadata is set, set commitOp to Update all

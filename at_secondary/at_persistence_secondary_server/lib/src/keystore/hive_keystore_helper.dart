@@ -28,7 +28,8 @@ class HiveKeyStoreHelper {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
+      String? publicKeyChecksum,
+      bool? isEncoded}) {
     var at_data = AtData();
     at_data.data = newData.data;
     at_data.metaData = AtMetadataBuilder(
@@ -41,7 +42,8 @@ class HiveKeyStoreHelper {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum)
+            publicKeyChecksum: publicKeyChecksum,
+            isEncoded: isEncoded)
         .build();
     at_data.metaData!.version = 0;
     return at_data;
@@ -56,7 +58,8 @@ class HiveKeyStoreHelper {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
+      String? publicKeyChecksum,
+      bool? isEncoded}) {
     existingData.metaData = AtMetadataBuilder(
             newAtMetaData: newData.metaData,
             existingMetaData: existingData.metaData,
@@ -68,7 +71,8 @@ class HiveKeyStoreHelper {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum)
+            publicKeyChecksum: publicKeyChecksum,
+            isEncoded: isEncoded)
         .build();
 //    (existingData.metaData!.version == null)
 //        ? existingData.metaData!.version = 0

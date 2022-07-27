@@ -19,7 +19,9 @@ dependencies:
   at_utf7: ^1.0.0
   meta: ^1.7.0
 
-# dependency_overrides:
+dependency_overrides:
+  at_persistence_spec:
+    path: ../../at_persistence/at_persistence_spec
 #   at_persistence_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git
@@ -30,11 +32,11 @@ dependencies:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_utils
 #      ref: trunk
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: encode_public_data
 
 dev_dependencies:
   lints: ^1.0.1

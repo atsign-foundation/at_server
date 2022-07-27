@@ -20,6 +20,7 @@ import 'package:at_utils/at_utils.dart';
 class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
+
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
@@ -82,6 +83,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var ccd = updateParams.metadata!.ccd;
       String? sharedKeyEncrypted = updateParams.metadata!.sharedKeyEnc;
       String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
+      bool isEncoded = updateParams.metadata!.isEncoded;
+
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -119,7 +122,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..isEncrypted = isEncrypted
         ..dataSignature = dataSignature
         ..sharedKeyEnc = sharedKeyEncrypted
-        ..pubKeyCS = publicKeyChecksum;
+        ..pubKeyCS = publicKeyChecksum
+        ..isEncoded = isEncoded;
 
       if (_autoNotify!) {
         _notify(
@@ -141,7 +145,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           isEncrypted: isEncrypted,
           dataSignature: dataSignature,
           sharedKeyEncrypted: sharedKeyEncrypted,
-          publicKeyChecksum: publicKeyChecksum);
+          publicKeyChecksum: publicKeyChecksum,
+          isEncoded: isEncoded);
       response.data = result?.toString();
     } on InvalidSyntaxException {
       rethrow;
@@ -204,9 +209,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
     metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
     metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+    metadata.isEncoded =
+        AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCODED]);
     updateParams.metadata = metadata;
     return updateParams;
   }
-
-  void _autoNotifyChange() {}
 }

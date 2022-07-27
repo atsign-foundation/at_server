@@ -22,7 +22,8 @@ class AtMetadataBuilder {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
+      String? publicKeyChecksum,
+      bool? isEncoded}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     atMetaData.createdAt ??= currentUtcTime;
@@ -50,6 +51,7 @@ class AtMetadataBuilder {
     dataSignature ??= newAtMetaData.dataSignature;
     sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
     publicKeyChecksum ??= newAtMetaData.pubKeyCS;
+    isEncoded ??= newAtMetaData.isEncoded;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -69,6 +71,7 @@ class AtMetadataBuilder {
     setDataSignature(dataSignature);
     setSharedKeyEncrypted(sharedKeyEncrypted);
     setPublicKeyChecksum(publicKeyChecksum);
+    setIsEncoded(isEncoded);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
@@ -125,6 +128,12 @@ class AtMetadataBuilder {
   void setPublicKeyChecksum(String? publicKeyChecksum) {
     if (publicKeyChecksum != null) {
       atMetaData.pubKeyCS = publicKeyChecksum;
+    }
+  }
+
+  void setIsEncoded(bool? isEncoded) {
+    if (isEncoded != null) {
+      atMetaData.isEncoded = isEncoded;
     }
   }
 
