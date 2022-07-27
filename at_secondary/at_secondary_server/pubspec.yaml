@@ -16,7 +16,7 @@ dependencies:
   crypto: 3.0.2
   crypton: 2.0.5
   collection: 1.16.0
-  basic_utils: 3.0.2
+  basic_utils: 4.4.2
   at_persistence_secondary_server: 3.0.30
   at_lookup: 3.0.28
   at_server_spec: 3.0.9
@@ -59,4 +59,4 @@ dev_dependencies:
   test: ^1.17.3
   coverage: ^1.0.3
   mockito: ^5.0.7
-  lints: ^1.0.1
+  lints: ^2.0.0
