@@ -1,3 +1,5 @@
+## 3.0.31
+- Invalidate commit log cache on removing entry from commit log
 ## 3.0.30
 - Enhance KeyNotFoundException to chain into exception hierarchy.
 - Upgrade at_commons version to 3.0.20 to encrypt notify text
