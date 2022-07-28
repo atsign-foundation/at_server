@@ -150,7 +150,7 @@ void main() async {
       DateTime startTimeAsDateTime = DateTime.now();
       int startTimeAsMillis = startTimeAsDateTime.millisecondsSinceEpoch;
 
-      logger.finer ('startTimeAsDateTime is $startTimeAsDateTime');
+      logger.info ('startTimeAsDateTime is $startTimeAsDateTime');
 
       for (int i = 0; i < desiredPoolSize; i++) {
         connections[i].metaData.lastAccessed = startTimeAsDateTime;
@@ -161,12 +161,12 @@ void main() async {
 
       // Actual allowable idle time should be as per InboundConnectionImpl.dart - i.e.
       int unauthenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(poolInstance, maxPoolSize, unauthenticatedMinAllowableIdleTimeMillis);
-      logger.finer ("unAuth actual allowed idle time: $unauthenticatedActualAllowableIdleTime");
+      logger.info ("unAuth actual allowed idle time: $unauthenticatedActualAllowableIdleTime");
 
       // Before simulating activity, let's first sleep until we've reached 80% of the currently allowable idle time for UNAUTHENTICATED connections
       int elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       var sleepTime = Duration(milliseconds: (unauthenticatedActualAllowableIdleTime * 0.8).floor() - elapsed);
-      logger.finer  ('Sleeping for $sleepTime after initial pool filling to 90%');
+      logger.info  ('Sleeping for $sleepTime after initial pool filling to 90%');
       sleep(sleepTime);
 
       int numAuthToWriteTo = 3;
@@ -189,7 +189,7 @@ void main() async {
       // now let's sleep until the unused connections will have been idle for longer than the currently allowable idle time for UNAUTHENTICATED connections
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       sleepTime = Duration(milliseconds: (unauthenticatedActualAllowableIdleTime - elapsed).abs() + 5);
-      logger.finer ('Sleeping for $sleepTime so that the first batch of unauthenticated connections exceed the allowable idle time');
+      logger.info ('Sleeping for $sleepTime so that the first batch of unauthenticated connections exceed the allowable idle time');
       sleep(sleepTime);
 
       // now when we clear invalid connections, we're going to see all of the unused unauthenticated connections returned to pool
@@ -197,15 +197,15 @@ void main() async {
       poolInstance.clearInvalidConnections();
       int expected = desiredPoolSize - (numUnauthenticated - numUnAuthToWriteTo);
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
-      logger.finer ('After $elapsed : expect pool size after unauthenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
+      logger.info ('After $elapsed : expect pool size after unauthenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
       expect(poolInstance.getCurrentSize(), expected);
 
       // now let's sleep until the unused connections will have been idle for longer than the currently allowable idle time for AUTHENTICATED connections
       int authenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(poolInstance, maxPoolSize, authenticatedMinAllowableIdleTimeMillis);
-      logger.finer ("auth actual allowed idle time: $authenticatedActualAllowableIdleTime");
+      logger.info ("auth actual allowed idle time: $authenticatedActualAllowableIdleTime");
 
-      sleepTime = Duration(milliseconds: authenticatedActualAllowableIdleTime - elapsed + 1);
-      logger.finer ('Sleeping for $sleepTime so that the first batch of AUTHENTICATED connections exceed the allowable idle time');
+      sleepTime = Duration(milliseconds: authenticatedActualAllowableIdleTime - elapsed + 10);
+      logger.info ('Sleeping for $sleepTime so that the first batch of AUTHENTICATED connections exceed the allowable idle time');
       sleep(sleepTime);
 
       // now when we clear invalid connections, we're going to additionally see all of the unused AUTHENTICATED connections returned to pool
@@ -213,7 +213,7 @@ void main() async {
       poolInstance.clearInvalidConnections();
       expected -= (numAuthenticated - numAuthToWriteTo);
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
-      logger.finer ('After $elapsed : expect pool size after AUTHenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
+      logger.info ('After $elapsed : expect pool size after AUTHenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
       expect(poolInstance.getCurrentSize(), expected);
 
     });
