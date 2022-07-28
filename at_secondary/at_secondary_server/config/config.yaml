@@ -36,6 +36,8 @@ hive:
 
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
   expiringRunFrequencyMins: 10
+  # List of malformed keys that will be deleted on server startup
+  malformedKeys: 'public:publickey'
 
 # The @Protocol connection configurations.
 connection:
