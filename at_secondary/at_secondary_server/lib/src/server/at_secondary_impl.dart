@@ -210,6 +210,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await initDynamicConfigListeners();
     }
 
+    // clean up malformed keys from keystore
+    await _removeMalformedKeys();
+
     try {
       _isRunning = true;
       if (useSSL!) {
@@ -554,6 +557,24 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
     }
     await keyStore.deleteExpiredKeys();
+  }
+
+  Future<void> _removeMalformedKeys() async {
+    try {
+      List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
+      logger.finest('malformed keys from config: $malformedKeys');
+      for (String key in malformedKeys) {
+        final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
+        if (keyStore.isKeyExists(key)) {
+          int? commitId = await keyStore.remove(key);
+          logger.warning('commitId for removed key $key: $commitId');
+          // do not sync back the deleted malformed key. remove from commit log
+          await _commitLog.commitLogKeyStore.remove(commitId);
+        }
+      }
+    } on Exception catch (e) {
+      logger.severe('Exception in removing malformed key: ${e.toString()}');
+    }
   }
 
   @override

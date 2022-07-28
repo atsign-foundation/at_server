@@ -17,7 +17,7 @@ dependencies:
   crypton: 2.0.5
   collection: 1.16.0
   basic_utils: 4.4.2
-  at_persistence_secondary_server: 3.0.30
+  at_persistence_secondary_server: 3.0.31
   at_lookup: 3.0.28
   at_server_spec: 3.0.9
   at_utils: 3.0.10
@@ -46,7 +46,7 @@ dependency_overrides:
 #   git:
 #     url: https://github.com/atsign-foundation/at_server.git
 #     path: at_secondary/at_persistence_secondary_server
-#     ref: set_verb
+#     ref: trunk
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
