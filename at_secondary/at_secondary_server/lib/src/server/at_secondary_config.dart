@@ -86,6 +86,7 @@ class AtSecondaryConfig {
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
   static final int _syncPageLimit = 100;
+  static final List<String> _malformedKeys = [];
 
   //version
   static final String? _secondaryServerVersion =
@@ -617,6 +618,18 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['sync', 'pageLimit']);
     } on ElementNotFoundException {
       return _syncPageLimit;
+    }
+  }
+
+  static List<String> get malformedKeysList {
+    var result = _getStringEnvVar('hiveMalformedKeys');
+    if (result != null) {
+      return result.split(',');
+    }
+    try {
+      return getConfigFromYaml(['hive', 'malformedKeys']).split(',');
+    } on ElementNotFoundException {
+      return _malformedKeys;
     }
   }
 
