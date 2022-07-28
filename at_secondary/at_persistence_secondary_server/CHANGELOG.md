@@ -1,3 +1,12 @@
+## 3.0.31
+- Invalidate commit log cache on removing entry from commit log
+## 3.0.30
+- Enhance KeyNotFoundException to chain into exception hierarchy.
+- Upgrade at_commons version to 3.0.20 to encrypt notify text
+## 3.0.29
+- Introduced option to stop current schedule of a compaction job
+- Enable the public hidden keys to sync between local and cloud secondary
+- Uptake at_commons to 3.0.18 to optionally display hidden keys in scan
 ## 3.0.28
 - Updated lastSyncedEntryCacheMap regex to match the reserved keys
 - Upgraded to version 2.0.6 of at_persistence_spec containing @server/@client annotations

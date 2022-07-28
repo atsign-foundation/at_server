@@ -1,0 +1,5 @@
+FROM atsigncompany/secondary:canary
+ENV HOMEDIR=/atsign
+RUN \
+  cp -rpf pubspec.yaml $HOMEDIR/; \
+  chown -R atsign:atsign $HOMEDIR ;

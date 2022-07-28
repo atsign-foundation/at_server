@@ -84,6 +84,7 @@ class AtSecondaryConfig {
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
   static final int _syncPageLimit = 100;
+  static final List<String> _malformedKeys = [];
 
   //version
   static final String? _secondaryServerVersion =
@@ -606,6 +607,18 @@ class AtSecondaryConfig {
     }
   }
 
+  static List<String> get malformedKeysList {
+    var result = _getStringEnvVar('hiveMalformedKeys');
+    if (result != null) {
+      return result.split(',');
+    }
+    try {
+      return getConfigFromYaml(['hive', 'malformedKeys']).split(',');
+    } on ElementNotFoundException {
+      return _malformedKeys;
+    }
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
@@ -682,7 +695,7 @@ class AtSecondaryConfig {
 
   static bool? _getBoolEnvVar(String envVar) {
     if (_envVars.containsKey(envVar)) {
-      (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
+      return (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
     }
     return null;
   }

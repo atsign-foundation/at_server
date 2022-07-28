@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.17
+version: 3.0.20
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -10,33 +10,34 @@ environment:
   sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
-  args: ^2.1.0
-  uuid: ^3.0.4
-  convert: ^3.0.0
-  crypto: ^3.0.1
-  crypton: ^2.0.1
-  collection: ^1.15.0
-  basic_utils: ^3.0.2
-  at_persistence_secondary_server: ^3.0.25
-  at_lookup: ^3.0.24
-  at_server_spec: ^3.0.8
+  args: 2.3.1
+  uuid: 3.0.6
+  convert: 3.0.2
+  crypto: 3.0.2
+  crypton: 2.0.5
+  collection: 1.16.0
+  basic_utils: 4.4.2
+  at_persistence_secondary_server: 3.0.31
+  at_lookup: 3.0.28
+  at_server_spec: 3.0.9
+  at_utils: 3.0.10
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: new_set_verb
-  at_persistence_secondary_server:
-   git:
-     url: https://github.com/atsign-foundation/at_server.git
-     path: at_secondary/at_persistence_secondary_server
-     ref: set_verb
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: at_server_spec
-      ref: set_verb
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: new_set_verb
+#  at_persistence_secondary_server:
+#   git:
+#     url: https://github.com/atsign-foundation/at_server.git
+#     path: at_secondary/at_persistence_secondary_server
+#     ref: trunk
+#  at_server_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_server_spec
+#      ref: set_verb
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
@@ -59,4 +60,4 @@ dev_dependencies:
   test: ^1.17.3
   coverage: ^1.0.3
   mockito: ^5.0.7
-  lints: ^1.0.1
+  lints: ^2.0.0

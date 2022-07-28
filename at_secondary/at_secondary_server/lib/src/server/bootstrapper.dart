@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/arg_utils.dart';
@@ -16,8 +17,10 @@ class SecondaryServerBootStrapper {
   static final bool? useSSL = AtSecondaryConfig.useSSL;
   static final int inboundMaxLimit = AtSecondaryConfig.inbound_max_limit;
   static final int outboundMaxLimit = AtSecondaryConfig.outbound_max_limit;
-  static final int inboundIdleTimeMillis = AtSecondaryConfig.inbound_idletime_millis;
-  static final int outboundIdleTimeMillis = AtSecondaryConfig.outbound_idletime_millis;
+  static final int inboundIdleTimeMillis =
+      AtSecondaryConfig.inbound_idletime_millis;
+  static final int outboundIdleTimeMillis =
+      AtSecondaryConfig.outbound_idletime_millis;
 
   SecondaryServerBootStrapper(this.arguments);
 
@@ -48,7 +51,14 @@ class SecondaryServerBootStrapper {
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
       secondaryServerInstance
           .setVerbHandlerManager(DefaultVerbHandlerManager());
-      await secondaryServerInstance.start();
+
+      //starting secondary in a zone
+      //prevents secondary from terminating due to uncaught non-fatal errors
+      runZonedGuarded(() async {
+        await secondaryServerInstance.start();
+      }, (error, stackTrace) {
+        logger.severe('Uncaught error: $error \n Stacktrace: $stackTrace');
+      });
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
       ProcessSignal.sigint.watch().listen(handleTerminateSignal);
     } on Exception {
@@ -61,17 +71,20 @@ class SecondaryServerBootStrapper {
       logger.info("Caught $event - calling secondaryServerInstance.stop()");
       await secondaryServerInstance.stop();
       if (secondaryServerInstance.isRunning()) {
-        logger.warning("secondaryServerInstance.stop() completed but isRunning still true - exiting with status 1");
+        logger.warning(
+            "secondaryServerInstance.stop() completed but isRunning still true - exiting with status 1");
         exit(1);
       } else {
-        logger.info("secondaryServerInstance.stop() completed, and isRunning is false - exiting with status 0");
+        logger.info(
+            "secondaryServerInstance.stop() completed, and isRunning is false - exiting with status 0");
         exit(0);
       }
     } on Exception catch (e, stacktrace) {
       logger.warning("Caught $e from secondaryServerInstance.stop() sequence");
       logger.warning(stacktrace.toString());
     } finally {
-      logger.info("Somehow made it to the finally block - exiting with status 1");
+      logger
+          .info("Somehow made it to the finally block - exiting with status 1");
       exit(1);
     }
   }
