@@ -49,6 +49,8 @@ class AtSecondaryConfig {
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static final int _statsNotificationJobTimeInterval = 15;
+  // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
+  static final int _notificationExpiresAfterMins = 1440;
 
   static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
   static final int? _notificationKeyStoreCompactionPercentage = 30;
@@ -580,6 +582,18 @@ class AtSecondaryConfig {
           ['notification', 'statsNotificationJobTimeInterval']);
     } on ElementNotFoundException {
       return _statsNotificationJobTimeInterval;
+    }
+  }
+
+  static int get notificationExpiryInMins {
+    var result = _getIntEnvVar('notificationExpiryInMins');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['notification', 'expiryInMins']);
+    } on ElementNotFoundException {
+      return _notificationExpiresAfterMins;
     }
   }
 
