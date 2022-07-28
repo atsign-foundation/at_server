@@ -564,12 +564,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in malformedKeys) {
-        int? commitId = await _secondaryPersistenceStore
-            .getSecondaryKeyStore()!
-            .remove(key);
-        logger.finest('commitId for removed key $key: $commitId');
-        // do not sync back the deleted malformed key. remove from commit log
-        await _commitLog.commitLogKeyStore.remove(commitId);
+        final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
+        if (keyStore.isKeyExists(key)) {
+          int? commitId = await keyStore.remove(key);
+          logger.warning('commitId for removed key $key: $commitId');
+          // do not sync back the deleted malformed key. remove from commit log
+          await _commitLog.commitLogKeyStore.remove(commitId);
+        }
       }
     } on Exception catch (e) {
       logger.severe('Exception in removing malformed key: ${e.toString()}');
