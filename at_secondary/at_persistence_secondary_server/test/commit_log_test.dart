@@ -50,20 +50,13 @@ void main() async {
       var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
-      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_2 =
-          await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
-      var key_3 =
-          await commitLogInstance.commit('location@alice', CommitOp.DELETE);
-      var key_4 = await commitLogInstance.commit('phone@bob', CommitOp.UPDATE);
-      var key_5 =
-          await commitLogInstance.commit('email@charlie', CommitOp.UPDATE);
-      expect(commitLogInstance.lastCommittedSequenceNumber(), 4);
-      var changes = await commitLogInstance.getChanges(key_2, '');
-      expect(changes.length, 3);
-      expect(changes[0].atKey, 'location@alice');
-      expect(changes[1].atKey, 'phone@bob');
-      expect(changes[2].atKey, 'email@charlie');
+      var key_1 =
+          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+
+      await commitLogInstance!.commit('phone@alice', CommitOp.UPDATE);
+      var changes = await commitLogInstance.getChanges(key_1, '');
+      expect(changes.length, 1);
+      expect(changes[0].atKey, 'phone@alice');
     });
 
     test('test last sequence number called once', () async {
@@ -271,6 +264,72 @@ void main() async {
           'location@alice');
       expect((await commitLogInstance.commitLogKeyStore.get(3))?.atKey,
           'mobile@alice');
+    });
+    tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of tests to verify commit log cache map', () {
+    setUp(() async => await setUpFunc(storageDir, enableCommitId: true));
+    test('test to verify the entries count in commit cache map after commit',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+
+      Iterator? entriesIterator = commitLogInstance?.getEntries(-1);
+      int commitLogCountBeforeDeletion = 0;
+      if (entriesIterator != null) {
+        while (entriesIterator.moveNext()) {
+          commitLogCountBeforeDeletion++;
+        }
+      }
+      expect(commitLogCountBeforeDeletion, 3);
+    });
+    test(
+        'test to verify the entries count in commit cache map after removing from commit log',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      int? commitIdToRemove =
+          await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+
+      Iterator? entriesIterator = commitLogInstance?.getEntries(-1);
+      int commitLogCountBeforeDeletion = 0;
+      if (entriesIterator != null) {
+        while (entriesIterator.moveNext()) {
+          commitLogCountBeforeDeletion++;
+        }
+      }
+      expect(commitLogCountBeforeDeletion, 3);
+      await commitLogInstance?.commitLogKeyStore.remove(commitIdToRemove!);
+      entriesIterator = commitLogInstance?.getEntries(-1);
+      int commitLogCountAfterDeletion = 0;
+      if (entriesIterator != null) {
+        while (entriesIterator.moveNext()) {
+          commitLogCountAfterDeletion++;
+        }
+      }
+      expect(commitLogCountAfterDeletion, 2);
+    });
+    test('test to verify the whether correct entry is removed from cache',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+      int? commitIdToRemove =
+          await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+
+      await commitLogInstance?.commitLogKeyStore.remove(commitIdToRemove!);
+      final commitEntry = await commitLogInstance?.getEntry(commitIdToRemove);
+      expect(commitEntry, isNull);
     });
     tearDown(() async => await tearDownFunc());
   });

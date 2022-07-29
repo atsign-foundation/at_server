@@ -49,6 +49,8 @@ class AtSecondaryConfig {
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static final int _statsNotificationJobTimeInterval = 15;
+  // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
+  static final int _notificationExpiresAfterMins = 1440;
 
   static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
   static final int? _notificationKeyStoreCompactionPercentage = 30;
@@ -84,6 +86,7 @@ class AtSecondaryConfig {
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
   static final int _syncPageLimit = 100;
+  static final List<String> _malformedKeys = [];
 
   //version
   static final String? _secondaryServerVersion =
@@ -582,6 +585,18 @@ class AtSecondaryConfig {
     }
   }
 
+  static int get notificationExpiryInMins {
+    var result = _getIntEnvVar('notificationExpiryInMins');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['notification', 'expiryInMins']);
+    } on ElementNotFoundException {
+      return _notificationExpiresAfterMins;
+    }
+  }
+
   static int get syncBufferSize {
     var result = _getIntEnvVar('syncBufferSize');
     if (result != null) {
@@ -603,6 +618,18 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['sync', 'pageLimit']);
     } on ElementNotFoundException {
       return _syncPageLimit;
+    }
+  }
+
+  static List<String> get malformedKeysList {
+    var result = _getStringEnvVar('hiveMalformedKeys');
+    if (result != null) {
+      return result.split(',');
+    }
+    try {
+      return getConfigFromYaml(['hive', 'malformedKeys']).split(',');
+    } on ElementNotFoundException {
+      return _malformedKeys;
     }
   }
 
