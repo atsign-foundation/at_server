@@ -25,8 +25,6 @@ void main() {
     await prepare(socketFirstAtsign!, firstAtsign);
   });
 
-  
-
   test('updating a key and verifying the time taken', () async {
     String response;
     var timeBeforeUpdate = DateTime.now().millisecondsSinceEpoch;
@@ -38,7 +36,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     var timeAfterUpdate = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeUpdate, timeAfterUpdate);
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('Lookup should be less than a second for a given key', () async {
     String response;
@@ -55,7 +53,7 @@ void main() {
     expect(response, contains('data:$value'));
     var timeAfterLookup = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeLookup, timeAfterLookup);
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('delete a key and verifying the time taken', () async {
     String response;
@@ -68,7 +66,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     var timeAfterDelete = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeDelete, timeAfterDelete);
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('notify a key and verifying the time taken', () async {
     String response;
@@ -81,7 +79,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     var timeAfterNotification = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeNotification, timeAfterNotification);
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('stats verb and verifying the time taken to get the response', () async {
     String response;
@@ -92,7 +90,7 @@ void main() {
     assert(response.contains('"name":"lastCommitID"'));
     var timeAfterStats = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeStats, timeAfterStats);
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 }
 
 // calculates the time difference between command before and after execution

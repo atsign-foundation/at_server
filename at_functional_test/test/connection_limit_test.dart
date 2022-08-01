@@ -75,5 +75,5 @@ void main() {
       print('response of config verb is $response');
       expect(response, contains('data:ok'));
     }
-  });
+  }, timeout: Timeout(Duration(minutes: 10)));
 }
