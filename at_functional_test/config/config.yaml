@@ -8,4 +8,7 @@ first_atsign_server:
 
 second_atsign_server:
   second_atsign_name: "@bob🛠"
-  
+  # The port to connect to first atsign server
+  second_atsign_port: 25003
+  # The url to connect to first atsign server
+  second_atsign_url: vip.ve.atsign.zone
