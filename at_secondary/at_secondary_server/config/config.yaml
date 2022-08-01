@@ -132,4 +132,4 @@ sync:
 #set to true in testing mode, false by default
 #IMPORTANT NOTE : please set testingMode to true only if you know what you're doing. Set to false when not testing
 testing:
-  testingMode: true
+  testingMode: false
