@@ -255,7 +255,7 @@ jobs:
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
           username: ubuntu
@@ -654,7 +654,7 @@ jobs:
           docker push atsigncompany/secondary:dess-x64
 
       - name: Create dess-arm64 label
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "arm64cicd.atsign.wtf"
           username: ubuntu
@@ -666,7 +666,7 @@ jobs:
 
       # Logs into Pi and builds Armv7 dess secondary
       - name: Create dess-arm image
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "arm32cicd.atsign.wtf"
           username: pi
