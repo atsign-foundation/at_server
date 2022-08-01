@@ -6,8 +6,6 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:test/test.dart';
-
 const int maxRetryCount = 10;
 
 /// Contains all [_AtSignConfig] instances we know about so we can avoid loads of boilerplate elsewhere
@@ -55,7 +53,7 @@ class SimpleOutboundSocketHandler {
   }
 
   void close() {
-    print ("Closing SimpleOutboundSocketHandler for $atSign ($host:$port)");
+    print("Closing SimpleOutboundSocketHandler for $atSign ($host:$port)");
     socket!.destroy();
   }
 
@@ -73,7 +71,8 @@ class SimpleOutboundSocketHandler {
         retryCount++;
       }
     }
-    throw Exception("Failed to connect to $host:$port after $retryCount attempts");
+    throw Exception(
+        "Failed to connect to $host:$port after $retryCount attempts");
   }
 
   void startListening() {
@@ -85,7 +84,7 @@ class SimpleOutboundSocketHandler {
     if (log) {
       print('command sent: $command');
     }
-    if (! command.endsWith('\n')) {
+    if (!command.endsWith('\n')) {
       command = command + '\n';
     }
     socket!.write(command);
@@ -95,14 +94,14 @@ class SimpleOutboundSocketHandler {
   Future<void> sendFromAndPkam() async {
     // FROM VERB
     await writeCommand('from:$atSign');
-    var response = await read(timeoutMillis:4000);
+    var response = await read(timeoutMillis: 4000);
     response = response.replaceAll('data:', '');
     var pkamDigest = generatePKAMDigest(atSign, response);
 
     // PKAM VERB
-    print ("Sending pkam: command");
-    await writeCommand('pkam:$pkamDigest', log:false);
-    response = await read(timeoutMillis:1000);
+    print("Sending pkam: command");
+    await writeCommand('pkam:$pkamDigest', log: false);
+    response = await read(timeoutMillis: 1000);
     print('pkam verb response $response');
     assert(response.contains('data:success'));
   }
@@ -146,11 +145,14 @@ class SimpleOutboundSocketHandler {
   /// A message which is returned from [read] if throwTimeoutException is set to false
   static String readTimedOutMessage = 'E2E_SIMPLE_SOCKET_HANDLER_TIMED_OUT';
 
-  Future<String> read({bool log = true, int timeoutMillis = 4000, bool throwTimeoutException = true}) async {
+  Future<String> read(
+      {bool log = true,
+      int timeoutMillis = 4000,
+      bool throwTimeoutException = true}) async {
     String result;
 
     // Wait this many milliseconds between checks on the queue
-    var loopDelay=250;
+    var loopDelay = 250;
 
     // Check every loopDelay milliseconds until we get a response or timeoutMillis have passed.
     var loopCount = (timeoutMillis / loopDelay).round();
@@ -168,13 +170,15 @@ class SimpleOutboundSocketHandler {
     }
     // No response - either throw a timeout exception or return the canned readTimedOutMessage
     if (throwTimeoutException) {
-      throw AtTimeoutException ("No response from $host:$port ($atSign) after ${timeoutMillis/1000} seconds");
+      throw AtTimeoutException(
+          "No response from $host:$port ($atSign) after ${timeoutMillis / 1000} seconds");
     } else {
-      print ("read(): No response after $timeoutMillis milliseconds");
+      print("read(): No response after $timeoutMillis milliseconds");
       return readTimedOutMessage;
     }
   }
 }
+
 /// Simple data-holding class which adds its instances into [atSignConfigMap]
 class _AtSignConfig {
   String atSign;
@@ -184,7 +188,8 @@ class _AtSignConfig {
   /// Creates and adds to [atSignConfigMap] or throws [_AtSignAlreadyAddedException] if we've already got it.
   _AtSignConfig(this.atSign, this.host, this.port) {
     if (atSignConfigMap.containsKey(atSign)) {
-      throw _AtSignAlreadyAddedException("AtSignConfig for $atSign has already been created");
+      throw _AtSignAlreadyAddedException(
+          "AtSignConfig for $atSign has already been created");
     }
     atSignConfigMap[atSign] = this;
   }
@@ -228,4 +233,14 @@ void _loadTheYaml() {
   ///       host: example.com
   ///       port: 1234
   ///     ... etc
+}
+
+extension Utils on SimpleOutboundSocketHandler {
+  Future<int> getVersion() async {
+    await writeCommand('info\n');
+    var version = await read();
+    version = version.replaceAll('data:', '');
+    var versionStr = jsonDecode(version)['version'];
+    return int.parse(versionStr.replaceAll('.', ''));
+  }
 }
