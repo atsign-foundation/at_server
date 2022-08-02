@@ -78,6 +78,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum}) async {
+    final atKey = AtKey.getKeyType(key);
+    if(atKey == KeyType.invalidKey) {
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
     var result;
     // Default the commit op to just the value update
     CommitOp commitOp = CommitOp.UPDATE;
