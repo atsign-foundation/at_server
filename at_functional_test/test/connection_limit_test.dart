@@ -40,6 +40,7 @@ void main() {
       expect(response, contains('data:ok'));
 
       ///update verb alice  atsign
+      await Future.delayed(Duration(seconds: 2));
       await socket_writer(
           socketFirstAtsign!, 'update:$secondAtsign:code$firstAtsign 9900');
       response = await read();
@@ -71,6 +72,7 @@ void main() {
     } finally {
       // resetting the inbound connection limit to default
       await socket_writer(socketFirstAtsign!, 'config:reset:inbound_max_limit');
+      await Future.delayed(Duration(seconds: 2));
       var response = await read();
       print('response of config verb is $response');
       expect(response, contains('data:ok'));
