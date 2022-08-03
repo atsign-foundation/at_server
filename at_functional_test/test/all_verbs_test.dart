@@ -16,7 +16,8 @@ void main() async {
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
   setUp(() async {
-    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignServer =
+        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -36,8 +37,8 @@ void main() async {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///Update verb with private key
-    await socket_writer(socketFirstAtsign!,
-        'update:@alice:email$firstAtsign bob@atsign.com');
+    await socket_writer(
+        socketFirstAtsign!, 'update:@alice:email$firstAtsign bob@atsign.com');
     response = await read();
     print('update verb response $response');
     assert(
@@ -60,8 +61,7 @@ void main() async {
   });
 
   test('Delete verb test $firstAtsign', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'delete:public:mobile$firstAtsign');
+    await socket_writer(socketFirstAtsign!, 'delete:public:mobile$firstAtsign');
     var response = await read();
     print('Delete verb response $response');
     assert(!response.contains('data:null'));
@@ -75,8 +75,7 @@ void main() async {
   });
 
   test('config verb test -add block list $firstAtsign', () async {
-    await socket_writer(
-        socketFirstAtsign!, 'config:block:add:$secondAtsign');
+    await socket_writer(socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response $response');
     expect(response, contains('data:success'));
@@ -100,6 +99,71 @@ void main() async {
     print('config verb response $response');
     expect(response, contains('data:null'));
   });
+  
+  //FOR THESE TESTS TO WORK/PASS SET testingMode TO TRUE THROUGH ENV VARIABLES
+// Use "env: testingMode:true" in github actions to set the env mode for functional tests
+// Use "docker run -d --rm --name at_virtual_env_cont -e testingMode=true -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk" to set testngMode to true in docker container
+
+//THE FOLLOWING TESTS ONLY WORK WHEN IN TESTING MODE
+  test('config verb test set-reset-print operation', () async {
+    //ensuring that the testingMode env var is set to true
+    if (Platform.environment['testingMode']!.toLowerCase() == 'true'
+        ? true
+        : false) {
+      //the below block of code sets the commit log compaction freq to  4
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
+      var response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
+
+      //this resets the commit log compaction freq previously set to 4 to default value
+      await socket_writer(
+          socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+      //await Future.delayed(Duration(seconds: 2));
+      response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
+
+      //this ensures that the reset actually works and the current value is 60(default value)
+      await socket_writer(
+          socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
+      //await Future.delayed(Duration(seconds: 2));
+      response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:30'));
+    } else {
+      print(
+          'asserting true forcefully. Set testingMode to true for the test to work.'
+          'Refer docs in at_functional_tests/test/all_verbs_test present at config verb test set-reset-print');
+    }
+  });
+
+  test('config verb test set-print', () async {
+    if (Platform.environment['testingMode']!.toLowerCase() == 'true'
+        ? true
+        : false) {
+      //the block of code below sets max notification retries to 25
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
+      var response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:ok'));
+
+      //the block of code below verifies that the max notification retries is set to 25
+      await socket_writer(
+          socketFirstAtsign!, 'config:print:maxNotificationRetries');
+      await Future.delayed(Duration(seconds: 2));
+      response = await read();
+      print('config verb response $response');
+      expect(response, contains('data:25'));
+    } else {
+      print(
+          'asserting true forcefully. Set testingMode to true for the test to work.'
+          ' Refer docs in at_functional_tests/test/all_verbs_test present at config verb test set-reset-print');
+    }
+  });
+
 
   tearDown(() {
     //Closing the socket connection

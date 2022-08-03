@@ -3,7 +3,22 @@ name: at_server
 # 1. on pull request raised to trunk branch.
 # 2. on push event to trunk branch.
 # 3. on tagging a release
+# 4. on manual workflow(Run job manually)
 on:
+  workflow_dispatch:
+    inputs:
+      rollback_prod_secondary_image:
+        type: boolean
+        default: true
+        description: Rollback Prod secondary image
+      rollback_canary_secondary_image:
+        type: boolean
+        default: true
+        description: Rollback Canary secondary image
+      deploy_canary_image_to_prod_secondary_image:
+        type: boolean
+        default: true
+        description: Deploy Canary image to Prod secondary image        
   push:
     tags:
       - 'v*.*.*'
@@ -121,6 +136,9 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
+    env:
+      testingMode: true
 
     steps:
       - uses: actions/checkout@v3.0.2
@@ -165,7 +183,7 @@ jobs:
           ls -laR at_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           file: at_virtual_environment/ve/Dockerfile
           context: at_virtual_environment/ve
@@ -173,7 +191,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
@@ -225,7 +243,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           push: true
           context: at_secondary
@@ -237,7 +255,7 @@ jobs:
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
           username: ubuntu
@@ -370,7 +388,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           file: at_virtual_environment/ve/Dockerfile.vip
           push: true
@@ -422,7 +440,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           push: true
           context: at_secondary
@@ -494,7 +512,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           push: true
           file: ./at_secondary/Dockerfile.observe
@@ -513,7 +531,7 @@ jobs:
   # This job run's on trigger event 'push' and when a canary release is tagged.
   # The job builds the canary version of secondary server docker image and pushes to docker hub.
   push_canary_secondary_image:
-    # Runs only after functional tests are completed.
+    # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     env:
@@ -546,7 +564,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           push: true
           context: at_secondary
@@ -560,7 +578,7 @@ jobs:
   # This job run's on trigger event 'push' and when a release is tagged.
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
-    # Runs only after functional tests are completed.
+    # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     env:
@@ -596,7 +614,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           push: true
           context: at_secondary
@@ -607,6 +625,28 @@ jobs:
             linux/amd64
             linux/arm64/v8
 
+  push_dess_secondary_image:
+    # Runs only after all tests are completed.
+    needs: [ push_prod_secondary_image ]
+    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3.0.2
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Retag prod x64 and Arm64 images as dess
       - name: Create dess-x64 label
         run: |
           docker pull atsigncompany/secondary:prod
@@ -614,7 +654,7 @@ jobs:
           docker push atsigncompany/secondary:dess-x64
 
       - name: Create dess-arm64 label
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "arm64cicd.atsign.wtf"
           username: ubuntu
@@ -626,11 +666,12 @@ jobs:
 
       # Logs into Pi and builds Armv7 dess secondary
       - name: Create dess-arm image
-        uses: appleboy/ssh-action@v0.1.4
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: "arm32cicd.atsign.wtf"
           username: pi
           key: ${{ secrets.CICD_SSH_KEY }}
+          command_timeout: 20m
           script: |
             cd /home/pi/git/github.com/atsign-foundation/at_server
             git pull
@@ -665,7 +706,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           file: at_virtual_environment/ve/Dockerfile.vip
           push: true
@@ -685,6 +726,125 @@ jobs:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
+  
+  # Rollback prod secondary image.
+  rollback_prod_secondary_image:
+    if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.0.2
+      
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+        
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create amd64 labels
+        run: |
+          docker pull --platform=linux/amd64 atsigncompany/secondary:prod-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+      
+      - name: Create arm64 labels
+        run: |
+          docker pull --platform=linux/arm64 atsigncompany/secondary:prod-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
+          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
+      
+      - name: Create and push multi-arch prod manifest
+        run: |
+          docker manifest create atsigncompany/secondary:prod \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:prod
+
+      - name: Create and push multi-arch prod-version manifest
+        run: |
+          docker manifest create atsigncompany/secondary:prod-${{ env.VERSION }} \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
+            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:prod-${{ env.VERSION }}          
+  
+  # Rollback canary secondary image.
+  rollback_canary_secondary_image:
+    if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.0.2
+      
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create amd64 labels
+        run: |
+          docker pull --platform=linux/amd64 atsigncompany/secondary:canary-${{ env.VERSION }}
+          docker tag atsigncompany/secondary:canary-${{ env.VERSION }} atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+          docker push atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+      
+      - name: Create and push multi-arch canary manifest
+        run: |
+          docker manifest create atsigncompany/secondary:canary \
+            --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:canary
+
+      - name: Create and push multi-arch canary-version manifest
+        run: |
+          docker manifest create atsigncompany/secondary:canary-${{ env.VERSION }} \
+            --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
+          docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}  
+
+  # Deploy canary image to secondary image
+  deploy_canary_image_to_prod_secondary_image:
+    if: ${{ github.event.inputs.deploy_canary_image_to_prod_secondary_image == 'true' }}
+    env:
+      working-directory: at_server
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3.0.2
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Builds and pushes the secondary server image to docker hub.
+      - name: Build and push secondary image for amd64 and arm64
+        id: docker_build_canary_to_prod
+        uses: docker/build-push-action@v3.0.0
+        with:
+          push: true 
+          file: ./at_secondary/Dockerfile.canary_to_prod
+          context: at_secondary
+          tags: |
+            atsigncompany/secondary:prod
+            atsigncompany/secondary:prod-${{ env.VERSION }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8           
 
 #  # Deploy root server image to cluster
 #  deploy_root_sever:

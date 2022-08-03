@@ -22,7 +22,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.0.0
+        uses: docker/build-push-action@v3.1.0
         with:
           file: at_virtual_environment/ve_base/Dockerfile
           push: true

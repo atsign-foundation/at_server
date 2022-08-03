@@ -18,10 +18,17 @@ import 'package:at_utils/at_utils.dart';
 // update can be used to update the public/private keys
 // Ex: update:public:email@alice alice@atsign.com \n
 class UpdateVerbHandler extends ChangeVerbHandler {
-  static final autoNotify = AtSecondaryConfig.autoNotify;
+  static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
-
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+
+  //setter to set autoNotify value from dynamic server config "config:set".
+  //only works when testingMode is set to true
+  static setAutoNotify(bool newState) {
+    if (AtSecondaryConfig.testingMode) {
+      _autoNotify = newState;
+    }
+  }
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -114,7 +121,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..sharedKeyEnc = sharedKeyEncrypted
         ..pubKeyCS = publicKeyChecksum;
 
-      if (autoNotify!) {
+      if (_autoNotify!) {
         _notify(
             atSign,
             forAtSign,
@@ -200,4 +207,6 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     updateParams.metadata = metadata;
     return updateParams;
   }
+
+  void _autoNotifyChange() {}
 }

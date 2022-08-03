@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -96,7 +97,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttlnMillis = Duration(hours: 24).inMilliseconds;
+        ttlnMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins).inMilliseconds;
       } else {
         ttlnMillis =
             AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
@@ -149,6 +150,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (pubKeyCS != null) {
         atMetadata.pubKeyCS = pubKeyCS;
       }
+      atMetadata.isEncrypted =
+          SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED]);
       final notificationBuilder = AtNotificationBuilder()
         ..fromAtSign = atSign
         ..toAtSign = forAtSign
@@ -180,7 +183,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       logger.info('Storing the notification $key');
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
-          ttlMillis: ttlnMillis, value: atValue, id: id);
+          ttlMillis: ttlnMillis,
+          value: atValue,
+          id: id,
+          messageType: messageType,
+          atMetaData: (AtMetaData()
+            ..isEncrypted =
+                SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])));
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;

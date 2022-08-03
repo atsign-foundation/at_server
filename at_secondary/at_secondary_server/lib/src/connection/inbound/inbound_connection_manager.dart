@@ -8,7 +8,8 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 
 /// Factory to create and maintain [InboundConnection] using [InboundConnectionPool]
 class InboundConnectionManager implements AtConnectionFactory {
-  static final InboundConnectionManager _singleton = InboundConnectionManager._internal();
+  static final InboundConnectionManager _singleton =
+      InboundConnectionManager._internal();
 
   InboundConnectionManager._internal();
 
@@ -33,10 +34,12 @@ class InboundConnectionManager implements AtConnectionFactory {
       init(defaultPoolSize);
     }
     if (!hasCapacity()) {
-      throw InboundConnectionLimitException('max limit reached on inbound pool');
+      throw InboundConnectionLimitException(
+          'max limit reached on inbound pool');
     }
     sessionId ??= '_' + Uuid().v4();
-    var atConnection = InboundConnectionImpl(socket, sessionId, owningPool: _pool);
+    var atConnection =
+        InboundConnectionImpl(socket, sessionId, owningPool: _pool);
     _pool.add(atConnection);
     true;
     return atConnection;
@@ -49,9 +52,9 @@ class InboundConnectionManager implements AtConnectionFactory {
 
   /// Initialises inbound client pool with a given size.
   /// @param - size - Maximum clients the pool can hold
-  void init(int size) {
+  void init(int size, {bool isColdInit = true}) {
     _pool = InboundConnectionPool.getInstance();
-    _pool.init(size);
+    _pool.init(size, isColdInit: isColdInit);
     _isInitialized = true;
   }
 

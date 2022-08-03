@@ -42,7 +42,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AT_SIGN];
     var key = verbParams[AT_KEY];
     var operation = verbParams[OPERATION];
-    String? byPassCacheStr = verbParams[byPassCache];
+    String? byPassCacheStr = verbParams[bypassCache];
     // Generate query using key, atSign from verbParams
     atSign = AtUtils.formatAtSign(atSign);
     key = '$key$atSign';
