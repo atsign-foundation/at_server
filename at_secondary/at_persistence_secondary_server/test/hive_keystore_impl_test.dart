@@ -19,7 +19,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      var result = await keyStore.create('phone', atData);
+      var result = await keyStore.create('phone.wavi@test_user_1', atData);
       expect(result, isNotNull);
     });
 
@@ -29,8 +29,8 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone', atData);
-      var dataFromHive = await (keyStore.get('phone'));
+      await keyStore.create('phone.wavi@test_user_1', atData);
+      var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
     });
 
@@ -40,11 +40,11 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = 'india';
-      await keyStore.create('location', atData);
+      await keyStore.create('location.wavi@test_user_1', atData);
       var updateData = AtData();
       updateData.data = 'united states';
-      await keyStore.put('location', updateData);
-      var dataFromHive = await (keyStore.get('location'));
+      await keyStore.put('location.wavi@test_user_1', updateData);
+      var dataFromHive = await (keyStore.get('location.wavi@test_user_1'));
       expect(dataFromHive?.data, 'united states');
     });
 
@@ -54,8 +54,8 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
-      await keyStore.put('last_name', updateData);
-      var dataFromHive = await (keyStore.get('last_name'));
+      await keyStore.put('last_name.wavi@test_user_1', updateData);
+      var dataFromHive = await (keyStore.get('last_name.wavi@test_user_1'));
       expect(dataFromHive?.data, 'alice');
     });
 
@@ -65,9 +65,9 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
-      await keyStore.put('last_name', updateData);
-      await keyStore.remove('last_name');
-      expect(() => keyStore.get('last_name'),
+      await keyStore.put('last_name.wavi@test_user_1', updateData);
+      await keyStore.remove('last_name.wavi@test_user_1');
+      expect(() => keyStore.get('last_name.wavi@test_user_1'),
           throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
 
@@ -77,10 +77,10 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var data_1 = AtData();
       data_1.data = 'alice';
-      await keyStore.put('last_name', data_1);
+      await keyStore.put('last_name.wavi@test_user_1', data_1);
       var data_2 = AtData();
       data_2.data = 'bob';
-      await keyStore.put('first_name', data_2);
+      await keyStore.put('first_name.wavi@test_user_1', data_2);
       var keys = keyStore.getKeys();
       expect(keys.length, 2);
     });
@@ -131,10 +131,10 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var data_1 = AtData();
       data_1.data = 'alice';
-      await keyStore.put('last_name', data_1);
+      await keyStore.put('last_name.wavi@test_user_1', data_1);
       var data_2 = AtData();
       data_2.data = 'bob';
-      await keyStore.put('first_name', data_2);
+      await keyStore.put('first_name.wavi@test_user_1', data_2);
       var keys = keyStore.getKeys(regex: '^first');
       expect(keys.length, 1);
     });
@@ -145,8 +145,8 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone', atData, time_to_live: 6000);
-      var dataFromHive = await (keyStore.get('phone'));
+      await keyStore.create('phone.wavi@test_user_1', atData, time_to_live: 6000);
+      var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
       expect(dataFromHive?.metaData!.ttl, 6000);
@@ -158,9 +158,9 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone', atData,
+      await keyStore.create('phone.wavi@test_user_1', atData,
           sharedKeyEncrypted: 'abc', publicKeyChecksum: 'xyz');
-      var dataFromHive = await (keyStore.get('phone'));
+      var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
       expect(dataFromHive?.metaData!.sharedKeyEnc, 'abc');
@@ -214,12 +214,12 @@ void main() async {
       var atData = AtData()..data = 'US';
       //
       for (int i = 0; i <= 49; i++) {
-        await keyStore.put('@bob:location@test_user_1', atData);
+        await keyStore.put('@bob:location.wavi@test_user_1', atData);
       }
       var locationList =
-          compactionService.getEntries('@bob:location@test_user_1');
+          compactionService.getEntries('@bob:location.wavi@test_user_1');
       expect(locationList?.getSize(), 50);
-      await keyStore.put('@bob:location@test_user_1', atData);
+      await keyStore.put('@bob:location.wavi@test_user_1', atData);
       expect(locationList?.getSize(), 1);
     });
   });
@@ -235,11 +235,11 @@ void main() async {
       AtMetaData meta = AtMetaData();
       meta.ttl = 11;
       atData.metaData = meta;
-      await keystore?.put('key_test_1', atData);
-      AtMetaData? getMetaResult = await keystore?.getMeta('key_test_1');
+      await keystore?.put('key_test_1.wavi@test_user_1', atData);
+      AtMetaData? getMetaResult = await keystore?.getMeta('key_test_1.wavi@test_user_1');
       expect(getMetaResult?.ttl, 11);
-      await keystore?.remove('key_test_1');
-      AtMetaData? getMetaResult1 = await keystore?.getMeta('key_test_1');
+      await keystore?.remove('key_test_1.wavi@test_user_1');
+      AtMetaData? getMetaResult1 = await keystore?.getMeta('key_test_1.wavi@test_user_1');
       expect(getMetaResult1?.ttl, null);
     });
 
@@ -253,10 +253,10 @@ void main() async {
       AtMetaData meta = AtMetaData();
       meta.ttl = 112;
       atData.metaData = meta;
-      await keystore?.put('key_test_2', atData);
+      await keystore?.put('key_test_2.wavi@test_user_1', atData);
       meta.ttl = 131;
-      await keystore?.putMeta('key_test_2', meta);
-      AtMetaData? newMeta = await keystore?.getMeta('key_test_2');
+      await keystore?.putMeta('key_test_2.wavi@test_user_1', meta);
+      AtMetaData? newMeta = await keystore?.getMeta('key_test_2.wavi@test_user_1');
       expect(newMeta?.ttl, 131);
     });
   });
@@ -272,9 +272,9 @@ void main() async {
     meta.expiresAt =
         DateTime.now().toUtc().subtract(const Duration(minutes: 100));
     atData.metaData = meta;
-    await keystore?.put('key_test_4', atData);
+    await keystore?.put('key_test_4.wavi@test_user_1', atData);
     List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('key_test_4'), false);
+    expect(keysList!.contains('key_test_4.wavi@test_user_1'), false);
   });
 
   test('test to verify if getKeys returns unborn keys', () async {
@@ -287,9 +287,9 @@ void main() async {
     AtMetaData meta = AtMetaData();
     meta.availableAt = DateTime.now().toUtc().add(const Duration(minutes: 100));
     atData.metaData = meta;
-    await keystore?.put('key_test_3', atData);
+    await keystore?.put('key_test_3.wavi@test_user_1', atData);
     List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('key_test_3'), false);
+    expect(keysList!.contains('key_test_3.wavi@test_user_1'), false);
   });
 
   test('test to verify metadata of all keys is cached', () async {
@@ -312,7 +312,7 @@ void main() async {
       }
       atData.data = 'value_test_$i';
       atData.metaData = metaData;
-      await keystore?.put('key_test_$i', atData);
+      await keystore?.put('key_test_$i.wavi@test_user_1', atData);
     }
 
     List<String>? keys = keystore?.getKeys();
