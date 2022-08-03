@@ -145,7 +145,8 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone.wavi@test_user_1', atData, time_to_live: 6000);
+      await keyStore.create('phone.wavi@test_user_1', atData,
+          time_to_live: 6000);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -165,6 +166,46 @@ void main() async {
       expect(dataFromHive?.metaData, isNotNull);
       expect(dataFromHive?.metaData!.sharedKeyEnc, 'abc');
       expect(dataFromHive?.metaData!.pubKeyCS, 'xyz');
+    });
+
+    test('test create key without namespace - keystore put', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      expect((() async => await keyStore.put('phone@test_user_1', atData)),
+          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
+
+    test('test create key without namespace - keystore create', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      expect((() async => await keyStore.create('phone@test_user_1', atData)),
+          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
+
+    test('test create reserved key- keystore put', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      final result = await keyStore.put(AT_PKAM_PRIVATE_KEY, atData);
+      expect(result, isA<int>());
+    });
+
+    test('test create non reserved key- keystore put', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      expect((() async => await keyStore.put('privatekey:mykey', atData)),
+          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
 // tests commented for coverage. runs fine with pub run test or in IDE
@@ -236,10 +277,12 @@ void main() async {
       meta.ttl = 11;
       atData.metaData = meta;
       await keystore?.put('key_test_1.wavi@test_user_1', atData);
-      AtMetaData? getMetaResult = await keystore?.getMeta('key_test_1.wavi@test_user_1');
+      AtMetaData? getMetaResult =
+          await keystore?.getMeta('key_test_1.wavi@test_user_1');
       expect(getMetaResult?.ttl, 11);
       await keystore?.remove('key_test_1.wavi@test_user_1');
-      AtMetaData? getMetaResult1 = await keystore?.getMeta('key_test_1.wavi@test_user_1');
+      AtMetaData? getMetaResult1 =
+          await keystore?.getMeta('key_test_1.wavi@test_user_1');
       expect(getMetaResult1?.ttl, null);
     });
 
@@ -256,7 +299,8 @@ void main() async {
       await keystore?.put('key_test_2.wavi@test_user_1', atData);
       meta.ttl = 131;
       await keystore?.putMeta('key_test_2.wavi@test_user_1', meta);
-      AtMetaData? newMeta = await keystore?.getMeta('key_test_2.wavi@test_user_1');
+      AtMetaData? newMeta =
+          await keystore?.getMeta('key_test_2.wavi@test_user_1');
       expect(newMeta?.ttl, 131);
     });
   });
