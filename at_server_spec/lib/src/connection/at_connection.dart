@@ -31,4 +31,7 @@ abstract class AtConnectionMetaData {
   bool isPolAuthenticated = false;
   bool isStream = false;
   String? streamId;
+  /// Represents the version of the client initiated the connection.
+  /// Defaults to latest which indicates the latest release.
+  String clientVersion = 'latest';
 }
