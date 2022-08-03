@@ -1,4 +1,4 @@
-FROM dart:2.17.6
+FROM dart:2.18.0-271.4.beta AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
@@ -11,7 +11,8 @@ RUN \
   cd ../at_secondary_server ; \
   dart pub get ; \
   dart pub update ; \
-  dart compile jit-snapshot bin/main.dart -o secondary.jit ; \
+  dart compile jit-snapshot -o secondary.jit bin/main.dart \
+    -a @testatsign -p 12345 -s Te$tS3cret ; \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
   mkdir -p /etc/cacert ; \
