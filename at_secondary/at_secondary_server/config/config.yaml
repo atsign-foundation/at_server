@@ -36,6 +36,8 @@ hive:
 
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
   expiringRunFrequencyMins: 10
+  # List of malformed keys that will be deleted on server startup
+  malformedKeys: 'public:publickey'
 
 # The @Protocol connection configurations.
 connection:
@@ -108,6 +110,8 @@ notification:
   # The time interval(in seconds) to notify latest commitID to monitor connections
   # To disable to the feature, set to -1.
   statsNotificationJobTimeInterval: 15
+  # The amount of time after which a notification expires in units of minutes. Defaults to 24 hours or 1440 minutes
+  expiryInMins: 1440
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
