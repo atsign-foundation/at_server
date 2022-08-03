@@ -79,7 +79,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? sharedKeyEncrypted,
       String? publicKeyChecksum}) async {
     final atKey = AtKey.getKeyType(key);
-    if(atKey == KeyType.invalidKey) {
+    if (atKey == KeyType.invalidKey) {
       throw InvalidAtKeyException('Key $key is invalid');
     }
     var result;
@@ -159,6 +159,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum}) async {
+    final atKey = AtKey.getKeyType(key);
+    if (atKey == KeyType.invalidKey) {
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
     var result;
     var commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
