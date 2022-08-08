@@ -1,3 +1,5 @@
+## 2.0.7
+- Add optional parameter 'encoding' to put and create method in keystore to support encoding of new line characters 
 ## 2.0.6
 - Added support for @server/@client annotation for separating server-specific/client-specific methods
 ## 2.0.5
