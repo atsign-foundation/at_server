@@ -134,8 +134,7 @@ class CommitLogKeyStore
       // invalidate cache for the removed entry
       if (commitEntry != null) {
         _commitLogCacheMap.remove(commitEntry.atKey);
-        _logger.finest(
-            'removed key : ${commitEntry.atKey} from commit log.');
+        _logger.finest('removed key : ${commitEntry.atKey} from commit log.');
       }
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');

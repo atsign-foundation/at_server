@@ -1,5 +1,4 @@
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -59,6 +58,9 @@ class AtMetaData extends HiveObject {
   @HiveField(17)
   String? pubKeyCS;
 
+  @HiveField(18)
+  String? encoding;
+
   @override
   String toString() {
     return toJson().toString();
@@ -85,6 +87,7 @@ class AtMetaData extends HiveObject {
     map[PUBLIC_DATA_SIGNATURE] = dataSignature;
     map[SHARED_KEY_ENCRYPTED] = sharedKeyEnc;
     map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
+    map[ENCODING] = encoding;
     return map;
   }
 
@@ -131,6 +134,7 @@ class AtMetaData extends HiveObject {
       dataSignature = json[PUBLIC_DATA_SIGNATURE];
       sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
       pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+      encoding = json[ENCODING];
     } catch (error) {
       print('AtMetaData.fromJson error: ' + error.toString());
     }
@@ -166,13 +170,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..isEncrypted = fields[14]
       ..dataSignature = fields[15]
       ..sharedKeyEnc = fields[16]
-      ..pubKeyCS = fields[17];
+      ..pubKeyCS = fields[17]
+      ..encoding = fields[18];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -208,6 +213,8 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(16)
       ..write(obj.sharedKeyEnc)
       ..writeByte(17)
-      ..write(obj.pubKeyCS);
+      ..write(obj.pubKeyCS)
+      ..writeByte(18)
+      ..write(obj.encoding);
   }
 }
