@@ -84,7 +84,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
     metaData.toJson().forEach((key, value) {
       if (value != null) {
-        metaDataMap[key] = [value].toString();
+        metaDataMap[key] = value.toString();
       }
     });
     return metaDataMap;
