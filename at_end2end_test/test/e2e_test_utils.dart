@@ -6,8 +6,6 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:test/test.dart';
-
 const int maxRetryCount = 10;
 
 /// Contains all [_AtSignConfig] instances we know about so we can avoid loads of boilerplate elsewhere
@@ -55,7 +53,7 @@ class SimpleOutboundSocketHandler {
   }
 
   void close() {
-    print ("Closing SimpleOutboundSocketHandler for $atSign ($host:$port)");
+    print("Closing SimpleOutboundSocketHandler for $atSign ($host:$port)");
     socket!.destroy();
   }
 
@@ -228,4 +226,16 @@ void _loadTheYaml() {
   ///       host: example.com
   ///       port: 1234
   ///     ... etc
+}
+
+extension Utils on SimpleOutboundSocketHandler {
+  Future<String> getVersion() async {
+    await writeCommand('info\n');
+    var version = await read();
+    version = version.replaceAll('data:', '');
+    // Since secondary version has gha<number> appended, remove the gha number from version
+    // Hence using split.
+    var versionStr = jsonDecode(version)['version'].split('+')[0];
+    return versionStr;
+  }
 }
