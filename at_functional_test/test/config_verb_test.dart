@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -16,8 +15,7 @@ void main() {
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
   setUp(() async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
@@ -29,7 +27,8 @@ void main() {
 
   test('config verb for adding a atsign to blocklist', () async {
     /// CONFIG VERB
-    await socket_writer(socketFirstAtsign!, 'config:block:add:$secondAtsign');
+    await socket_writer(
+        socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response : $response');
     expect(response, contains('data:success'));
@@ -43,7 +42,8 @@ void main() {
 
   test('config verb for deleting a atsign from blocklist', () async {
     /// CONFIG VERB
-    await socket_writer(socketFirstAtsign!, 'config:block:add:$secondAtsign');
+    await socket_writer(
+        socketFirstAtsign!, 'config:block:add:$secondAtsign');
     var response = await read();
     print('config verb response : $response');
     expect(response, contains('data:success'));
@@ -68,11 +68,8 @@ void main() {
     /// CONFIG VERB
     await socket_writer(socketFirstAtsign!, 'config:block:add:');
     var response = await read();
-    response = response.replaceFirst('error:', '');
-    var errorMap = jsonDecode(response);
     print('config verb response : $response');
-    expect(errorMap['errorCode'], 'AT0003');
-    assert(errorMap['errorDescription'].contains('Invalid syntax'));
+    assert(response.contains('error:AT0003-Invalid syntax'));
   });
 
   test(
@@ -81,22 +78,16 @@ void main() {
     /// CONFIG VERB
     await socket_writer(socketFirstAtsign!, 'config:block:add:@@kevin');
     var response = await read();
-    response = response.replaceFirst('error:', '');
-    var errorMap = jsonDecode(response);
     print('config verb response : $response');
-    expect(errorMap['errorCode'], 'AT0003');
-    assert(errorMap['errorDescription'].contains('Invalid syntax'));
+    assert(response.contains('error:AT0003-Invalid syntax'));
   });
 
   test('config verb by giving list instead of show (Negative case)', () async {
     /// CONFIG VERB
     await socket_writer(socketFirstAtsign!, 'config:block:list');
     var response = await read();
-    response = response.replaceFirst('error:', '');
-    var errorMap = jsonDecode(response);
     print('config verb response : $response');
-    expect(errorMap['errorCode'], 'AT0003');
-    assert(errorMap['errorDescription'].contains('Invalid syntax'));
+    assert(response.contains('error:AT0003-Invalid syntax'));
   });
 
   tearDown(() {

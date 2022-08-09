@@ -12,19 +12,19 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup: ^3.0.22
+  at_lookup: ^3.0.29
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: at_commons
-      ref: trunk
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: at_lookup
-      ref: json_decoding_response
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
+#  at_lookup:
+#    git:
+#      url: https://github.com/atsign-foundation/at_libraries.git
+#      path: at_lookup
+#      ref: json_decoding_response
 
 
 dev_dependencies:
