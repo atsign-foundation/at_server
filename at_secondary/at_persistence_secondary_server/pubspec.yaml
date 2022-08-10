@@ -19,6 +19,13 @@ dependencies:
   at_utf7: ^1.0.0
   meta: ^1.7.0
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: optionally-do-not-enforce-namespace
+
 #dependency_overrides:
 #  at_persistence_spec:
 #    git:
