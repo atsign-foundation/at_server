@@ -1,3 +1,5 @@
+## 3.0.32
+- Add 'encoding' to AtMetadata which represents the type of encoding
 ## 3.0.31
 - Invalidate commit log cache on removing entry from commit log
 ## 3.0.30
