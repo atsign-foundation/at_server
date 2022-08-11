@@ -34,7 +34,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_tools.git
       path: at_commons
-      ref: atkey_types
+      ref: trunk
 
 
 dev_dependencies:
