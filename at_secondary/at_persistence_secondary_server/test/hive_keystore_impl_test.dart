@@ -168,26 +168,6 @@ void main() async {
       expect(dataFromHive?.metaData!.pubKeyCS, 'xyz');
     });
 
-    test('test create key without namespace - keystore put', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-      var atData = AtData();
-      atData.data = '123';
-      expect((() async => await keyStore.put('phone@test_user_1', atData)),
-          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
-    });
-
-    test('test create key without namespace - keystore create', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-      var atData = AtData();
-      atData.data = '123';
-      expect((() async => await keyStore.create('phone@test_user_1', atData)),
-          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
-    });
-
     test('test create reserved key- keystore put', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
