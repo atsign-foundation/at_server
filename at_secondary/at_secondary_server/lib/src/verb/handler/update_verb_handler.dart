@@ -150,6 +150,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       response.data = result?.toString();
     } on InvalidSyntaxException {
       rethrow;
+    } on InvalidAtKeyException {
+      rethrow;
     } catch (exception) {
       response.isError = true;
       response.errorMessage = exception.toString();

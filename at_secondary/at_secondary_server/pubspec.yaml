@@ -40,10 +40,6 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_persistence/at_persistence_spec
 #      ref: at_persistence_encode_public_data
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: new_set_verb
 #  at_persistence_secondary_server:
 #   git:
 #     url: https://github.com/atsign-foundation/at_server.git
@@ -54,11 +50,11 @@ dependency_overrides:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: set_verb
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: at_commons
+      ref: atkey_types
 #   at_persistence_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git
