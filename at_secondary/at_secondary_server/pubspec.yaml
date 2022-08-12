@@ -16,13 +16,13 @@ dependencies:
   crypto: 3.0.2
   crypton: 2.0.5
   collection: 1.16.0
-  basic_utils: 4.4.3
+  basic_utils: 4.5.2
   at_persistence_spec: 2.0.7
   at_persistence_secondary_server: 3.0.32
   at_lookup: 3.0.29
   at_server_spec: 3.0.9
   at_utils: 3.0.10
-  at_commons: 3.0.22
+  at_commons: 3.0.23
 
 #dependency_overrides:
 #  at_commons:
