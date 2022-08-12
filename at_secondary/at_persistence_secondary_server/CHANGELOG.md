@@ -1,3 +1,6 @@
+## 3.0.33
+- feat: added key validation to keystore put and create methods
+- chore: upgraded at_commons version to 3.0.24
 ## 3.0.32
 - Add 'encoding' to AtMetadata which represents the type of encoding
 ## 3.0.31
