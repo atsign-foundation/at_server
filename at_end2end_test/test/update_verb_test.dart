@@ -350,4 +350,18 @@ void main() {
     print('llookup verb response after 4 seconds : $response');
     expect(response, contains('data:null'));
   });
+
+  test('update verb key with punctuation - check invalid key ', () async {
+    ///UPDATE VERB
+    await sh1.writeCommand('update:public:country,current@$atSign_1 USA');
+    var response = await sh1.read();
+    print('update verb response : $response');
+    expect(response, startsWith('error:AT0016'));
+    expect(response, contains('Invalid key'));
+
+    // Going to reconnect, because invalid syntax causes server to close connection
+    sh1.close();
+    sh1 = await e2e.getSocketHandler(atSign_1);
+  });
+
 }
