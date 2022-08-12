@@ -353,7 +353,7 @@ void main() {
 
   test('update verb key with punctuation - check invalid key ', () async {
     ///UPDATE VERB
-    await sh1.writeCommand('update:public:country,current@$atSign_1 USA');
+    await sh1.writeCommand('update:public:country,current$atSign_1 USA');
     var response = await sh1.read();
     print('update verb response : $response');
     expect(response, startsWith('error:AT0016'));
