@@ -723,7 +723,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'SharedBy atsign should be same as current atsign')));
+                  'SharedBy atsign should be the same as current atsign')));
     });
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';
