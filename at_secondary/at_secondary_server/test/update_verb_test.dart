@@ -547,7 +547,7 @@ void main() {
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent('atSign', () => '@sitaram');
+      updateVerbParams.putIfAbsent('atSign', () => '@alice');
       updateVerbParams.putIfAbsent('atKey', () => 'location');
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       await updateVerbHandler.processVerb(
@@ -555,7 +555,7 @@ void main() {
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent('atSign', () => '@sitaram');
+      localLookVerbParam.putIfAbsent('atSign', () => '@alice');
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
@@ -598,7 +598,7 @@ void main() {
       int ttl = 1000; // in milliseconds
       int ttb = 1000; // in milliseconds
 
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
+      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
       updateVerbParams.putIfAbsent(AT_TTL, () => ttl.toString());
       updateVerbParams.putIfAbsent(AT_TTB, () => ttb.toString());
@@ -611,29 +611,32 @@ void main() {
       var localLookUpResponseBeforeTtb = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseBeforeTtb, localLookVerbParam, atConnection);
-      expect(localLookUpResponseBeforeTtb.data, null); // should be null, value has not passed ttb
+      expect(localLookUpResponseBeforeTtb.data,
+          null); // should be null, value has not passed ttb
 
       //LLOOKUP Verb - After TTB
       await Future.delayed(Duration(milliseconds: ttb));
       var localLookUpResponseAfterTtb = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtb, localLookVerbParam, atConnection);
-      expect(localLookUpResponseAfterTtb.data, 'hyderabad'); // after ttb has passed, the value should exist
+      expect(localLookUpResponseAfterTtb.data,
+          'hyderabad'); // after ttb has passed, the value should exist
 
       //LLOOKUP Verb - After TTL
       await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponseAfterTtl = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtl, localLookVerbParam, atConnection);
-      expect(localLookUpResponseAfterTtl.data, null); // after ttl has passed, the value should no longer be live
+      expect(localLookUpResponseAfterTtl.data,
+          null); // after ttl has passed, the value should no longer be live
     });
 
     test('Test to verify reset of TTB', () async {
@@ -668,7 +671,7 @@ void main() {
       var updateVerbHandler = UpdateVerbHandler(keyStore);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
+      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
       updateVerbParams.putIfAbsent(AT_TTB, () => '60000');
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
@@ -678,25 +681,67 @@ void main() {
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, null);
       //Reset TTB
       updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@sitaram');
+      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
       updateVerbParams.putIfAbsent(AT_TTB, () => '0');
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - After TTB
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@sitaram');
+      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'hyderabad');
+    });
+  });
+  group('A group of tests to validate sharedBy atsign', () {
+    test('sharedBy atsign is not equal to current atsign', () async {
+      var command = 'update:phone@bob +12345';
+      command = SecondaryUtil.convertCommand(command);
+      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(
+                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      handler.keyStore = secondaryPersistenceStore
+          .getSecondaryKeyStoreManager()!
+          .getKeyStore();
+      var response = Response();
+      var verbParams = handler.parse(command);
+      var atConnection = InboundConnectionImpl(null, null);
+      expect(
+          () => handler.processVerb(response, verbParams, atConnection),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'SharedBy atsign should be same as current atsign')));
+    });
+    test('sharedBy atsign same as current atsign', () async {
+      var command = 'update:phone@alice +12345';
+      command = SecondaryUtil.convertCommand(command);
+      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var secondaryPersistenceStore =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(
+                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      handler.keyStore = secondaryPersistenceStore
+          .getSecondaryKeyStoreManager()!
+          .getKeyStore();
+      var response = Response();
+      var verbParams = handler.parse(command);
+      var atConnection = InboundConnectionImpl(null, null);
+      await handler.processVerb(response, verbParams, atConnection);
+      expect(response.isError, false);
     });
   });
   tearDown(() async => await tearDownFunc());

@@ -64,11 +64,19 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
     var updateParams = _getUpdateParams(verbParams);
-
+    if (updateParams.sharedBy != null &&
+        updateParams.sharedBy!.isNotEmpty &&
+        AtUtils.formatAtSign(updateParams.sharedBy) !=
+            AtSecondaryServerImpl.getInstance().currentAtSign) {
+      logger.warning(
+          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign} ');
+      throw InvalidAtKeyException(
+          'SharedBy atsign should be the same as current atsign');
+    }
     try {
       // Get the key and update the value
-      var forAtSign = updateParams.sharedBy;
-      var atSign = updateParams.sharedWith;
+      var forAtSign = updateParams.sharedWith;
+      var atSign = updateParams.sharedBy;
       var key = updateParams.atKey;
       var value = updateParams.value;
       var atData = AtData();
@@ -187,14 +195,13 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
   UpdateParams _getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
-      print('update json');
       var jsonString = verbParams['json']!;
       Map jsonMap = jsonDecode(jsonString);
       return UpdateParams.fromJson(jsonMap);
     }
     var updateParams = UpdateParams();
-    updateParams.sharedBy = verbParams[FOR_AT_SIGN];
-    updateParams.sharedWith = verbParams[AT_SIGN];
+    updateParams.sharedBy = verbParams[AT_SIGN];
+    updateParams.sharedWith = verbParams[FOR_AT_SIGN];
     updateParams.atKey = verbParams[AT_KEY];
     updateParams.value = verbParams[AT_VALUE];
     var metadata = Metadata();
