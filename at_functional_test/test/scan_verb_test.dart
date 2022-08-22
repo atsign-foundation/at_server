@@ -87,28 +87,28 @@ void main() {
     expect(response, contains('"public:twitter.me$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('Scan verb - Displays key with special characters', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
-
-    ///UPDATE VERB
-    await socket_writer(socketFirstAtsign!,
-        'update:public:verifying,commas$firstAtsign Working?');
-    var response = await read();
-    print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('"public:verifying,commas$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  // test('Scan verb - Displays key with special characters', () async {
+  //   var firstAtsignServer =
+  //       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+  //   socketFirstAtsign =
+  //       await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+  //   socket_listener(socketFirstAtsign!);
+  //   await prepare(socketFirstAtsign!, firstAtsign);
+  //
+  //   ///UPDATE VERB
+  //   await socket_writer(socketFirstAtsign!,
+  //       'update:public:verifying,commas$firstAtsign Working?');
+  //   var response = await read();
+  //   print('update verb response : $response');
+  //   assert(
+  //       (!response.contains('Invalid syntax')) && (!response.contains('null')));
+  //
+  //   ///SCAN VERB
+  //   await socket_writer(socketFirstAtsign!, 'scan');
+  //   response = await read();
+  //   print('scan verb response : $response');
+  //   expect(response, contains('"public:verifying,commas$firstAtsign"'));
+  // }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb does not return expired keys', () async {
     var firstAtsignServer =

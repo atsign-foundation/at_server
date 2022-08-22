@@ -20,6 +20,7 @@ import 'package:at_utils/at_utils.dart';
 class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
+
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
@@ -34,7 +35,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   // Input: command
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.update) + ':') &&
+      command.startsWith('${getName(VerbEnum.update)}:') &&
       !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
@@ -82,6 +83,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var ccd = updateParams.metadata!.ccd;
       String? sharedKeyEncrypted = updateParams.metadata!.sharedKeyEnc;
       String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
+      String? encoding = updateParams.metadata!.encoding;
+
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -119,7 +122,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..isEncrypted = isEncrypted
         ..dataSignature = dataSignature
         ..sharedKeyEnc = sharedKeyEncrypted
-        ..pubKeyCS = publicKeyChecksum;
+        ..pubKeyCS = publicKeyChecksum
+        ..encoding = encoding;
 
       if (_autoNotify!) {
         _notify(
@@ -141,9 +145,12 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           isEncrypted: isEncrypted,
           dataSignature: dataSignature,
           sharedKeyEncrypted: sharedKeyEncrypted,
-          publicKeyChecksum: publicKeyChecksum);
+          publicKeyChecksum: publicKeyChecksum,
+          encoding: encoding);
       response.data = result?.toString();
     } on InvalidSyntaxException {
+      rethrow;
+    } on InvalidAtKeyException {
       rethrow;
     } catch (exception) {
       response.isError = true;
@@ -204,9 +211,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
     metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
     metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+    metadata.encoding = verbParams[ENCODING];
     updateParams.metadata = metadata;
     return updateParams;
   }
-
-  void _autoNotifyChange() {}
 }

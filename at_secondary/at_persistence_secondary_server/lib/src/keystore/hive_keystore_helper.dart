@@ -28,10 +28,11 @@ class HiveKeyStoreHelper {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
-    var at_data = AtData();
-    at_data.data = newData.data;
-    at_data.metaData = AtMetadataBuilder(
+      String? publicKeyChecksum,
+      String? encoding}) {
+    var atData = AtData();
+    atData.data = newData.data;
+    atData.metaData = AtMetadataBuilder(
             newAtMetaData: newData.metaData,
             ttl: ttl,
             ttb: ttb,
@@ -41,10 +42,11 @@ class HiveKeyStoreHelper {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum)
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding)
         .build();
-    at_data.metaData!.version = 0;
-    return at_data;
+    atData.metaData!.version = 0;
+    return atData;
   }
 
   AtData prepareDataForUpdate(AtData existingData, AtData newData,
@@ -56,7 +58,8 @@ class HiveKeyStoreHelper {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) {
+      String? publicKeyChecksum,
+      String? encoding}) {
     existingData.metaData = AtMetadataBuilder(
             newAtMetaData: newData.metaData,
             existingMetaData: existingData.metaData,
@@ -68,7 +71,8 @@ class HiveKeyStoreHelper {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum)
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding)
         .build();
 //    (existingData.metaData!.version == null)
 //        ? existingData.metaData!.version = 0
