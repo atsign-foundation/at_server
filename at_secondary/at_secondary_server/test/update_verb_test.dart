@@ -718,12 +718,13 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
+      expectLater(
+          () async =>
+              await handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'SharedBy atsign should be the same as current atsign')));
+                  'Invalid update command sharedBy atsign @bob should be same as current atsign @alice')));
     });
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';

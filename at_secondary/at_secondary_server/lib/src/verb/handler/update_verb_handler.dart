@@ -69,9 +69,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         AtUtils.formatAtSign(updateParams.sharedBy) !=
             AtSecondaryServerImpl.getInstance().currentAtSign) {
       logger.warning(
-          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign} ');
+          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign}');
       throw InvalidAtKeyException(
-          'SharedBy atsign should be the same as current atsign');
+          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign}');
     }
     try {
       // Get the key and update the value
