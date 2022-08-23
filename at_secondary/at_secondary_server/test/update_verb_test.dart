@@ -201,9 +201,9 @@ void main() {
       var command = 'update:ttl::public:location:city@alice Hyderbad:TG';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update with ttb with no value', () {
@@ -211,9 +211,9 @@ void main() {
       var command = 'update:ttb::public:location:city@alice Hyderbad:TG';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update with two colons beside - invalid syntax', () {
@@ -221,9 +221,9 @@ void main() {
       var command = 'update::location:city@alice Hyderbad:TG';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update with @ suffixed in atsign - invalid syntax', () {
@@ -231,9 +231,9 @@ void main() {
       var command = 'update:location:city@alice@ Hyderbad:TG';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update key- no value', () {
@@ -241,9 +241,9 @@ void main() {
       var command = 'update:location@alice ';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update key- invalid keyword', () {
@@ -251,9 +251,9 @@ void main() {
       var command = 'updation:location@alice us';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update verb - no key', () {
@@ -261,9 +261,9 @@ void main() {
       var command = 'update: us';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update verb - with public and private for atSign', () {
@@ -271,18 +271,18 @@ void main() {
       var command = 'update:public:@kevin:location@bob us';
       var regex = verb.syntax();
       expect(
-          () => getVerbParam(regex, command),
+              () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+          e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update key no value - invalid command', () {
       var command = 'update:location@alice';
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       expect(
-          () => handler.parse(command),
+              () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
     });
@@ -376,14 +376,14 @@ void main() {
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      expect(() => handler.parse(command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      Map parsed = handler.parse(command);
+      expect(parsed['ttl'], '-1');
     });
 
     test('ttb starting with -1', () {
@@ -392,22 +392,23 @@ void main() {
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      expect(() => handler.parse(command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      Map parsed = handler.parse(command);
+      expect(parsed['ttb'], '-1');
     });
 
     test('ttl and ttb starting with negative value -1', () {
-      var command = 'UpDaTe:ttl:-1:ttb:-1:@bob:location@alice Hyderabad,TG';
+      var command = 'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      expect(() => handler.parse(command),
-          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      Map parsed = handler.parse(command);
+      expect (parsed['ttl'], '-1');
+      expect (parsed['ttb'], '-1');
     });
 
     test('ttl with no value - invalid syntax', () {
@@ -415,9 +416,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       expect(
-          () => handler.parse(command),
+              () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
     });
@@ -427,9 +428,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       expect(
-          () => handler.parse(command),
+              () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
     });
@@ -439,9 +440,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       expect(
-          () => handler.parse(command),
+              () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
     });
@@ -484,9 +485,9 @@ void main() {
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
@@ -494,9 +495,9 @@ void main() {
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
       expect(
-          () => handler.processVerb(response, verbParams, atConnection),
+              () => handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Valid values for TTR are -1 and greater than or equal to 1')));
     });
@@ -506,9 +507,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       expect(
-          () => handler.parse(command),
+              () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
-              e is InvalidSyntaxException &&
+          e is InvalidSyntaxException &&
               e.message ==
                   'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
     });
@@ -519,7 +520,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -540,7 +541,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+      atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -566,7 +567,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -587,7 +588,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+      atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -643,7 +644,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+      'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -664,7 +665,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+      atConnection.getMetaData() as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -709,9 +710,9 @@ void main() {
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
@@ -719,10 +720,10 @@ void main() {
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
       expectLater(
-          () async =>
-              await handler.processVerb(response, verbParams, atConnection),
+              () async =>
+          await handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
-              e is InvalidAtKeyException &&
+          e is InvalidAtKeyException &&
               e.message ==
                   'Invalid update command sharedBy atsign @bob should be same as current atsign @alice')));
     });
@@ -732,9 +733,9 @@ void main() {
       AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(
+          AtSecondaryServerImpl.getInstance().currentAtSign)!;
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
@@ -752,17 +753,17 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@alice';
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
+      AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atsign ?? '@alice', commitLogPath: storageDir);
   var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
+  secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(atsign ?? '@alice', accessLogPath: storageDir);
