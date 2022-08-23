@@ -29,7 +29,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: at_server_spec
-      ref: add_version_to_from_verb
+      ref: trunk
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
