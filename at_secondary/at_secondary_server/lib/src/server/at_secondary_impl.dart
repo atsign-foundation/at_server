@@ -236,6 +236,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (serverContext!.trainingMode) {
       try {
         logger.warning('Training mode set - stopping server');
+        // waiting a few milliseconds to allow the server socket to finish its initialization
+        await Future.delayed(Duration(milliseconds: 100));
         await stop();
       } catch (e) {
         logger.severe('Caught exception $e in server stop()');

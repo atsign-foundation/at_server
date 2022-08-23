@@ -68,14 +68,6 @@ class GlobalExceptionHandler {
       // TODO Not sure some of these are really worthy of WARNINGS, but let's leave as is for now
       logger.warning(exception.toString());
       await _sendResponseForException(exception, atConnection);
-    } else if (exception is ArgParserException) {
-      // TODO [gkc] I suspect this code block is not reachable. Verify and delete
-      logger.shout("Terminating secondary due to ${exception.toString()}");
-      try {
-        await AtSecondaryServerImpl.getInstance().stop();
-      } finally {
-        exit(1);
-      }
     } else if (exception is InternalServerError) {
       logger.severe(exception.toString());
       await _handleInternalException(exception, atConnection);
