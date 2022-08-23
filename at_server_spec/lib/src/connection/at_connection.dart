@@ -20,6 +20,8 @@ abstract class AtConnection {
 }
 
 abstract class AtConnectionMetaData {
+  static const String clientVersionNotAvailable = 'n/a';
+
   String? sessionID;
   DateTime? lastAccessed;
   DateTime? created;
@@ -31,4 +33,7 @@ abstract class AtConnectionMetaData {
   bool isPolAuthenticated = false;
   bool isStream = false;
   String? streamId;
+  /// Represents the version of the client initiated the connection.
+  /// Defaults to 'n/a' - i.e. 'not available'
+  String clientVersion = clientVersionNotAvailable;
 }
