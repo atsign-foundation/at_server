@@ -1,3 +1,5 @@
+## 3.0.10
+- feat: Added clientVersion to AtConnectionMetaData
 ## 3.0.9
 - Added documentation for 'config' verb to support dynamic config change functionality
 - Upgraded at_commons dependency version to 3.0.18
