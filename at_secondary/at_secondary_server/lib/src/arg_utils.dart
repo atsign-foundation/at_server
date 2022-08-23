@@ -9,31 +9,33 @@ class CommandLineParser {
   /// Parses [arguments], a list of command-line arguments, matches them against the
   /// flags and options defined by this parser, and returns the result.
   ArgResults getParserResults(List<String>? arguments) {
-    var results;
+    ArgResults results;
     var parser = ArgParser();
     parser.addOption('at_sign',
         abbr: 'a',
-        //defaultsTo: 'localhost',
         help: 'AtSign handle');
     parser.addOption('server_port',
         abbr: 'p',
-        //defaultsTo: '64',
         help: 'Port of the secondary server');
     parser.addOption('shared_secret',
         abbr: 's', help: 'Shared secret of the AtSign');
+    parser.addFlag('training',
+      abbr: 't',
+      defaultsTo: false,
+      help: 'Training mode - will exit immediately after fully starting the server');
 
     try {
       if (arguments != null && arguments.isNotEmpty) {
         results = parser.parse(arguments);
         if (results.options.length != parser.options.length) {
-          throw ArgParserException('Invalid Arguments \n' + parser.usage);
+          throw ArgParserException('Invalid Arguments \n${parser.usage}');
         }
       } else {
-        throw ArgParserException('ArgParser Exception \n' + parser.usage);
+        throw ArgParserException('ArgParser Exception \n${parser.usage}');
       }
       return results;
     } on ArgParserException {
-      throw ArgParserException('ArgParserException\n' + parser.usage);
+      throw ArgParserException('ArgParserException\n${parser.usage}');
     }
   }
 }

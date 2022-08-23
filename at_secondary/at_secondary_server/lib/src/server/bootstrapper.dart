@@ -45,6 +45,7 @@ class SecondaryServerBootStrapper {
       if (useSSL!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }
+      secondaryContext.trainingMode = results['training'];
 
       // Start the secondary server
       secondaryServerInstance.setServerContext(secondaryContext);
