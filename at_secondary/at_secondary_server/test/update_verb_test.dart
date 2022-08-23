@@ -382,8 +382,8 @@ void main() {
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      Map parsed = handler.parse(command);
-      expect(parsed['ttl'], '-1');
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('ttb starting with -1', () {
@@ -398,17 +398,16 @@ void main() {
       handler.keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      Map parsed = handler.parse(command);
-      expect(parsed['ttb'], '-1');
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('ttl and ttb starting with negative value -1', () {
-      var command = 'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:-1:ttb:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(null);
-      Map parsed = handler.parse(command);
-      expect (parsed['ttl'], '-1');
-      expect (parsed['ttb'], '-1');
+      expect(() => handler.parse(command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('ttl with no value - invalid syntax', () {
