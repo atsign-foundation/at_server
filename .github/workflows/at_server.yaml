@@ -5,20 +5,6 @@ name: at_server
 # 3. on tagging a release
 # 4. on manual workflow(Run job manually)
 on:
-  workflow_dispatch:
-    inputs:
-      rollback_prod_secondary_image:
-        type: boolean
-        default: true
-        description: Rollback Prod secondary image
-      rollback_canary_secondary_image:
-        type: boolean
-        default: true
-        description: Rollback Canary secondary image
-      deploy_canary_image_to_prod_secondary_image:
-        type: boolean
-        default: true
-        description: Deploy Canary image to Prod secondary image        
   push:
     tags:
       - 'v*.*.*'
@@ -183,7 +169,7 @@ jobs:
           ls -laR at_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           file: at_virtual_environment/ve/Dockerfile
           context: at_virtual_environment/ve
@@ -243,7 +229,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           push: true
           context: at_secondary
@@ -388,7 +374,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           file: at_virtual_environment/ve/Dockerfile.vip
           push: true
@@ -440,7 +426,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           push: true
           context: at_secondary
@@ -512,7 +498,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           push: true
           file: ./at_secondary/Dockerfile.observe
@@ -564,7 +550,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           push: true
           context: at_secondary
@@ -614,7 +600,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           push: true
           context: at_secondary
@@ -706,7 +692,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.1.0
+        uses: docker/build-push-action@v3.1.1
         with:
           file: at_virtual_environment/ve/Dockerfile.vip
           push: true
@@ -726,125 +712,6 @@ jobs:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
-  
-  # Rollback prod secondary image.
-  rollback_prod_secondary_image:
-    if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3.0.2
-      
-      # Extract version for docker tag
-      - name: Get version
-        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
-        
-      - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create amd64 labels
-        run: |
-          docker pull --platform=linux/amd64 atsigncompany/secondary:prod-${{ env.VERSION }}
-          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-      
-      - name: Create arm64 labels
-        run: |
-          docker pull --platform=linux/arm64 atsigncompany/secondary:prod-${{ env.VERSION }}
-          docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
-          docker push atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
-      
-      - name: Create and push multi-arch prod manifest
-        run: |
-          docker manifest create atsigncompany/secondary:prod \
-            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
-            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:prod
-
-      - name: Create and push multi-arch prod-version manifest
-        run: |
-          docker manifest create atsigncompany/secondary:prod-${{ env.VERSION }} \
-            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
-            --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:prod-${{ env.VERSION }}          
-  
-  # Rollback canary secondary image.
-  rollback_canary_secondary_image:
-    if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3.0.2
-      
-      # Extract version for docker tag
-      - name: Get version
-        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create amd64 labels
-        run: |
-          docker pull --platform=linux/amd64 atsigncompany/secondary:canary-${{ env.VERSION }}
-          docker tag atsigncompany/secondary:canary-${{ env.VERSION }} atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-          docker push atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-      
-      - name: Create and push multi-arch canary manifest
-        run: |
-          docker manifest create atsigncompany/secondary:canary \
-            --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:canary
-
-      - name: Create and push multi-arch canary-version manifest
-        run: |
-          docker manifest create atsigncompany/secondary:canary-${{ env.VERSION }} \
-            --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}  
-
-  # Deploy canary image to secondary image
-  deploy_canary_image_to_prod_secondary_image:
-    if: ${{ github.event.inputs.deploy_canary_image_to_prod_secondary_image == 'true' }}
-    env:
-      working-directory: at_server
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3.0.2
-
-      # Extract version for docker tag
-      - name: Get version
-        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Builds and pushes the secondary server image to docker hub.
-      - name: Build and push secondary image for amd64 and arm64
-        id: docker_build_canary_to_prod
-        uses: docker/build-push-action@v3.0.0
-        with:
-          push: true 
-          file: ./at_secondary/Dockerfile.canary_to_prod
-          context: at_secondary
-          tags: |
-            atsigncompany/secondary:prod
-            atsigncompany/secondary:prod-${{ env.VERSION }}
-          platforms: |
-            linux/amd64
-            linux/arm64/v8           
 
 #  # Deploy root server image to cluster
 #  deploy_root_sever:

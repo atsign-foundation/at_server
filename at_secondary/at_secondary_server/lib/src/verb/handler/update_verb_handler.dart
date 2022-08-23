@@ -20,6 +20,7 @@ import 'package:at_utils/at_utils.dart';
 class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
+
   UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
@@ -34,7 +35,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   // Input: command
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.update) + ':') &&
+      command.startsWith('${getName(VerbEnum.update)}:') &&
       !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
@@ -63,11 +64,19 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
     var updateParams = _getUpdateParams(verbParams);
-
+    if (updateParams.sharedBy != null &&
+        updateParams.sharedBy!.isNotEmpty &&
+        AtUtils.formatAtSign(updateParams.sharedBy) !=
+            AtSecondaryServerImpl.getInstance().currentAtSign) {
+      logger.warning(
+          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign}');
+      throw InvalidAtKeyException(
+          'Invalid update command sharedBy atsign ${AtUtils.formatAtSign(updateParams.sharedBy)} should be same as current atsign ${AtSecondaryServerImpl.getInstance().currentAtSign}');
+    }
     try {
       // Get the key and update the value
-      var forAtSign = updateParams.sharedBy;
-      var atSign = updateParams.sharedWith;
+      var forAtSign = updateParams.sharedWith;
+      var atSign = updateParams.sharedBy;
       var key = updateParams.atKey;
       var value = updateParams.value;
       var atData = AtData();
@@ -82,6 +91,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var ccd = updateParams.metadata!.ccd;
       String? sharedKeyEncrypted = updateParams.metadata!.sharedKeyEnc;
       String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
+      String? encoding = updateParams.metadata!.encoding;
+
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
@@ -119,7 +130,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..isEncrypted = isEncrypted
         ..dataSignature = dataSignature
         ..sharedKeyEnc = sharedKeyEncrypted
-        ..pubKeyCS = publicKeyChecksum;
+        ..pubKeyCS = publicKeyChecksum
+        ..encoding = encoding;
 
       if (_autoNotify!) {
         _notify(
@@ -141,9 +153,12 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           isEncrypted: isEncrypted,
           dataSignature: dataSignature,
           sharedKeyEncrypted: sharedKeyEncrypted,
-          publicKeyChecksum: publicKeyChecksum);
+          publicKeyChecksum: publicKeyChecksum,
+          encoding: encoding);
       response.data = result?.toString();
     } on InvalidSyntaxException {
+      rethrow;
+    } on InvalidAtKeyException {
       rethrow;
     } catch (exception) {
       response.isError = true;
@@ -180,14 +195,13 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
   UpdateParams _getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
-      print('update json');
       var jsonString = verbParams['json']!;
       Map jsonMap = jsonDecode(jsonString);
       return UpdateParams.fromJson(jsonMap);
     }
     var updateParams = UpdateParams();
-    updateParams.sharedBy = verbParams[FOR_AT_SIGN];
-    updateParams.sharedWith = verbParams[AT_SIGN];
+    updateParams.sharedBy = verbParams[AT_SIGN];
+    updateParams.sharedWith = verbParams[FOR_AT_SIGN];
     updateParams.atKey = verbParams[AT_KEY];
     updateParams.value = verbParams[AT_VALUE];
     var metadata = Metadata();
@@ -204,9 +218,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     metadata.isPublic = AtMetadataUtil.getBoolVerbParams(verbParams[IS_PUBLIC]);
     metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
     metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+    metadata.encoding = verbParams[ENCODING];
     updateParams.metadata = metadata;
     return updateParams;
   }
-
-  void _autoNotifyChange() {}
 }

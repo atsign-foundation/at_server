@@ -1,3 +1,10 @@
+## 3.0.34
+* fix: Reverted dependency on 'meta' package to ^1.7.0 as flutter_test package (currently) requires 1.7.0
+## 3.0.33
+- feat: added key validation to keystore put and create methods
+- chore: upgraded at_commons version to 3.0.24
+## 3.0.32
+- Add 'encoding' to AtMetadata which represents the type of encoding
 ## 3.0.31
 - Invalidate commit log cache on removing entry from commit log
 ## 3.0.30

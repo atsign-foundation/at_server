@@ -77,7 +77,13 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
+    final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKey == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
     var result;
     // Default the commit op to just the value update
     CommitOp commitOp = CommitOp.UPDATE;
@@ -109,7 +115,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding);
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
@@ -123,7 +130,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager.getBox().put(hive_key, hive_value);
@@ -154,7 +162,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
+    final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKey == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
+
     var result;
     var commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
@@ -167,7 +182,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         isEncrypted: isEncrypted,
         dataSignature: dataSignature,
         sharedKeyEncrypted: sharedKeyEncrypted,
-        publicKeyChecksum: publicKeyChecksum);
+        publicKeyChecksum: publicKeyChecksum,
+        encoding: encoding);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -182,6 +198,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       dataSignature ??= value.metaData!.dataSignature;
       sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
       publicKeyChecksum ??= value.metaData!.pubKeyCS;
+      encoding ??= value.metaData!.encoding;
     }
 
     // If metadata is set, set commitOp to Update all
@@ -319,7 +336,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String hive_key = keyStoreHelper.prepareKey(key);
       value!.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
       // Updating the version of the metadata.
-//    (metadata!.version != null) ? metadata.version += 1 : metadata.version = 0;
       int? version = metadata!.version;
       if (version != null) {
         version = version + 1;
@@ -351,10 +367,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
               newAtMetaData: metadata, existingMetaData: newData.metaData)
           .build();
       // Updating the version of the metadata.
-//    (newData.metaData?.version != null)
-//        ? newData.metaData?.version += 1
-//        : newData.metaData!.version = 0;
-
       int? version = newData.metaData?.version;
       if (version != null) {
         version = version + 1;
