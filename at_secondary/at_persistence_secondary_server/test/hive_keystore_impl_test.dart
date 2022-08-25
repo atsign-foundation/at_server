@@ -208,6 +208,25 @@ void main() async {
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
+    test('test create non reserved key- keystore putAll', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      expect((() async => await keyStore.put('privatekey:mykey', atData)),
+          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
+
+    test('test putAll invalid key', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      expect((() async => await keyStore.put('hello@', atData)),
+          throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
 // tests commented for coverage. runs fine with pub run test or in IDE
 //    test('test expired keys - 1 key', ()  async {
 //      var keyStore = keyStoreManager.getKeyStore();
