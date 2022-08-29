@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
@@ -52,7 +53,8 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info('RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
+      logger.info(
+          'RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
       _queue.add(result);
     }
   }
@@ -82,22 +84,30 @@ class OutboundMessageListener {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
-          throw AtConnectException("Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
+          throw AtConnectException(
+              "Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();
-          throw AtConnectException("Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+          throw AtConnectException(
+              "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
         }
       }
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
     _closeOutboundClient();
-    throw AtTimeoutException("No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+    throw AtTimeoutException(
+        "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
   }
 
   /// Logs the error and closes the [OutboundClient]
   void _errorHandler(error) async {
-    logger.severe(error.toString());
+    if (error.runtimeType == SocketException('any').runtimeType) {
+      logger.severe(
+          '${error.message} ${error.osError ?? ''} ${error.address ?? ''}');
+    } else {
+      logger.severe(error.toString());
+    }
     await _closeOutboundClient();
   }
 
