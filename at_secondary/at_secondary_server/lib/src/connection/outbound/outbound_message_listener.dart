@@ -53,8 +53,7 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info(
-          'RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
+      logger.info('RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
       _queue.add(result);
     }
   }
@@ -89,15 +88,13 @@ class OutboundMessageListener {
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();
-          throw AtConnectException(
-              "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+          throw AtConnectException("Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
         }
       }
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
     _closeOutboundClient();
-    throw AtTimeoutException(
-        "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+    throw AtTimeoutException("No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
   }
 
   /// Logs the error and closes the [OutboundClient]
