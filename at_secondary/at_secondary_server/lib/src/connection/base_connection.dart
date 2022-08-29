@@ -47,8 +47,7 @@ abstract class BaseConnection extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      logger.info(
-          'SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
+      logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
       getSocket().write(data);
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on SocketException catch (e) {
@@ -62,8 +61,7 @@ abstract class BaseConnection extends AtConnection {
 
   static String truncateForLogging(String toLog, {int cutOffAfter = 2100}) {
     if (toLog.length > cutOffAfter) {
-      toLog =
-          '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
+      toLog = '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
     }
     return toLog;
   }
