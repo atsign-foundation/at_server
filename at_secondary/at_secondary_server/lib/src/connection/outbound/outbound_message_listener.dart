@@ -99,7 +99,6 @@ class OutboundMessageListener {
   /// Logs the error and closes the [OutboundClient]
   void _errorHandler(error) async {
     logger.severe(error.toString());
-    throw AtIOException(error.toString());
     await _closeOutboundClient();
   }
 

@@ -50,12 +50,9 @@ abstract class BaseConnection extends AtConnection {
       logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
       getSocket().write(data);
       getMetaData().lastAccessed = DateTime.now().toUtc();
-    } on SocketException catch (e) {
-      getMetaData().isStale = true;
-      logger.severe(e.toString());
-      throw AtIOException(e.toString());
     } on Exception catch (e) {
       getMetaData().isStale = true;
+      logger.severe(e.toString());
       throw AtIOException(e.toString());
     }
   }
