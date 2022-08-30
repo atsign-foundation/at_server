@@ -52,7 +52,8 @@ abstract class BaseConnection extends AtConnection {
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on SocketException catch (e) {
       getMetaData().isStale = true;
-      logger.severe('${e.message} ${e.osError ?? ''} ${e.address ?? ''}');
+      logger.severe(e.toString());
+      throw AtIOException(e.toString());
     } on Exception catch (e) {
       getMetaData().isStale = true;
       throw AtIOException(e.toString());

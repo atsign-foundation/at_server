@@ -98,12 +98,8 @@ class OutboundMessageListener {
 
   /// Logs the error and closes the [OutboundClient]
   void _errorHandler(error) async {
-    if (error.runtimeType == SocketException('any').runtimeType) {
-      logger.severe(
-          '${error.message} ${error.osError ?? ''} ${error.address ?? ''}');
-    } else {
-      logger.severe(error.toString());
-    }
+    logger.severe(error.toString());
+    throw AtIOException(error.toString());
     await _closeOutboundClient();
   }
 
