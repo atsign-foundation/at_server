@@ -6,13 +6,14 @@ import 'package:at_utils/at_logger.dart';
 
 /// Base class for common socket operations
 abstract class BaseConnection extends AtConnection {
-  final Socket? _socket;
+  late final Socket? _socket;
   late AtConnectionMetaData metaData;
   late var logger;
 
-  BaseConnection(this._socket) {
+  BaseConnection(Socket? socket) {
     logger = AtSignLogger(runtimeType.toString());
-    _socket?.setOption(SocketOption.tcpNoDelay, true);
+    socket?.setOption(SocketOption.tcpNoDelay, true);
+    _socket = socket;
   }
 
   @override
