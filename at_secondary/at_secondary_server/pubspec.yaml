@@ -24,7 +24,7 @@ dependencies:
   at_utils: 3.0.10
   at_commons: 3.0.25
 
-#dependency_overrides:
+dependency_overrides:
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -35,11 +35,11 @@ dependencies:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_commons
 #      ref: trunk
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_secondary/at_persistence_secondary_server
-#      ref: trunk
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: at_secondary/at_persistence_secondary_server
+      ref: sync_skipkeys_bug
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
