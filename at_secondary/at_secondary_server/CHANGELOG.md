@@ -1,3 +1,7 @@
+## 3.0.22
+- feat: Add key validations
+- feat: Enhance from verb to have client config
+- fix: Handle invalid AtKey exception on server
 ## 3.0.21
 - fix: invalidate commit log cache on key deletion
 - feat: remove malformed keys on server startup
