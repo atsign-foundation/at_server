@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.d
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
@@ -32,7 +33,9 @@ class AtCommitLog implements AtLogType {
     // So return -1.
     // The private: and privatekey: are not synced. so return -1.
     if (!key.startsWith('public:__') &&
-        key.startsWith(RegExp('private:|privatekey:|public:_'))) {
+        (key.startsWith(RegExp(
+                'private:|privatekey:|public:_|public:signing_publickey')) ||
+            key.contains(AT_SIGNING_PRIVATE_KEY))) {
       return -1;
     }
     var result;

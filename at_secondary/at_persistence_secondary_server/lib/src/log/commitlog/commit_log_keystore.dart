@@ -341,8 +341,7 @@ class CommitLogKeyStore
     if ((RegExp(regex).hasMatch(atKey)) ||
         atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
         atKey.startsWith('public:') ||
-        atKey.contains(AT_PKAM_SIGNATURE) ||
-        atKey.contains(AT_SIGNING_PRIVATE_KEY)) {
+        atKey.contains(AT_PKAM_SIGNATURE)) {
       result = true;
     }
     return result;
