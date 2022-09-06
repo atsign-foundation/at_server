@@ -6,14 +6,12 @@ import 'package:at_utils/at_logger.dart';
 
 /// Base class for common socket operations
 abstract class BaseConnection extends AtConnection {
-  late final Socket? _socket;
+  final Socket? _socket;
   late AtConnectionMetaData metaData;
   late var logger;
 
-  BaseConnection(Socket? socket) {
+  BaseConnection(this._socket) {
     logger = AtSignLogger(runtimeType.toString());
-    socket?.setOption(SocketOption.tcpNoDelay, true);
-    _socket = socket;
   }
 
   @override
@@ -49,8 +47,7 @@ abstract class BaseConnection extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      logger.info(
-          'SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
+      logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
       getSocket().write(data);
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
@@ -61,8 +58,7 @@ abstract class BaseConnection extends AtConnection {
 
   static String truncateForLogging(String toLog, {int cutOffAfter = 2100}) {
     if (toLog.length > cutOffAfter) {
-      toLog =
-          '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
+      toLog = '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
     }
     return toLog;
   }
