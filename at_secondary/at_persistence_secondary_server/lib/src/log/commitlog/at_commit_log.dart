@@ -35,7 +35,8 @@ class AtCommitLog implements AtLogType {
     if (!key.startsWith('public:__') &&
         (key.startsWith(RegExp(
                 'private:|privatekey:|public:_|public:signing_publickey')) ||
-            key.contains(AT_SIGNING_PRIVATE_KEY))) {
+            key.startsWith(RegExp(
+                '@(?<sharedWith>.*):signing_privatekey@(?<sharedBy>.*)')))) {
       return -1;
     }
     var result;

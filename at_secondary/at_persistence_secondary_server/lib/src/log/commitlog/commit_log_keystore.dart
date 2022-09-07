@@ -113,7 +113,7 @@ class CommitLogKeyStore
       // Iterate through the regex's in the _lastSyncedEntryCacheMap.
       // Updates the commitEntry against the matching regexes.
       for (var regex in _lastSyncedEntryCacheMap.keys) {
-        if (_isRegexMatches(commitEntry.atKey!, regex)) {
+        if (_acceptKey(commitEntry.atKey!, regex)) {
           _lastSyncedEntryCacheMap[regex] = commitEntry;
         }
       }
@@ -155,7 +155,7 @@ class CommitLogKeyStore
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
     var values = await _getValues();
     var lastCommittedEntry = values.lastWhere(
-        (entry) => (_isRegexMatches(entry.atKey, regex)),
+        (entry) => (_acceptKey(entry.atKey, regex)),
         orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
@@ -186,7 +186,7 @@ class CommitLogKeyStore
     // otherwise returns NullCommitEntry
     lastSyncedEntry = values.lastWhere(
         (entry) =>
-            (_isRegexMatches(entry!.atKey!, regex) && (entry.commitId != null)),
+            (_acceptKey(entry!.atKey!, regex) && (entry.commitId != null)),
         orElse: () => NullCommitEntry());
 
     if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
@@ -313,7 +313,7 @@ class CommitLogKeyStore
       if (limit != null) {
         for (var element in values) {
           if (element.key >= startKey &&
-              _isRegexMatches(element.atKey, regexString) &&
+              _acceptKey(element.atKey, regexString) &&
               changes.length <= limit) {
             changes.add(element);
           }
@@ -322,7 +322,7 @@ class CommitLogKeyStore
       }
       for (var f in values) {
         if (f.key >= startKey) {
-          if (_isRegexMatches(f.atKey, regexString)) {
+          if (_acceptKey(f.atKey, regexString)) {
             changes.add(f);
           }
         }
@@ -336,15 +336,18 @@ class CommitLogKeyStore
     return changes;
   }
 
+  bool _acceptKey(String atKey, String regex) {
+    return _isRegexMatches(atKey, regex) || _isSpecialKey(atKey);
+  }
+
   bool _isRegexMatches(String atKey, String regex) {
-    var result = false;
-    if ((RegExp(regex).hasMatch(atKey)) ||
-        atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
+    return RegExp(regex).hasMatch(atKey);
+  }
+
+  bool _isSpecialKey(String atKey) {
+    return atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
         atKey.startsWith('public:') ||
-        atKey.contains(AT_PKAM_SIGNATURE)) {
-      result = true;
-    }
-    return result;
+        atKey.contains(AT_PKAM_SIGNATURE);
   }
 
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
@@ -398,8 +401,8 @@ class CommitLogKeyStore
         key: (k) => k, value: (k) => _commitLogCacheMap[k]);
     // Remove the keys that does not match regex or commitId of the key
     // less than the commitId specified in the argument.
-    sortedMap.removeWhere((key, value) =>
-        !_isRegexMatches(key, regex) || value!.commitId! < commitId);
+    sortedMap.removeWhere(
+        (key, value) => !_acceptKey(key, regex) || value!.commitId! < commitId);
     return sortedMap.entries.iterator;
   }
 
