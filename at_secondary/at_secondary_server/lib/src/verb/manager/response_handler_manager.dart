@@ -16,6 +16,15 @@ abstract class ResponseHandlerManager {
 }
 
 class DefaultResponseHandlerManager implements ResponseHandlerManager {
+  static final DefaultResponseHandlerManager _singleton =
+      DefaultResponseHandlerManager._internal();
+
+  DefaultResponseHandlerManager._internal();
+
+  factory DefaultResponseHandlerManager.getInstance() {
+    return _singleton;
+  }
+
   static final _defaultHandler = DefaultResponseHandler();
   static final _polHandler = PolResponseHandler();
   static final _fromHandler = FromResponseHandler();

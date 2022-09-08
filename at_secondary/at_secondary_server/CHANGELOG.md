@@ -1,3 +1,5 @@
+## 3.0.23
+- fix: fixes to optimize the memory usage 
 ## 3.0.22
 - feat: Add key validations
 - feat: Enhance from verb to have client config

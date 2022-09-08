@@ -43,9 +43,10 @@ class StatsNotificationService {
   InboundConnectionPool inboundConnectionPool =
       InboundConnectionPool.getInstance();
 
-
   // Counter for number of active monitor connections. Used for logging purpose.
   int numOfMonitorConn = 0;
+
+  Notification notification = Notification.empty();
 
   /// Starts the [StatsNotificationService] and notifies the latest commitID
   /// to the active monitor connections.
@@ -89,18 +90,22 @@ class StatsNotificationService {
       for (var connection in connectionsList) {
         if (connection.isMonitor != null && connection.isMonitor!) {
           numOfMonitorConn = numOfMonitorConn + 1;
-          //Construct a stats notification
-          var atNotificationBuilder = AtNotificationBuilder()
+          // Set notification fields
+          notification
             ..id = '-1'
             ..fromAtSign = currentAtSign
             ..notification = 'statsNotification.$currentAtSign'
             ..toAtSign = currentAtSign
-            ..notificationDateTime = DateTime.now().toUtc()
-            ..opType = SecondaryUtil.getOperationType(operationType)
-            ..atValue = latestCommitID;
-          var notification = Notification(atNotificationBuilder.build());
-          connection.write(
-              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+            ..dateTime = DateTime.now().toUtc().millisecondsSinceEpoch
+            ..operation = SecondaryUtil.getOperationType(operationType)
+                .toString()
+                .replaceAll('OperationType.', '')
+            ..value = latestCommitID
+            ..messageType = MessageType.key.toString()
+            ..isTextMessageEncrypted = false;
+          // Convert notification object to JSON and write to connection
+          connection
+              .write('notification: ${jsonEncode(notification.toJson())}\n');
         }
       }
       if (numOfMonitorConn == 0) {

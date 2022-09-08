@@ -27,7 +27,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.delete) + ':');
+      command.startsWith('${getName(VerbEnum.delete)}:');
 
   @override
   Verb getVerb() {
@@ -92,7 +92,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       if (_autoNotify && (forAtSign != atSign)) {
         try {
           _notify(forAtSign, atSign, key,
-              SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]));
+              SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]));
         } catch (exception) {
           logger.severe(
               'Exception while sending notification ${exception.toString()}');

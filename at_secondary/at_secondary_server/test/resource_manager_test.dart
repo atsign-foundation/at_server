@@ -15,7 +15,7 @@ void main() async {
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
   ResourceManager rm = ResourceManager.getInstance();
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
 
   //  forcing the notification sending to fail with an exception
   setUp(() {
@@ -95,7 +95,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
+          'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
     });
 
     test('Test to verify prepare notification without passing any fields', () {
@@ -105,7 +105,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1122:messageType:key:notifier:system:ttln:86400000:null');
+          'id:1122:messageType:key:notifier:system:ttln:900000:null');
     });
 
     test('Test to verify prepare notification command for delete notification',
@@ -120,7 +120,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:delete:messageType:key:notifier:system:ttln:86400000:@bob:phone@alice');
+          'id:1234:delete:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
     });
 
     test('Test to verify prepare notification command for message type text',
@@ -136,7 +136,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:text:notifier:wavi:ttln:86400000:@bob:phone@alice');
+          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
     });
   });
 }
