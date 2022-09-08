@@ -416,7 +416,8 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
-  static const int _defaultTTLInHrs = 24;
+  static const int _defaultTTLInMins = 15;
+
   String? id = Uuid().v4();
 
   String? fromAtSign;
@@ -449,7 +450,7 @@ class AtNotificationBuilder {
 
   String? atValue;
 
-  int? ttl = Duration(hours: _defaultTTLInHrs).inMilliseconds;
+  int? ttl = Duration(minutes: _defaultTTLInMins).inMilliseconds;
 
   AtMetaData? atMetaData;
 
@@ -458,5 +459,27 @@ class AtNotificationBuilder {
       expiresAt = DateTime.now().toUtc().add(Duration(milliseconds: ttl!));
     }
     return AtNotification._builder(this);
+  }
+
+  reset() {
+    this
+      ..id = Uuid().v4()
+      ..fromAtSign = null
+      ..notificationDateTime = DateTime.now()
+      ..toAtSign = null
+      ..notification = null
+      ..type = null
+      ..opType = null
+      ..messageType = MessageType.key
+      ..expiresAt = null
+      ..priority = NotificationPriority.low
+      ..notificationStatus = NotificationStatus.queued
+      ..retryCount = 1
+      ..strategy = 'all'
+      ..notifier = 'system'
+      ..depth = 1
+      ..atValue = null
+      ..ttl = Duration(hours: _defaultTTLInMins).inMilliseconds
+      ..atMetaData = null;
   }
 }
