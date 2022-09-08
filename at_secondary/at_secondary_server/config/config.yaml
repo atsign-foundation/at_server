@@ -35,7 +35,7 @@ hive:
   notificationStoragePath: 'storage/notificationLog.v1'
 
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
-  expiringRunFrequencyMins: 10
+  expiringRunFrequencyMins: 12
   # List of malformed keys that will be deleted on server startup
   malformedKeys: 'public:publickey'
 
@@ -59,7 +59,7 @@ connection:
 # The @Protocol commit log compaction job configurations.
 commit_log_compaction:
   # The frequent time interval (in minutes) to initiate the commit log compaction job service.
-  compactionFrequencyMins: 60
+  compactionFrequencyMins: 18
   # The percentage of logs to remove through the commit log compaction job service.
   compactionPercentage: 20
   # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
@@ -69,7 +69,7 @@ commit_log_compaction:
 
 # The @Protocol notification keystore compaction job configurations.
 notification_keystore_compaction:
-  compactionFrequencyMins: 60
+  compactionFrequencyMins: 5
   compactionPercentage: 30
   expiryInDays: 1
   sizeInKB: -1
@@ -77,7 +77,7 @@ notification_keystore_compaction:
 # The @Protocol notification keystore compaction job configurations.
 access_log_compaction:
   # The frequent time interval (in minutes) to initiate the access log compaction job service.
-  compactionFrequencyMins: 60
+  compactionFrequencyMins: 21
   # The percentage of logs to remove through the access log compaction job service.
   compactionPercentage: 30
   # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
@@ -111,7 +111,7 @@ notification:
   # To disable to the feature, set to -1.
   statsNotificationJobTimeInterval: 15
   # The amount of time after which a notification expires in units of minutes. Defaults to 24 hours or 1440 minutes
-  expiryInMins: 1440
+  expiryInMins: 15
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
