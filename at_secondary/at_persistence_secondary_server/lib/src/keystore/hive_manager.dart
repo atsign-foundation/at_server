@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -18,6 +19,9 @@ class HivePersistenceManager with HiveBase {
 
   HivePersistenceManager(this._atsign);
 
+  final Cron _cron = Cron();
+  final Random _random = Random();
+
   @override
   Future<void> initialize() async {
     try {
@@ -32,11 +36,11 @@ class HivePersistenceManager with HiveBase {
       _boxName = AtUtils.getShaForAtSign(_atsign!);
       await super.openBox(_boxName, hiveSecret: secret);
     } on Exception catch (e) {
-      logger.severe('AtPersistence.init exception: ' + e.toString());
+      logger.severe('AtPersistence.init exception: $e');
       throw DataStoreException(
           'Exception initializing secondary keystore manager: ${e.toString()}');
     } catch (error) {
-      logger.severe('AtPersistence().init error: ' + error.toString());
+      logger.severe('AtPersistence().init error: $error');
       rethrow;
     }
   }
@@ -77,13 +81,12 @@ class HivePersistenceManager with HiveBase {
     List<int>? secretAsUint8List;
     try {
       atsign = atsign.trim().toLowerCase();
-      logger.finest('getHiveSecretFromFile fetching hiveSecretString for ' +
-          atsign +
-          ' from file');
+      logger.finest(
+          'getHiveSecretFromFile fetching hiveSecretString for $atsign from file');
       var path = storagePath;
-      var fileName = AtUtils.getShaForAtSign(atsign) + '.hash';
-      var filePath = path + '/' + fileName;
-      logger.finest('getHiveSecretFromFile found filePath: ' + filePath);
+      var fileName = '${AtUtils.getShaForAtSign(atsign)}.hash';
+      var filePath = '$path/$fileName';
+      logger.finest('getHiveSecretFromFile found filePath: $filePath');
       String hiveSecretString;
       var exists = File(filePath).existsSync();
       if (exists) {
@@ -102,7 +105,7 @@ class HivePersistenceManager with HiveBase {
         newFile.writeAsStringSync(hiveSecretString);
       }
     } on Exception catch (exception) {
-      logger.severe('getHiveSecretFromFile exception: ' + exception.toString());
+      logger.severe('getHiveSecretFromFile exception: $exception');
     } catch (error) {
       logger.severe('getHiveSecretFromFile caught error: $error');
     }
@@ -112,8 +115,8 @@ class HivePersistenceManager with HiveBase {
   //TODO change into to Duration and construct cron string dynamically
   void scheduleKeyExpireTask(int runFrequencyMins) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
-    var cron = Cron();
-    cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+    _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+      await Future.delayed(Duration(seconds: _random.nextInt(12)));
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)!
           .getSecondaryKeyStore()!;
