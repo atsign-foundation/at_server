@@ -218,7 +218,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -363,7 +363,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -415,7 +415,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -468,7 +468,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -539,7 +539,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -582,7 +582,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -624,7 +624,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -682,7 +682,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.0.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
