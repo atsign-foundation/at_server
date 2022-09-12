@@ -122,9 +122,6 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
-    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
-    env:
-      testingMode: true
 
     steps:
       - uses: actions/checkout@v3.0.2
