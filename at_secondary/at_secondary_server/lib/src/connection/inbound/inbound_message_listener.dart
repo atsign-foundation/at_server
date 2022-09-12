@@ -37,6 +37,15 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
+    //ignore the data read if the connection is stale or closed
+    if (connection.getMetaData().isStale || connection.getMetaData().isClosed){
+      _buffer.clear();
+      //close if a stale connection is still open as stale connections are not useful
+      if (!connection.getMetaData().isClosed){
+        await _closeConnection();
+      }
+      return ;
+    }
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();

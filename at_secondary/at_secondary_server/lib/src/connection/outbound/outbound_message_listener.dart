@@ -11,22 +11,33 @@ class OutboundMessageListener {
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
   late Queue _queue;
+  var _connection;
 
-  OutboundMessageListener(this.outboundClient);
+  OutboundMessageListener(this.outboundClient){
+    this._connection = outboundClient.outboundConnection!;
+  }
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
-  void listen() {
-    var connection = outboundClient.outboundConnection!;
-    connection.getSocket().listen(_messageHandler,
+  void listen() async {
+    _connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
     _queue = Queue();
-    connection.getMetaData().isListening = true;
+    _connection.getMetaData().isListening = true;
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
   Future<void> _messageHandler(data) async {
+    //ignore the data if connection is closed or stale
+    if (_connection.getMetaData().isStale || _connection.getMetaData().isClosed){
+      _buffer.clear();
+      //close if a stale connection is still open as stale connections are not useful
+      if (!_connection.getMetaData().isClosed){
+        await _closeOutboundClient();
+      }
+      return ;
+    }
     String result;
     if (!_buffer.isOverFlow(data)) {
       // skip @ prompt. byte code for @ is 64
