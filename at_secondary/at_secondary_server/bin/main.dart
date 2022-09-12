@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:args/args.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/bootstrapper.dart';
@@ -17,8 +20,11 @@ Future<void> main(List<String> arguments) async {
   try {
     var bootStrapper = SecondaryServerBootStrapper(arguments);
     await bootStrapper.run();
+  } on ArgParserException catch (e) {
+    logger.shout(e.message);
+    exit(1);
   } on Exception catch (e) {
-    logger.severe('Exception in starting secondary server: ${e.toString()}');
-    await GlobalExceptionHandler.getInstance().handle(e);
+    logger.shout('Unexpected exception while starting secondary server: ${e.toString()}');
+    exit(1);
   }
 }

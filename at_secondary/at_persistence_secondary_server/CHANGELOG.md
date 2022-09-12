@@ -1,3 +1,6 @@
+## 3.0.35
+- fix: Randomize the cron job's start interval
+- fix: Reduce the default notification expiry duration
 ## 3.0.34
 * fix: Reverted dependency on 'meta' package to ^1.7.0 as flutter_test package (currently) requires 1.7.0
 ## 3.0.33
