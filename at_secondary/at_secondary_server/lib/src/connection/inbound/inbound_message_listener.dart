@@ -39,6 +39,7 @@ class InboundMessageListener {
   Future<void> _messageHandler(data) async {
     //ignore the data read if the connection is stale or closed
     if (connection.getMetaData().isStale || connection.getMetaData().isClosed){
+      //clear buffer as data is redundant
       _buffer.clear();
       return ;
     }

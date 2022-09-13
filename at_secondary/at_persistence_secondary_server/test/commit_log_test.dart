@@ -91,6 +91,46 @@ void main() async {
       expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
     });
 
+    test('test to verify commitId does not increment for privatekey', () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'privatekey:testkey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test('test to verify commitId does not increment for signing public key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'public:signing_publickey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test('test to verify commitId does not increment for signing private key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          '@alice:signing_privatekey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test(
+        'test to verify commitId does not increment for key starting with private:',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'private:testkey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
     test(
         'test to verify commitId does increment for public hidden keys with multiple __',
         () async {
