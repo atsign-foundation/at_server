@@ -32,10 +32,6 @@ class OutboundMessageListener {
     //ignore the data if connection is closed or stale
     if (_connection.getMetaData().isStale || _connection.getMetaData().isClosed){
       _buffer.clear();
-      //close if a stale connection is still open as stale connections are not useful
-      if (!_connection.getMetaData().isClosed){
-        await _closeOutboundClient();
-      }
       return ;
     }
     String result;
