@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_typing_uninitialized_variables
+
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -93,8 +95,8 @@ class AtConfig {
   Future<AtData?> get(String key) async {
     var value;
     try {
-      var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.getBox()?.get(hive_key);
+      var hiveKey = keyStoreHelper.prepareKey(key);
+      value = await persistenceManager.getBox()?.get(hiveKey);
       return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');

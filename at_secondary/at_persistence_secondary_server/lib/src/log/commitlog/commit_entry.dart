@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -25,6 +27,7 @@ class CommitEntry extends HiveObject {
 
   String? get atKey => _atKey;
 
+  // ignore: unnecessary_getters_setters
   CommitOp? get operation => _operation;
 
   DateTime? get opTime => _opTime;
@@ -79,6 +82,7 @@ class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
   }
 
   @override
+  // ignore: avoid_renaming_method_parameters
   void write(BinaryWriter writer, CommitEntry entry) {
     writer
       ..writeByte(4)
@@ -103,6 +107,7 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
     var fields = <int, dynamic>{
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read()
     };
+    // ignore: prefer_typing_uninitialized_variables
     var commitOp;
     switch (fields[0]) {
       case '-':
@@ -122,6 +127,7 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
   }
 
   @override
+  // ignore: avoid_renaming_method_parameters
   void write(BinaryWriter writer, CommitOp? commitOp) {
     writer
       ..writeByte(1)

@@ -1,11 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
@@ -39,6 +36,7 @@ class AtCommitLog implements AtLogType {
                 '@(?<sharedWith>.*):signing_privatekey@(?<sharedBy>.*)')))) {
       return -1;
     }
+    // ignore: prefer_typing_uninitialized_variables
     var result;
     key = Utf7.decode(key);
     var entry = CommitEntry(key, operation, DateTime.now().toUtc());
@@ -74,6 +72,7 @@ class AtCommitLog implements AtLogType {
   /// throws [DataStoreException] if there is an exception getting the commit entries
   Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
+    // ignore: prefer_typing_uninitialized_variables
     var changes;
     try {
       changes = _commitLogKeyStore.getChanges(sequenceNumber!,

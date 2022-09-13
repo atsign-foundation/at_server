@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_typing_uninitialized_variables
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
@@ -193,6 +195,7 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   }
 
   @override
+  // ignore: avoid_renaming_method_parameters
   void write(BinaryWriter writer, AtNotification atNotification) {
     writer
       ..writeByte(18)

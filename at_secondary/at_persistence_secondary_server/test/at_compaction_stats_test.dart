@@ -6,7 +6,7 @@ import 'package:test/scaffolding.dart';
 import 'package:uuid/uuid.dart';
 
 Future<void> main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
   AtAccessLog? atAccessLog = await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@alice', accessLogPath: storageDir);
   AtCommitLog? atCommitLog = await AtCommitLogManagerImpl.getInstance()

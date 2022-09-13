@@ -1,10 +1,10 @@
 import 'dart:collection';
 
+// ignore: unused_import
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
@@ -15,6 +15,7 @@ class AccessLogKeyStore
     implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
 
+  // ignore: prefer_typing_uninitialized_variables
   final _currentAtSign;
   late String _boxName;
 
@@ -22,6 +23,7 @@ class AccessLogKeyStore
 
   @override
   Future<void> initialize() async {
+    // ignore: prefer_interpolation_to_compose_strings
     _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
 
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
@@ -32,6 +34,7 @@ class AccessLogKeyStore
 
   @override
   Future add(AccessLogEntry? accessLogEntry) async {
+    // ignore: prefer_typing_uninitialized_variables
     var result;
     try {
       result = await _getBox().add(accessLogEntry);
@@ -218,6 +221,7 @@ class AccessLogKeyStore
   Future<Map>? _toMap() async {
     var accessLogMap = {};
     var keys = _getBox().keys;
+    // ignore: prefer_typing_uninitialized_variables
     var value;
     await Future.forEach(keys, (key) async {
       value = await getValue(key);

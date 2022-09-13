@@ -136,6 +136,7 @@ class AtMetaData extends HiveObject {
       pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       encoding = json[ENCODING];
     } catch (error) {
+      // ignore: prefer_interpolation_to_compose_strings
       print('AtMetaData.fromJson error: ' + error.toString());
     }
     return this;

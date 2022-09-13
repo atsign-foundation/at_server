@@ -1,4 +1,3 @@
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -58,6 +57,7 @@ class AccessLogEntryAdapter extends TypeAdapter<AccessLogEntry> {
   }
 
   @override
+  // ignore: avoid_renaming_method_parameters
   void write(BinaryWriter writer, AccessLogEntry accessLogEntry) {
     writer
       ..writeByte(4)

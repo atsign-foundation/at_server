@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_typing_uninitialized_variables, non_constant_identifier_names
+
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
@@ -46,8 +48,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<AtData?> get(String key) async {
     var value;
     try {
-      String hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.getBox().get(hive_key);
+      String hiveKey = keyStoreHelper.prepareKey(key);
+      value = await persistenceManager.getBox().get(hiveKey);
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
