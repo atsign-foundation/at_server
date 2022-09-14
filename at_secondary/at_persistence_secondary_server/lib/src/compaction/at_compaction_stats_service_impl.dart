@@ -13,7 +13,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   AtCompactionStatsServiceImpl(
       this.atLogType, this._secondaryPersistenceStore) {
     _getKey();
-    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore();
+    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
   }
 
   late AtLogType atLogType;

@@ -14,7 +14,7 @@ class AtConfig {
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   final String? _atSign;
-  AtCommitLog _commitLog;
+  AtCommitLog? _commitLog;
   late HivePersistenceManager persistenceManager;
 
   void init(AtCommitLog commitLog) {
@@ -91,7 +91,7 @@ class AtConfig {
 
   ///Returns [AtData] value for given [key].
   Future<AtData?> get(String key) async {
-    AtData value;
+    AtData? value;
     try {
       var hiveKey = keyStoreHelper.prepareKey(key);
       value = await (persistenceManager.getBox() as LazyBox).get(hiveKey);
@@ -135,7 +135,7 @@ class AtConfig {
     logger.finest('hive key:$configKey');
     logger.finest('hive value:$newData');
     await persistenceManager.getBox().put(configKey, newData);
-    await _commitLog.commit(configKey, CommitOp.UPDATE);
+    await _commitLog!.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
   }
