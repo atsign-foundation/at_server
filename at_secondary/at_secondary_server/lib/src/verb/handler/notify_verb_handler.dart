@@ -108,8 +108,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
             Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
                 .inMilliseconds;
       } else {
-        ttlnMillis =
-            AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
+        ttlnMillis = Duration(
+                minutes:
+                    AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]))
+            .inMilliseconds;
       }
       if (AtMetadataUtil.validateTTB(verbParams[AT_TTB]) > 0) {
         ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
