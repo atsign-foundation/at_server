@@ -29,7 +29,7 @@ class CommitLogKeyStore
 
   @override
   Future<void> initialize() async {
-    _boxName = 'commit_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    _boxName = 'commit_log_${AtUtils.getShaForAtSign(_currentAtSign)}';
     if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
       Hive.registerAdapter(CommitEntryAdapter());
     }
@@ -129,7 +129,7 @@ class CommitLogKeyStore
   @override
   Future<void> remove(int commitId) async {
     try {
-      final commitEntry = (await _getBox() as Box).get(commitId);
+      final commitEntry = (_getBox() as Box).get(commitId);
       await _getBox().delete(commitId);
       // invalidate cache for the removed entry
       if (commitEntry != null) {

@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -8,12 +10,7 @@ class CommitEntry extends HiveObject {
   final String? _atKey;
 
   @HiveField(1)
-  CommitOp? _operation;
-
-  // ignore: unnecessary_getters_setters
-  set operation(CommitOp? value) {
-    _operation = value;
-  }
+  CommitOp? operation;
 
   @HiveField(2)
   final DateTime? _opTime;
@@ -21,11 +18,9 @@ class CommitEntry extends HiveObject {
   @HiveField(3)
   int? commitId;
 
-  CommitEntry(this._atKey, this._operation, this._opTime);
+  CommitEntry(this._atKey, this.operation, this._opTime);
 
   String? get atKey => _atKey;
-
-  CommitOp? get operation => _operation;
 
   DateTime? get opTime => _opTime;
 
@@ -79,17 +74,17 @@ class CommitEntryAdapter extends TypeAdapter<CommitEntry> {
   }
 
   @override
-  void write(BinaryWriter writer, CommitEntry entry) {
+  void write(BinaryWriter writer, CommitEntry obj) {
     writer
       ..writeByte(4)
       ..writeByte(0)
-      ..write(entry.atKey)
+      ..write(obj.atKey)
       ..writeByte(1)
-      ..write(entry.operation)
+      ..write(obj.operation)
       ..writeByte(2)
-      ..write(entry.opTime)
+      ..write(obj.opTime)
       ..writeByte(3)
-      ..write(entry.commitId);
+      ..write(obj.commitId);
   }
 }
 
@@ -103,7 +98,7 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
     var fields = <int, dynamic>{
       for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read()
     };
-    var commitOp;
+    CommitOp? commitOp;
     switch (fields[0]) {
       case '-':
         commitOp = CommitOp.DELETE;
@@ -122,11 +117,11 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
   }
 
   @override
-  void write(BinaryWriter writer, CommitOp? commitOp) {
+  void write(BinaryWriter writer, CommitOp? obj) {
     writer
       ..writeByte(1)
       ..writeByte(0)
-      ..write(commitOp.name);
+      ..write(obj.name);
   }
 }
 
