@@ -10,7 +10,7 @@ void main() async {
       ..pubKeyCS = 'xyz'
       ..sharedKeyEnc = 'abc'
       ..isBinary = false;
-    final atMetaData = AtMetadataAdapter(metaData)!;
+    final atMetaData = atMetadataAdapter(metaData)!;
     expect(atMetaData.ttl, 1000);
     expect(atMetaData.isCascade, true);
     expect(atMetaData.pubKeyCS, 'xyz');
