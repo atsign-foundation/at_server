@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
   setUp(() async => await setUpFunc(storageDir));
   group('A group of notification keystore impl tests', () {
     test('test put and get', () async {

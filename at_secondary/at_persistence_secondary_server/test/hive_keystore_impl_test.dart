@@ -10,7 +10,7 @@ import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
   setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
     test('test update', () async {
