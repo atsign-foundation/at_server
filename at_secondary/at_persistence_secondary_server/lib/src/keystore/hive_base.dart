@@ -54,7 +54,7 @@ mixin HiveBase<E> {
 
   int getSize() {
     var logSize = 0;
-    var logLocation = Directory(this.storagePath);
+    var logLocation = Directory(storagePath);
 
     //The listSync function returns the list of files in the commit log storage location.
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function

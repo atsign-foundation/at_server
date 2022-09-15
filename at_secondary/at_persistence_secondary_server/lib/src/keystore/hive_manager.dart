@@ -12,7 +12,7 @@ import 'hive_base.dart';
 class HivePersistenceManager with HiveBase {
   final logger = AtSignLogger('HivePersistenceManager');
 
-  String? _atsign;
+  final String? _atsign;
 
   String? get atsign => _atsign;
   late String _boxName;
