@@ -152,7 +152,7 @@ void main() async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
           .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-      await AtConfig(commitLogInstance,
+      await AtConfig(commitLogInstance!,
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -259,8 +259,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   keyStoreManager.keyStore = hiveKeyStore;
   AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
   AtConfig(
-   await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
+   await AtCommitLogManagerImpl.getInstance().getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
       AtSecondaryServerImpl.getInstance().currentAtSign);
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@alice', accessLogPath: storageDir);
