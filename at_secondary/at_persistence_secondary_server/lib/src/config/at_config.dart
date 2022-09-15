@@ -14,8 +14,8 @@ class AtConfig {
   String configKey = 'configKey';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   final String? _atSign;
-  var _commitLog;
-  var persistenceManager;
+  AtCommitLog? _commitLog;
+  late HivePersistenceManager persistenceManager;
 
   void init(AtCommitLog commitLog) {
     _commitLog = commitLog;
@@ -24,12 +24,12 @@ class AtConfig {
   AtConfig(this._commitLog, this._atSign) {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)!
-        .getHivePersistenceManager();
+        .getHivePersistenceManager()!;
   }
 
   ///Returns 'success' on adding unique [data] into blocklist.
   Future<String> addToBlockList(Set<String> data) async {
-    var result;
+    String result;
     try {
       assert(data.isNotEmpty);
       var existingData = await get(configKey);
@@ -50,7 +50,7 @@ class AtConfig {
 
   ///removes [data] from blocklist if satisfies basic conditions.
   Future<String?> removeFromBlockList(Set<String> data) async {
-    var result;
+    String? result;
     try {
       assert(data.isNotEmpty);
       var existingData = await get(configKey);
@@ -91,10 +91,10 @@ class AtConfig {
 
   ///Returns [AtData] value for given [key].
   Future<AtData?> get(String key) async {
-    var value;
+    AtData? value;
     try {
-      var hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.getBox()?.get(hive_key);
+      var hiveKey = keyStoreHelper.prepareKey(key);
+      value = await (persistenceManager.getBox() as LazyBox).get(hiveKey);
       return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');
@@ -123,7 +123,7 @@ class AtConfig {
 
   ///Returns 'success' after successfully persisiting data into secondary.
   Future<String> prepareAndStoreData(config, [existingData]) async {
-    var result;
+    String result;
     configKey = keyStoreHelper.prepareKey(configKey);
     var newData = AtData();
     newData.data = jsonEncode(config);
@@ -134,8 +134,8 @@ class AtConfig {
     }
     logger.finest('hive key:$configKey');
     logger.finest('hive value:$newData');
-    await persistenceManager.getBox()?.put(configKey, newData);
-    await _commitLog.commit(configKey, CommitOp.UPDATE);
+    await persistenceManager.getBox().put(configKey, newData);
+    await _commitLog!.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
   }
