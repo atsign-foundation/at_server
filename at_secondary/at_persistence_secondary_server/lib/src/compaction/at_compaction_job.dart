@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
@@ -9,6 +11,7 @@ class AtCompactionJob {
   AtLogType atLogType;
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
+  static final Random _random = Random();
 
   AtCompactionJob(this.atLogType, this._secondaryPersistenceStore);
 
@@ -18,6 +21,9 @@ class AtCompactionJob {
     _schedule =
         _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
       var compactionService = AtCompactionService.getInstance();
+      // adding delay to randomize the cron jobs
+      // Generates a random number between 0 and 12 and wait's for that many seconds.
+      await Future.delayed(Duration(seconds: _random.nextInt(12)));
       compactionService.executeCompaction(
           atCompactionConfig, atLogType, _secondaryPersistenceStore);
     });

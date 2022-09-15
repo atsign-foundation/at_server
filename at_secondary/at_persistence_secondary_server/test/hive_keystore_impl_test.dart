@@ -184,7 +184,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      expect((() async => await keyStore.put('privatekey:mykey', atData)),
+      await expectLater(keyStore.put('privatekey:mykey', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
@@ -194,7 +194,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      expect((() async => await keyStore.create('hello123', atData)),
+      await expectLater(keyStore.create('hello123', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
@@ -204,7 +204,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      expect((() async => await keyStore.put('hello@', atData)),
+      await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
@@ -214,7 +214,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      expect((() async => await keyStore.put('privatekey:mykey', atData)),
+      await expectLater(keyStore.put('privatekey:mykey', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 
@@ -224,7 +224,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      expect((() async => await keyStore.put('hello@', atData)),
+      await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
 // tests commented for coverage. runs fine with pub run test or in IDE
