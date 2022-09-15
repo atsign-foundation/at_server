@@ -331,6 +331,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @client
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
+    final atKeyType = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKeyType == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
     try {
       var result;
       String hive_key = keyStoreHelper.prepareKey(key);
