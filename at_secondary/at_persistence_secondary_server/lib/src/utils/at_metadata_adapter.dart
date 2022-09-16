@@ -1,7 +1,8 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
-AtMetaData? atMetadataAdapter(Metadata metadata) {
+// ignore: non_constant_identifier_names
+AtMetaData? AtMetadataAdapter(Metadata metadata) {
   var atMetadata = AtMetaData();
   atMetadata
     ..ttl = metadata.ttl
