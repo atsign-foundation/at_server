@@ -113,7 +113,7 @@ class SecondaryUtil {
     return result;
   }
 
-  NotificationPriority getNotificationPriority(String? arg1) {
+  static NotificationPriority getNotificationPriority(String? arg1) {
     if (arg1 == null) {
       return NotificationPriority.low;
     }
@@ -129,7 +129,7 @@ class SecondaryUtil {
     }
   }
 
-  MessageType getMessageType(String? arg1) {
+  static MessageType getMessageType(String? arg1) {
     if (arg1 == null) {
       return MessageType.key;
     }

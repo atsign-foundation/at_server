@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:test/test.dart';
+import 'package:version/version.dart';
 
 import 'e2e_test_utils.dart' as e2e;
 
@@ -33,7 +36,8 @@ void main() {
     await sh1.writeCommand('update:public:phone$atSign_1 9982212143');
     String response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///PLOOKUP VERB
     await sh2.writeCommand('plookup:phone$atSign_1');
@@ -47,7 +51,8 @@ void main() {
     await sh1.writeCommand('update:$atSign_2:mobile$atSign_1 9982212143');
     String response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///PLOOKUP VERB
     await sh2.writeCommand('plookup:mobile$atSign_1$atSign_2');
@@ -64,7 +69,18 @@ void main() {
     await sh1.writeCommand('plookup:no-key$atSign_1');
     String response = await sh1.read();
     print('plookup verb response $response');
-    expect(response, contains('error:AT0015-key not found : public:no-key$atSign_1 does not exist in keystore'));
+    var version = await sh1.getVersion();
+    print(version);
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 23)) {
+      response = response.replaceFirst('error:', '');
+      var errorMap = jsonDecode(response);
+      expect(errorMap['errorCode'], 'AT0015');
+      assert(errorMap['errorDescription'].contains('key not found'));
+    } else {
+      expect(response,
+          contains('public:no-key$atSign_1 does not exist in keystore'));
+    }
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('plookup for an emoji key', () async {
@@ -72,7 +88,8 @@ void main() {
     await sh1.writeCommand('update:public:🦄🦄$atSign_1 2-unicorn-emojis');
     String response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('data:null') && (!response.contains('Invalid syntax'))));
+    assert((!response.contains('data:null') &&
+        (!response.contains('Invalid syntax'))));
 
     ///PLOOKUP VERB
     await sh2.writeCommand('plookup:🦄🦄$atSign_1');
@@ -97,7 +114,8 @@ void main() {
     await sh1.writeCommand('update:public:key-1$atSign_1 9102');
     String response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///PLOOKUP VERB
     await sh2.writeCommand('plookup:key-1$atSign_1');
@@ -112,12 +130,14 @@ void main() {
     assert(response.contains('cached:public:key-1$atSign_1'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('plookup verb with public key -updating same key multiple times', () async {
+  test('plookup verb with public key -updating same key multiple times',
+      () async {
     /// UPDATE VERB
     await sh1.writeCommand('update:public:fav-series$atSign_1 Friends');
     String response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///PLOOKUP VERB after updating same key multiple times
     await sh1.writeCommand('plookup:fav-series$atSign_1');
@@ -129,7 +149,8 @@ void main() {
     await sh1.writeCommand('update:public:fav-series$atSign_1 young sheldon');
     response = await sh1.read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///PLOOKUP VERB after updating same key second time
     await sh1.writeCommand('plookup:fav-series$atSign_1');
@@ -137,5 +158,4 @@ void main() {
     print('plookup verb response $response');
     expect(response, contains('data:young sheldon'));
   }, timeout: Timeout(Duration(seconds: 120)));
-
 }

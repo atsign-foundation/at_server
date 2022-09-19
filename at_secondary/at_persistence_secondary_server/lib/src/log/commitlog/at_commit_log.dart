@@ -1,8 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
@@ -32,10 +30,13 @@ class AtCommitLog implements AtLogType {
     // So return -1.
     // The private: and privatekey: are not synced. so return -1.
     if (!key.startsWith('public:__') &&
-        key.startsWith(RegExp('private:|privatekey:|public:_'))) {
+        (key.startsWith(RegExp(
+                'private:|privatekey:|public:_|public:signing_publickey')) ||
+            key.startsWith(RegExp(
+                '@(?<sharedWith>.*):signing_privatekey@(?<sharedBy>.*)')))) {
       return -1;
     }
-    var result;
+    int result;
     key = Utf7.decode(key);
     var entry = CommitEntry(key, operation, DateTime.now().toUtc());
     try {
@@ -70,7 +71,7 @@ class AtCommitLog implements AtLogType {
   /// throws [DataStoreException] if there is an exception getting the commit entries
   Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
-    var changes;
+    Future<List<CommitEntry>> changes;
     try {
       changes = _commitLogKeyStore.getChanges(sequenceNumber!,
           regex: regex, limit: limit);
@@ -80,6 +81,7 @@ class AtCommitLog implements AtLogType {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
+    // ignore: unnecessary_null_comparison
     if (changes == null) {
       return [];
     }

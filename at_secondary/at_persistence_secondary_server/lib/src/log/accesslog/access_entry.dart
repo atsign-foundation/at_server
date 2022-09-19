@@ -1,4 +1,3 @@
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -58,16 +57,16 @@ class AccessLogEntryAdapter extends TypeAdapter<AccessLogEntry> {
   }
 
   @override
-  void write(BinaryWriter writer, AccessLogEntry accessLogEntry) {
+  void write(BinaryWriter writer, AccessLogEntry obj) {
     writer
       ..writeByte(4)
       ..writeByte(0)
-      ..write(accessLogEntry.fromAtSign)
+      ..write(obj.fromAtSign)
       ..writeByte(1)
-      ..write(accessLogEntry.requestDateTime)
+      ..write(obj.requestDateTime)
       ..writeByte(2)
-      ..write(accessLogEntry.verbName)
+      ..write(obj.verbName)
       ..writeByte(3)
-      ..write(accessLogEntry.lookupKey);
+      ..write(obj.lookupKey);
   }
 }

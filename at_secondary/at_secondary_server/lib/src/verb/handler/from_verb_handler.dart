@@ -30,7 +30,7 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.from) + ':');
+      command.startsWith('${getName(VerbEnum.from)}:');
 
   @override
   Verb getVerb() {

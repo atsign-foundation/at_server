@@ -21,14 +21,16 @@ class NotificationUtil {
       String? value,
       NotificationStatus? notificationStatus,
       String? id,
-      AtMetaData? atMetaData}) async {
+      AtMetaData? atMetaData,
+      AtNotificationBuilder? atNotificationBuilder}) async {
+    atNotificationBuilder ??= AtNotificationBuilder();
     try {
       if (forAtSign == null) {
         return null;
       }
       forAtSign = AtUtils.formatAtSign(forAtSign);
       fromAtSign = AtUtils.formatAtSign(fromAtSign);
-      final notificationBuilder = AtNotificationBuilder()
+      final notificationBuilder = atNotificationBuilder
         ..fromAtSign = fromAtSign
         ..toAtSign = forAtSign
         ..notification = key

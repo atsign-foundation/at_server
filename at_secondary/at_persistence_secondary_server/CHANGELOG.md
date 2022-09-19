@@ -1,3 +1,7 @@
+## 3.0.36
+- fix: skip commit id and sync for signing keys
+- fix: dart analyzer issues
+- chore: upgrade third party dependencies
 ## 3.0.35
 - fix: Randomize the cron job's start interval
 - fix: Reduce the default notification expiry duration
