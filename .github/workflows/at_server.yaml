@@ -530,7 +530,7 @@ jobs:
 
       - name: Place canary version into pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
+        run: sed -i '0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/' pubspec.yaml
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.0.0
