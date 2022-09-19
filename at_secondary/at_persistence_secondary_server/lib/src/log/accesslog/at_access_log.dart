@@ -8,6 +8,7 @@ import 'package:hive/hive.dart';
 class AtAccessLog implements AtLogType {
   var logger = AtSignLogger('AtAccessLog');
 
+  // ignore: prefer_typing_uninitialized_variables
   late var _accessLogKeyStore;
 
   AtAccessLog(AccessLogKeyStore keyStore) {
@@ -20,7 +21,7 @@ class AtAccessLog implements AtLogType {
   ///@param lookupKey : The optional parameter to hold lookup key when performing lookup or plookup verb.
   Future<int?> insert(String fromAtSign, String verbName,
       {String? lookupKey}) async {
-    var result;
+    int? result;
     var entry = AccessLogEntry(fromAtSign, DateTime.now(), verbName, lookupKey);
     try {
       result = await _accessLogKeyStore.add(entry);

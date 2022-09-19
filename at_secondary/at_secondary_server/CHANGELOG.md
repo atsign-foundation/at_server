@@ -1,5 +1,6 @@
 ## 3.0.23
-- fix: fixes to optimize the memory usage 
+- fix: fixes to optimize the memory usage
+- feat: Return error codes and JSON encode the error response
 ## 3.0.22
 - feat: Add key validations
 - feat: Enhance from verb to have client config
