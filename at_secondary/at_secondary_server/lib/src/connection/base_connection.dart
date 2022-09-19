@@ -54,6 +54,7 @@ abstract class BaseConnection extends AtConnection {
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
       getMetaData().isStale = true;
+      logger.severe(e.toString());
       throw AtIOException(e.toString());
     }
   }
