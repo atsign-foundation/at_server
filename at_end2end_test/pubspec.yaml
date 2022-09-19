@@ -12,10 +12,10 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup: ^3.0.22
-  at_client: ^3.0.20
+  at_lookup: ^3.0.29
 
 
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.14.4
+  version: ^3.0.2
