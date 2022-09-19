@@ -139,7 +139,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
             forAtSign,
             verbParams[AT_KEY],
             value,
-            SecondaryUtil().getNotificationPriority(verbParams[PRIORITY]),
+            SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
             atMetadata);
       }
 

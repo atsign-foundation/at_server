@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -6,6 +7,7 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:version/version.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 var logger = AtSignLogger('GlobalExceptionHandler');
@@ -54,6 +56,7 @@ class GlobalExceptionHandler {
       // This is SEVERE and requires different handling so we use _handleInboundLimit
       logger.severe(exception.toString());
       await _handleInboundLimit(exception, clientSocket!);
+
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -110,13 +113,21 @@ class GlobalExceptionHandler {
         var errorCode = getErrorCode(exception);
         errorCode ??= 'AT0011';
 
-        var errorDescription;
-        if (exception is AtException) {
+        String errorDescription;
+        // To avoid duplication of error description in the error message add errorDescription only on
+        // the sender side (not on the receiver side).
+        // For example if @alice performs lookup verb to @bob and @bob returns key not found exception
+        // add error description only on @alice (not on @bob)
+        // When connecting to other secondaries for lookup verb, a pol authenticated connection
+        // is established. atConnection.getMetaData().isPolAuthenticated is set to true.
+        // When a user connects to his own secondary, an authenticate connection is created.
+        // atConnection.getMetaData().isAuthenticated is set to true.
+        if (exception is AtException &&
+            atConnection.getMetaData().isAuthenticated) {
           errorDescription =
               '${getErrorDescription(errorCode)} : ${exception.message}';
         } else {
-          errorDescription =
-              '${getErrorDescription(errorCode)} : ${exception.toString()}';
+          errorDescription = exception.toString();
         }
         _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
@@ -140,6 +151,24 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? errorCode, String errorDescription) {
+    if (atConnection.getMetaData().clientVersion ==
+        AtConnectionMetaData.clientVersionNotAvailable) {
+      atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+      return;
+    }
+    // The JSON encoding of error message is supported by the client versions greater than 3.0.37
+    if (Version.parse(atConnection.getMetaData().clientVersion) >
+        Version(3, 0, 37)) {
+      logger.info(
+          'Client version supports json encoding.. returning Json encoded error message');
+      var errorJsonMap = {
+        'errorCode': errorCode,
+        'errorDescription': errorDescription
+      };
+      atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
+      return;
+    }
+    // Defaults to return the error message in string format if all the conditions fails
     atConnection.write('error:$errorCode-$errorDescription\n$prompt');
   }
 }

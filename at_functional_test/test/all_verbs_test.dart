@@ -99,17 +99,12 @@ void main() async {
     print('config verb response $response');
     expect(response, contains('data:null'));
   });
-  
-  //FOR THESE TESTS TO WORK/PASS SET testingMode TO TRUE THROUGH ENV VARIABLES
-// Use "env: testingMode:true" in github actions to set the env mode for functional tests
+
+//FOR THESE TESTS TO WORK/PASS SET testingMode TO TRUE THROUGH ENV VARIABLES
 // Use "docker run -d --rm --name at_virtual_env_cont -e testingMode=true -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk" to set testngMode to true in docker container
 
 //THE FOLLOWING TESTS ONLY WORK WHEN IN TESTING MODE
   test('config verb test set-reset-print operation', () async {
-    //ensuring that the testingMode env var is set to true
-    if (Platform.environment['testingMode']!.toLowerCase() == 'true'
-        ? true
-        : false) {
       //the below block of code sets the commit log compaction freq to  4
       await socket_writer(
           socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
@@ -132,17 +127,9 @@ void main() async {
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:30'));
-    } else {
-      print(
-          'asserting true forcefully. Set testingMode to true for the test to work.'
-          'Refer docs in at_functional_tests/test/all_verbs_test present at config verb test set-reset-print');
-    }
   });
 
   test('config verb test set-print', () async {
-    if (Platform.environment['testingMode']!.toLowerCase() == 'true'
-        ? true
-        : false) {
       //the block of code below sets max notification retries to 25
       await socket_writer(
           socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
@@ -157,11 +144,6 @@ void main() async {
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:25'));
-    } else {
-      print(
-          'asserting true forcefully. Set testingMode to true for the test to work.'
-          ' Refer docs in at_functional_tests/test/all_verbs_test present at config verb test set-reset-print');
-    }
   });
 
 

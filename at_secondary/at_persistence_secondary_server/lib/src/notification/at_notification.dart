@@ -12,25 +12,25 @@ class AtNotification {
   final String? _fromAtSign;
 
   @HiveField(2)
-  final _notificationDateTime;
+  final DateTime? _notificationDateTime;
 
   @HiveField(3)
-  final _toAtSign;
+  final String? _toAtSign;
 
   @HiveField(4)
-  final _notification;
+  final String? _notification;
 
   @HiveField(5)
-  final _type;
+  final NotificationType? _type;
 
   @HiveField(6)
-  final _opType;
+  final OperationType? _opType;
 
   @HiveField(7)
-  final _messageType;
+  final MessageType? _messageType;
 
   @HiveField(8)
-  final _expiresAt;
+  final DateTime? _expiresAt;
 
   @HiveField(9)
   NotificationPriority? priority;
@@ -42,22 +42,22 @@ class AtNotification {
   int retryCount;
 
   @HiveField(12)
-  final _strategy;
+  final String? _strategy;
 
   @HiveField(13)
-  final _notifier;
+  final String? _notifier;
 
   @HiveField(14)
-  final _depth;
+  final int? _depth;
 
   @HiveField(15)
-  final _atValue;
+  final String? _atValue;
 
   @HiveField(16)
-  final _atMetadata;
+  final AtMetaData? _atMetadata;
 
   @HiveField(17)
-  final _ttl;
+  final int? _ttl;
 
   AtNotification._builder(AtNotificationBuilder atNotificationBuilder)
       : _id = atNotificationBuilder.id,
@@ -142,7 +142,7 @@ class AtNotification {
   }
 
   bool isExpired() {
-    return _expiresAt != null && _expiresAt.isBefore(DateTime.now().toUtc());
+    return _expiresAt != null && _expiresAt!.isBefore(DateTime.now().toUtc());
   }
 }
 
@@ -193,45 +193,45 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   }
 
   @override
-  void write(BinaryWriter writer, AtNotification atNotification) {
+  void write(BinaryWriter writer, AtNotification obj) {
     writer
       ..writeByte(18)
       ..writeByte(0)
-      ..write(atNotification.id)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(atNotification.fromAtSign)
+      ..write(obj.fromAtSign)
       ..writeByte(2)
-      ..write(atNotification.notificationDateTime)
+      ..write(obj.notificationDateTime)
       ..writeByte(3)
-      ..write(atNotification.toAtSign)
+      ..write(obj.toAtSign)
       ..writeByte(4)
-      ..write(atNotification.notification)
+      ..write(obj.notification)
       ..writeByte(5)
-      ..write(atNotification.type)
+      ..write(obj.type)
       ..writeByte(6)
-      ..write(atNotification.opType)
+      ..write(obj.opType)
       ..writeByte(7)
-      ..write(atNotification.messageType)
+      ..write(obj.messageType)
       ..writeByte(8)
-      ..write(atNotification.expiresAt)
+      ..write(obj.expiresAt)
       ..writeByte(9)
-      ..write(atNotification.priority)
+      ..write(obj.priority)
       ..writeByte(10)
-      ..write(atNotification.notificationStatus)
+      ..write(obj.notificationStatus)
       ..writeByte(11)
-      ..write(atNotification.retryCount)
+      ..write(obj.retryCount)
       ..writeByte(12)
-      ..write(atNotification.strategy)
+      ..write(obj.strategy)
       ..writeByte(13)
-      ..write(atNotification.notifier)
+      ..write(obj.notifier)
       ..writeByte(14)
-      ..write(atNotification.depth)
+      ..write(obj.depth)
       ..writeByte(15)
-      ..write(atNotification.atValue)
+      ..write(obj.atValue)
       ..writeByte(16)
-      ..write(atNotification.atMetadata)
+      ..write(obj.atMetadata)
       ..writeByte(17)
-      ..write(atNotification.ttl);
+      ..write(obj.ttl);
   }
 }
 
@@ -416,7 +416,8 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
-  static const int _defaultTTLInHrs = 24;
+  static const int _defaultTTLInMins = 15;
+
   String? id = Uuid().v4();
 
   String? fromAtSign;
@@ -449,7 +450,7 @@ class AtNotificationBuilder {
 
   String? atValue;
 
-  int? ttl = Duration(hours: _defaultTTLInHrs).inMilliseconds;
+  int? ttl = Duration(minutes: _defaultTTLInMins).inMilliseconds;
 
   AtMetaData? atMetaData;
 
@@ -458,5 +459,27 @@ class AtNotificationBuilder {
       expiresAt = DateTime.now().toUtc().add(Duration(milliseconds: ttl!));
     }
     return AtNotification._builder(this);
+  }
+
+  reset() {
+    this
+      ..id = Uuid().v4()
+      ..fromAtSign = null
+      ..notificationDateTime = DateTime.now()
+      ..toAtSign = null
+      ..notification = null
+      ..type = null
+      ..opType = null
+      ..messageType = MessageType.key
+      ..expiresAt = null
+      ..priority = NotificationPriority.low
+      ..notificationStatus = NotificationStatus.queued
+      ..retryCount = 1
+      ..strategy = 'all'
+      ..notifier = 'system'
+      ..depth = 1
+      ..atValue = null
+      ..ttl = Duration(hours: _defaultTTLInMins).inMilliseconds
+      ..atMetaData = null;
   }
 }

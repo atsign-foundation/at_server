@@ -122,9 +122,6 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
-    # setting new env var "testingMode" to true. Needed for some of the functional tests to pass.
-    env:
-      testingMode: true
 
     steps:
       - uses: actions/checkout@v3.0.2
@@ -215,7 +212,7 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i "s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+        run: sed -i '0,/version/ s/version\:.*/&+gha${{ github.run_number }}/' pubspec.yaml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0

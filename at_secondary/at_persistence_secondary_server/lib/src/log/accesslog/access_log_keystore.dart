@@ -1,10 +1,8 @@
 import 'dart:collection';
 
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
@@ -15,14 +13,14 @@ class AccessLogKeyStore
     implements LogKeyStore<int, AccessLogEntry?> {
   var logger = AtSignLogger('AccessLogKeyStore');
 
-  final _currentAtSign;
+  final String _currentAtSign;
   late String _boxName;
 
   AccessLogKeyStore(this._currentAtSign);
 
   @override
   Future<void> initialize() async {
-    _boxName = 'access_log_' + AtUtils.getShaForAtSign(_currentAtSign);
+    _boxName = 'access_log_${AtUtils.getShaForAtSign(_currentAtSign)}';
 
     if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
       Hive.registerAdapter(AccessLogEntryAdapter());
@@ -32,7 +30,7 @@ class AccessLogKeyStore
 
   @override
   Future add(AccessLogEntry? accessLogEntry) async {
-    var result;
+    int result;
     try {
       result = await _getBox().add(accessLogEntry);
     } on Exception catch (e) {
@@ -218,7 +216,7 @@ class AccessLogKeyStore
   Future<Map>? _toMap() async {
     var accessLogMap = {};
     var keys = _getBox().keys;
-    var value;
+    AccessLogEntry? value;
     await Future.forEach(keys, (key) async {
       value = await getValue(key);
       accessLogMap.putIfAbsent(key, () => value);

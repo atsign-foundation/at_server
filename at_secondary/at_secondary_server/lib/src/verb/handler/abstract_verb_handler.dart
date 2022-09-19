@@ -16,7 +16,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   SecondaryKeyStore? keyStore;
 
   late AtSignLogger logger;
-  ResponseHandlerManager responseManager = DefaultResponseHandlerManager();
+  ResponseHandlerManager responseManager =
+      DefaultResponseHandlerManager.getInstance();
 
   AbstractVerbHandler(this.keyStore) {
     logger = AtSignLogger(runtimeType.toString());

@@ -22,9 +22,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   NotifyVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
+  AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
+
+  /// A hashmap which holds the AtMetadata objects.
+  /// The key represents if the notification text is encrypted or not
+  /// The value represents the AtMetadata object where isEncrypted flag set to appropriate state.
+  final Map<bool, AtMetaData> _atMetadataPool = {};
+
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.notify) + ':') &&
+      command.startsWith('${getName(VerbEnum.notify)}:') &&
       !command.startsWith('${getName(VerbEnum.notify)}:list') &&
       !command.startsWith('${getName(VerbEnum.notify)}:status') &&
       !command.startsWith('${getName(VerbEnum.notify)}:all') &&
@@ -62,7 +69,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AT_KEY];
     String? sharedKeyEncrypted = verbParams[SHARED_KEY_ENCRYPTED];
     String? pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
-    var messageType = SecondaryUtil().getMessageType(verbParams[MESSAGE_TYPE]);
+    var messageType = SecondaryUtil.getMessageType(verbParams[MESSAGE_TYPE]);
     var strategy = verbParams[STRATEGY];
     // If strategy is null, default it to strategy all.
     strategy ??= 'all';
@@ -97,7 +104,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       if (verbParams[AT_TTL_NOTIFICATION] == null ||
           verbParams[AT_TTL_NOTIFICATION] == '0') {
-        ttlnMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins).inMilliseconds;
+        ttlnMillis =
+            Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+                .inMilliseconds;
       } else {
         ttlnMillis =
             AtMetadataUtil.validateTTL(verbParams[AT_TTL_NOTIFICATION]);
@@ -123,12 +132,17 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       if (currentAtSign == forAtSign) {
         var notificationId = await NotificationUtil.storeNotification(
             forAtSign, atSign, key, NotificationType.received, opType,
-            value: atValue, ttlMillis: ttlnMillis, id: id);
+            value: atValue,
+            ttlMillis: ttlnMillis,
+            id: id,
+            atNotificationBuilder: atNotificationBuilder);
         response.data = notificationId;
+        atNotificationBuilder.reset();
         return;
       }
 
-      var atMetadata = AtMetaData();
+      var atMetadata = AtMetaData()
+        ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If operation type is update, set value and ttr to cache a key
       // If operation type is delete, set ttr when not null to delete the cached key.
       if ((opType == OperationType.update &&
@@ -152,13 +166,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       }
       atMetadata.isEncrypted =
           SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED]);
-      final notificationBuilder = AtNotificationBuilder()
+      final notificationBuilder = atNotificationBuilder
         ..fromAtSign = atSign
         ..toAtSign = forAtSign
         ..notification = key
         ..opType = opType
-        ..priority =
-            SecondaryUtil().getNotificationPriority(verbParams[PRIORITY])
+        ..priority = SecondaryUtil.getNotificationPriority(verbParams[PRIORITY])
         ..atValue = atValue
         ..notifier = notifier
         ..strategy = strategy
@@ -177,19 +190,31 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var notificationId = await NotificationManager.getInstance()
           .notify(notificationBuilder.build());
       response.data = notificationId;
+      atNotificationBuilder.reset();
       return;
     }
     if (atConnectionMetadata.isPolAuthenticated) {
       logger.info('Storing the notification $key');
+      // The atMetadata here represents if the notification text is encrypted or not.
+      // Hence to prevent creating AtMetadata instances for every notification,
+      // Creating AtMetadata instance on demand and adding it pool and reused.
+      _atMetadataPool.putIfAbsent(
+          SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED]),
+          () => AtMetaData()
+            ..isEncrypted =
+                SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])
+            ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign);
       await NotificationUtil.storeNotification(
           fromAtSign, forAtSign, key, NotificationType.received, opType,
           ttlMillis: ttlnMillis,
           value: atValue,
           id: id,
           messageType: messageType,
-          atMetaData: (AtMetaData()
-            ..isEncrypted =
-                SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])));
+          // Retrieving the atMetadata from the pool basing on if text is encrypted or not.
+          atMetaData: _atMetadataPool[
+              SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])],
+          atNotificationBuilder: atNotificationBuilder);
+      atNotificationBuilder.reset();
       // Setting isEncrypted variable to true. By default, value of all the keys are encrypted.
       // except for the public keys. So, if key is public set isEncrypted to false.
       var isEncrypted = true;
