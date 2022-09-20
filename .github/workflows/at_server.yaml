@@ -212,7 +212,7 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+gha${{ github.run_number }}/' pubspec.yaml
+        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -350,7 +350,7 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+gha${{ github.run_number }}/' pubspec.yaml
+        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -402,7 +402,7 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+gha${{ github.run_number }}/' pubspec.yaml
+        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -455,7 +455,7 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+gha${{ github.run_number }}/' pubspec.yaml
+        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -530,7 +530,7 @@ jobs:
 
       - name: Place canary version into pubspec.yaml
         working-directory: at_secondary/at_secondary_server
-        run: sed -i '0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/' pubspec.yaml
+        run: sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.0.0
