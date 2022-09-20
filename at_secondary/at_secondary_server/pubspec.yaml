@@ -25,7 +25,12 @@ dependencies:
   at_commons: 3.0.25
   version: 3.0.2
 
-#dependency_overrides:
+dependency_overrides:
+  at_lookup:  
+    git:
+     url: https://github.com/atsign-foundation/at_libraries.git
+     path: at_lookup
+     ref: fix_analyzer_issues
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git

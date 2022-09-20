@@ -16,7 +16,12 @@ dependencies:
   at_lookup: ^3.0.29
   
 
-# dependency_overrides:
+dependency_overrides:
+  at_lookup:  
+    git:
+     url: https://github.com/atsign-foundation/at_libraries.git
+     path: at_lookup
+     ref: fix_analyzer_issues
 #  at_client:
 #   git:
 #       url: https://github.com/atsign-foundation/at_client_sdk.git
