@@ -156,6 +156,10 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           publicKeyChecksum: publicKeyChecksum,
           encoding: encoding);
       response.data = result?.toString();
+      var sharedWithForKafka = forAtSign ?? 'None';
+      await KafkaMessageBus.getInstance().publish(
+          key!, atData, AtSecondaryServerImpl.getInstance().currentAtSign,
+          sharedWith: sharedWithForKafka);
     } on InvalidSyntaxException {
       rethrow;
     } on InvalidAtKeyException {
