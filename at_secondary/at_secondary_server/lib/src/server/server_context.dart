@@ -19,4 +19,7 @@ class AtSecondaryContext extends AtServerContext {
   AtSecurityContext? securityContext;
   SecondaryKeyStore? secondaryKeyStore;
   VerbExecutor? verbExecutor;
+  // When true, SecondaryServerImpl will gracefully shut down the service immediately
+  // after fully starting up.
+  bool trainingMode = false;
 }

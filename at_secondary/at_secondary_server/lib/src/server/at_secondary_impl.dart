@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_typing_uninitialized_variables
+
 import 'dart:io';
 import 'dart:math';
 
@@ -18,7 +20,6 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
@@ -231,6 +232,20 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.severe(stacktrace);
       throw AtServerException(error.toString());
     }
+
+    if (serverContext!.trainingMode) {
+      try {
+        logger.warning('Training mode set - stopping server');
+        // waiting a few milliseconds to allow the server socket to finish its initialization
+        await Future.delayed(Duration(milliseconds: 100));
+        await stop();
+      } catch (e) {
+        logger.severe('Caught exception $e in server stop()');
+      }
+      logger.warning('Training mode set - exiting');
+      exit(0);
+    }
+
     resume();
   }
 
@@ -341,14 +356,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.info('Server cannot accept connections now.');
         return;
       }
-      var _sessionID = '_' + Uuid().v4();
+      var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
         connection = inBoundConnectionManager.createConnection(clientSocket,
-            sessionId: _sessionID);
+            sessionId: sessionID);
         connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
         connection.write('@');
       } on InboundConnectionLimitException catch (e) {

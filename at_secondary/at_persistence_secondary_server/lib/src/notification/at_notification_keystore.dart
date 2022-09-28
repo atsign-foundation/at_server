@@ -1,3 +1,5 @@
+// ignore_for_file: non_constant_identifier_names
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -25,7 +27,7 @@ class AtNotificationKeystore
 
   @override
   Future<void> initialize() async {
-    _boxName = 'notifications_' + AtUtils.getShaForAtSign(currentAtSign);
+    _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
     if (!_register) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
@@ -70,7 +72,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -85,7 +88,8 @@ class AtNotificationKeystore
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
     throw UnimplementedError();
   }
 
@@ -174,6 +178,7 @@ class AtNotificationKeystore
   @override
   List getKeys({String? regex}) {
     var keys = <String>[];
+    // ignore: prefer_typing_uninitialized_variables
     var encodedKeys;
 
     if (_getBox().keys.isEmpty) {
@@ -199,7 +204,7 @@ class AtNotificationKeystore
   Future<Map>? _toMap() async {
     var notificationLogMap = {};
     var keys = _getBox().keys;
-    var value;
+    AtNotification? value;
     await Future.forEach(keys, (key) async {
       value = await getValue(key);
       notificationLogMap.putIfAbsent(key, () => value);

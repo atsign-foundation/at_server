@@ -3,16 +3,17 @@ import 'dart:core';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
-  late SecondaryPersistenceStore _secondaryPersistenceStore;
-  late var _keyStore;
+  late final SecondaryPersistenceStore _secondaryPersistenceStore;
+  late HiveKeystore _keyStore;
 
   AtCompactionStatsServiceImpl(
       this.atLogType, this._secondaryPersistenceStore) {
     _getKey();
-    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore();
+    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
   }
 
   late AtLogType atLogType;

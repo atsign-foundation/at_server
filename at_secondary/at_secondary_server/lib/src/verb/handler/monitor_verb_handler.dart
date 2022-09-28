@@ -17,6 +17,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
   MonitorVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
+  Notification notification = Notification.empty();
+
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.monitor));
 
@@ -49,8 +51,9 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
         var receivedNotifications =
             await _getReceivedNotificationsAfterEpoch(fromEpochMillis);
-        receivedNotifications.forEach(
-            (notification) => processReceivedNotification(notification));
+        for (var notification in receivedNotifications) {
+          processReceivedNotification(notification);
+        }
       }
     }
     atConnection.isMonitor = true;
@@ -75,11 +78,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         if (key!.contains(RegExp(regex!))) {
           logger.finer('key matches regex');
           atConnection.write(
-              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+              'notification: ${jsonEncode(notification.toJson())}\n');
         } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex!))) {
           logger.finer('fromAtSign matches regex');
           atConnection.write(
-              'notification: ' + jsonEncode(notification.toJson()) + '\n');
+              'notification: ${jsonEncode(notification.toJson())}\n');
         } else {
           logger.finer('no regex match');
         }
@@ -89,7 +92,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       }
     } else {
       atConnection
-          .write('notification: ' + jsonEncode(notification.toJson()) + '\n');
+          .write('notification: ${jsonEncode(notification.toJson())}\n');
     }
   }
 
@@ -100,7 +103,20 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       atNotificationCallback.unregisterNotificationCallback(
           NotificationType.received, processReceivedAtNotification);
     } else {
-      var notification = Notification(atNotification);
+      notification
+        ..id = atNotification.id
+        ..fromAtSign = atNotification.fromAtSign
+        ..dateTime = atNotification.notificationDateTime!.millisecondsSinceEpoch
+        ..toAtSign = atNotification.toAtSign
+        ..notification = atNotification.notification
+        ..operation =
+            atNotification.opType.toString().replaceAll('OperationType.', '')
+        ..value = atNotification.atValue
+        ..messageType = atNotification.messageType!.toString()
+        ..isTextMessageEncrypted =
+            atNotification.atMetadata?.isEncrypted != null
+                ? atNotification.atMetadata!.isEncrypted!
+                : false;
       processReceivedNotification(notification);
     }
   }
@@ -121,11 +137,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
     // Filter previous notifications than millisecondsEpoch
     var responseList = <Notification>[];
-    allReceivedNotifications.forEach((notification) {
+    for (var notification in allReceivedNotifications) {
       if (notification.dateTime! > millisecondsEpoch) {
         responseList.add(notification);
       }
-    });
+    }
     return responseList;
   }
 
@@ -152,6 +168,8 @@ class Notification {
   String? value;
   late String messageType;
   late bool isTextMessageEncrypted = false;
+
+  Notification.empty();
 
   Notification(AtNotification atNotification) {
     id = atNotification.id;

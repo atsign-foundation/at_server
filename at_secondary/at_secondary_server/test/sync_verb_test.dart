@@ -1,7 +1,10 @@
+import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -77,7 +80,54 @@ void main() async {
       expect(paramsMap['regex'], 'me');
     });
   });
-  tearDown(() async => await tearDownFunc());
+
+  group('A group of hive related tests for sync', () {
+    var storageDir = '${Directory.current.path}/test/hive';
+    late SecondaryKeyStoreManager keyStoreManager;
+    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+
+    test('A test to verify sync metadata is populated correctly', () async {
+      // Add data to commit log
+      var atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+      await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
+      //Add data to keystore
+      var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@alice');
+      await secondaryKeyStore?.getSecondaryKeyStore()?.put(
+          'phone.wavi@alice',
+          AtData()
+            ..data = '+9189877783232'
+            ..metaData = (AtMetaData()
+              ..ttl = 10000
+              ..ttb = 1000
+              ..ttr = 100
+              ..isBinary = false
+              ..encoding = 'base64'));
+
+      var verbHandler =
+          SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      var response = Response();
+      var verbParams = HashMap<String, String>();
+      verbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '0');
+      verbParams.putIfAbsent('limit', () => '10');
+      var inBoundSessionId = '123';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      await verbHandler.processVerb(response, verbParams, atConnection);
+      print(response.data);
+      Map syncResponseMap = (jsonDecode(response.data!)).first;
+      expect(syncResponseMap['atKey'], 'phone.wavi@alice');
+      expect(syncResponseMap['value'], '+9189877783232');
+      expect(syncResponseMap['commitId'], 1);
+      expect(syncResponseMap['operation'], '*');
+      expect(syncResponseMap['metadata']['ttl'], '10000');
+      expect(syncResponseMap['metadata']['ttb'], '1000');
+      expect(syncResponseMap['metadata']['ttr'], '100');
+      expect(syncResponseMap['metadata']['isBinary'], 'false');
+      expect(syncResponseMap['metadata']['encoding'], 'base64');
+    });
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {

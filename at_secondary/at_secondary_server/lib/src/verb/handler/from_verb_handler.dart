@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
@@ -29,7 +30,7 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.from) + ':');
+      command.startsWith('${getName(VerbEnum.from)}:');
 
   @override
   Verb getVerb() {
@@ -49,6 +50,11 @@ class FromVerbHandler extends AbstractVerbHandler {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = verbParams[AT_SIGN];
+    if (verbParams[CLIENT_CONFIG] != null &&
+        verbParams[CLIENT_CONFIG]!.isNotEmpty) {
+      atConnectionMetadata.clientVersion =
+          jsonDecode(verbParams[CLIENT_CONFIG]!)[VERSION];
+    }
     fromAtSign = AtUtils.formatAtSign(fromAtSign);
     fromAtSign = AtUtils.fixAtSign(fromAtSign!);
     var atData = AtData();

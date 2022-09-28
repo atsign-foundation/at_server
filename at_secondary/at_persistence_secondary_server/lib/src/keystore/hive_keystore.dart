@@ -1,3 +1,5 @@
+// ignore_for_file: non_constant_identifier_names
+
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
@@ -5,15 +7,15 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utf7/at_utf7.dart';
-import 'package:at_utils/at_logger.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
-  var persistenceManager;
-  var _commitLog;
+  HivePersistenceManager? persistenceManager;
+  late AtCommitLog _commitLog;
   final HashMap<String, AtMetaData> _metaDataCache = HashMap();
 
   HiveKeystore();
@@ -27,16 +29,17 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   Future<void> _initMetaDataCache() async {
-    if (persistenceManager == null || !persistenceManager.getBox().isOpen) {
+    if (persistenceManager == null || !persistenceManager!.getBox().isOpen) {
       logger.severe(
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
     logger.finest('Metadata cache initialization started');
-    var keys = persistenceManager.getBox().keys;
+    var keys = persistenceManager!.getBox().keys;
     await Future.forEach(
         keys,
-        (key) => persistenceManager.getBox().get(key).then((atData) {
+        (key) =>
+            (persistenceManager!.getBox() as LazyBox).get(key).then((atData) {
               _metaDataCache[key.toString()] = atData.metaData!;
             }));
     logger.finest('Metadata cache initialization complete');
@@ -44,10 +47,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtData?> get(String key) async {
-    var value;
+    AtData? value;
     try {
-      String hive_key = keyStoreHelper.prepareKey(key);
-      value = await persistenceManager.getBox().get(hive_key);
+      String hiveKey = keyStoreHelper.prepareKey(key);
+      value = await (persistenceManager!.getBox() as LazyBox).get(hiveKey);
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
@@ -77,7 +80,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
+      String? publicKeyChecksum,
+      String? encoding}) async {
+    final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKey == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
+    // ignore: prefer_typing_uninitialized_variables
     var result;
     // Default the commit op to just the value update
     CommitOp commitOp = CommitOp.UPDATE;
@@ -109,7 +119,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding);
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
@@ -123,10 +134,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             isEncrypted: isEncrypted,
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum);
+            publicKeyChecksum: publicKeyChecksum,
+            encoding: encoding);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
-        await persistenceManager.getBox().put(hive_key, hive_value);
+        await persistenceManager!.getBox().put(hive_key, hive_value);
         _metaDataCache[key] = hive_value.metaData!;
         result = await _commitLog.commit(hive_key, commitOp);
       }
@@ -154,9 +166,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool? isEncrypted,
       String? dataSignature,
       String? sharedKeyEncrypted,
-      String? publicKeyChecksum}) async {
-    var result;
-    var commitOp;
+      String? publicKeyChecksum,
+      String? encoding}) async {
+    final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKey == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
+
+    int? result;
+    CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
     var hive_data = keyStoreHelper.prepareDataForCreate(value!,
         ttl: time_to_live,
@@ -167,7 +186,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         isEncrypted: isEncrypted,
         dataSignature: dataSignature,
         sharedKeyEncrypted: sharedKeyEncrypted,
-        publicKeyChecksum: publicKeyChecksum);
+        publicKeyChecksum: publicKeyChecksum,
+        encoding: encoding);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -182,6 +202,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       dataSignature ??= value.metaData!.dataSignature;
       sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
       publicKeyChecksum ??= value.metaData!.pubKeyCS;
+      encoding ??= value.metaData!.encoding;
     }
 
     // If metadata is set, set commitOp to Update all
@@ -196,7 +217,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
 
     try {
-      await persistenceManager.getBox().put(hive_key, hive_data);
+      await persistenceManager!.getBox().put(hive_key, hive_data);
       _metaDataCache[hive_key] = hive_data.metaData!;
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
@@ -212,9 +233,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<int?> remove(String key) async {
-    var result;
+    int? result;
     try {
-      await persistenceManager.getBox().delete(Utf7.encode(key));
+      await persistenceManager!.getBox().delete(Utf7.encode(key));
       _metaDataCache.remove(key);
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
@@ -271,18 +292,20 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   List<String> getKeys({String? regex}) {
     List<String> keys = <String>[];
+    // ignore: prefer_typing_uninitialized_variables
     var encodedKeys;
 
     try {
-      if (persistenceManager.getBox() != null) {
+      // ignore: unnecessary_null_comparison
+      if (persistenceManager!.getBox() != null) {
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
-          encodedKeys = persistenceManager
+          encodedKeys = persistenceManager!
               .getBox()
               .keys
               .where((element) => Utf7.decode(element).contains(RegExp(regex)));
         } else {
-          encodedKeys = persistenceManager.getBox().keys.toList();
+          encodedKeys = persistenceManager!.getBox().keys.toList();
         }
         //if bool removeExpired is true, expired keys will not be added to the keys list
         encodedKeys?.forEach((key) => {
@@ -314,12 +337,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @client
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
+    final atKeyType = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKeyType == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
     try {
-      var result;
+      int? result;
       String hive_key = keyStoreHelper.prepareKey(key);
       value!.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
       // Updating the version of the metadata.
-//    (metadata!.version != null) ? metadata.version += 1 : metadata.version = 0;
       int? version = metadata!.version;
       if (version != null) {
         version = version + 1;
@@ -327,7 +354,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         version = 0;
       }
       metadata.version = version;
-      await persistenceManager.getBox().put(hive_key, value);
+      await persistenceManager!.getBox().put(hive_key, value);
       _metaDataCache[hive_key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
@@ -351,10 +378,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
               newAtMetaData: metadata, existingMetaData: newData.metaData)
           .build();
       // Updating the version of the metadata.
-//    (newData.metaData?.version != null)
-//        ? newData.metaData?.version += 1
-//        : newData.metaData!.version = 0;
-
       int? version = newData.metaData?.version;
       if (version != null) {
         version = version + 1;
@@ -363,7 +386,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       newData.metaData?.version = version;
 
-      await persistenceManager.getBox().put(hive_key, newData);
+      await persistenceManager!.getBox().put(hive_key, newData);
       _metaDataCache[hive_key] = newData.metaData!;
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
@@ -378,7 +401,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @server
   bool isKeyExists(String key) {
-    return persistenceManager
+    return persistenceManager!
         .getBox()
         .containsKey(keyStoreHelper.prepareKey(key));
   }
@@ -386,9 +409,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   ///Restarts the hive box.
   Future<void> _restartHiveBox(Error e) async {
     // If hive box closed, reopen the box.
-    if (e is HiveError && !persistenceManager.getBox().isOpen) {
+    if (e is HiveError && !persistenceManager!.getBox().isOpen) {
       logger.info('Hive box closed. Restarting the hive box');
-      await persistenceManager.openVault(persistenceManager.atsign!);
+      await persistenceManager!
+          .openBox(AtUtils.getShaForAtSign(persistenceManager!.atsign!));
     }
   }
 

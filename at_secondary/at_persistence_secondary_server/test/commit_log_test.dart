@@ -5,7 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
 
   group('A group of commit log test', () {
     setUp(() async => await setUpFunc(storageDir));
@@ -87,6 +87,46 @@ void main() async {
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       var commitId = await commitLogInstance?.commit(
           'public:_location@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test('test to verify commitId does not increment for privatekey', () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'privatekey:testkey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test('test to verify commitId does not increment for signing public key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'public:signing_publickey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test('test to verify commitId does not increment for signing private key',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          '@alice:signing_privatekey@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+    });
+
+    test(
+        'test to verify commitId does not increment for key starting with private:',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitId = await commitLogInstance?.commit(
+          'private:testkey@alice', CommitOp.UPDATE);
       expect(commitId, -1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
     });

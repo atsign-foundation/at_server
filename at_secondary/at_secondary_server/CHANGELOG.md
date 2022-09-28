@@ -1,7 +1,15 @@
+## 3.0.23
+- fix: fixes to optimize the memory usage
+- feat: Return error codes and JSON encode the error response
+## 3.0.22
+- feat: Add key validations
+- feat: Enhance from verb to have client config
+- fix: Handle invalid AtKey exception on server
 ## 3.0.21
 - fix: invalidate commit log cache on key deletion
 - feat: remove malformed keys on server startup
 - fix: inbound connection pool test flakiness
+- feat: encode the new line characters in the public key data
 ## 3.0.20
 - fix: Bypass cache rename fix
 - feat: Set isEncrypted to true when notify text message is encrypted.

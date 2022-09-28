@@ -1,4 +1,4 @@
-FROM dart:2.17.6 AS buildimage
+FROM dart:2.18.1 AS buildimage
 ENV HOMEDIR=/atsign
 ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024
