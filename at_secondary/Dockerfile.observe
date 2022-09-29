@@ -1,4 +1,4 @@
-FROM dart:2.18.1 AS buildimage
+FROM dart:2.18.2 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
@@ -36,7 +36,11 @@ COPY --from=buildimage /etc/cacert /etc/cacert
 COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary.jit /usr/local/at/
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
-COPY --from=buildimage /usr/lib/dart/* /usr/lib/dart/
+# Minimal viable Dart VM (probably more timming can be done here of snapshots etc.)
+COPY --from=buildimage /usr/lib/dart/bin/dart /usr/lib/dart/bin/dart
+COPY --from=buildimage /usr/lib/dart/bin/snapshots/ /usr/lib/dart/bin/snapshots/
+COPY --from=buildimage /usr/lib/dart/bin/resources/devtools/ /usr/lib/dart/bin/resources/devtools/
+ENV PATH /usr/lib/dart/bin/
 WORKDIR /atsign
 USER atsign
 ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/usr/local/at/secondary.jit"]
