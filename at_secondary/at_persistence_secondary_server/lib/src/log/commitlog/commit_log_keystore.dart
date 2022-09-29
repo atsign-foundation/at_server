@@ -258,11 +258,17 @@ class CommitLogKeyStore
 
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
-    final dupEntries = await getDuplicateEntries();
-
-    _logger.finer('commit log entries to delete: $dupEntries');
-
-    return dupEntries;
+    var expiredKeys = <dynamic>[];
+    var now = DateTime.now().toUtc();
+    var commitLogMap = await toMap();
+    commitLogMap.forEach((key, value) {
+      if (value.opTime != null &&
+          value.opTime!
+              .isBefore(now.subtract(Duration(days: expiryInDays)))) {
+        expiredKeys.add(key);
+      }
+    });
+    return expiredKeys;
   }
 
   Future<List> getDuplicateEntries() async {

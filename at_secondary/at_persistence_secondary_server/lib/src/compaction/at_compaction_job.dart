@@ -8,12 +8,14 @@ import 'package:cron/cron.dart';
 class AtCompactionJob {
   late Cron _cron;
   late ScheduledTask _schedule;
-  AtLogType atLogType;
+  AtCompaction _atCompaction;
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
   static final Random _random = Random();
 
-  AtCompactionJob(this.atLogType, this._secondaryPersistenceStore);
+  AtCompactionJob(this._atCompaction, this._secondaryPersistenceStore);
+
+
 
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
@@ -25,7 +27,7 @@ class AtCompactionJob {
       // Generates a random number between 0 and 12 and wait's for that many seconds.
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
       compactionService.executeCompaction(
-          atCompactionConfig, atLogType, _secondaryPersistenceStore);
+          atCompactionConfig, _atCompaction, _secondaryPersistenceStore);
     });
   }
 
@@ -38,4 +40,5 @@ class AtCompactionJob {
   void close() {
     _cron.close();
   }
+
 }

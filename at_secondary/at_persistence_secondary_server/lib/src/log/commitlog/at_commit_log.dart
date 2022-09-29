@@ -6,7 +6,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
-class AtCommitLog implements AtLogType {
+class AtCommitLog implements AtLogType, AtCompaction {
   var logger = AtSignLogger('AtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
@@ -15,7 +15,7 @@ class AtCommitLog implements AtLogType {
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  AtCommitLog(CommitLogKeyStore keyStore) {
+  AtCommitLog(CommitLogKeyStore keyStore, {int? N}) {
     _commitLogKeyStore = keyStore;
   }
 
@@ -150,6 +150,22 @@ class AtCommitLog implements AtLogType {
   Future<List> getFirstNEntries(int N) async {
     List<dynamic>? entries = [];
     try {
+      entries = _commitLogKeyStore.getFirstNEntries(N);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'Exception getting first N entries:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error adding to access log:${e.toString()}');
+    }
+    return entries;
+  }
+
+  @override
+  @server
+  Future<List> getDuplicateEntries() async {
+    List<dynamic>? entries = [];
+    try {
       entries = await _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
@@ -220,5 +236,17 @@ class AtCommitLog implements AtLogType {
   /// Removes the [AtChangeEventListener]
   void removeEventListener(AtChangeEventListener atChangeEventListener) {
     _atChangeEventListener.remove(atChangeEventListener);
+  }
+
+  @override
+  Future<void> deleteKey(String key) {
+    // TODO: implement deleteKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List> getKeysToCompact() {
+    // TODO: implement getKeysToCompact
+    throw UnimplementedError();
   }
 }

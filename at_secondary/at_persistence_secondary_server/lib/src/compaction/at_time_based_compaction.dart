@@ -1,6 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_spec/src/compaction/at_compaction.dart';
 
+@Deprecated('use CompactionJob')
 class TimeBasedCompaction implements AtCompactionStrategy {
   late int timeInDays;
   int? compactionPercentage;
@@ -35,5 +37,11 @@ class TimeBasedCompaction implements AtCompactionStrategy {
         atCompactionStats.lastCompactionRun?.difference(compactionStartTime);
 
     return atCompactionStats;
+  }
+
+  @override
+  Future<AtCompactionStats?> compact(AtCompaction atCompaction) {
+    // TODO: implement compact
+    throw UnimplementedError();
   }
 }

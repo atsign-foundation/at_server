@@ -1,6 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_spec/src/compaction/at_compaction.dart';
 
+@Deprecated('Use CompactionJob')
 class SizeBasedCompaction implements AtCompactionStrategy {
   late int sizeInKB;
   int? compactionPercentage;
@@ -53,5 +55,11 @@ class SizeBasedCompaction implements AtCompactionStrategy {
       return true;
     }
     return false;
+  }
+
+  @override
+  Future<AtCompactionStats?> compact(AtCompaction atCompaction) {
+    // TODO: implement compact
+    throw UnimplementedError();
   }
 }
