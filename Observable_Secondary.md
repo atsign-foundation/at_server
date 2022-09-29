@@ -52,13 +52,13 @@ sudo docker service update --publish-add 1$MYPORT:8181 $MYSECONDARY
 ### Get the authentication token
 
 ```bash
-sudo docker service logs $MYSECONDARY | grep Observatory
+sudo docker service logs $MYSECONDARY | grep "Dart VM"
 ```
 
 Will return something like:
 
 ```
-a18e1f6d-b893-5b6c-94c9-ad47dbcfefc2_secondary.1.ztbkolssbgee@staging0001-02    | Observatory listening on http://0.0.0.0:8181/TUyGYPx5FtI=/
+a18e1f6d-b893-5b6c-94c9-ad47dbcfefc2_secondary.1.ztbkolssbgee@staging0001-02    | The Dart VM service is listening on http://0.0.0.0:8181/TUyGYPx5FtI=/
 ```
 
 Where `TUyGYPx5FtI=` is the authentication token.
