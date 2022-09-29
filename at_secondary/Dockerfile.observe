@@ -36,7 +36,7 @@ COPY --from=buildimage /etc/cacert /etc/cacert
 COPY --from=buildimage --chown=atsign:atsign /app/at_secondary_server/secondary.jit /usr/local/at/
 COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
-COPY --from=buildimage /usr/lib/dart/bin/dart /usr/lib/dart/bin/
+COPY --from=buildimage /usr/lib/dart/* /usr/lib/dart/
 WORKDIR /atsign
 USER atsign
 ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/usr/local/at/secondary.jit"]
