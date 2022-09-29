@@ -30,7 +30,3 @@ doc/api/
 */certs/*
 .vscode/
 storage
-
-# Secondary files created during builds
-
-secondary.jit
