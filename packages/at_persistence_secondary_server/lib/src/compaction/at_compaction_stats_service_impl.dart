@@ -11,12 +11,12 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late HiveKeystore _keyStore;
 
   AtCompactionStatsServiceImpl(
-      this.atLogType, this._secondaryPersistenceStore) {
+      this._atCompaction, this._secondaryPersistenceStore) {
     _getKey();
     _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
   }
 
-  late AtLogType atLogType;
+  late AtCompaction _atCompaction;
   late String compactionStatsKey;
   late String atLogName;
   final _logger = AtSignLogger("AtCompactionStats");
@@ -24,7 +24,7 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   @override
   Future<void> handleStats(atCompactionStats) async {
     if (atCompactionStats != null) {
-      _logger.finer('$atLogType: ${atCompactionStats?.toString()}');
+      _logger.finer('$_atCompaction: ${atCompactionStats?.toString()}');
       try {
         await _keyStore.put(compactionStatsKey,
             AtData()..data = json.encode(atCompactionStats?.toJson()));
@@ -36,13 +36,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
 
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
-    if (atLogType is AtCommitLog) {
+    if (_atCompaction is AtCommitLog) {
       compactionStatsKey = commitLogCompactionKey;
     }
-    if (atLogType is AtAccessLog) {
+    if (_atCompaction is AtAccessLog) {
       compactionStatsKey = accessLogCompactionKey;
     }
-    if (atLogType is AtNotificationKeystore) {
+    if (_atCompaction is AtNotificationKeystore) {
       compactionStatsKey = notificationCompactionKey;
     }
   }
