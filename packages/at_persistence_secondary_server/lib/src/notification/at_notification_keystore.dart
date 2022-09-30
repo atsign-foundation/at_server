@@ -9,7 +9,7 @@ import 'package:hive/hive.dart';
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore
     with HiveBase<AtNotification?>
-    implements SecondaryKeyStore, AtLogType {
+    implements SecondaryKeyStore, AtLogType, AtCompaction {
   static final AtNotificationKeystore _singleton =
       AtNotificationKeystore._internal();
 
@@ -269,6 +269,18 @@ class AtNotificationKeystore
 
   @override
   Future<List> getFirstNEntries(int N) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteKey(String key) {
+    // TODO: implement deleteKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List> getKeysToCompact() {
+    // TODO: implement getKeysToCompact
     throw UnimplementedError();
   }
 }

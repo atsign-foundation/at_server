@@ -25,7 +25,11 @@ dependencies:
   at_commons: 3.0.32
   version: 3.0.2
 
-#dependency_overrides:
+dependency_overrides:
+  at_persistence_spec:
+    path: ../../at_persistence/at_persistence_spec
+  at_persistence_secondary_server:
+    path: ../../at_secondary/at_persistence_secondary_server
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git

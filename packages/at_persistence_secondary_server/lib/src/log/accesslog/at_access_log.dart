@@ -5,7 +5,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
-class AtAccessLog implements AtLogType {
+class AtAccessLog implements AtLogType, AtCompaction {
   var logger = AtSignLogger('AtAccessLog');
 
   // ignore: prefer_typing_uninitialized_variables
@@ -72,6 +72,18 @@ class AtAccessLog implements AtLogType {
   @override
   Future<List> getFirstNEntries(int N) async {
     return await _accessLogKeyStore.getFirstNEntries(N);
+  }
+
+  @override
+  Future<void> deleteKey(String key) {
+    // TODO: implement deleteKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List> getKeysToCompact() {
+    // TODO: implement getKeysToCompact
+    throw UnimplementedError();
   }
 
   @override
