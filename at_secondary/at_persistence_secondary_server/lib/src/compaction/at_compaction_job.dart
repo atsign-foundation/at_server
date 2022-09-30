@@ -15,8 +15,6 @@ class AtCompactionJob {
 
   AtCompactionJob(this._atCompaction, this._secondaryPersistenceStore);
 
-
-
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
     _cron = Cron();
@@ -40,5 +38,4 @@ class AtCompactionJob {
   void close() {
     _cron.close();
   }
-
 }

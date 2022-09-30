@@ -22,7 +22,6 @@ class AtCompactionService {
       SecondaryPersistenceStore secondaryPersistenceStore) async {
     atCompactionStatsService =
         AtCompactionStatsServiceImpl(atCompaction, secondaryPersistenceStore);
-    //write compaction statistics returned by timeBasedCompaction into keystore
     final keysToCompact = await atCompaction.getKeysToCompact();
     for (String key in keysToCompact) {
       try {
