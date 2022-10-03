@@ -15,7 +15,7 @@ class AtCommitLog implements AtLogType, AtCompaction {
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  AtCommitLog(CommitLogKeyStore keyStore, {int? N}) {
+  AtCommitLog(CommitLogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
   }
 
