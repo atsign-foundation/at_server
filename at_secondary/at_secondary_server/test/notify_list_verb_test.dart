@@ -371,10 +371,11 @@ void main() {
     test('test to fetch notification using notification-id', () async {
       var notifyFetchVerbHandler =
           NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+      var dateTimeNow = DateTime.now();
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
-            ..notificationDateTime = DateTime.now()
+            ..notificationDateTime = dateTimeNow
             ..toAtSign = '@bob'
             ..notification = 'key-2'
             ..type = NotificationType.received
@@ -401,12 +402,39 @@ void main() {
       await notifyFetchVerbHandler.processVerb(
           response, verbParams, atConnection);
       var atNotification = jsonDecode(response.data!);
-      print(atNotification);
       expect(atNotification['id'], '122');
       expect(atNotification['fromAtSign'], '@test_user_1');
+      expect(atNotification['notificationDateTime'],
+          dateTimeNow.millisecondsSinceEpoch);
       expect(atNotification['toAtSign'], '@bob');
-      expect(atNotification['type'], 'NotificationType.received');
+      expect(atNotification['notification'], 'key-2');
+      expect(atNotification['type'], 'received');
+      expect(atNotification['notificationStatus'], 'queued');
+      expect(atNotification['priority'], 'low');
+      expect(atNotification['opType'], 'update');
+      expect(atNotification['messageType'], 'key');
     });
+
+    test('test to fetch a non existent notification using notification-id',
+        () async {
+      var notifyFetchVerbHandler =
+          NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+      var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
+      var response = Response();
+      await notifyFetchVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      var atNotification = jsonDecode(response.data!);
+      print(atNotification);
+      expect(atNotification['id'], '123');
+      expect(atNotification['notificationStatus'], 'expired');
+    });
+    tearDown(() async => await tearDownFunc());
   });
 }
 

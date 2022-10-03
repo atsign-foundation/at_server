@@ -31,20 +31,12 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
     var atNotification =
         await AtNotificationKeystore.getInstance().get(notificationId);
     if (atNotification == null) {
-      response.data = jsonEncode(
-          {'id': notificationId, 'status': NotificationStatus.expired.name});
+      response.data = jsonEncode({
+        ID: notificationId,
+        'notificationStatus': NotificationStatus.expired.name
+      });
       return;
     }
-    response.data = _getJsonEncodedString(atNotification);
-  }
-
-  String _getJsonEncodedString(AtNotification atNotification) {
-    var atNotificationJson = atNotification.toJson();
-    for (MapEntry entry in atNotificationJson.entries) {
-      if (entry.value is! String) {
-        atNotificationJson[entry.key] = entry.value.toString();
-      }
-    }
-    return jsonEncode(atNotificationJson);
+    response.data = jsonEncode(atNotification.toJson());
   }
 }
