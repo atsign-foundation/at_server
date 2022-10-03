@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:test/test.dart';
+import 'package:version/version.dart';
 
 import 'e2e_test_utils.dart' as e2e;
 
@@ -59,11 +61,44 @@ void main() {
             '"key":"$atSign_1:email$atSign_2","value":"$value","operation":"update"'));
   });
 
+  test('test to verify notify fetch verb for a valid notification-id',
+      () async {
+    /// NOTIFY VERB
+    var value = 'Copenhagen';
+    await sh1.writeCommand(
+        'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_2:city.me$atSign_1:$value');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+
+    // Assert notification status
+    response = await getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+
+    // Fetch notification
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 23)) {
+      await sh1.writeCommand('notify:fetch:$notificationId');
+      response = await sh1.read();
+      response = response.replaceFirst('data:', '');
+      var atNotificationMap = jsonDecode(response);
+      expect(atNotificationMap['id'], notificationId);
+      expect(atNotificationMap['fromAtSign'], atSign_1);
+      expect(atNotificationMap['toAtSign'], atSign_2);
+      expect(atNotificationMap['type'], 'NotificationType.sent');
+      expect(atNotificationMap['notificationStatus'],
+          'NotificationStatus.delivered');
+    }
+  });
+
   test('notify verb without messageType and operation', () async {
     /// NOTIFY VERB
     var value = '+91-901282346$lastValue';
-    await sh2
-        .writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
+    await sh2.writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
@@ -132,10 +167,8 @@ void main() {
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
     print('notify list verb response : $response');
-    expect(
-        response,
-        contains(
-            '"key":"$atSign_1:$value","value":null,"operation":"update"'));
+    expect(response,
+        contains('"key":"$atSign_1:$value","value":null,"operation":"update"'));
   });
 
   test('notify verb for deleting a key for other atsign', () async {
@@ -205,7 +238,7 @@ void main() {
   });
 
   test('notify verb with space in the value', () async {
-     /// NOTIFY VERB
+    /// NOTIFY VERB
     var value = '$lastValue Shris Infotech Services';
     await sh1.writeCommand(
         'notify:update:messageType:key:$atSign_2:company$atSign_1:$value');

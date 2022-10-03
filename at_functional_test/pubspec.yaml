@@ -13,10 +13,20 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: master
-  at_lookup: ^3.0.29
+  at_lookup: ^3.0.32
   
 
-# dependency_overrides:
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: trunk
+#  at_server_spec:
+#    git:
+#      url: https://github.com/atsign-foundation/at_server.git
+#      path: at_server_spec
+#      ref: notify_fetch
 #  at_client:
 #   git:
 #       url: https://github.com/atsign-foundation/at_client_sdk.git

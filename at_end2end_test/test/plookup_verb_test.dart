@@ -72,7 +72,7 @@ void main() {
     var version = await sh1.getVersion();
     print(version);
     var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 23)) {
+    if (serverResponse > Version(3, 0, 24)) {
       response = response.replaceFirst('error:', '');
       var errorMap = jsonDecode(response);
       expect(errorMap['errorCode'], 'AT0015');
