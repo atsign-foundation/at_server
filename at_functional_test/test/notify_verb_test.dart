@@ -54,7 +54,8 @@ void main() {
       response = response.replaceFirst('data:', '');
       var atNotificationMap = jsonDecode(response);
       expect(atNotificationMap['id'], notificationId.trim());
-      expect(atNotificationMap['status'], 'expired');
+      expect(atNotificationMap['notificationStatus'],
+          'NotificationStatus.expired');
     });
   });
 }
