@@ -404,15 +404,14 @@ void main() {
       var atNotification = jsonDecode(response.data!);
       expect(atNotification['id'], '122');
       expect(atNotification['fromAtSign'], '@test_user_1');
-      expect(atNotification['notificationDateTime'],
-          dateTimeNow.millisecondsSinceEpoch);
       expect(atNotification['toAtSign'], '@bob');
       expect(atNotification['notification'], 'key-2');
-      expect(atNotification['type'], 'received');
-      expect(atNotification['notificationStatus'], 'queued');
-      expect(atNotification['priority'], 'low');
-      expect(atNotification['opType'], 'update');
-      expect(atNotification['messageType'], 'key');
+      expect(atNotification['type'], NotificationType.received.toString());
+      expect(atNotification['notificationStatus'],
+          NotificationStatus.queued.toString());
+      expect(atNotification['priority'], NotificationPriority.low.toString());
+      expect(atNotification['opType'], OperationType.update.toString());
+      expect(atNotification['messageType'], MessageType.key.toString());
     });
 
     test('test to fetch a non existent notification using notification-id',
@@ -432,7 +431,8 @@ void main() {
       var atNotification = jsonDecode(response.data!);
       print(atNotification);
       expect(atNotification['id'], '123');
-      expect(atNotification['notificationStatus'], 'expired');
+      expect(atNotification['notificationStatus'],
+          NotificationStatus.expired.toString());
     });
     tearDown(() async => await tearDownFunc());
   });
