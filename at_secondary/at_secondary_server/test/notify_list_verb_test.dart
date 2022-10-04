@@ -7,9 +7,9 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -365,6 +365,77 @@ void main() {
     });
     tearDown(() async => await tearDownFunc());
   });
+
+  group('A group of test to verify notify fetch', () {
+    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    test('test to fetch notification using notification-id', () async {
+      var notifyFetchVerbHandler =
+          NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+      var dateTimeNow = DateTime.now();
+      var notification1 = (AtNotificationBuilder()
+            ..id = '122'
+            ..fromAtSign = '@test_user_1'
+            ..notificationDateTime = dateTimeNow
+            ..toAtSign = '@bob'
+            ..notification = 'key-2'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..ttl = 100)
+          .build();
+      await AtNotificationKeystore.getInstance().put('122', notification1);
+      var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:122');
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
+      var response = Response();
+      await notifyFetchVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      var atNotification = jsonDecode(response.data!);
+      expect(atNotification['id'], '122');
+      expect(atNotification['fromAtSign'], '@test_user_1');
+      expect(atNotification['toAtSign'], '@bob');
+      expect(atNotification['notification'], 'key-2');
+      expect(atNotification['type'], NotificationType.received.toString());
+      expect(atNotification['notificationStatus'],
+          NotificationStatus.queued.toString());
+      expect(atNotification['priority'], NotificationPriority.low.toString());
+      expect(atNotification['opType'], OperationType.update.toString());
+      expect(atNotification['messageType'], MessageType.key.toString());
+    });
+
+    test('test to fetch a non existent notification using notification-id',
+        () async {
+      var notifyFetchVerbHandler =
+          NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+      var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
+      var inBoundSessionId = '123';
+      var metadata = InboundConnectionMetadata()
+        ..fromAtSign = '@alice'
+        ..isAuthenticated = true;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
+      var response = Response();
+      await notifyFetchVerbHandler.processVerb(
+          response, verbParams, atConnection);
+      var atNotification = jsonDecode(response.data!);
+      print(atNotification);
+      expect(atNotification['id'], '123');
+      expect(atNotification['notificationStatus'],
+          NotificationStatus.expired.toString());
+    });
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
@@ -394,9 +465,4 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }
