@@ -1,3 +1,4 @@
+import 'package:at_commons/src/compaction/at_compaction_config.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
@@ -12,6 +13,8 @@ class AtCommitLog implements AtLogType, AtCompaction {
   late final List<AtChangeEventListener> _atChangeEventListener = [];
 
   late CommitLogKeyStore _commitLogKeyStore;
+
+  late AtCompactionConfig atCompactionConfig;
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
@@ -238,14 +241,37 @@ class AtCommitLog implements AtLogType, AtCompaction {
   }
 
   @override
-  Future<void> deleteKey(String key) {
-    // TODO: implement deleteKey
-    throw UnimplementedError();
+  Future<void> deleteKeyForCompaction(String key) async {
+    List<dynamic> deleteList = [];
+    deleteList.add(key);
+    try {
+      await _commitLogKeyStore.delete(key);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while deleting $key for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while deleting $key for compaction:${e.toString()}');
+    }
   }
 
   @override
-  Future<List> getKeysToCompact() {
-    // TODO: implement getKeysToCompact
-    throw UnimplementedError();
+  Future<List> getKeysToDeleteOnCompaction() async {
+    List<dynamic>? entries = [];
+    try {
+      entries = await _commitLogKeyStore.getDuplicateEntries();
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException getting keys to delete for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error getting keys to delete for compaction:${e.toString()}');
+    }
+    return entries;
+  }
+
+  @override
+  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
+    this.atCompactionConfig = atCompactionConfig;
   }
 }

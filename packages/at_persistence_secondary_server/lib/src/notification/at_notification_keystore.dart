@@ -1,10 +1,11 @@
 // ignore_for_file: non_constant_identifier_names
 
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore
@@ -17,6 +18,7 @@ class AtNotificationKeystore
   late String currentAtSign;
   late String _boxName;
   final _notificationExpiryInHours = 72;
+  late AtCompactionConfig atCompactionConfig;
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
@@ -273,14 +275,17 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<void> deleteKey(String key) {
-    // TODO: implement deleteKey
-    throw UnimplementedError();
+  Future<void> deleteKeyForCompaction(String key) async {
+    await remove(key);
   }
 
   @override
-  Future<List> getKeysToCompact() {
-    // TODO: implement getKeysToCompact
-    throw UnimplementedError();
+  Future<List> getKeysToDeleteOnCompaction() async {
+    return await getExpired(atCompactionConfig.timeInDays);
+  }
+
+  @override
+  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
+    this.atCompactionConfig = atCompactionConfig;
   }
 }
