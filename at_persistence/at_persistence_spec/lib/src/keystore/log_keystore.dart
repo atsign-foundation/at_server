@@ -35,7 +35,7 @@ abstract class LogKeyStore<K, V> {
 
   /// Removes the keys from storage.
   /// @param expiredKeys delete the expiredKeys from the storage
-  void delete(dynamic expiredKeys);
+  Future<void> delete(dynamic expiredKeys);
 
   ///Returns the list of expired keys
   ///@param expiryInDays

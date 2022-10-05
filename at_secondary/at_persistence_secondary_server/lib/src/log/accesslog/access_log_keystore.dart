@@ -71,7 +71,7 @@ class AccessLogKeyStore
   }
 
   @override
-  void delete(expiredKeys) async {
+  Future<void> delete(expiredKeys) async {
     if (expiredKeys.isNotEmpty) {
       await _getBox().deleteAll(expiredKeys);
     }

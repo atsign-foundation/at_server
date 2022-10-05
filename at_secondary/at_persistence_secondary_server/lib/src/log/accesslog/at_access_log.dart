@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
@@ -9,7 +10,9 @@ class AtAccessLog implements AtLogType, AtCompaction {
   var logger = AtSignLogger('AtAccessLog');
 
   // ignore: prefer_typing_uninitialized_variables
-  late var _accessLogKeyStore;
+  late AccessLogKeyStore _accessLogKeyStore;
+
+  late AtCompactionConfig atCompactionConfig;
 
   AtAccessLog(AccessLogKeyStore keyStore) {
     _accessLogKeyStore = keyStore;
@@ -75,15 +78,34 @@ class AtAccessLog implements AtLogType, AtCompaction {
   }
 
   @override
-  Future<void> deleteKey(String key) {
-    // TODO: implement deleteKey
-    throw UnimplementedError();
+  Future<void> deleteKeyForCompaction(String key) async {
+    List<dynamic> deleteKeysList = [];
+    deleteKeysList.add(key);
+    try {
+      await _accessLogKeyStore.delete(deleteKeysList);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while deleting $key for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while deleting $key for compaction:${e.toString()}');
+    }
   }
 
   @override
-  Future<List> getKeysToCompact() {
-    // TODO: implement getKeysToCompact
-    throw UnimplementedError();
+  Future<List> getKeysToDeleteOnCompaction() async {
+    int totalKeys = entriesCount();
+    int firstNKeys =
+        (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
+    try {
+      return await _accessLogKeyStore.getFirstNEntries(firstNKeys);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while getting keys for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while getting keys for compaction:${e.toString()}');
+    }
   }
 
   @override
@@ -91,7 +113,7 @@ class AtAccessLog implements AtLogType, AtCompaction {
     return _accessLogKeyStore.getSize();
   }
 
-  Future<AccessLogEntry> getLastAccessLogEntry() async {
+  Future<AccessLogEntry?> getLastAccessLogEntry() async {
     return await _accessLogKeyStore.getLastEntry();
   }
 
@@ -102,5 +124,10 @@ class AtAccessLog implements AtLogType, AtCompaction {
   ///Closes the [accessLogKeyStore] instance.
   void close() {
     _accessLogKeyStore.close();
+  }
+
+  @override
+  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
+    this.atCompactionConfig = atCompactionConfig;
   }
 }

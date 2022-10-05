@@ -22,10 +22,11 @@ class AtCompactionService {
       SecondaryPersistenceStore secondaryPersistenceStore) async {
     atCompactionStatsService =
         AtCompactionStatsServiceImpl(atCompaction, secondaryPersistenceStore);
-    final keysToCompact = await atCompaction.getKeysToCompact();
+    atCompaction.setCompactionConfig(atCompactionConfig);
+    final keysToCompact = await atCompaction.getKeysToDeleteOnCompaction();
     for (String key in keysToCompact) {
       try {
-        await atCompaction.deleteKey(key);
+        await atCompaction.deleteKeyForCompaction(key);
       } on Exception catch (e) {
         //# TODO handle
       }

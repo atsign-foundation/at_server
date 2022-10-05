@@ -1,4 +1,6 @@
+import 'package:at_commons/at_commons.dart';
 abstract class AtCompaction {
-  Future<List> getKeysToCompact();
-  Future<void> deleteKey(String key);
+  void setCompactionConfig(AtCompactionConfig atCompactionConfig);
+  Future<List> getKeysToDeleteOnCompaction();
+  Future<void> deleteKeyForCompaction(String key);
 }
