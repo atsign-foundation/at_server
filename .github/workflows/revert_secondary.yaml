@@ -19,7 +19,7 @@ jobs:
     if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       
       # Extract version for docker tag
       - name: Get version
@@ -62,7 +62,7 @@ jobs:
     if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       
       # Extract version for docker tag
       - name: Get version
