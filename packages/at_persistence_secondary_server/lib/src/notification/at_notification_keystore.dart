@@ -3,14 +3,13 @@
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore
     with HiveBase<AtNotification?>
-    implements SecondaryKeyStore, AtLogType, AtCompaction {
+    implements SecondaryKeyStore, AtLogType {
   static final AtNotificationKeystore _singleton =
       AtNotificationKeystore._internal();
 
@@ -224,34 +223,8 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<void> delete(expiredKeys) async {
-    try {
-      if (expiredKeys.isNotEmpty) {
-        _logger.finer('expired keys: $expiredKeys');
-        await Future.forEach(expiredKeys, (expiredKey) async {
-          await remove(expiredKey);
-        });
-      } else {
-        _logger.finer('notification key store. No expired notifications');
-      }
-    } on Exception catch (e) {
-      _logger.severe('Exception in deleteExpired keys: ${e.toString()}');
-      throw DataStoreException(
-          'exception in deleteExpiredKeys: ${e.toString()}');
-    } on HiveError catch (error) {
-      _logger.severe('HiveKeystore get error: $error');
-      throw DataStoreException(error.message);
-    }
-  }
-
-  @override
   int entriesCount() {
     return _getBox().keys.length;
-  }
-
-  @override
-  Future<List> getExpired(int expiryInDays) async {
-    return await getExpiredKeys();
   }
 
   @override
@@ -270,18 +243,13 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<List> getFirstNEntries(int N) {
-    throw UnimplementedError();
-  }
-
-  @override
   Future<void> deleteKeyForCompaction(String key) async {
     await remove(key);
   }
 
   @override
   Future<List> getKeysToDeleteOnCompaction() async {
-    return await getExpired(atCompactionConfig.timeInDays);
+    return await getExpiredKeys();
   }
 
   @override

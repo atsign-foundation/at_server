@@ -1,4 +1,3 @@
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
@@ -6,7 +5,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
-class AtAccessLog implements AtLogType, AtCompaction {
+class AtAccessLog implements AtLogType {
   var logger = AtSignLogger('AtAccessLog');
 
   // ignore: prefer_typing_uninitialized_variables
@@ -53,28 +52,10 @@ class AtAccessLog implements AtLogType, AtCompaction {
     return await _accessLogKeyStore.mostVisitedKeys(length);
   }
 
-  /// Returns the list of expired keys.
-  /// @param expiryInDays - The count of days after which the keys expires
-  /// @return List<dynamic> - The list of expired keys.
-  @override
-  Future<List<dynamic>> getExpired(int expiryInDays) async {
-    return await _accessLogKeyStore.getExpired(expiryInDays);
-  }
-
-  @override
-  Future<void> delete(expiredKeys) async {
-    await _accessLogKeyStore.delete(expiredKeys);
-  }
-
   @override
   int entriesCount() {
     final count = _accessLogKeyStore.entriesCount();
     return count;
-  }
-
-  @override
-  Future<List> getFirstNEntries(int N) async {
-    return await _accessLogKeyStore.getFirstNEntries(N);
   }
 
   @override
