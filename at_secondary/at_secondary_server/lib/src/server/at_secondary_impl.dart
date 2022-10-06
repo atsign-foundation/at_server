@@ -154,33 +154,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance =
         AtCompactionJob(_commitLog, _secondaryPersistenceStore);
-    atCommitLogCompactionConfig = AtCompactionConfig(
-        commitLogSizeInKB!,
-        commitLogExpiryInDays!,
-        commitLogCompactionPercentage!,
-        commitLogCompactionFrequencyMins!);
+    atCommitLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = commitLogCompactionPercentage
+      ..compactionFrequencyMins = commitLogCompactionFrequencyMins;
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, _secondaryPersistenceStore);
-    atAccessLogCompactionConfig = AtCompactionConfig(
-        accessLogSizeInKB!,
-        accessLogExpiryInDays!,
-        accessLogCompactionPercentage!,
-        accessLogCompactionFrequencyMins!);
+    atAccessLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = accessLogCompactionPercentage
+      ..compactionFrequencyMins = accessLogCompactionFrequencyMins;
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(), _secondaryPersistenceStore);
-    atNotificationCompactionConfig = AtCompactionConfig(
-        AtSecondaryConfig.notificationKeyStoreSizeInKB!,
-        AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
-        AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
-        AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
+    atNotificationCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage =
+          AtSecondaryConfig.notificationKeyStoreCompactionPercentage
+      ..compactionFrequencyMins =
+          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins;
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 

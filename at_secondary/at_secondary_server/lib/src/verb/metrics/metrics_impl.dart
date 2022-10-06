@@ -204,7 +204,7 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = await atAccessLog!.getLastAccessLogEntry();
-    return entry.requestDateTime!.toUtc().toString();
+    return entry?.requestDateTime!.toUtc().toString();
   }
 
   @override

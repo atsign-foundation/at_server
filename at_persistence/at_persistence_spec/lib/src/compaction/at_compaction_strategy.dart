@@ -2,25 +2,10 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_persistence_spec/src/compaction/at_compaction.dart';
 
 ///The base class for Log.
-@Deprecated('use AtCompaction')
-abstract class AtLogType {
+abstract class AtLogType extends AtCompaction {
   /// Returns the total number of keys in storage.
   /// @return int Returns the total number of keys.
   int entriesCount();
-
-  /// Returns the first 'N' keys of the log instance.
-  /// @param N : Fetches first 'N' entries
-  /// @return List : Returns the list of keys.
-  Future<List> getFirstNEntries(int N);
-
-  /// Removes the keys from storage.
-  /// @param expiredKeys delete the expiredKeys from the storage
-  Future<void> delete(dynamic expiredKeys);
-
-  ///Returns the list of expired keys
-  ///@param expiryInDays
-  ///@return List<dynamic>
-  Future<List<dynamic>> getExpired(int expiryInDays);
 
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.

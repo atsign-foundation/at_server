@@ -1,4 +1,3 @@
-import 'package:at_commons/src/compaction/at_compaction_config.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
@@ -7,7 +6,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
-class AtCommitLog implements AtLogType, AtCompaction {
+class AtCommitLog implements AtLogType {
   var logger = AtSignLogger('AtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
@@ -103,12 +102,6 @@ class AtCommitLog implements AtLogType, AtCompaction {
     }
   }
 
-  @override
-  @server
-  Future<List> getExpired(int expiryInDays) {
-    return _commitLogKeyStore.getExpired(expiryInDays);
-  }
-
   /// Returns the latest committed sequence number
   @server
   int? lastCommittedSequenceNumber() {
@@ -143,49 +136,6 @@ class AtCommitLog implements AtLogType, AtCompaction {
   @server
   int entriesCount() {
     return _commitLogKeyStore.entriesCount();
-  }
-
-  /// Gets the first 'N' keys from the logs
-  /// @param - N : The integer to get the first 'N'
-  /// @return List of first 'N' keys from the log
-  @override
-  @server
-  Future<List> getFirstNEntries(int N) async {
-    List<dynamic>? entries = [];
-    try {
-      entries = _commitLogKeyStore.getFirstNEntries(N);
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'Exception getting first N entries:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
-    }
-    return entries;
-  }
-
-  @override
-  @server
-  Future<List> getDuplicateEntries() async {
-    List<dynamic>? entries = [];
-    try {
-      entries = await _commitLogKeyStore.getDuplicateEntries();
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'Exception getting first N entries:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
-    }
-    return entries;
-  }
-
-  /// Removes the expired keys from the log.
-  /// @param - expiredKeys : The expired keys to remove
-  @override
-  @server
-  Future<void> delete(dynamic expiredKeys) async {
-    await _commitLogKeyStore.delete(expiredKeys);
   }
 
   @override
