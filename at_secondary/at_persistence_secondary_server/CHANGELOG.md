@@ -1,3 +1,5 @@
+## 3.0.37
+- fix: skip commit id for the 'statsNotificationId'
 ## 3.0.36
 - fix: skip commit id and sync for signing keys
 - fix: dart analyzer issues
