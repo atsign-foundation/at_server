@@ -32,7 +32,8 @@ class AtCommitLog implements AtLogType {
     // The private: and privatekey: are not synced. so return -1.
     if (!key.startsWith('public:__') &&
         (key.startsWith(RegExp(
-                'private:|privatekey:|public:_|public:signing_publickey|${statsNotificationId.toLowerCase()}')) ||
+                'private:|privatekey:|public:_|public:signing_publickey|$statsNotificationId',
+                caseSensitive: false)) ||
             key.startsWith(RegExp(
                 '@(?<sharedWith>.*):signing_privatekey@(?<sharedBy>.*)')))) {
       return -1;
