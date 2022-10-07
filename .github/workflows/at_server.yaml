@@ -557,6 +557,47 @@ jobs:
           platforms: |
             linux/amd64
 
+      # Retag prod x64 and Arm64 images as canary
+      - name: Create canary-x64 label
+        run: |
+          docker pull atsigncompany/secondary:canary
+          docker tag atsigncompany/secondary:canary atsigncompany/secondary:canary-x64
+          docker push atsigncompany/secondary:canary-x64
+
+      - name: Create dess-arm64 label
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: "arm64cicd.atsign.wtf"
+          username: ubuntu
+          key: ${{ secrets.CICD_SSH_KEY }}
+          script: |
+            docker pull atsigncompany/secondary:canary
+            docker tag atsigncompany/secondary:canary atsigncompany/secondary:canary-arm64
+            docker push atsigncompany/secondary:canary-arm64
+
+      # Logs into Pi and builds Armv7 canary
+      - name: Create canary-arm image
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: "arm32cicd.atsign.wtf"
+          username: pi
+          key: ${{ secrets.CICD_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            cd /home/pi/git/github.com/atsign-foundation/at_server
+            git pull
+            cd at_secondary
+            docker build -t atsigncompany/secondary:canary-arm .
+            docker push atsigncompany/secondary:canary-arm
+
+      - name: Create and push multi-arch canary manifest
+        run: |
+          docker manifest create atsigncompany/secondary:canary \
+            --amend atsigncompany/secondary:canary-arm \
+            --amend atsigncompany/secondary:canary-arm64 \
+            --amend atsigncompany/secondary:canary-x64
+          docker manifest push atsigncompany/secondary:canary
+
   # The below jobs run's on completion of 'run_end2end_tests' job.
   # This job run's on trigger event 'push' and when a release is tagged.
   # The job builds the production version of secondary server docker image and pushes to docker hub.
