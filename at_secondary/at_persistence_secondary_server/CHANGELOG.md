@@ -1,3 +1,5 @@
+## 3.0.38
+- fix: Revert sync of signing keys and 'statsNotificationId'
 ## 3.0.37
 - fix: skip commit id for the 'statsNotificationId'
 ## 3.0.36
