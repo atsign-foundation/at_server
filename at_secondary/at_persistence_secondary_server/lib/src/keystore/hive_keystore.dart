@@ -9,6 +9,7 @@ import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
+import 'package:meta/meta.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
@@ -139,7 +140,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
-        _metaDataCache[key] = hive_value.metaData!;
+        _metaDataCache[hive_key] = hive_value.metaData!;
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -235,9 +236,17 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> remove(String key) async {
     int? result;
     try {
+      bool isKeyPresent =
+          persistenceManager!.getBox().containsKey(Utf7.encode(key));
       await persistenceManager!.getBox().delete(Utf7.encode(key));
-      _metaDataCache.remove(key);
-      result = await _commitLog.commit(key, CommitOp.DELETE);
+      final atMetaData = _removeKeyFromMetadataCache(key);
+      if (atMetaData != null || isKeyPresent) {
+        // add entry to commit log only if key is removed from cache or key is present in keystore
+        result = await _commitLog.commit(key, CommitOp.DELETE);
+      } else {
+        logger.finer(
+            'entry for $key is not present in cache. Skipping commit log delete op');
+      }
       return result;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
@@ -247,6 +256,21 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.severe('HiveKeystore delete error: $error');
       throw DataStoreException(error.message);
     }
+  }
+
+  AtMetaData? _removeKeyFromMetadataCache(String key) {
+    // try removing the passed key as it is. key may be encoded or not encoded.
+    var removeResult = _metaDataCache.remove(key);
+    if (removeResult == null) {
+      logger.finer('Try removing decoded key');
+      removeResult = _metaDataCache.remove(Utf7.decode(key));
+    }
+    if (removeResult == null) {
+      logger.finer('Try removing encoded key');
+      removeResult = _metaDataCache.remove(Utf7.encode(key));
+    }
+    logger.finer('remove result for key $key is $removeResult');
+    return removeResult;
   }
 
   @override
@@ -436,5 +460,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     } else {
       return false;
     }
+  }
+
+  @visibleForTesting
+  HashMap<String, AtMetaData> getMetaDataCache() {
+    return _metaDataCache;
   }
 }
