@@ -108,7 +108,7 @@ void main() async {
           'public:signing_publickey@alice', CommitOp.UPDATE);
       expect(commitId, -1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
-    });
+    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
 
     test('test to verify commitId does not increment for signing private key',
         () async {
@@ -118,7 +118,7 @@ void main() async {
           '@alice:signing_privatekey@alice', CommitOp.UPDATE);
       expect(commitId, -1);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
-    });
+    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
 
     test(
         'test to verify commitId does not increment for key starting with private:',

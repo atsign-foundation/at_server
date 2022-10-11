@@ -1,4 +1,3 @@
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
@@ -31,11 +30,7 @@ class AtCommitLog implements AtLogType {
     // So return -1.
     // The private: and privatekey: are not synced. so return -1.
     if (!key.startsWith('public:__') &&
-        (key.startsWith(RegExp(
-                'private:|privatekey:|public:_|public:signing_publickey|$statsNotificationId',
-                caseSensitive: false)) ||
-            key.startsWith(RegExp(
-                '@(?<sharedWith>.*):signing_privatekey@(?<sharedBy>.*)')))) {
+        (key.startsWith(RegExp('private:|privatekey:|public:_')))) {
       return -1;
     }
     int result;
