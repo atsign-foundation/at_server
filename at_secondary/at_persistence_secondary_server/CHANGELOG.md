@@ -1,3 +1,5 @@
+## 3.0.39
+- fix: lastSyncedEntry to accept signing private key
 ## 3.0.38
 - fix: Revert sync of signing keys and 'statsNotificationId'
 ## 3.0.37

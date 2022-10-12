@@ -347,7 +347,8 @@ class CommitLogKeyStore
   bool _isSpecialKey(String atKey) {
     return atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
         atKey.startsWith('public:') ||
-        atKey.contains(AT_PKAM_SIGNATURE);
+        atKey.contains(AT_PKAM_SIGNATURE) ||
+        atKey.contains(AT_SIGNING_PRIVATE_KEY);
   }
 
   /// Returns a map of all the keys in the commitLog and latest [CommitEntry] of the key.
