@@ -71,8 +71,8 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
 
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
@@ -91,8 +91,8 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p at_secondary/at_secondary_server
 
       # Runs dart lint rules and unit tests on at_secondary_server
       - name: Install dependencies in at_secondary_server
@@ -152,8 +152,8 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           pip3 install ruamel.yaml
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p at_secondary/at_secondary_server
 
       - name: Generate secondary server binary
         working-directory: at_secondary/at_secondary_server
