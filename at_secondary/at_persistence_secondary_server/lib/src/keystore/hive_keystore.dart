@@ -17,7 +17,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
   late AtCommitLog _commitLog;
-  final HashMap<String, AtMetaData> _metaDataCache = HashMap();
+  final HashMap<String, AtMetaData?> _metaDataCache = HashMap();
 
   HiveKeystore();
 
@@ -36,12 +36,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       return;
     }
     logger.finest('Metadata cache initialization started');
-    var keys = persistenceManager!.getBox().keys;
+    var keys = _getKeysFromKeyStore();
     await Future.forEach(
         keys,
-        (key) =>
-            (persistenceManager!.getBox() as LazyBox).get(key).then((atData) {
-              _metaDataCache[key.toString()] = atData.metaData!;
+        (key) => get(key.toString()).then((atData) {
+              _metaDataCache[key.toString()] = atData?.metaData;
             }));
     logger.finest('Metadata cache initialization complete');
   }
@@ -140,7 +139,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
-        _metaDataCache[hive_key] = hive_value.metaData!;
+        _metaDataCache[key] = hive_value.metaData!;
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -219,7 +218,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
-      _metaDataCache[hive_key] = hive_data.metaData!;
+      _metaDataCache[key] = hive_data.metaData!;
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -236,9 +235,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   Future<int?> remove(String key) async {
     int? result;
     try {
-      bool isKeyPresent =
-          persistenceManager!.getBox().containsKey(Utf7.encode(key));
-      await persistenceManager!.getBox().delete(Utf7.encode(key));
+      bool isKeyPresent = persistenceManager!
+          .getBox()
+          .containsKey(keyStoreHelper.prepareKey(key));
+      await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       final atMetaData = _removeKeyFromMetadataCache(key);
       if (atMetaData != null || isKeyPresent) {
         // add entry to commit log only if key is removed from cache or key is present in keystore
@@ -259,16 +259,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   AtMetaData? _removeKeyFromMetadataCache(String key) {
-    // try removing the passed key as it is. key may be encoded or not encoded.
-    var removeResult = _metaDataCache.remove(key);
-    if (removeResult == null) {
-      logger.finer('Try removing decoded key');
-      removeResult = _metaDataCache.remove(Utf7.decode(key));
-    }
-    if (removeResult == null) {
-      logger.finer('Try removing encoded key');
-      removeResult = _metaDataCache.remove(Utf7.encode(key));
-    }
+    final removeResult = _metaDataCache.remove(key);
     logger.finer('remove result for key $key is $removeResult');
     return removeResult;
   }
@@ -304,7 +295,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {
       if (_isExpired(key)) {
-        expiredKeys.add(Utf7.encode(key));
+        expiredKeys.add(key);
       }
     }
     return expiredKeys;
@@ -317,23 +308,21 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   List<String> getKeys({String? regex}) {
     List<String> keys = <String>[];
     // ignore: prefer_typing_uninitialized_variables
-    var encodedKeys;
+    var keysFromKeystore;
 
     try {
       // ignore: unnecessary_null_comparison
       if (persistenceManager!.getBox() != null) {
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
-          encodedKeys = persistenceManager!
-              .getBox()
-              .keys
-              .where((element) => Utf7.decode(element).contains(RegExp(regex)));
+          keysFromKeystore = _getKeysFromKeyStore()
+              .where((element) => element.contains(RegExp(regex)));
         } else {
-          encodedKeys = persistenceManager!.getBox().keys.toList();
+          keysFromKeystore = _getKeysFromKeyStore().toList();
         }
         //if bool removeExpired is true, expired keys will not be added to the keys list
-        encodedKeys?.forEach((key) => {
-              if (_isKeyAvailable(key)) {keys.add(Utf7.decode(key))}
+        keysFromKeystore?.forEach((key) => {
+              if (_isKeyAvailable(key)) {keys.add(key)}
             });
       }
     } on FormatException catch (exception) {
@@ -379,7 +368,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       metadata.version = version;
       await persistenceManager!.getBox().put(hive_key, value);
-      _metaDataCache[hive_key] = value.metaData!;
+      _metaDataCache[key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -440,6 +429,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
+  Iterable<String> _getKeysFromKeyStore() {
+    return persistenceManager!.getBox().keys.map((e) => Utf7.decode(e));
+  }
+
   bool _isExpired(key) {
     if (_metaDataCache[key]?.expiresAt == null) {
       return false;
@@ -463,7 +456,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @visibleForTesting
-  HashMap<String, AtMetaData> getMetaDataCache() {
+  HashMap<String, AtMetaData?> getMetaDataCache() {
     return _metaDataCache;
   }
 }

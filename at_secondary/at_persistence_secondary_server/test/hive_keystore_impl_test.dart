@@ -316,8 +316,7 @@ void main() async {
       final metaDataCache = keystore?.getMetaDataCache();
       expect(metaDataCache, isNotNull);
       expect(
-          metaDataCache!.containsKey(
-              Utf7.encode('sample_create_key_1🛠.wavi@test_user_1')),
+          metaDataCache!.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
           true);
     });
 
@@ -351,7 +350,7 @@ void main() async {
       await keystore?.create(testKey, atData);
       final metaDataCache = keystore?.getMetaDataCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(Utf7.encode(testKey)), true);
+      expect(metaDataCache!.containsKey(testKey), true);
     });
 
     test('test remove from cache - emoji in key', () async {
@@ -373,7 +372,7 @@ void main() async {
       final metaDataCache = keystore?.getMetaDataCache();
       expect(metaDataCache, isNotNull);
       expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
-      expect(metaDataCache.containsKey(Utf7.encode(testKey)), false);
+      expect(metaDataCache.containsKey(testKey), false);
     });
     test('test remove from cache', () async {
       SecondaryPersistenceStore? keyStoreManager =
@@ -394,31 +393,9 @@ void main() async {
       final metaDataCache = keystore?.getMetaDataCache();
       expect(metaDataCache, isNotNull);
       expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
-      expect(metaDataCache.containsKey(Utf7.encode(testKey)), false);
-    });
-
-    test('test remove from cache - old data in cache', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_remove_4';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_remove_key_4🛠.wavi@test_user_1';
-      final metaDataCache = keystore?.getMetaDataCache();
-      // add key without encoding to replicate old data
-      metaDataCache![testKey] = meta;
-      final int? cacheEntriesCountBeforeRemove =
-          keystore?.getMetaDataCache().length;
-      final removeResult = await keystore?.remove(testKey);
-      expect(removeResult, isNotNull);
-      expect(metaDataCache, isNotNull);
-      expect(metaDataCache.length, cacheEntriesCountBeforeRemove! - 1);
       expect(metaDataCache.containsKey(testKey), false);
     });
+
     test('test remove entry not in cache', () async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
