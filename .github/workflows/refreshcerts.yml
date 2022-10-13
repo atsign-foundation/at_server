@@ -32,17 +32,17 @@ jobs:
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
-          python3 ./automation/acme_certs.py "$FQDN"
+          python3 ./tools/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
             echo "Failing over to Google"
-            python3 ./automation/acme_certs.py -g "$FQDN"
+            python3 ./tools/acme_certs.py -g "$FQDN"
             if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
               echo "Google certificate validated"
             else
               echo "Failing over to ZeroSSL"
-              python3 ./automation/acme_certs.py -z "$FQDN"
+              python3 ./tools/acme_certs.py -z "$FQDN"
               if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
                 echo "ZeroSSL certificate validated"
               else
