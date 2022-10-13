@@ -35,7 +35,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_canary_to_prod
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true 
           file: ./at_secondary/Dockerfile.canary_to_prod
