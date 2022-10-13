@@ -357,7 +357,7 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -409,7 +409,7 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -462,7 +462,7 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -533,7 +533,7 @@ jobs:
         run: sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -617,7 +617,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
@@ -717,7 +717,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2.0.0
