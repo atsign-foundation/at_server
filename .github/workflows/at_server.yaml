@@ -15,15 +15,16 @@ on:
     branches:
       - trunk
 
+env:
+  proot-working-directory: ./packages/at_persistence_root_server
+  root-working-directory: ./packages/at_root_server
+  psecondary-working-directory: ./packages/at_persistence_secondary_server
+  secondary-working-directory: ./packages/at_secondary_server
+  ftest-working-directory: ./tests/at_functional_test
+  e2etest-working-directory: ./tests/at_end2end_test
+
 jobs:
   unit_tests:
-    env:
-      proot-working-directory: ./packages/at_persistence_root_server
-      root-working-directory: ./packages/at_root_server
-      psecondary-working-directory: ./packages/at_persistence_secondary_server
-      secondary-working-directory: ./packages/at_secondary_server
-      ftest-working-directory: ./tests/at_functional_test
-      e2etest-working-directory: ./tests/at_end2end_test
     runs-on: ubuntu-latest
 
     steps:
