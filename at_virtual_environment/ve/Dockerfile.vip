@@ -1,4 +1,4 @@
-FROM dart:2.18.1 AS buildimage
+FROM dart:2.18.2 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app

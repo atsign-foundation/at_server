@@ -1,3 +1,5 @@
+## 3.0.11
+- feat: Added 'notifyFetch' verb
 ## 3.0.10
 - feat: Added clientVersion to AtConnectionMetaData
 ## 3.0.9

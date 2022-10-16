@@ -1,3 +1,9 @@
+## 3.0.39
+- fix: lastSyncedEntry to accept signing private key
+## 3.0.38
+- fix: Revert sync of signing keys and 'statsNotificationId'
+## 3.0.37
+- fix: skip commit id for the 'statsNotificationId'
 ## 3.0.36
 - fix: skip commit id and sync for signing keys
 - fix: dart analyzer issues

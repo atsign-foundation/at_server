@@ -1,3 +1,6 @@
+## 3.0.24
+- chore: upgrade version of persistence_secondary, at_commons and at_lookup
+- feat: Introduce Notify fetch verb
 ## 3.0.23
 - fix: fixes to optimize the memory usage
 - feat: Return error codes and JSON encode the error response
