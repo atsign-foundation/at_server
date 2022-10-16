@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
 
@@ -372,6 +373,44 @@ void main() async {
       expect(commitEntry, isNull);
     });
     tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of tests to verify local key does not add to commit log', () {
+    test('local key does not add to commit log', () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      var commitId = await commitLogInstance?.commit(
+          'local:phone.wavi@alice', CommitOp.UPDATE);
+      expect(commitId, -1);
+    });
+
+    test(
+        'Test to verify local created with static local method does not add to commit log',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      var atKey = AtKey.local('phone', '@alice', namespace: 'wavi').build();
+
+      var commitId =
+          await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
+      expect(commitId, -1);
+    });
+
+    test('Test to verify local created with AtKey does not add to commit log',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var atKey = AtKey()
+        ..key = 'phone'
+        ..sharedBy = '@alice'
+        ..namespace = 'wavi'
+        ..isLocal = true;
+      var commitId =
+          await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
+      expect(commitId, -1);
+    });
   });
 }
 

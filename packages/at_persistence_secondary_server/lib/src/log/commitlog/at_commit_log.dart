@@ -29,8 +29,11 @@ class AtCommitLog implements AtLogType {
     // If key starts with "public:_" it is a public hidden key but does not get synced.
     // So return -1.
     // The private: and privatekey: are not synced. so return -1.
+    // The key that starts with 'local:' are the local keys that do not sync between the
+    // client and server. Hence do not add to commit log.
     if (!key.startsWith('public:__') &&
-        (key.startsWith(RegExp('private:|privatekey:|public:_')))) {
+            (key.startsWith(RegExp('private:|privatekey:|public:_'))) ||
+        (key.startsWith('local:'))) {
       return -1;
     }
     int result;
