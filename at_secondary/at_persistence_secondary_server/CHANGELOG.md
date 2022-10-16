@@ -1,3 +1,5 @@
+## 3.0.40
+- feat: Refrain adding local keys to commit log.
 ## 3.0.39
 - fix: lastSyncedEntry to accept signing private key
 ## 3.0.38
