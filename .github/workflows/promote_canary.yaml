@@ -37,9 +37,9 @@ jobs:
         id: docker_build_canary_to_prod
         uses: docker/build-push-action@v3.2.0
         with:
-          push: true 
-          file: ./at_secondary/Dockerfile.canary_to_prod
-          context: at_secondary
+          push: true
+          file: tools/build_secondary/Dockerfile.canary_to_prod
+          context: packages
           tags: |
             atsigncompany/secondary:prod
             atsigncompany/secondary:dess
@@ -47,4 +47,4 @@ jobs:
           platforms: |
             linux/amd64
             linux/arm64/v8
-            linux/arm/v7        
+            linux/arm/v7

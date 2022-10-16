@@ -32,17 +32,17 @@ jobs:
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
-          python3 ./automation/acme_certs.py "$FQDN"
+          python3 ./tools/acme_certs.py "$FQDN"
           if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
             echo "Letsencrypt certificate validated"
           else
             echo "Failing over to Google"
-            python3 ./automation/acme_certs.py -g "$FQDN"
+            python3 ./tools/acme_certs.py -g "$FQDN"
             if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
               echo "Google certificate validated"
             else
               echo "Failing over to ZeroSSL"
-              python3 ./automation/acme_certs.py -z "$FQDN"
+              python3 ./tools/acme_certs.py -z "$FQDN"
               if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
                 echo "ZeroSSL certificate validated"
               else
@@ -52,11 +52,11 @@ jobs:
             fi
           fi
           set -e
-          cp "$FQDN".cert.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          cp "$FQDN".key ./at_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          cp "$FQDN".fullchain.pem ./at_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
-          cp ./at_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
-            ./at_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          cp "$FQDN".cert.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
+          cp "$FQDN".key ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp "$FQDN".fullchain.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ./tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
           git config --global user.name 'Getcert Action'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
         env:
@@ -79,7 +79,7 @@ jobs:
           committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: false
-          add-paths: ./at_virtual_environment
+          add-paths: ./tools/build_virtual_environment
           branch: bot-new-certs
           delete-branch: true
           title: 'chore: New certificates generated'
