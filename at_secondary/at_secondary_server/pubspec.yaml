@@ -25,6 +25,13 @@ dependencies:
   at_commons: 3.0.26
   version: 3.0.2
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      ref: add_==_and_hashCode_to_AtKey
+      path: at_commons
+
 #dependency_overrides:
 #  at_server_spec:
 #    git:
