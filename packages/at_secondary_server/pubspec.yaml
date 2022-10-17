@@ -25,17 +25,17 @@ dependencies:
   at_commons: 3.0.26
   version: 3.0.2
 
-#dependency_overrides:
+dependency_overrides:
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: trunk
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_secondary/at_persistence_secondary_server
-#      ref: notify_fetch
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: sync_expired_keys_issue
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
