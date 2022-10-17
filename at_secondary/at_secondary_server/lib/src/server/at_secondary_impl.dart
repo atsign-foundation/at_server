@@ -583,8 +583,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (keyStore.isKeyExists(key)) {
           int? commitId = await keyStore.remove(key);
           logger.warning('commitId for removed key $key: $commitId');
-          // do not sync back the deleted malformed key. remove from commit log
-          await _commitLog.commitLogKeyStore.remove(commitId);
+          // do not sync back the deleted malformed key. remove from commit log if commitId is not null
+          if (commitId != null) {
+            await _commitLog.commitLogKeyStore.remove(commitId);
+          }
         }
       }
     } on Exception catch (e) {

@@ -231,6 +231,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
+  /// Returns an integer if the key to be deleted is present in keystore or cache.
+  /// Returns null if the key to be deleted is not present in keystore or cache.
   @override
   Future<int?> remove(String key) async {
     int? result;
