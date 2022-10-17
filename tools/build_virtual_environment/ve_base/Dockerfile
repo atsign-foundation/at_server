@@ -8,7 +8,7 @@ WORKDIR /app
 ## -f tools/build_virtual_environment/ve_base/Dockerfile .
 COPY . .
 RUN \
-  cd /app/packages/at_root/at_root_server ; \
+  cd /app/packages/at_root_server ; \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o root ; \
@@ -33,7 +33,7 @@ RUN chmod 777 /tmp && \
     /tmp/setup/create_demo_accounts.sh
 
 COPY --from=buildimage --chown=atsign:atsign \
-  /app/packages/at_root/at_root_server/root /atsign/root/
+  /app/packages/at_root_server/root /atsign/root/
 COPY --from=buildimage --chown=atsign:atsign \
   /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
   /usr/local/bin/
