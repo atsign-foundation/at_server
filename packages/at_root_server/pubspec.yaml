@@ -16,7 +16,7 @@ dependencies:
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
-      path: at_root/at_persistence_root_server
+      path: packages/at_persistence_root_server
       ref: trunk
       version: ^2.0.5
   at_utils: ^3.0.0
