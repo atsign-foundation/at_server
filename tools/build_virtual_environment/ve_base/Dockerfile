@@ -20,7 +20,7 @@ RUN \
 FROM debian:stable-20221004-slim
 USER root
 
-COPY ./at_virtual_environment/ve_base/contents /
+COPY ./tools/build_virtual_environment/ve_base/contents /
 
 RUN chmod 777 /tmp && \
     mkdir -p /atsign/logs && \
