@@ -5,14 +5,14 @@ WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/vebase \
-## -f at_virtual_environment/ve_base/Dockerfile .
+## -f tools/build_virtual_environment/ve_base/Dockerfile .
 COPY . .
 RUN \
-  cd /app/at_root/at_root_server ; \
+  cd /app/packages/at_root/at_root_server ; \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o root ; \
-  cd /app/at_virtual_environment/install_PKAM_Keys ; \
+  cd /app/tools/build_virtual_environment/install_PKAM_Keys ; \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
@@ -33,8 +33,8 @@ RUN chmod 777 /tmp && \
     /tmp/setup/create_demo_accounts.sh
 
 COPY --from=buildimage --chown=atsign:atsign \
-  /app/at_root/at_root_server/root /atsign/root/
+  /app/packages/at_root/at_root_server/root /atsign/root/
 COPY --from=buildimage --chown=atsign:atsign \
-  /app/at_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
+  /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
   /usr/local/bin/
   
