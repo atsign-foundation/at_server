@@ -27,9 +27,10 @@ class OutboundMessageListener {
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
   Future<void> _messageHandler(data) async {
     //ignore the data if connection is closed or stale
-    if (outboundClient.outboundConnection!.getMetaData().isStale || outboundClient.outboundConnection!.getMetaData().isClosed){
+    if (outboundClient.outboundConnection!.getMetaData().isStale ||
+        outboundClient.outboundConnection!.getMetaData().isClosed) {
       _buffer.clear();
-      return ;
+      return;
     }
     String result;
     if (!_buffer.isOverFlow(data)) {
@@ -56,7 +57,8 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info('RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
+      logger.info(
+          'RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
       _queue.add(result);
     }
   }
