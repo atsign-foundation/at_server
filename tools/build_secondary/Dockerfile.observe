@@ -3,7 +3,13 @@ ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
-COPY . .
+# Context for this Dockerfile needs to be at_server repo root 
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/secondary:dev_obs \
+##   -f tools/build_secondary/Dockerfile.observe .
+COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
+COPY ./packages/at_secondary_server/ ./at_secondary_server
+COPY ./tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/ ./at_secondary_server
 RUN \
   cd at_persistence_secondary_server ; \
   dart pub get ; \
