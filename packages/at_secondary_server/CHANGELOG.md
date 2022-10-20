@@ -1,3 +1,6 @@
+## 3.0.25
+- Upgrade at_persistence_secondary_server version to 3.0.40
+- Upgrade at_commons version to 3.0.28
 ## 3.0.24
 - chore: upgrade version of persistence_secondary, at_commons and at_lookup
 - feat: Introduce Notify fetch verb
