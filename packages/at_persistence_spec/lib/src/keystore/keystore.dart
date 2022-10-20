@@ -54,7 +54,8 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   ///
   /// @param key - Key associated with a value.
   /// @return - sequence number from commit log if remove is success. null otherwise
-  /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
+  /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
+  /// Throws a [KeyNotFoundException] if the key to be removed doesn't exist in the keystore.
   Future<dynamic> remove(K key);
 }
 

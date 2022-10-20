@@ -436,6 +436,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finer('inside _executeVerbCallBack: $command');
     try {
       command = SecondaryUtil.convertCommand(command);
+      logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbManager!);
     } on Exception catch (e) {
       logger.severe(
@@ -581,11 +582,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       for (String key in malformedKeys) {
         final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
         if (keyStore.isKeyExists(key)) {
-          int? commitId = await keyStore.remove(key);
-          logger.warning('commitId for removed key $key: $commitId');
-          // do not sync back the deleted malformed key. remove from commit log if commitId is not null
-          if (commitId != null) {
-            await _commitLog.commitLogKeyStore.remove(commitId);
+          try {
+            int? commitId = await keyStore.remove(key);
+            logger.warning('commitId for removed key $key: $commitId');
+            // do not sync back the deleted malformed key. remove from commit log if commitId is not null
+            if (commitId != null) {
+              await _commitLog.commitLogKeyStore.remove(commitId);
+            }
+          } on KeyNotFoundException {
+            logger.warning('malformed $key does not exist in keystore');
+            continue;
           }
         }
       }

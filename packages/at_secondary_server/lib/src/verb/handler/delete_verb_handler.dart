@@ -75,9 +75,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (deleteKey == AT_CRAM_SECRET) {
       await keyStore!.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
-    var result = await keyStore!.remove(deleteKey);
-    response.data = result?.toString();
-    logger.finer('delete success. delete key: $deleteKey');
+    try {
+      var result = await keyStore!.remove(deleteKey);
+      response.data = result?.toString();
+      logger.finer('delete success. delete key: $deleteKey');
+    } on KeyNotFoundException {
+      logger.warning('key $deleteKey does not exist in keystore');
+      rethrow;
+    }
     try {
       if (!deleteKey.startsWith('@')) {
         return;

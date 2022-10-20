@@ -72,6 +72,18 @@ void main() async {
           throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
 
+    test('test remove non existent key', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var updateData = AtData();
+      updateData.data = 'alice';
+      await keyStore.put('last_name.wavi@test_user_1', updateData);
+      await keyStore.remove('last_name.wavi@test_user_1');
+      expectLater(keyStore.remove('last_name.wavi@test_user_1'),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
+    });
+
     test('get keys', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
@@ -416,11 +428,11 @@ void main() async {
           .getCommitLog('@test_user_1'));
       int? lastCommittedSequenceBeforeRemove =
           commitLogInstance?.lastCommittedSequenceNumber();
-      final removeResult = await keystore?.remove(nonExistentKey);
       int? lastCommittedSequenceAfterRemove =
           commitLogInstance?.lastCommittedSequenceNumber();
       final metaDataCache = keystore?.getMetaDataCache();
-      expect(removeResult, isNull);
+      expectLater(keystore?.remove(nonExistentKey),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
       expect(metaDataCache!.length, cacheEntriesCountBeforeRemove!);
       expect(lastCommittedSequenceBeforeRemove,
           equals(lastCommittedSequenceAfterRemove));

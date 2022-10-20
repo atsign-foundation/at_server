@@ -232,7 +232,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   /// Returns an integer if the key to be deleted is present in keystore or cache.
-  /// Returns null if the key to be deleted is not present in keystore or cache.
+  /// throws [KeyNotFoundException] if the key to be deleted is not present in keystore.
   @override
   Future<int?> remove(String key) async {
     int? result;
@@ -240,16 +240,18 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       bool isKeyPresent = persistenceManager!
           .getBox()
           .containsKey(keyStoreHelper.prepareKey(key));
+      if (!isKeyPresent) {
+        throw KeyNotFoundException('$key does not exist in the keystore');
+      }
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       final atMetaData = _removeKeyFromMetadataCache(key);
       if (atMetaData != null || isKeyPresent) {
         // add entry to commit log only if key is removed from cache or key is present in keystore
         result = await _commitLog.commit(key, CommitOp.DELETE);
-      } else {
-        logger.finer(
-            'entry for $key is not present in cache. Skipping commit log delete op');
       }
       return result;
+    } on KeyNotFoundException {
+      rethrow;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
@@ -274,7 +276,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       List<String> expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         for (String element in expiredKeys) {
-          await remove(element);
+          try {
+            await remove(element);
+          } on KeyNotFoundException {
+            continue;
+          }
         }
         result = true;
       }
