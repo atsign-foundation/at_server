@@ -149,7 +149,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'delete:location$firstAtsign');
     response = await read();
     print('delete verb response : $response');
-    assert(response.startsWith('error:AT0015'));
+    assert(response.startsWith('error:'));
+    assert(response.contains('AT0015'));
     assert(response
         .contains('location$firstAtsign does not exist in the keystore'));
   }, timeout: Timeout(Duration(seconds: 50)));
