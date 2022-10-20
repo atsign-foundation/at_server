@@ -75,8 +75,9 @@ void main() {
     if (serverResponse > Version(3, 0, 24)) {
       response = response.replaceFirst('error:', '');
       var errorMap = jsonDecode(response);
-      expect(errorMap['errorCode'], 'AT0015');
-      assert(errorMap['errorDescription'].contains('key not found'));
+      expect(errorMap['errorCode'], 'AT0011');
+      expect(errorMap['errorDescription'],
+          contains('public:no-key$atSign_1 does not exist in keystore'));
     } else {
       expect(response,
           contains('public:no-key$atSign_1 does not exist in keystore'));
