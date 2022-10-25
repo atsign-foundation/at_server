@@ -16,17 +16,22 @@ class OutboundMessageListener {
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
-  void listen() {
-    var connection = outboundClient.outboundConnection!;
-    connection.getSocket().listen(_messageHandler,
+  void listen() async {
+    outboundClient.outboundConnection?.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
     _queue = Queue();
-    connection.getMetaData().isListening = true;
+    outboundClient.outboundConnection?.getMetaData().isListening = true;
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
   Future<void> _messageHandler(data) async {
+    //ignore the data if connection is closed or stale
+    if (outboundClient.outboundConnection!.getMetaData().isStale ||
+        outboundClient.outboundConnection!.getMetaData().isClosed) {
+      _buffer.clear();
+      return;
+    }
     String result;
     if (!_buffer.isOverFlow(data)) {
       // skip @ prompt. byte code for @ is 64
@@ -52,7 +57,8 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info('RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
+      logger.info(
+          'RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
       _queue.add(result);
     }
   }

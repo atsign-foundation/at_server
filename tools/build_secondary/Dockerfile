@@ -1,10 +1,10 @@
-FROM dart:2.18.2 AS buildimage
+FROM dart:2.18.3 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
-COPY ./at_persistence_secondary_server ./at_persistence_secondary_server
-COPY ./at_secondary_server ./at_secondary_server
+COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
+COPY ./packages/at_secondary_server/ ./at_secondary_server
 RUN \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
