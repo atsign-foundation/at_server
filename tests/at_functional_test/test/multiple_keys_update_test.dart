@@ -1,10 +1,12 @@
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 import 'commons.dart';
-import 'dart:io';
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:version/version.dart';
+
 
 void main() {
   var firstAtsign =
@@ -52,20 +54,30 @@ void main() {
     print('sync response is : $response');
     expect('public:location$firstAtsign'.allMatches(response).length,1);
   });
-  //  uncomment and change this test once server is released with
-  //  https://github.com/atsign-foundation/at_server/pull/966
-  // test('delete same key multiple times test', () async {
-  //   int noOfTests =5;
-  //   late String response;
-  //    /// UPDATE VERB
-  //   for(int i =1 ; i <= noOfTests ;i++ ){
-  //     await socket_writer(
-  //       socketFirstAtsign!, 'delete:public:location$firstAtsign');
-  //   response = await read();
-  //   print('delete verb response : $response');
-  //   assert(
-  //       (!response.contains('Invalid syntax')) && (!response.contains('null')));
-  //   }});
+
+  test('delete same key multiple times test', () async {
+    int noOfTests = 3;
+    late String response;
+    await socket_writer(socketFirstAtsign!, 'info');
+    var infoResponse = await read();
+    infoResponse = infoResponse.replaceFirst('data:', '');
+    final versionObj = jsonDecode(infoResponse)['version'];
+    var versionStr = versionObj?.split('+')[0];
+    print('version - $versionStr');
+    var serverVersion;
+    if(versionStr != null) {
+      serverVersion = Version.parse(serverVersion);
+    }
+    print('*** serverVersion $serverVersion');
+     /// UPDATE VERB
+    for(int i =1 ; i <= noOfTests ;i++ ){
+      await socket_writer(
+        socketFirstAtsign!, 'delete:public:location$firstAtsign');
+    response = await read();
+    print('delete verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    }});
 
    test('update multiple key at the same time', () async {
     int noOfTests =5;
