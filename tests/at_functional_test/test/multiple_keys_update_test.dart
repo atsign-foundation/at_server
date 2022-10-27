@@ -53,18 +53,18 @@ void main() {
     expect('public:location$firstAtsign'.allMatches(response).length,1);
   });
 
-  test('delete same key multiple times test', () async {
-    int noOfTests =5;
-    late String response;
-     /// UPDATE VERB
-    for(int i =1 ; i <= noOfTests ;i++ ){
-      await socket_writer(
-        socketFirstAtsign!, 'delete:public:location$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    }});
+  // test('delete same key multiple times test', () async {
+  //   int noOfTests =5;
+  //   late String response;
+  //    /// UPDATE VERB
+  //   for(int i =1 ; i <= noOfTests ;i++ ){
+  //     await socket_writer(
+  //       socketFirstAtsign!, 'delete:public:location$firstAtsign');
+  //   response = await read();
+  //   print('delete verb response : $response');
+  //   assert(
+  //       (!response.contains('Invalid syntax')) && (!response.contains('null')));
+  //   }});
 
    test('update multiple key at the same time', () async {
     int noOfTests =5;
