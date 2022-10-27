@@ -52,19 +52,20 @@ void main() {
     print('sync response is : $response');
     expect('public:location$firstAtsign'.allMatches(response).length,1);
   });
-
-  test('delete same key multiple times test', () async {
-    int noOfTests =5;
-    late String response;
-     /// UPDATE VERB
-    for(int i =1 ; i <= noOfTests ;i++ ){
-      await socket_writer(
-        socketFirstAtsign!, 'delete:public:location$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    }});
+  //  uncomment and change this test once server is released with
+  //  https://github.com/atsign-foundation/at_server/pull/966
+  // test('delete same key multiple times test', () async {
+  //   int noOfTests =5;
+  //   late String response;
+  //    /// UPDATE VERB
+  //   for(int i =1 ; i <= noOfTests ;i++ ){
+  //     await socket_writer(
+  //       socketFirstAtsign!, 'delete:public:location$firstAtsign');
+  //   response = await read();
+  //   print('delete verb response : $response');
+  //   assert(
+  //       (!response.contains('Invalid syntax')) && (!response.contains('null')));
+  //   }});
 
    test('update multiple key at the same time', () async {
     int noOfTests =5;
