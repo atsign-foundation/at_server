@@ -507,6 +507,29 @@ void main() {
     print('time difference is $timeDifferenceValue');
     expect(timeDifferenceValue.inMilliseconds <= 10000, true);
   });
+
+  /// The purpose of this test is verify the date time of second notification is correct
+  /// not picked from the earlier notification.
+  test('A test to verify subsequent notifications has correct date', () async {
+    // Sending first notification
+    await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
+    var response = await sh1.read();
+
+    var currentDateTime = DateTime.now().toUtc();
+    // Sending second notification
+    await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
+    response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    await sh2.writeCommand('notify:fetch:$response');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var atNotificationMap = jsonDecode(response);
+    expect(
+        DateTime.parse(atNotificationMap['notificationDateTime'])
+                .microsecondsSinceEpoch >
+            currentDateTime.microsecondsSinceEpoch,
+        true);
+  });
 // commenting till server code is released to prod
 //  test('notify verb for notifying a key update with shared key metadata',
 //      () async {
