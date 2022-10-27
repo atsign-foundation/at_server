@@ -92,7 +92,8 @@ class SimpleOutboundSocketHandler {
   /// Runs a from verb and pkam verb on the atsign param.
   Future<void> sendFromAndPkam() async {
     // FROM VERB
-    await writeCommand('from:$atSign');
+    // Setting clientVersion to 3.0.38 to support JSON encoding of error responses
+    await writeCommand('from:$atSign:clientConfig:{"version":"3.0.38"}');
     var response = await read(timeoutMillis:4000);
     response = response.replaceAll('data:', '');
     var pkamDigest = generatePKAMDigest(atSign, response);

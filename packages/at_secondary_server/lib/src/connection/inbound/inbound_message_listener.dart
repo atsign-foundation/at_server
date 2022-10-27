@@ -37,6 +37,12 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
+    //ignore the data read if the connection is stale or closed
+    if (connection.getMetaData().isStale || connection.getMetaData().isClosed) {
+      //clear buffer as data is redundant
+      _buffer.clear();
+      return;
+    }
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();
@@ -67,7 +73,8 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.info('RCVD: [${connection.getMetaData().sessionID}] ${BaseConnection.truncateForLogging(command)}');
+        logger.info(
+            'RCVD: [${connection.getMetaData().sessionID}] ${BaseConnection.truncateForLogging(command)}');
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();
