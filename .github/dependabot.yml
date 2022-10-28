@@ -7,23 +7,23 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "docker"
-    directory: "/at_secondary"
+    directory: "/tools/build_secondary"
     schedule:
       interval: "daily"
   - package-ecosystem: "docker"
-    directory: "/at_virtual_environment/ve"
+    directory: "/tools/build_virtual_environment/ve"
     schedule:
       interval: "daily"
   - package-ecosystem: "docker"
-    directory: "/at_virtual_environment/ve_base"
+    directory: "/tools/build_virtual_environment/ve_base"
     schedule:
       interval: "daily"     
   - package-ecosystem: "docker"
-    directory: "/at_root/at_root_server"
+    directory: "/packages/at_root_server"
     schedule:
       interval: "daily"
   - package-ecosystem: "pub"
-    directory: "/at_secondary/at_secondary_server"
+    directory: "/tools/build_secondary"
     schedule:
       interval: "daily"
       

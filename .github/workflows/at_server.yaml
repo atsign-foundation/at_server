@@ -15,17 +15,20 @@ on:
     branches:
       - trunk
 
+env:
+  proot-working-directory: ./packages/at_persistence_root_server
+  root-working-directory: ./packages/at_root_server
+  psecondary-working-directory: ./packages/at_persistence_secondary_server
+  secondary-working-directory: ./packages/at_secondary_server
+  ftest-working-directory: ./tests/at_functional_test
+  e2etest-working-directory: ./tests/at_end2end_test
+
 jobs:
   unit_tests:
-    env:
-      proot-working-directory: ./at_root/at_persistence_root_server
-      root-working-directory: ./at_root/at_root_server
-      psecondary-working-directory: ./at_secondary/at_persistence_secondary_server
-      secondary-working-directory: ./at_secondary/at_secondary_server
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -71,8 +74,8 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_persistence_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p packages/at_persistence_secondary_server
 
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
@@ -91,8 +94,8 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
         run: |
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       # Runs dart lint rules and unit tests on at_secondary_server
       - name: Install dependencies in at_secondary_server
@@ -124,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
@@ -136,11 +139,11 @@ jobs:
           python-version: '3.8'
 
       - name: Install dependencies
-        working-directory: at_functional_test
+        working-directory: ${{ env.ftest-working-directory }}
         run: dart pub get
 
       - name: Run dart analyzer
-        working-directory: at_functional_test
+        working-directory: ${{ env.ftest-working-directory }}
         run: dart analyze
 
       - name: Add entry to hosts file
@@ -152,24 +155,24 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           pip3 install ruamel.yaml
-          chmod +x add_dependency_overrides.py
-          python3 add_dependency_overrides.py -p at_secondary/at_secondary_server
+          chmod +x ./tools/add_dependency_overrides.py
+          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       - name: Generate secondary server binary
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
-      - name: copy secondary to at_virtual_environment/ve
+      - name: copy secondary to tools/build_virtual_environment/ve
         run: |
-          cp at_secondary/at_secondary_server/secondary at_virtual_environment/ve/contents/atsign/secondary/
-          chmod 755 at_virtual_environment/ve/contents/atsign/secondary/secondary
-          ls -laR at_virtual_environment/ve/*
+          cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
+          chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
+          ls -laR tools/build_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
-          file: at_virtual_environment/ve/Dockerfile
-          context: at_virtual_environment/ve
+          file: tools/build_virtual_environment/ve/Dockerfile
+          context: tools/build_virtual_environment/ve
           tags: at_virtual_env:trunk
 
       - name: Run docker container
@@ -178,11 +181,11 @@ jobs:
 
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
-        working-directory: at_functional_test
+        working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_test_env.dart
 
       - name: Run tests
-        working-directory: at_functional_test
+        working-directory: ${{ env.ftest-working-directory }}
         run: dart run test
 
       # On push event, upload secondary server binary
@@ -191,7 +194,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: secondary-server
-          path: at_secondary/at_secondary_server/secondary
+          path: packages/at_secondary_server/secondary
 
       - name: Stop docker container
         run: docker container stop at_virtual_env_cont
@@ -208,17 +211,17 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       - name: Place run number into version within pubspec.yaml
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -226,10 +229,10 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true
-          context: at_secondary
+          file: tools/build_secondary/Dockerfile
           tags: |
             atsigncompany/secondary:dess_cicd
             atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
@@ -253,26 +256,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
 
       - name: Install dependencies
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
-        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+        run: echo "${{secrets.CICD_DATA_DART}}" > tests/at_end2end_test/test/at_demo_data.dart
 
       # Put config file in place
       - name: Config for @cicd1/2
-        run:  mv at_end2end_test/config/config12.yaml at_end2end_test/config/config.yaml
+        run:  mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end to end test
       - name: End to end test
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
 # The job runs end to end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
@@ -282,26 +285,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
 
       - name: Install dependencies
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
-        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+        run: echo "${{secrets.CICD_DATA_DART}}" > tests/at_end2end_test/test/at_demo_data.dart
 
       # Put config file in place
       - name: Config for @cicd3/4
-        run:  mv at_end2end_test/config/config34.yaml at_end2end_test/config/config.yaml
+        run:  mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end to end test
       - name: End to end test
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
 # The job runs end to end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
@@ -311,26 +314,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
       - uses: dart-lang/setup-dart@v1.3
         with:
           sdk: stable
 
       - name: Install dependencies
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
       # Create demo_data.dart from CICD_DATA_DART secret
       - name: Get CICD keys into place
-        run: echo "${{secrets.CICD_DATA_DART}}" > at_end2end_test/test/at_demo_data.dart
+        run: echo "${{secrets.CICD_DATA_DART}}" > tests/at_end2end_test/test/at_demo_data.dart
 
       # Put config file in place
       - name: Config for @cicd5/6
-        run:  mv at_end2end_test/config/config56.yaml at_end2end_test/config/config.yaml
+        run:  mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end to end test
       - name: End to end test
-        working-directory: at_end2end_test
+        working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
   # This job run's on trigger event 'push' to trunk branch.
@@ -346,10 +349,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       - name: Place run number into version within pubspec.yaml
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
@@ -357,13 +360,13 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -371,9 +374,9 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
-          file: at_virtual_environment/ve/Dockerfile.vip
+          file: tools/build_virtual_environment/ve/Dockerfile.vip
           push: true
           tags: |
             atsigncompany/virtualenv:dev_env
@@ -398,10 +401,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       - name: Place run number into version within pubspec.yaml
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
@@ -409,13 +412,13 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -423,10 +426,10 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true
-          context: at_secondary
+          file: tools/build_secondary/Dockerfile
           tags: |
             atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
@@ -451,10 +454,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       - name: Place run number into version within pubspec.yaml
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
 
       # Extract branch for docker tag
@@ -462,44 +465,24 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8'
-
-      # Install python packages
-      - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install jproperties ruamel.yaml argparse
-
-      # Gets the secondary server binary generated from the above "secondary" job.
-      - name: Get secondary server
-        uses: actions/download-artifact@v3
-        with:
-          name: secondary-server
-          path: at_secondary/at_secondary_server
-
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true
-          file: ./at_secondary/Dockerfile.observe
-          context: at_secondary
+          file: tools/build_secondary/Dockerfile.observe
           tags: |
             atsigncompany/secondary:dev_obs
             atsigncompany/secondary:dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
@@ -522,24 +505,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Place canary version into pubspec.yaml
-        working-directory: at_secondary/at_secondary_server
+        working-directory: ${{ env.secondary-working-directory }}
         run: sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -547,15 +530,55 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true
-          context: at_secondary
+          file: tools/build_secondary/Dockerfile
           tags: |
             atsigncompany/secondary:canary
             atsigncompany/secondary:canary-${{ env.VERSION }}
           platforms: |
             linux/amd64
+
+      # Retag prod x64 and Arm64 images as canary
+      - name: Create canary-x64 label
+        run: |
+          docker pull atsigncompany/secondary:canary
+          docker tag atsigncompany/secondary:canary atsigncompany/secondary:canary-x64
+          docker push atsigncompany/secondary:canary-x64
+
+      - name: Create dess-arm64 label
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: "arm64cicd.atsign.wtf"
+          username: ubuntu
+          key: ${{ secrets.CICD_SSH_KEY }}
+          script: |
+            docker pull atsigncompany/secondary:canary
+            docker tag atsigncompany/secondary:canary atsigncompany/secondary:canary-arm64
+            docker push atsigncompany/secondary:canary-arm64
+
+      # Logs into Pi and builds Armv7 canary
+      - name: Create canary-arm image
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: "arm32cicd.atsign.wtf"
+          username: pi
+          key: ${{ secrets.CICD_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            cd /home/pi/git/github.com/atsign-foundation/at_server
+            git pull
+            docker build -t atsigncompany/secondary:canary-arm packages -f tools/build_secondary/Dockerfile
+            docker push atsigncompany/secondary:canary-arm
+
+      - name: Create and push multi-arch canary manifest
+        run: |
+          docker manifest create atsigncompany/secondary:canary \
+            --amend atsigncompany/secondary:canary-arm \
+            --amend atsigncompany/secondary:canary-arm64 \
+            --amend atsigncompany/secondary:canary-x64
+          docker manifest push atsigncompany/secondary:canary
 
   # The below jobs run's on completion of 'run_end2end_tests' job.
   # This job run's on trigger event 'push' and when a release is tagged.
@@ -569,20 +592,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -592,15 +615,15 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: secondary-server
-          path: at_secondary/at_secondary_server
+          path: ${{ env.secondary-working-directory }}
 
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
           push: true
-          context: at_secondary
+          file: tools/build_secondary/Dockerfile
           tags: |
             atsigncompany/secondary:prod
             atsigncompany/secondary:prod-${{ env.VERSION }}
@@ -617,14 +640,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.1.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -659,7 +682,7 @@ jobs:
             cd /home/pi/git/github.com/atsign-foundation/at_server
             git pull
             cd at_secondary
-            docker build -t atsigncompany/secondary:dess-arm .
+            docker build -t atsigncompany/secondary:dess-arm packages -f tools/build_secondary/Dockerfile
             docker push atsigncompany/secondary:dess-arm
 
       - name: Create and push multi-arch dess manifest
@@ -676,22 +699,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@v3.2.0
         with:
-          file: at_virtual_environment/ve/Dockerfile.vip
+          file: tools/build_virtual_environment/ve/Dockerfile.vip
           push: true
           tags: |
             atsigncompany/virtualenv:vip
