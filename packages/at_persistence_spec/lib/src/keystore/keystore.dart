@@ -1,4 +1,6 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
+// ignore_for_file: non_constant_identifier_names, constant_identifier_names
+
 abstract class Keystore<K, V> {
   /// Retrieves a Future value for the key passed from the key store.
   ///
