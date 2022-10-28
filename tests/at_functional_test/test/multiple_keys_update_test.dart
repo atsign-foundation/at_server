@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'commons.dart';
 import 'dart:io';
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:version/version.dart';
 
 void main() {
   var firstAtsign =
@@ -56,6 +57,17 @@ void main() {
   test('delete same key multiple times test', () async {
     int noOfTests =5;
     late String response;
+    await socket_writer(socketFirstAtsign!, 'info');
+    var infoResponse = await read();
+    infoResponse = infoResponse.replaceFirst('data:', '');
+    final versionObj = jsonDecode(infoResponse)['version'];
+    var versionStr = versionObj?.split('+')[0];
+    print('version - $versionStr');
+    var serverVersion;
+    if(versionStr != null) {
+      serverVersion = Version.parse(serverVersion);
+    }
+    print('*** serverVersion $serverVersion');
      /// UPDATE VERB
     for(int i =1 ; i <= noOfTests ;i++ ){
       await socket_writer(
