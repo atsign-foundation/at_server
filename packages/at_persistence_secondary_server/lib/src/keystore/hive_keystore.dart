@@ -70,6 +70,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return value;
   }
 
+  /// hive does not support directly storing emoji characters. So keys are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   Future<dynamic> put(String key, AtData? value,
       {int? time_to_live,
@@ -155,6 +156,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return result;
   }
 
+  /// hive does not support directly storing emoji characters. So keys are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   @server
   Future<dynamic> create(String key, AtData? value,
@@ -418,7 +420,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
-  /// Returns true if key exists in [HiveKeystore]; else false.
+  /// Returns true if key exists in [HiveKeystore]. false otherwise.
   @override
   @server
   bool isKeyExists(String key) {
@@ -437,6 +439,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
+  /// hive keys are stored in utf7 encoded format. Decode the keys while fetching
   Iterable<String> _getKeysFromKeyStore() {
     return persistenceManager!.getBox().keys.map((e) => Utf7.decode(e));
   }

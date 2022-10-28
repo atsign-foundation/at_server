@@ -474,6 +474,63 @@ void main() async {
           await keystore?.getMeta('key_test_2.wavi@test_user_1');
       expect(newMeta?.ttl, 131);
     });
+
+    test(
+        'test sequence of put operations and delete operation - check cache and keystore entries',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+
+      AtMetaData meta = AtMetaData();
+      meta.isEncrypted = false;
+      atData.metaData = meta;
+      for (int i = 1; i <= 5; i++) {
+        final testKey = 'sample_data_put_$i.wavi@test_user_1';
+        atData.data = 'sample_data_put_$i';
+        await keystore?.create(testKey, atData);
+      }
+      final metaDataCache = keystore?.getMetaDataCache();
+      for (int i = 1; i <= 5; i++) {
+        final testKey = 'sample_data_put_$i.wavi@test_user_1';
+        atData.data = 'sample_data_put_$i';
+        expect(keystore?.isKeyExists(testKey), true);
+        expect(metaDataCache?.containsKey(testKey), true);
+      }
+    });
+    test(
+        'test random sequence of put operations and delete operation - check cache and keystore entries',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData();
+      atData.data = 'sample_data';
+      AtMetaData meta = AtMetaData();
+      meta.isEncrypted = false;
+      atData.metaData = meta;
+      // put 3 keys
+      final testKey_1 = 'sample_data_put_1.wavi@test_user_1';
+      await keystore?.create(testKey_1, atData);
+      final testKey_2 = 'sample_data_put_2.wavi@test_user_1';
+      await keystore?.create(testKey_2, atData);
+      final testKey_3 = 'sample_data_put_3.wavi@test_user_1';
+      await keystore?.create(testKey_3, atData);
+
+      // delete 2 keys
+      await keystore?.remove(testKey_3);
+      await keystore?.remove(testKey_2);
+      final metaDataCache = keystore?.getMetaDataCache();
+      expect(keystore?.isKeyExists(testKey_1), true);
+      expect(metaDataCache?.containsKey(testKey_1), true);
+      expect(keystore?.isKeyExists(testKey_2), false);
+      expect(metaDataCache?.containsKey(testKey_2), false);
+      expect(keystore?.isKeyExists(testKey_3), false);
+      expect(metaDataCache?.containsKey(testKey_3), false);
+    });
   });
 
   test('test to verify if getKeys returns expired keys', () async {
