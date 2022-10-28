@@ -165,6 +165,7 @@ jobs:
       - name: copy secondary to tools/build_virtual_environment/ve
         run: |
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
+          cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR tools/build_virtual_environment/ve/*
 
