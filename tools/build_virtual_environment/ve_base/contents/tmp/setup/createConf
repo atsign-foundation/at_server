@@ -15,6 +15,7 @@ cp  TEMPLATE.conf /etc/supervisor/conf.d/${PORT}_${ATSIGN}.conf
 mkdir /atsign/secondary/${ATSIGN}
 ln -s /atsign/secondary/base/certs /atsign/secondary/${ATSIGN}/certs
 ln -s /atsign/secondary/base/config /atsign/secondary/${ATSIGN}/config
+ln -s /atsign/secondary/pubspec.yaml /atsign/secondary/${ATSIGN}/pubspec.yaml
 sed -i 's/ATSIGN/'$ATSIGN'/g' /etc/supervisor/conf.d/${PORT}_${ATSIGN}.conf
 sed -i 's/CRAM/'$CRAM'/g' /etc/supervisor/conf.d/${PORT}_${ATSIGN}.conf
 sed -i 's/PORT/'$PORT'/g' /etc/supervisor/conf.d/${PORT}_${ATSIGN}.conf
