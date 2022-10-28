@@ -18,7 +18,7 @@ void main() {
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-        
+
     // socket connection for first atsign
     socketFirstAtsign =
         await secure_socket_connection(firstAtsignServer, firstAtsignPort);
@@ -26,13 +26,14 @@ void main() {
     await prepare(socketFirstAtsign!, firstAtsign);
   });
 
-
   test('Delete verb for public key', () async {
     ///UPDATE VERB
-    await socket_writer(socketFirstAtsign!, 'update:public:location$firstAtsign Bengaluru');
+    await socket_writer(
+        socketFirstAtsign!, 'update:public:location$firstAtsign Bengaluru');
     var response = await read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan');
@@ -41,10 +42,12 @@ void main() {
     expect(response, contains('public:location$firstAtsign'));
 
     ///DELETE VERB
-    await socket_writer(socketFirstAtsign!, 'delete:public:location$firstAtsign');
+    await socket_writer(
+        socketFirstAtsign!, 'delete:public:location$firstAtsign');
     response = await read();
     print('delete verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan');
@@ -63,36 +66,42 @@ void main() {
 
   test('delete verb for an emoji key', () async {
     ///UPDATE VERB
-    await socket_writer(socketFirstAtsign!, 'update:public:🦄🦄$firstAtsign 2emojis');
+    await socket_writer(
+        socketFirstAtsign!, 'update:public:🦄🦄$firstAtsign 2emojis');
     var response = await read();
     print('update verb response $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response is :$response');
-    expect(response,contains('public:🦄🦄$firstAtsign'));
+    expect(response, contains('public:🦄🦄$firstAtsign'));
 
     ///DELETE VERB
     await socket_writer(socketFirstAtsign!, 'delete:public:🦄🦄$firstAtsign');
     response = await read();
     print('delete verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response is :$response');
-    expect(response,isNot('public:🦄🦄$firstAtsign'));
+    expect(response, isNot('public:🦄🦄$firstAtsign'));
   });
 
   test('delete verb when ccd is true', () async {
     ///UPDATE VERB
-    await socket_writer(socketFirstAtsign!, 'update:ttr:-1:ccd:true:$secondAtsign:hobby$firstAtsign photography');
+    await socket_writer(socketFirstAtsign!,
+        'update:ttr:-1:ccd:true:$secondAtsign:hobby$firstAtsign photography');
     var response = await read();
     print('update verb response : $response');
-    assert((!response.contains('Invalid syntax')) && (!response.contains('null')));;
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    ;
 
     ///SCAN VERB in the first atsign
     await socket_writer(socketFirstAtsign!, 'scan');
@@ -101,7 +110,8 @@ void main() {
     expect(response, contains('"$secondAtsign:hobby$firstAtsign"'));
 
     // ///DELETE VERB
-    await socket_writer(socketFirstAtsign!, 'delete:$secondAtsign:hobby$firstAtsign');
+    await socket_writer(
+        socketFirstAtsign!, 'delete:$secondAtsign:hobby$firstAtsign');
     response = await read();
     print('delete verb response : $response');
     assert(!response.contains('data:null'));
@@ -113,7 +123,37 @@ void main() {
     expect(response, isNot('"$secondAtsign:hobby$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 60)));
 
+  test('Delete verb - delete non existent key', () async {
+    ///UPDATE VERB
+    await socket_writer(
+        socketFirstAtsign!, 'update:location$firstAtsign India');
+    var response = await read();
+    print('update verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
+    ///SCAN VERB
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response before delete : $response');
+    expect(response, contains('location$firstAtsign'));
+
+    ///DELETE VERB
+    await socket_writer(socketFirstAtsign!, 'delete:location$firstAtsign');
+    response = await read();
+    print('delete verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///DELETE VERB AGAIN
+    await socket_writer(socketFirstAtsign!, 'delete:location$firstAtsign');
+    response = await read();
+    print('delete verb response : $response');
+    assert(response.startsWith('error:'));
+    assert(response.contains('AT0015'));
+    assert(response
+        .contains('location$firstAtsign does not exist in the keystore'));
+  }, timeout: Timeout(Duration(seconds: 50)));
 
   tearDown(() {
     //Closing the client socket connection

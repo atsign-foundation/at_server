@@ -111,6 +111,10 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
 
   /// Remove cached key.
   Future<void> _removeCachedKey(String key) async {
-    await keyStore!.remove(key);
+    try {
+      await keyStore!.remove(key);
+    } on KeyNotFoundException {
+      logger.warning('remove operation - key $key does not exist in keystore');
+    }
   }
 }
