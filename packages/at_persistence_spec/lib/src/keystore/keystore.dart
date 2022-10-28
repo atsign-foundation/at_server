@@ -1,4 +1,6 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
+// ignore_for_file: non_constant_identifier_names, constant_identifier_names
+
 abstract class Keystore<K, V> {
   /// Retrieves a Future value for the key passed from the key store.
   ///
@@ -54,7 +56,8 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   ///
   /// @param key - Key associated with a value.
   /// @return - sequence number from commit log if remove is success. null otherwise
-  /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
+  /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
+  /// Throws a [KeyNotFoundException] if the key to be removed doesn't exist in the keystore.
   Future<dynamic> remove(K key);
 }
 

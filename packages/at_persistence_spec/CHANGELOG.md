@@ -1,3 +1,6 @@
+## 2.0.8
+- fix dart analyzer issue
+- documentation changes
 ## 2.0.7
 - Add optional parameter 'encoding' to put and create method in keystore to support encoding of new line characters 
 ## 2.0.6

@@ -9,6 +9,7 @@ import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
+import 'package:meta/meta.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
@@ -16,7 +17,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
   late AtCommitLog _commitLog;
-  final HashMap<String, AtMetaData> _metaDataCache = HashMap();
+  final HashMap<String, AtMetaData?> _metaDataCache = HashMap();
 
   HiveKeystore();
 
@@ -35,12 +36,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       return;
     }
     logger.finest('Metadata cache initialization started');
-    var keys = persistenceManager!.getBox().keys;
+    var keys = _getKeysFromKeyStore();
     await Future.forEach(
         keys,
-        (key) =>
-            (persistenceManager!.getBox() as LazyBox).get(key).then((atData) {
-              _metaDataCache[key.toString()] = atData.metaData!;
+        (key) => get(key.toString()).then((atData) {
+              _metaDataCache[key.toString()] = atData?.metaData;
             }));
     logger.finest('Metadata cache initialization complete');
   }
@@ -70,6 +70,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return value;
   }
 
+  /// hive does not support directly storing emoji characters. So keys are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   Future<dynamic> put(String key, AtData? value,
       {int? time_to_live,
@@ -155,6 +156,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return result;
   }
 
+  /// hive does not support directly storing emoji characters. So keys are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   @server
   Future<dynamic> create(String key, AtData? value,
@@ -218,7 +220,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
-      _metaDataCache[hive_key] = hive_data.metaData!;
+      _metaDataCache[key] = hive_data.metaData!;
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -231,14 +233,27 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
+  /// Returns an integer if the key to be deleted is present in keystore or cache.
+  /// throws [KeyNotFoundException] if the key to be deleted is not present in keystore.
   @override
   Future<int?> remove(String key) async {
     int? result;
     try {
-      await persistenceManager!.getBox().delete(Utf7.encode(key));
-      _metaDataCache.remove(key);
-      result = await _commitLog.commit(key, CommitOp.DELETE);
+      bool isKeyPresent = persistenceManager!
+          .getBox()
+          .containsKey(keyStoreHelper.prepareKey(key));
+      if (!isKeyPresent) {
+        throw KeyNotFoundException('$key does not exist in the keystore');
+      }
+      await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
+      final atMetaData = _removeKeyFromMetadataCache(key);
+      if (atMetaData != null || isKeyPresent) {
+        // add entry to commit log only if key is removed from cache or key is present in keystore
+        result = await _commitLog.commit(key, CommitOp.DELETE);
+      }
       return result;
+    } on KeyNotFoundException {
+      rethrow;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
@@ -249,6 +264,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
+  AtMetaData? _removeKeyFromMetadataCache(String key) {
+    final removeResult = _metaDataCache.remove(key);
+    logger.finer('remove result for key $key is $removeResult');
+    return removeResult;
+  }
+
   @override
   @server
   Future<bool> deleteExpiredKeys() async {
@@ -257,7 +278,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       List<String> expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         for (String element in expiredKeys) {
-          await remove(element);
+          try {
+            await remove(element);
+          } on KeyNotFoundException {
+            continue;
+          }
         }
         result = true;
       }
@@ -280,7 +305,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     List<String> expiredKeys = <String>[];
     for (String key in _metaDataCache.keys) {
       if (_isExpired(key)) {
-        expiredKeys.add(Utf7.encode(key));
+        expiredKeys.add(key);
       }
     }
     return expiredKeys;
@@ -293,23 +318,21 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   List<String> getKeys({String? regex}) {
     List<String> keys = <String>[];
     // ignore: prefer_typing_uninitialized_variables
-    var encodedKeys;
+    var keysFromKeystore;
 
     try {
       // ignore: unnecessary_null_comparison
       if (persistenceManager!.getBox() != null) {
         // If regular expression is not null or not empty, filter keys on regular expression.
         if (regex != null && regex.isNotEmpty) {
-          encodedKeys = persistenceManager!
-              .getBox()
-              .keys
-              .where((element) => Utf7.decode(element).contains(RegExp(regex)));
+          keysFromKeystore = _getKeysFromKeyStore()
+              .where((element) => element.contains(RegExp(regex)));
         } else {
-          encodedKeys = persistenceManager!.getBox().keys.toList();
+          keysFromKeystore = _getKeysFromKeyStore().toList();
         }
         //if bool removeExpired is true, expired keys will not be added to the keys list
-        encodedKeys?.forEach((key) => {
-              if (_isKeyAvailable(key)) {keys.add(Utf7.decode(key))}
+        keysFromKeystore?.forEach((key) => {
+              if (_isKeyAvailable(key)) {keys.add(key)}
             });
       }
     } on FormatException catch (exception) {
@@ -355,7 +378,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       metadata.version = version;
       await persistenceManager!.getBox().put(hive_key, value);
-      _metaDataCache[hive_key] = value.metaData!;
+      _metaDataCache[key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -397,7 +420,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
-  /// Returns true if key exists in [HiveKeystore]; else false.
+  /// Returns true if key exists in [HiveKeystore]. false otherwise.
   @override
   @server
   bool isKeyExists(String key) {
@@ -414,6 +437,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       await persistenceManager!
           .openBox(AtUtils.getShaForAtSign(persistenceManager!.atsign!));
     }
+  }
+
+  /// hive keys are stored in utf7 encoded format. Decode the keys while fetching
+  Iterable<String> _getKeysFromKeyStore() {
+    return persistenceManager!.getBox().keys.map((e) => Utf7.decode(e));
   }
 
   bool _isExpired(key) {
@@ -436,5 +464,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     } else {
       return false;
     }
+  }
+
+  @visibleForTesting
+  HashMap<String, AtMetaData?> getMetaDataCache() {
+    return _metaDataCache;
   }
 }

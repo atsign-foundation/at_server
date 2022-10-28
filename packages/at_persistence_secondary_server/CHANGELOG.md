@@ -1,3 +1,6 @@
+## 3.0.41
+- fix: store actual keys in hive keystore metadata cache instead of encoded keys
+- feat: throw KeyNotFoundException if key to be removed is not present in keystore
 ## 3.0.40
 - feat: Refrain adding local keys to commit log.
 ## 3.0.39
