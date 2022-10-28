@@ -514,8 +514,7 @@ void main() {
     // Sending first notification
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
     var response = await sh1.read();
-
-    var currentDateTime = DateTime.now().toUtc();
+    var currentDateTime = DateTime.now();
     // Sending second notification
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
     response = await sh1.read();
@@ -529,7 +528,9 @@ void main() {
                 .microsecondsSinceEpoch >
             currentDateTime.microsecondsSinceEpoch,
         true);
-  });
+  },
+      skip:
+          'skipping the end-2-end tests untill changes are merged to trunk branch');
 // commenting till server code is released to prod
 //  test('notify verb for notifying a key update with shared key metadata',
 //      () async {

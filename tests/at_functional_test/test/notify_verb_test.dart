@@ -70,7 +70,7 @@ void main() {
       await socket_writer(
           socketFirstAtsign!, 'notify:$firstAtsign:phone.me$firstAtsign');
       var response = await read();
-      var currentDateTime = DateTime.now().toUtc();
+      var currentDateTime = DateTime.now();
       // Sending second notification
       await socket_writer(
           socketFirstAtsign!, 'notify:$firstAtsign:about.me$firstAtsign');
