@@ -47,7 +47,7 @@ jobs:
           chmod -R 777 secondaries-scripts
           cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
           cp cert.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          cp privkey.key ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp privkey.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp fullchain.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
           cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
