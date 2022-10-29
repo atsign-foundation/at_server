@@ -27,7 +27,7 @@ jobs:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
           token: ${{ secrets.MY_GITHUB_TOKEN }}
-          ref: github_webhook_cert_creation
+          ref: trunk
       # Create required directory
       - name: Create required directory and pull secrets
         run: |-
@@ -57,7 +57,7 @@ jobs:
           set -e
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
-          gChat_url: ${{ secrets.GCHAT_PROD_URL }}
+          gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
 
       # create PR with renewed certificate
       - name: Create Pull Request
