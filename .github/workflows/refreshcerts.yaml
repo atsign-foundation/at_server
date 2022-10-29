@@ -2,7 +2,7 @@ name: Refreshcerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
+    - cron: '39 7 15 * *' # At 0239 on the 15th day of every odd month
   push:
     branches:
       - cert_renewal
@@ -11,16 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Set up Python and pull Acme script from Artifact
     steps:
-      # checkout at_server code
-      - name: checkout repo content
-        uses: actions/checkout@v3.1.0 # checkout the repository content to github runner.
-      # setup python
-      - name: Set up Python 
+      - name: Set up Python
         uses: actions/setup-python@v3
         with:
           python-version: 3.9 #install the python needed
       - name: setup certinfo
         uses: atsign-company/certinfo-action@v1
+      # checkout at_server code
+      - name: checkout repo content
+        uses: actions/checkout@v3 # checkout the repository content to github runner.
       # Pull ZeroSSL and Letsencrypt keys file from secret
       - name: Pull ACME script
         uses: actions/checkout@v3
@@ -28,15 +27,15 @@ jobs:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
           token: ${{ secrets.MY_GITHUB_TOKEN }}
-          ref: trunk
+          ref: github_webhook_cert_creation
       # Create required directory
       - name: Create required directory and pull secrets
         run: |-
           sudo mkdir -p /gluster/@/api/keys
           sudo chmod -R 777 /gluster/@/api/keys
-          echo "${{secrets.LETSENCRYPT_KEY}}" > /gluster/@/api/keys/letsencrypt.key
-          echo "${{secrets.ZEROSSL_PRIVATE_KEY}}" > /gluster/@/api/keys/zerossl.key
-          echo "${{secrets.GOOGLE_PRIVATE_KEY}}" > /gluster/@/api/keys/google.key
+          echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
+          echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
+          echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
       # Install Python Libraries
       - name: Install Python Libraries
         run: |-
@@ -45,9 +44,8 @@ jobs:
       - name: Run ACME script
         run: |-
           set +e
-          FQDN="vip.ve.atsign.zone"
           chmod -R 777 secondaries-scripts
-          cd secondaries-scripts && ./create_cert_workflow.sh "$FQDN"
+          cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
           cp cert.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
           cp privkey.key ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp fullchain.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
