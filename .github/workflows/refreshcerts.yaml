@@ -3,13 +3,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '39 7 15 * *' # At 0239 on the 15th day of every odd month
-  push:
-    branches:
-      - cert_renewal
 jobs:
   refresh-ACME-cert:
     runs-on: ubuntu-latest
-    name: Set up Python and pull Acme script from Artifact
+    name: SSL Renewal for vip.ve.atsign.zone
     steps:
       - name: Set up Python
         uses: actions/setup-python@v3
