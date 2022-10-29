@@ -49,11 +49,11 @@ jobs:
           cp cert.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
           cp privkey.key ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp fullchain.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cd ..
           cp ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ./tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
           ls 
-          cd ..
-          ls
+          rm -rf vip.ve.atsign.zone*
           set -e
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
