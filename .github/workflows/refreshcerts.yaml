@@ -52,30 +52,31 @@ jobs:
           cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
           cd .. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
-          ls
+          git config --global user.name 'Getcert Action'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
           set -e
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GCHAT_PROD_URL }}
 
-      # # create PR with renewed certificate
-      # - name: Create Pull Request
-      #   id: cpr
-      #   uses: peter-evans/create-pull-request@v4
-      #   with:
-      #     token: ${{ secrets.MY_GITHUB_TOKEN }}
-      #     commit-message: 'chore: New certificates for at_server'
-      #     committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-      #     author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-      #     signoff: false
-      #     add-paths: ./tools/build_virtual_environment
-      #     branch: bot-new-certs
-      #     delete-branch: true
-      #     title: 'chore: New certificates generated'
-      #     body: |
-      #       Fresh certificates generated.
-      #     labels: |
-      #       operations
-      #     assignees: cpswan
-      #     reviewers: gkc
-      #     draft: false          
+      # create PR with renewed certificate
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.MY_GITHUB_TOKEN }}
+          commit-message: 'chore: New certificates for at_server'
+          committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          signoff: false
+          add-paths: ./tools/build_virtual_environment
+          branch: bot-new-certs
+          delete-branch: true
+          title: 'chore: New certificates generated'
+          body: |
+            Fresh certificates generated.
+          labels: |
+            operations
+          assignees: cpswan
+          reviewers: gkc
+          draft: false          
