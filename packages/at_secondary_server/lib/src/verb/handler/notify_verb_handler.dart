@@ -55,7 +55,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
-      processNotificationMutex.acquire();
+      await processNotificationMutex.acquire();
       atNotificationBuilder.reset();
 
       int? cachedKeyCommitId;
