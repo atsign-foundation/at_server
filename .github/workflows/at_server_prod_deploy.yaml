@@ -1,4 +1,4 @@
-name: at_root
+name: at_root deploy (prod)
 on:
   push:
     tags:
