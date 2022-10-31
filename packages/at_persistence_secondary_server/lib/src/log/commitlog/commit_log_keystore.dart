@@ -315,7 +315,20 @@ class CommitLogKeyStore
           if (element.key >= startKey &&
               _acceptKey(element.atKey, regexString) &&
               changes.length <= limit) {
-            changes.add(element);
+            switch (enableCommitId) {
+              case true:
+                {
+                  changes.add(element);
+                }
+                break;
+              case false:
+                {
+                  if (element.commitId == null) {
+                    changes.add(element);
+                  }
+                }
+                break;
+            }
           }
         }
         return changes;
@@ -323,7 +336,20 @@ class CommitLogKeyStore
       for (var f in values) {
         if (f.key >= startKey) {
           if (_acceptKey(f.atKey, regexString)) {
-            changes.add(f);
+            switch (enableCommitId) {
+              case true:
+                {
+                  changes.add(f);
+                }
+                break;
+              case false:
+                {
+                  if (f.commitId == null) {
+                    changes.add(f);
+                  }
+                }
+                break;
+            }
           }
         }
       }
