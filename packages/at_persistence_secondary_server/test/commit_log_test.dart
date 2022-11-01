@@ -372,6 +372,64 @@ void main() async {
       final commitEntry = await commitLogInstance?.getEntry(commitIdToRemove);
       expect(commitEntry, isNull);
     });
+    test(
+        'A test to verify only commit entries with null commitId are returned when enableCommitId is false',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+      //setting enable commitId to false - to test client side functionality
+      commitLogKeystore.enableCommitId = false;
+      //loop to create 10 keys - even keys have commitId null - odd keys have commitId
+      for (int i = 0; i < 10; i++) {
+        if (i % 2 == 0) {
+          await commitLogKeystore.getBox().add(CommitEntry(
+              'test_key_false_$i', CommitOp.UPDATE, DateTime.now()));
+        } else {
+          await commitLogKeystore.getBox().add(
+              CommitEntry('test_key_false_$i', CommitOp.UPDATE, DateTime.now())
+                ..commitId = i);
+        }
+      }
+      List<CommitEntry> changes =
+          await commitLogInstance.commitLogKeyStore.getChanges(-1);
+      //run loop and test all commit entries returned have commitId == null
+      for (var element in changes) {
+        expect(element.commitId, null);
+      }
+    });
+
+    test(
+        'A test to verify all commit entries are returned when enableCommitId is true',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+      //loop to create 10 keys - even keys have commitId null - odd keys have commitId
+      for (int i = 0; i < 10; i++) {
+        if (i % 2 == 0) {
+          await commitLogKeystore.getBox().add(
+              CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
+        } else {
+          await commitLogKeystore.getBox().add(
+              CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
+                ..commitId = i);
+        }
+      }
+      List<CommitEntry> changes =
+          await commitLogInstance.commitLogKeyStore.getChanges(-1);
+      //run loop to ensure all commit entries have been returned; irrespective of commitId null or not
+      for (int i = 0; i < 10; i++) {
+        if (i % 2 == 0) {
+          //while creation of commit entries, even keys have been set with commitId == null
+          expect(changes[i].commitId, null);
+        } else {
+          //while creation of commit entries, even keys have been set with commitId equal to iteration count
+          expect(changes[i].commitId, i);
+        }
+      }
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 
