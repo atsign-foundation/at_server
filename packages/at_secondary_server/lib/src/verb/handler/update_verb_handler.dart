@@ -21,6 +21,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
+  AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
+
   UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
@@ -93,32 +95,30 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
       String? encoding = updateParams.metadata!.encoding;
 
+      if (atSign != null) {
+        atSign = AtUtils.formatAtSign(atSign);
+      }
+      String fullFormedAtKey = '$key$atSign';
       // Get the key using verbParams (forAtSign, key, atSign)
       if (forAtSign != null) {
         forAtSign = AtUtils.formatAtSign(forAtSign);
-        key = '$forAtSign:$key';
-      }
-      if (atSign != null) {
-        atSign = AtUtils.formatAtSign(atSign);
-        key = '$key$atSign';
-      }
-      // Append public: as prefix if key is public
-      if (updateParams.metadata!.isPublic != null &&
+        fullFormedAtKey = '$forAtSign:$fullFormedAtKey';
+      } else if (updateParams.metadata!.isPublic != null &&
           updateParams.metadata!.isPublic!) {
-        key = 'public:$key';
+        fullFormedAtKey = 'public:$fullFormedAtKey';
       }
-      var metadata = await keyStore.getMeta(key);
+      var metadata = await keyStore.getMeta(fullFormedAtKey);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
       ttrMillis = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
 
-      //If ttr is set and atsign is not equal to currentAtSign, the key is
+      //If ttr is set and atSign is not equal to currentAtSign, the key is
       //cached key.
       if (ttrMillis != null &&
           ttrMillis > 0 &&
           atSign != null &&
           atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
-        key = 'cached:$key';
+        fullFormedAtKey = 'cached:$fullFormedAtKey';
       }
 
       var atMetadata = AtMetaData()
@@ -137,14 +137,14 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         _notify(
             atSign,
             forAtSign,
-            verbParams[AT_KEY],
+            key,
             value,
             SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
             atMetadata);
       }
 
       // update the key in data store
-      var result = await keyStore.put(key, atData,
+      var result = await keyStore.put(fullFormedAtKey, atData,
           time_to_live: ttlMillis,
           time_to_born: ttbMillis,
           time_to_refresh: ttrMillis,
@@ -169,16 +169,19 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
   void _notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) {
-    if (forAtSign == null) {
+    // Reset the atNotificationBuilder to clear the previous notification metadata
+    // Sets the default values.
+    atNotificationBuilder.reset();
+    // If 'forAtSign' is null or empty, do nothing.
+    if (forAtSign == null || forAtSign.isEmpty) {
       return;
     }
-    key = '$forAtSign:$key$atSign';
+
     DateTime? expiresAt;
     if (atMetaData.ttl != null) {
       expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
     }
-
-    var atNotification = (AtNotificationBuilder()
+    var atNotification = (atNotificationBuilder
           ..fromAtSign = atSign
           ..toAtSign = forAtSign
           ..notification = key

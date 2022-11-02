@@ -87,7 +87,9 @@ void main() async {
     test('Test to verify prepare notification command', () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice')
+            ..toAtSign = '@bob'
+            ..notification = 'phone'
+            ..fromAtSign = '@alice')
           .build();
 
       var notifyCommand = ResourceManager.getInstance()
@@ -98,21 +100,13 @@ void main() async {
           'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
     });
 
-    test('Test to verify prepare notification without passing any fields', () {
-      var atNotification = (AtNotificationBuilder()..id = '1122').build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
-
-      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
-      expect(notifyCommand,
-          'id:1122:messageType:key:notifier:system:ttln:900000:null');
-    });
-
     test('Test to verify prepare notification command for delete notification',
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..toAtSign = '@bob'
+            ..notification = 'phone'
+            ..fromAtSign = '@alice'
             ..opType = OperationType.delete)
           .build();
       var notifyCommand = ResourceManager.getInstance()
@@ -127,7 +121,9 @@ void main() async {
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..toAtSign = '@bob'
+            ..notification = 'phone'
+            ..fromAtSign = '@alice'
             ..notifier = 'wavi'
             ..messageType = MessageType.text)
           .build();
@@ -136,7 +132,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
+          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone');
     });
   });
 }
