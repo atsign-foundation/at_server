@@ -1,16 +1,13 @@
 import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
 
 class StreamVerbHandler extends AbstractVerbHandler {
   static StreamVerb stream = StreamVerb();
@@ -55,8 +52,8 @@ class StreamVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData().streamId = streamId;
         senderConnection.receiverSocket =
             StreamManager.receiverSocketMap[streamId]!.getSocket();
-        logger.info('writing stream ack');
-        senderConnection.getSocket().write('stream:ack $streamId\n');
+        logger.info('writing stream ack for id: $streamId');
+        senderConnection.write('stream:ack $streamId\n$currentAtSign@');
         break;
       case 'done':
         var senderConnection = StreamManager.senderSocketMap[streamId];
