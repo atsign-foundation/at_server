@@ -8,7 +8,6 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart'
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
-import 'package:at_utf7/at_utf7.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -82,7 +81,7 @@ void main() async {
       await keyStore.remove('last_name.wavi@test_user_1');
       expectLater(keyStore.remove('last_name.wavi@test_user_1'),
           throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
-    });
+    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
 
     test('get keys', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -428,14 +427,13 @@ void main() async {
           .getCommitLog('@test_user_1'));
       int? lastCommittedSequenceBeforeRemove =
           commitLogInstance?.lastCommittedSequenceNumber();
+      await keystore?.remove(nonExistentKey);
       int? lastCommittedSequenceAfterRemove =
           commitLogInstance?.lastCommittedSequenceNumber();
-      final metaDataCache = keystore?.getMetaDataCache();
-      expectLater(keystore?.remove(nonExistentKey),
-          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
-      expect(metaDataCache!.length, cacheEntriesCountBeforeRemove!);
-      expect(lastCommittedSequenceBeforeRemove,
-          equals(lastCommittedSequenceAfterRemove));
+      int? cacheEntriesCountAfterRemove = keystore?.getMetaDataCache().length;
+      expect(cacheEntriesCountAfterRemove, cacheEntriesCountBeforeRemove!);
+      expect(lastCommittedSequenceAfterRemove,
+          equals(lastCommittedSequenceBeforeRemove! + 1));
     });
     test('test to verify put and remove', () async {
       SecondaryPersistenceStore? keyStoreManager =
