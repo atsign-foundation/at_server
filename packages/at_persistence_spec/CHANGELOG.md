@@ -1,3 +1,5 @@
+## 2.0.9
+- fix: rollback keystore delete KeyNotFoundException
 ## 2.0.8
 - fix dart analyzer issue
 - documentation changes
