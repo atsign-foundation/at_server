@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_commons/src/at_constants.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -15,6 +14,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -22,7 +22,7 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
   late var keyStoreManager;
 
   group('A group of notify verb regex test', () {
@@ -806,6 +806,95 @@ void main() {
       expect(atNotification.atMetadata!.sharedKeyEnc, 'abc');
     });
   });
+
+  group('A group of notification to verify date time', () {
+    late NotifyVerbHandler notifyVerbHandler;
+    late Response notifyResponse;
+    late NotifyFetchVerbHandler notifyFetch;
+    late InboundConnectionImpl atConnection;
+    HashMap<String, String> firstNotificationVerbParams =
+        HashMap<String, String>();
+    HashMap<String, String> secondNotificationVerbParams =
+        HashMap<String, String>();
+
+    setUp(() async {
+      keyStoreManager = await setUpFunc(storageDir);
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      notifyResponse = Response();
+      notifyFetch = NotifyFetchVerbHandler(keyStore);
+
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      atConnection = InboundConnectionImpl(null, inBoundSessionId);
+
+      // first notification
+      firstNotificationVerbParams.putIfAbsent('id', () => 'abc-123');
+      firstNotificationVerbParams.putIfAbsent('operation', () => 'update');
+      firstNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      firstNotificationVerbParams.putIfAbsent('atKey', () => 'phone');
+
+      // second notification
+      secondNotificationVerbParams.putIfAbsent('id', () => 'xyz-123');
+      secondNotificationVerbParams.putIfAbsent('operation', () => 'update');
+      secondNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      secondNotificationVerbParams.putIfAbsent('atKey', () => 'otp');
+    });
+
+    test('test to verify notification date time stored for self', () async {
+      atConnection.metaData.isAuthenticated = true;
+      // process first notification
+      firstNotificationVerbParams.putIfAbsent(
+          'forAtSign', () => '@test_user_1');
+      await notifyVerbHandler.processVerb(
+          notifyResponse, firstNotificationVerbParams, atConnection);
+      // store current date time to capture the difference
+      var currentDateTime = DateTime.now();
+      await Future.delayed(Duration(seconds: 1));
+      // process second notification
+      secondNotificationVerbParams.putIfAbsent(
+          'forAtSign', () => '@test_user_1');
+      await notifyVerbHandler.processVerb(
+          notifyResponse, secondNotificationVerbParams, atConnection);
+      // fetch second notification
+      HashMap<String, String> notifyFetchVerbParams = HashMap();
+      notifyFetchVerbParams.putIfAbsent('notificationId', () => 'xyz-123');
+      await notifyFetch.processVerb(
+          notifyResponse, notifyFetchVerbParams, atConnection);
+      var decodedNotifyFetchResponse = jsonDecode(notifyResponse.data!);
+      var secondNotificationDateTime =
+          decodedNotifyFetchResponse['notificationDateTime'];
+      expect(
+          DateTime.parse(secondNotificationDateTime).microsecondsSinceEpoch >
+              currentDateTime.microsecondsSinceEpoch,
+          true);
+    });
+
+    test('test to verify notification date time on receiver side', () async {
+      atConnection.metaData.isPolAuthenticated = true;
+      // process first notification
+      await notifyVerbHandler.processVerb(
+          notifyResponse, firstNotificationVerbParams, atConnection);
+      // store current date time to capture the difference
+      var currentDateTime = DateTime.now().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 1));
+      // process second notification
+      await notifyVerbHandler.processVerb(
+          notifyResponse, secondNotificationVerbParams, atConnection);
+      // fetch second notification
+      HashMap<String, String> notifyFetchVerbParams = HashMap();
+      notifyFetchVerbParams.putIfAbsent('notificationId', () => 'xyz-123');
+      await notifyFetch.processVerb(
+          notifyResponse, notifyFetchVerbParams, atConnection);
+      var decodedNotifyFetchResponse = jsonDecode(notifyResponse.data!);
+      var secondNotificationDateTime =
+          decodedNotifyFetchResponse['notificationDateTime'];
+      expect(
+          DateTime.parse(secondNotificationDateTime).millisecondsSinceEpoch >
+              currentDateTime,
+          true);
+    });
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
@@ -838,9 +927,4 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     await Directory('test/hive').delete(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }
