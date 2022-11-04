@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.8'
       # Install python packages
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
           pip3 install ruamel.yaml
