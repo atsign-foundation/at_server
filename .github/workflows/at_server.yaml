@@ -353,7 +353,9 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
-        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -403,7 +405,9 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
-        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -454,7 +458,9 @@ jobs:
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
-        run: sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -507,7 +513,9 @@ jobs:
 
       - name: Place canary version into pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
-        run: sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.1.0
