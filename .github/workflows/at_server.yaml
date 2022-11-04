@@ -345,8 +345,6 @@ jobs:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -397,8 +395,6 @@ jobs:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -450,8 +446,6 @@ jobs:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -501,8 +495,6 @@ jobs:
     # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -588,8 +580,6 @@ jobs:
     # Runs only after all tests are completed.
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
@@ -636,8 +626,6 @@ jobs:
     # Runs only after all tests are completed.
     needs: [ push_prod_secondary_image ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
-    env:
-      working-directory: at_server
     runs-on: ubuntu-latest
 
     steps:
