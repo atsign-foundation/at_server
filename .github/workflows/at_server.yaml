@@ -3,7 +3,6 @@ name: at_server
 # 1. on pull request raised to trunk branch.
 # 2. on push event to trunk branch.
 # 3. on tagging a release
-# 4. on manual workflow(Run job manually)
 on:
   push:
     tags:
