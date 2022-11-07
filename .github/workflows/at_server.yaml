@@ -235,6 +235,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile
+          context: .
           tags: |
             atsigncompany/secondary:dess_cicd
             atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
