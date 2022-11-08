@@ -592,6 +592,12 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Place canary version into pubspec.yaml
+        working-directory: ${{ env.secondary-working-directory }}
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+${GITHUB_REF#refs/tags/}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.1.0
 
