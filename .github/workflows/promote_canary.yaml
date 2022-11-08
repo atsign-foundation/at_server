@@ -47,7 +47,7 @@ jobs:
             linux/arm64/v8
             linux/arm/v7
 
-  # Retag virtualenv canary image to vip
+  # Add layer to canary virtualenv image with prod pubspec.yaml
   deploy_canary_virtualenv_to_prod_image:
     runs-on: ubuntu-latest
 
