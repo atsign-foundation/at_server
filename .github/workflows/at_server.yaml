@@ -235,6 +235,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile
+          context: .
           tags: |
             atsigncompany/secondary:dess_cicd
             atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
@@ -379,6 +380,7 @@ jobs:
         uses: docker/build-push-action@v3.2.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
+          context: .
           push: true
           tags: |
             atsigncompany/virtualenv:dev_env
@@ -432,6 +434,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile
+          context: .
           tags: |
             atsigncompany/secondary:dev_env
             atsigncompany/secondary:dess_wtf
@@ -485,6 +488,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile.observe
+          context: .
           tags: |
             atsigncompany/secondary:dev_obs
             atsigncompany/secondary:dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
@@ -536,6 +540,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile
+          context: .
           tags: |
             atsigncompany/secondary:canary
             atsigncompany/secondary:canary-${{ env.VERSION }}
@@ -624,6 +629,7 @@ jobs:
         with:
           push: true
           file: tools/build_secondary/Dockerfile
+          context: .
           tags: |
             atsigncompany/secondary:prod
             atsigncompany/secondary:prod-${{ env.VERSION }}
@@ -713,6 +719,7 @@ jobs:
         uses: docker/build-push-action@v3.2.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
+          context: .
           push: true
           tags: |
             atsigncompany/virtualenv:vip
