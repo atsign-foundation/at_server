@@ -48,13 +48,25 @@ class SecondaryUtil {
     var index = command.indexOf(':');
     // For verbs that does not have ':'. For example verbs like scan, pol.
     if (index == -1) {
-      command = command.toLowerCase();
-      return command;
+      return command.toLowerCase();
     }
-    var verb = command.substring(0, index);
-    var key = command.substring(index, command.length);
-    verb = verb.toLowerCase().replaceAll(' ', '');
-    command = verb + key;
+    var verb = command.substring(0, index).toLowerCase();
+    verb = verb.replaceAll(' ', '');
+
+    List<String> keyComponents = command.substring(index, command.length).split(' ');
+    //keyComponents - public:phone@bob 1234
+    //separate keyComponents into key = public:phone@bob; value = 1234
+    //enforce lowercase conversion on key
+    var key = keyComponents[0].toLowerCase();
+    //if keyComponents have more than one entry, assume command format "verb:key value"
+    //else command format "verb:key"
+    if(keyComponents.length > 1) {
+      var value = keyComponents[1];
+      command = '$verb$key $value';
+    } else {
+      command = '$verb$key';
+    }
+
     return command;
   }
 
