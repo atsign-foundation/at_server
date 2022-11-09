@@ -157,7 +157,7 @@ void main() {
       expect(response, contains('data: $oldValue'));
 
       // config set auto notify to false
-      await sh1.writeCommand('config:set:autoNotify=false');
+      await sh1.writeCommand('config:set:auto_notify=false');
       response = await sh1.read();
       print('config set verb response is $response');
       expect(response, contains('data:ok'));
@@ -189,7 +189,7 @@ void main() {
       print('lookup verb response : $response');
       expect(response, contains('data: $oldValue'));
     } finally {
-      await sh1.writeCommand('config:reset:autoNotify');
+      await sh1.writeCommand('config:reset:auto_notify');
       var response = await sh1.read();
       print('config set verb response is $response');
       expect(response, contains('data:ok'));
