@@ -2,74 +2,61 @@ name: Refreshcerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
-
+    - cron: '39 7 15 * *' # At 0739 on the 15th day of every odd month
 jobs:
   refresh-ACME-cert:
     runs-on: ubuntu-latest
-
+    name: SSL Renewal for vip.ve.atsign.zone
     steps:
-      - name: checkout repo content
-        uses: actions/checkout@v3.1.0 # checkout the repository content to github runner.
-
-      - name: setup python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.9 #install the python needed
-
       - name: setup certinfo
         uses: atsign-company/certinfo-action@v1
-
-      - name: execute acme_certs.py
-        run: |
-          set +e
-          pip3 install dnspython requests
-          CERTNAME="vip"
-          DOMAIN="ve.atsign.zone"
-          FQDN="$CERTNAME"."$DOMAIN"
+      # checkout at_server code
+      - name: checkout repo content
+        uses: actions/checkout@v3 # checkout the repository content to github runner.
+      # Pull ZeroSSL and Letsencrypt keys file from secret
+      - name: Pull ACME script
+        uses: actions/checkout@v3
+        with:
+          repository: atsign-company/secondaries-scripts
+          path: secondaries-scripts
+          token: ${{ secrets.MY_GITHUB_TOKEN }}
+          ref: trunk
+      # Create required directory
+      - name: Create required directory and pull secrets
+        run: |-
           sudo mkdir -p /gluster/@/api/keys
-          sudo chmod -R 777 /gluster
+          sudo chmod -R 777 /gluster/@/api/keys
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
-          python3 ./tools/acme_certs.py "$FQDN"
-          if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
-            echo "Letsencrypt certificate validated"
-          else
-            echo "Failing over to Google"
-            python3 ./tools/acme_certs.py -g "$FQDN"
-            if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
-              echo "Google certificate validated"
-            else
-              echo "Failing over to ZeroSSL"
-              python3 ./tools/acme_certs.py -z "$FQDN"
-              if certinfo -expiry "$FQDN".cert.pem | grep -q CN="$FQDN"; then
-                echo "ZeroSSL certificate validated"
-              else
-                echo "Unable to get valid cert from any source"
-                exit 1
-              fi
-            fi
-          fi
-          set -e
-          cp "$FQDN".cert.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          cp "$FQDN".key ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          cp "$FQDN".fullchain.pem ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
-          cp ./tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
-            ./tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+      # Install Python Libraries
+      - name: Install Python Libraries
+        run: |-
+          python3 -m pip install requests dnspython
+      # Run Python ACME script
+      - name: Run ACME script
+        run: |-
+          set +e
+          chmod -R 777 secondaries-scripts
+          cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
+          cp cert.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
+          cp privkey.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp fullchain.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          cd .. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
           git config --global user.name 'Getcert Action'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          set -e
         env:
-          GITHUB_API_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
           DO_KEY: ${{ secrets.DO_KEY }}
+          gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
 
-      - name: store logs and responses
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: cert-logs
-          path: vip.ve.atsign.zone.*
-
+      # create PR with renewed certificate
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v4
@@ -89,4 +76,4 @@ jobs:
             operations
           assignees: cpswan
           reviewers: gkc
-          draft: false
+          draft: false          

@@ -234,26 +234,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   /// Returns an integer if the key to be deleted is present in keystore or cache.
-  /// throws [KeyNotFoundException] if the key to be deleted is not present in keystore.
   @override
   Future<int?> remove(String key) async {
     int? result;
     try {
-      bool isKeyPresent = persistenceManager!
-          .getBox()
-          .containsKey(keyStoreHelper.prepareKey(key));
-      if (!isKeyPresent) {
-        throw KeyNotFoundException('$key does not exist in the keystore');
-      }
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
-      final atMetaData = _removeKeyFromMetadataCache(key);
-      if (atMetaData != null || isKeyPresent) {
-        // add entry to commit log only if key is removed from cache or key is present in keystore
-        result = await _commitLog.commit(key, CommitOp.DELETE);
-      }
+      _removeKeyFromMetadataCache(key);
+      result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
-    } on KeyNotFoundException {
-      rethrow;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
