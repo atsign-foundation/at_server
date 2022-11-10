@@ -23,7 +23,7 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "pub"
-    directory: "/tools/build_secondary"
+    directory: "/packages/at_secondary_server"
     schedule:
       interval: "daily"
       
