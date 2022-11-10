@@ -107,14 +107,14 @@ void main() async {
   test('config verb test set-reset-print operation', () async {
       //the below block of code sets the commit log compaction freq to  4
       await socket_writer(
-          socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
+          socketFirstAtsign!, 'config:set:commit_log_compaction_freq_mins=4');
       var response = await read();
       print('config verb response $response');
       expect(response, contains('data:ok'));
 
       //this resets the commit log compaction freq previously set to 4 to default value
       await socket_writer(
-          socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+          socketFirstAtsign!, 'config:reset:commit_log_compaction_freq_mins');
       //await Future.delayed(Duration(seconds: 2));
       response = await read();
       print('config verb response $response');
@@ -122,30 +122,80 @@ void main() async {
 
       //this ensures that the reset actually works and the current value is 60(default value)
       await socket_writer(
-          socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
+          socketFirstAtsign!, 'config:print:commit_log_compaction_freq_mins');
       //await Future.delayed(Duration(seconds: 2));
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:30'));
   });
 
-  test('config verb test set-print', () async {
+  test('config verb test set-print for max_notification_retries', () async {
       //the block of code below sets max notification retries to 25
       await socket_writer(
-          socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
+          socketFirstAtsign!, 'config:set:max_notification_retries=25');
       var response = await read();
       print('config verb response $response');
       expect(response, contains('data:ok'));
 
       //the block of code below verifies that the max notification retries is set to 25
       await socket_writer(
-          socketFirstAtsign!, 'config:print:maxNotificationRetries');
+          socketFirstAtsign!, 'config:print:max_notification_retries');
       await Future.delayed(Duration(seconds: 2));
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:25'));
   });
 
+  test('config verb test set-print for auto_notify', () async {
+    //the block of code below sets max notification retries to 42
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:auto_notify=42');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+
+    //the block of code below verifies that the max notification retries is set to 42
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:auto_notify');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:42'));
+  });
+
+  test('config verb test set-print for inbound_max_limit', () async {
+    //the block of code below sets max notification retries to 50
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:inbound_max_limit=50');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+
+    //the block of code below verifies that the max notification retries is set to 50
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:inbound_max_limit');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:50'));
+  });
+
+  test('config verb test set-print for notification_keystore_compaction_freq_mins', () async {
+    //the block of code below sets max notification retries to 50
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:notification_keystore_compaction_freq_mins=50');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
+
+    //the block of code below verifies that the max notification retries is set to 50
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:notification_keystore_compaction_freq_mins');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:50'));
+  });
 
   tearDown(() {
     //Closing the socket connection

@@ -283,9 +283,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       //subscriber for notification keystore compaction freq change
       logger.finest(
-          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+          'Subscribing to dynamic changes made to notification_keystore_compaction_freq_mins');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+              ModifiableConfigs.notification_keystore_compaction_freq_mins)
           ?.listen((newFrequency) async {
         restartCompaction(
             notificationKeyStoreCompactionJobInstance,
@@ -296,9 +296,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       //subscriber for access log compaction frequency change
       logger.finest(
-          'Subscribing to dynamic changes made to accessLogCompactionFreq');
+          'Subscribing to dynamic changes made to access_log_compaction_freq_mins');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.accessLogCompactionFrequencyMins)
+              ModifiableConfigs.access_log_compaction_freq_mins)
           ?.listen((newFrequency) async {
         restartCompaction(accessLogCompactionJobInstance,
             atAccessLogCompactionConfig, newFrequency, _accessLog);
@@ -306,18 +306,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       //subscriber for commit log compaction frequency change
       logger.finest(
-          'Subscribing to dynamic changes made to commitLogCompactionFreq');
+          'Subscribing to dynamic changes made to commit_log_compaction_freq_mins');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.commitLogCompactionFrequencyMins)
+              ModifiableConfigs.commit_log_compaction_freq_mins)
           ?.listen((newFrequency) async {
         restartCompaction(commitLogCompactionJobInstance,
             atCommitLogCompactionConfig, newFrequency, _commitLog);
       });
 
       //subscriber for autoNotify state change
-      logger.finest('Subscribing to dynamic changes made to autoNotify');
+      logger.finest('Subscribing to dynamic changes made to auto_notify');
       late bool autoNotifyState;
-      AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.auto_notify)
           ?.listen((newValue) {
         //parse bool from string
         if (newValue.toString() == 'true') {
@@ -326,18 +326,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           autoNotifyState = false;
         }
         logger.finest(
-            'Received new value for config \'autoNotify\': $autoNotifyState');
+            'Received new value for config \'auto_notify\': $autoNotifyState');
         UpdateVerbHandler.setAutoNotify(autoNotifyState);
         DeleteVerbHandler.setAutoNotify(autoNotifyState);
         UpdateMetaVerbHandler.setAutoNotify(autoNotifyState);
       });
 
       //subscriber for maxNotificationRetries count change
-      logger.finest('Subscribing to dynamic changes made to max_retries');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
+      logger.finest('Subscribing to dynamic changes made to max_notification_retries');
+      AtSecondaryConfig.subscribe(ModifiableConfigs.max_notification_retries)
           ?.listen((newCount) {
         logger.finest(
-            'Received new value for config \'maxNotificationRetries\': $newCount');
+            'Received new value for config \'max_notification_retries\': $newCount');
         ResourceManager.getInstance().setMaxRetries(newCount);
         QueueManager.getInstance().setMaxRetries(newCount);
       });

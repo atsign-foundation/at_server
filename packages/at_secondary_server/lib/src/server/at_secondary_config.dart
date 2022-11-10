@@ -685,17 +685,17 @@ class AtSecondaryConfig {
   //switch case that returns default value of modifiable configs
   static dynamic getDefaultValue(ModifiableConfigs configName) {
     switch (configName) {
-      case ModifiableConfigs.accessLogCompactionFrequencyMins:
+      case ModifiableConfigs.access_log_compaction_freq_mins:
         return accessLogCompactionFrequencyMins;
-      case ModifiableConfigs.commitLogCompactionFrequencyMins:
+      case ModifiableConfigs.commit_log_compaction_freq_mins:
         return commitLogCompactionFrequencyMins;
-      case ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins:
+      case ModifiableConfigs.notification_keystore_compaction_freq_mins:
         return notificationKeyStoreCompactionFrequencyMins;
       case ModifiableConfigs.inbound_max_limit:
         return inbound_max_limit;
-      case ModifiableConfigs.autoNotify:
+      case ModifiableConfigs.auto_notify:
         return autoNotify;
-      case ModifiableConfigs.maxNotificationRetries:
+      case ModifiableConfigs.max_notification_retries:
         return maxNotificationRetries;
     }
   }
@@ -770,11 +770,11 @@ String? getStringValueFromYaml(List<String> keyParts) {
 
 enum ModifiableConfigs {
   inbound_max_limit,
-  commitLogCompactionFrequencyMins,
-  accessLogCompactionFrequencyMins,
-  notificationKeyStoreCompactionFrequencyMins,
-  autoNotify,
-  maxNotificationRetries
+  commit_log_compaction_freq_mins,
+  access_log_compaction_freq_mins,
+  notification_keystore_compaction_freq_mins,
+  auto_notify,
+  max_notification_retries
 }
 
 class ModifiableConfigurationEntry {
