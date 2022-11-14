@@ -250,6 +250,9 @@ jobs:
           username: ubuntu
           key: ${{ secrets.CICD_SSH_KEY }}
           script: |
+            scriptURL="https://raw.githubusercontent.com/atsign-foundation/at_server/trunk/tools/${HOSTNAME}/update_image.sh"
+            echo "$scriptURL"
+            wget -q -O update_image.sh "$scriptURL"
             ./update_image.sh
 
 # The job runs end to end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
