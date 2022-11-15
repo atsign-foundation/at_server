@@ -1,3 +1,5 @@
+## 3.0.43
+- fix: Ignore keys with commit-id's in client persistence
 ## 3.0.42
 - fix: rollback keystore delete KeyNotFoundException
 ## 3.0.41
