@@ -2,6 +2,9 @@
 
 [![Build Status](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml/badge.svg?branch=trunk)](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml)
 [![GitHub License](https://img.shields.io/badge/license-BSD3-blue.svg)](./LICENSE)
+[![OpenSSF Scorecard]
+(https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)]
+(https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server)
 
 # at_server
 This repo contains the core software implementation of the atProtocol:
