@@ -9,11 +9,16 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
 
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
   SyncProgressiveVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+
+  /// Represents the size of the sync buffer
+  @visibleForTesting
+  int capacity = AtSecondaryConfig.syncBufferSize;
 
   @override
   bool accept(String command) =>
@@ -31,7 +36,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var syncResponse = [];
-    var syncBuffer = ByteBuffer(capacity: AtSecondaryConfig.syncBufferSize);
+    var syncBuffer = ByteBuffer(capacity: capacity);
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
