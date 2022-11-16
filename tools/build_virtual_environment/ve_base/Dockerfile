@@ -17,7 +17,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
 
-FROM debian:stable-20221024-slim
+FROM debian:stable-20221114-slim
 USER root
 
 COPY ./tools/build_virtual_environment/ve_base/contents /
