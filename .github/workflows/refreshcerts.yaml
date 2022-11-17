@@ -36,7 +36,7 @@ jobs:
       # Install Python Libraries
       - name: Install Python Libraries
         run: |-
-          python3 -m pip install requests dnspython
+          python3 -m pip install -r requirements.txt
       # Run Python ACME script
       - name: Run ACME script
         run: |-
