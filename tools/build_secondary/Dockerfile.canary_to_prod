@@ -1,5 +1,9 @@
 FROM atsigncompany/secondary:canary
 ENV HOMEDIR=/atsign
+# Context for this Dockerfile needs to be at_server repo root
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/secondary \
+## -f tools/build_secondary/Dockerfile.canary_to_prod .
 COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml $HOMEDIR/
 WORKDIR /atsign
 USER atsign

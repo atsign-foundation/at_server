@@ -1,9 +1,12 @@
-FROM dart:2.18.4 AS buildimage
+FROM dart:2.18.4@sha256:f6ceb27c2b6d172020931d81a4f2721b341d718fdfd8fda508588d89c7bfae9d AS buildimage
 ENV HOMEDIR=/atsign
 ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
+# Context for this Dockerfile needs to be at_server repo packages/at_root_server
+# If building manually then (from packages/at_root_server):
+## sudo docker build -t atsigncompany/root .
 COPY . .
 RUN \
   mkdir -p $HOMEDIR/config ; \
