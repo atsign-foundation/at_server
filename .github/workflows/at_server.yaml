@@ -151,7 +151,7 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
         run: |
-          python3 -m pip install -r requirements.txt
+          python3 -m pip install -r tools/requirements.txt
           chmod +x ./tools/add_dependency_overrides.py
           python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
