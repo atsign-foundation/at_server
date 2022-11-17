@@ -39,7 +39,7 @@ jobs:
       # Install python packages
       - name: Install Python dependencies
         run: |
-          python3 -m pip install -r requirements.txt
+          python3 -m pip install -r tools/requirements.txt
 
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
