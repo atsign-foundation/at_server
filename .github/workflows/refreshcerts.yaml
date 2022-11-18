@@ -40,7 +40,7 @@ jobs:
       # Install Python Libraries
       - name: Install Python Libraries
         run: |-
-          python3 -m pip install -r tools/requirements.txt
+          python3 -m pip install --require-hashes -r tools/requirements.txt
       # Run Python ACME script
       - name: Run ACME script
         run: |-

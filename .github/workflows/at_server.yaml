@@ -42,7 +42,7 @@ jobs:
       # Install python packages
       - name: Install Python dependencies
         run: |
-          python3 -m pip install -r tools/requirements.txt
+          python3 -m pip install --require-hashes -r tools/requirements.txt
 
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
@@ -154,7 +154,7 @@ jobs:
       - name: Add dependency overrides on pull request
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
         run: |
-          python3 -m pip install -r tools/requirements.txt
+          python3 -m pip install --require-hashes -r tools/requirements.txt
           chmod +x ./tools/add_dependency_overrides.py
           python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
