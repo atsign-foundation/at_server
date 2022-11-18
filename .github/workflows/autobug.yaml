@@ -4,6 +4,9 @@ on:
   issues:
     types: [opened]
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   issue_opened:
     name: issue_opened

@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '39 7 15 * *' # At 0739 on the 15th day of every odd month
+
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   refresh-ACME-cert:
     runs-on: ubuntu-latest

@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '42 6 * * 1' # At 0642 each Monday
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   docker:
     runs-on: ubuntu-latest

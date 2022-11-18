@@ -22,6 +22,9 @@ env:
   ftest-working-directory: ./tests/at_functional_test
   e2etest-working-directory: ./tests/at_end2end_test
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
