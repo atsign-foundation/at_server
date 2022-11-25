@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/server/at_server_commit_log_keystore.dart';
 import 'package:test/test.dart';
 
-void main() async {
+void main() {
   var storageDir = '${Directory.current.path}/test/hive';
 
   group('A group of commit log test', () {
@@ -145,82 +144,6 @@ void main() async {
     tearDown(() async => await tearDownFunc());
   });
 
-  group('A group of tests to verify lastSynced commit entry', () {
-    setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
-    test(
-        'test to verify the last synced entry returns entry with highest commit id',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-
-      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
-      await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
-
-      CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-      await commitLogInstance?.update(commitEntry0!, 1);
-      CommitEntry? commitEntry1 = await commitLogInstance?.getEntry(1);
-      await commitLogInstance?.update(commitEntry1!, 0);
-      var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
-      expect(lastSyncedEntry!.commitId, 1);
-      var lastSyncedCacheSize = commitLogInstance!.commitLogKeyStore
-          .getLastSyncedEntryCacheMapValues()
-          .length;
-      expect(lastSyncedCacheSize, 1);
-    });
-
-    test('test to verify the last synced entry with regex', () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-
-      await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
-      await commitLogInstance?.commit('mobile.wavi@alice', CommitOp.UPDATE);
-      await commitLogInstance?.commit('phone.buzz@alice', CommitOp.UPDATE);
-
-      CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-      await commitLogInstance?.update(commitEntry0!, 2);
-      CommitEntry? commitEntry1 = await commitLogInstance?.getEntry(1);
-      await commitLogInstance?.update(commitEntry1!, 1);
-      CommitEntry? commitEntry2 = await commitLogInstance?.getEntry(2);
-      await commitLogInstance?.update(commitEntry2!, 0);
-      var lastSyncedEntry =
-          await commitLogInstance?.lastSyncedEntryWithRegex('buzz');
-      expect(lastSyncedEntry!.atKey!, 'location.buzz@alice');
-      expect(lastSyncedEntry.commitId!, 2);
-      lastSyncedEntry =
-          await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
-      expect(lastSyncedEntry!.atKey!, 'mobile.wavi@alice');
-      expect(lastSyncedEntry.commitId!, 1);
-      var lastSyncedEntriesList = commitLogInstance!.commitLogKeyStore
-          .getLastSyncedEntryCacheMapValues();
-      expect(lastSyncedEntriesList.length, 2);
-    });
-
-    test(
-        'Test to verify that null is returned when no values are present in local keystore',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-      var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
-      expect(lastSyncedEntry, null);
-    });
-
-    test(
-        'Test to verify that null is returned when matches entry for regex is not found',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-
-      await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
-      CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-      await commitLogInstance?.update(commitEntry0!, 2);
-      var lastSyncedEntry =
-          await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
-      expect(lastSyncedEntry, null);
-    });
-    tearDown(() async => await tearDownFunc());
-  });
-
   group('A group of commit log compaction tests', () {
     setUp(() async => await setUpFunc(storageDir));
     test('Test to verify compaction when single is modified ten times',
@@ -257,7 +180,7 @@ void main() async {
   });
 
   group('A group of tests to verify repair commit log', () {
-    setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
+    setUp(() async => await setUpFunc(storageDir));
     test('A test to verify null commit id gets replaced with hive internal key',
         () async {
       var commitLogInstance =
@@ -265,9 +188,10 @@ void main() async {
       commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
       expect(commitLogMap?.values.first.commitId, null);
-      await commitLogInstance?.commitLogKeyStore.repairCommitLog(commitLogMap!);
-      commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
-      expect(commitLogMap?.values.first.commitId, 0);
+      await (commitLogInstance!.commitLogKeyStore as AtServerCommitLogKeyStore)
+          .repairCommitLog(commitLogMap!);
+      commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+      expect(commitLogMap.values.first.commitId, 0);
     });
 
     test(
@@ -293,7 +217,8 @@ void main() async {
           .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
       var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
-      await commitLogInstance.commitLogKeyStore.repairCommitLog(commitLogMap);
+      await (commitLogInstance.commitLogKeyStore as AtServerCommitLogKeyStore)
+          .repairCommitLog(commitLogMap);
       commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
       commitLogMap.forEach((key, value) {
         assert(value.commitId != null);
@@ -310,7 +235,7 @@ void main() async {
   });
 
   group('A group of tests to verify commit log cache map', () {
-    setUp(() async => await setUpFunc(storageDir, enableCommitId: true));
+    setUp(() async => await setUpFunc(storageDir));
     test('test to verify the entries count in commit cache map after commit',
         () async {
       var commitLogInstance =
@@ -329,6 +254,7 @@ void main() async {
       }
       expect(commitLogCountBeforeDeletion, 3);
     });
+
     test(
         'test to verify the entries count in commit cache map after removing from commit log',
         () async {
@@ -372,32 +298,6 @@ void main() async {
       final commitEntry = await commitLogInstance?.getEntry(commitIdToRemove);
       expect(commitEntry, isNull);
     });
-    test(
-        'A test to verify only commit entries with null commitId are returned when enableCommitId is false',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-      var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
-      //setting enable commitId to false - to test client side functionality
-      commitLogKeystore.enableCommitId = false;
-      //loop to create 10 keys - even keys have commitId null - odd keys have commitId
-      for (int i = 0; i < 10; i++) {
-        if (i % 2 == 0) {
-          await commitLogKeystore.getBox().add(CommitEntry(
-              'test_key_false_$i', CommitOp.UPDATE, DateTime.now()));
-        } else {
-          await commitLogKeystore.getBox().add(
-              CommitEntry('test_key_false_$i', CommitOp.UPDATE, DateTime.now())
-                ..commitId = i);
-        }
-      }
-      List<CommitEntry> changes =
-          await commitLogInstance.commitLogKeyStore.getChanges(-1);
-      //run loop and test all commit entries returned have commitId == null
-      for (var element in changes) {
-        expect(element.commitId, null);
-      }
-    });
 
     test(
         'A test to verify all commit entries are returned when enableCommitId is true',
@@ -416,8 +316,9 @@ void main() async {
                 ..commitId = i);
         }
       }
-      List<CommitEntry> changes =
-          await commitLogInstance.commitLogKeyStore.getChanges(-1);
+      List<CommitEntry> changes = await (commitLogInstance.commitLogKeyStore
+              as AtServerCommitLogKeyStore)
+          .getChanges(-1);
       //run loop to ensure all commit entries have been returned; irrespective of commitId null or not
       for (int i = 0; i < 10; i++) {
         if (i % 2 == 0) {
@@ -432,57 +333,16 @@ void main() async {
 
     tearDown(() async => await tearDownFunc());
   });
-
-  group('A group of tests to verify local key does not add to commit log', () {
-    test('local key does not add to commit log', () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-
-      var commitId = await commitLogInstance?.commit(
-          'local:phone.wavi@alice', CommitOp.UPDATE);
-      expect(commitId, -1);
-    });
-
-    test(
-        'Test to verify local created with static local method does not add to commit log',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-
-      var atKey = AtKey.local('phone', '@alice', namespace: 'wavi').build();
-
-      var commitId =
-          await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
-      expect(commitId, -1);
-    });
-
-    test('Test to verify local created with AtKey does not add to commit log',
-        () async {
-      var commitLogInstance =
-          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-      var atKey = AtKey()
-        ..key = 'phone'
-        ..sharedBy = '@alice'
-        ..namespace = 'wavi'
-        ..isLocal = true;
-      var commitId =
-          await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
-      expect(commitId, -1);
-    });
-  });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
-    {bool enableCommitId = true}) async {
+Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice',
-          commitLogPath: storageDir, enableCommitId: enableCommitId);
+      .getCommitLog('@alice', commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =

@@ -1,5 +1,10 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/client/at_client_commit_log_keystore.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/server/at_server_commit_log.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/server/at_server_commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
+
+import 'client/at_client_commit_log.dart';
 
 class AtCommitLogManagerImpl implements AtCommitLogManager {
   static final AtCommitLogManagerImpl _singleton =
@@ -20,14 +25,32 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
       {String? commitLogPath, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.
     if (!_commitLogMap.containsKey(atSign)) {
-      var commitLogKeyStore = CommitLogKeyStore(atSign);
+      CommitLogKeyStore commitLogKeyStore =
+          _getCommitLogKeyStore(enableCommitId, atSign);
       commitLogKeyStore.enableCommitId = enableCommitId;
+      //TODO: If commitlog path is null, can we have default path and initialize commit log?
       if (commitLogPath != null) {
         await commitLogKeyStore.init(commitLogPath, isLazy: false);
       }
-      _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
+      _commitLogMap[atSign] =
+          _getCommitLogInstance(enableCommitId, commitLogKeyStore);
     }
     return _commitLogMap[atSign];
+  }
+
+  CommitLogKeyStore _getCommitLogKeyStore(bool enableCommitId, String atSign) {
+    if (enableCommitId == true) {
+      return AtServerCommitLogKeyStore(atSign);
+    }
+    return AtClientCommitLogKeyStore(atSign);
+  }
+
+  AtCommitLog _getCommitLogInstance(
+      bool enableCommitId, CommitLogKeyStore commitLogKeyStore) {
+    if (enableCommitId == true) {
+      return AtServerCommitLog(commitLogKeyStore as AtServerCommitLogKeyStore);
+    }
+    return AtClientCommitLog(commitLogKeyStore as AtClientCommitLogKeyStore);
   }
 
   Future<void> close() async {
