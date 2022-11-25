@@ -1,12 +1,23 @@
+import 'dart:async';
+
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/server/at_server_commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
-/// Class to main commit logs on the secondary server for create, update and remove operations on keys
-class AtCommitLog implements AtLogType {
+import 'client/at_client_commit_log_keystore.dart';
+
+/// The Keystore with key/value pair that maintains the commit entries where key
+/// is a sequentially incremented integer and value is a [CommitEntry]
+///
+/// When an [AtKey] created/updated or deleted, a new [CommitEntry] is inserted into the commitLog.
+///
+/// This is an abstract class that is shared between the between Client and the Secondary Server
+abstract class AtCommitLog implements AtLogType {
   var logger = AtSignLogger('AtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
@@ -66,28 +77,6 @@ class AtCommitLog implements AtLogType {
     }
   }
 
-  /// Returns the list of commit entries greater than [sequenceNumber]
-  /// throws [DataStoreException] if there is an exception getting the commit entries
-  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
-      {int? limit}) async {
-    Future<List<CommitEntry>> changes;
-    try {
-      changes = _commitLogKeyStore.getChanges(sequenceNumber!,
-          regex: regex, limit: limit);
-    } on Exception catch (e) {
-      throw DataStoreException('Exception getting changes:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
-    }
-    // ignore: unnecessary_null_comparison
-    if (changes == null) {
-      return [];
-    }
-    return changes;
-  }
-
-  @client
   Future<void> update(CommitEntry commitEntry, int commitId) async {
     try {
       await _commitLogKeyStore.update(commitId, commitEntry);
@@ -108,29 +97,26 @@ class AtCommitLog implements AtLogType {
   /// Returns the latest committed sequence number
   @server
   int? lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.latestCommitId;
+    return (_commitLogKeyStore as AtServerCommitLogKeyStore).latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex
   @server
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
-    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+    return await (_commitLogKeyStore as AtServerCommitLogKeyStore)
+        .lastCommittedSequenceNumberWithRegex(regex);
   }
 
   @client
   Future<CommitEntry?> lastSyncedEntry() async {
-    return await _commitLogKeyStore.lastSyncedEntry();
+    return await (_commitLogKeyStore as AtClientCommitLogKeyStore)
+        .lastSyncedEntry();
   }
 
   @client
   Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
-    return await _commitLogKeyStore.lastSyncedEntry(regex: regex);
-  }
-
-  /// Returns the first committed sequence number
-  @server
-  int? firstCommittedSequenceNumber() {
-    return _commitLogKeyStore.firstCommittedSequenceNumber();
+    return await (_commitLogKeyStore as AtClientCommitLogKeyStore)
+        .lastSyncedEntry(regex: regex);
   }
 
   /// Returns the total number of keys
@@ -149,7 +135,8 @@ class AtCommitLog implements AtLogType {
   Future<List> getFirstNEntries(int N) async {
     List<dynamic>? entries = [];
     try {
-      entries = await _commitLogKeyStore.getDuplicateEntries();
+      entries = await (_commitLogKeyStore as AtServerCommitLogKeyStore)
+          .getDuplicateEntries();
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
@@ -174,12 +161,6 @@ class AtCommitLog implements AtLogType {
     return _commitLogKeyStore.getSize();
   }
 
-  /// Returns the latest commitEntry of the key.
-  @server
-  CommitEntry? getLatestCommitEntry(String key) {
-    return _commitLogKeyStore.getLatestCommitEntry(key);
-  }
-
   /// Closes the [CommitLogKeyStore] instance.
   @server
   Future<void> close() async {
@@ -193,7 +174,8 @@ class AtCommitLog implements AtLogType {
     if (regex == null || regex.isEmpty) {
       regex = '.*';
     }
-    return _commitLogKeyStore.getEntries(commitId, regex: regex);
+    return (_commitLogKeyStore as AtServerCommitLogKeyStore)
+        .getEntries(commitId, regex: regex);
   }
 
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
@@ -220,4 +202,14 @@ class AtCommitLog implements AtLogType {
   void removeEventListener(AtChangeEventListener atChangeEventListener) {
     _atChangeEventListener.remove(atChangeEventListener);
   }
+
+  /// Returns the list of commit entries greater than [sequenceNumber]
+  /// throws [DataStoreException] if there is an exception getting the commit entries
+  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+      {int? limit});
+
+  /// Return the latest [CommitEntry] for the given key.
+  ///
+  /// If CommitEntry does not exist for the given key, [NullCommitEntry] is returned.
+  FutureOr<CommitEntry?> getLatestCommitEntry(String key);
 }
