@@ -310,30 +310,28 @@ class CommitLogKeyStore
       }
       var startKey = sequenceNumber + 1;
       _logger.finer('startKey: $startKey all commit log entries: $values');
-      if (limit != null) {
-        for (var element in values) {
+      limit ??= values.length + 1;
+        for (CommitEntry element in values) {
           if (element.key >= startKey &&
-              _acceptKey(element.atKey, regexString) &&
+              _acceptKey(element.atKey!, regexString) &&
               changes.length <= limit) {
-            changes.add(element);
+            if (enableCommitId == false){
+              if(element.commitId == null){
+                changes.add(element);
+              }
+            } else {
+                changes.add(element);
+            }
           }
         }
         return changes;
-      }
-      for (var f in values) {
-        if (f.key >= startKey) {
-          if (_acceptKey(f.atKey, regexString)) {
-            changes.add(f);
-          }
-        }
-      }
+
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
-    return changes;
   }
 
   bool _acceptKey(String atKey, String regex) {

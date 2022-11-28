@@ -13,20 +13,23 @@ on:
         default: true
         description: Rollback Canary secondary image
         required: true
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   # Rollback prod secondary image.
   rollback_prod_secondary_image:
     if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.1.0
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.1.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -62,14 +65,14 @@ jobs:
     if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.1.0
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.1.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

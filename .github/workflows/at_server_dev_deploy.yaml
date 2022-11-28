@@ -5,29 +5,33 @@ on:
       - trunk
     paths:
       - packages/*_root_server/**
+
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.2.1
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.1.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Build the Docker image for Dev
       - name: Build and push
-        uses: docker/build-push-action@v3.2.0
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
         with:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
@@ -45,13 +49,13 @@ jobs:
           run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
         # Setup gcloud CLI
-        - uses: google-github-actions/setup-gcloud@v1.0.0
+        - uses: google-github-actions/setup-gcloud@d51b5346f85640ec2aa2fa057354d2b82c2fcbce # v1.0.1
           with:
             service_account_key: ${{ secrets.GKE_SA_DEV_KEY }}
             project_id: ${{ secrets.GKE_DEV_PROJECT }}
 
         # Get the GKE credentials so we can deploy to the cluster
-        - uses: google-github-actions/get-gke-credentials@v0.8.2
+        - uses: google-github-actions/get-gke-credentials@ef10cc0013c465a6ea0b8e36c24064576ec25f87 # v1.0.0
           with:
             cluster_name: ${{ secrets.GKE_DEV_CLUSTER }}
             location: ${{ secrets.GKE_DEV_ZONE }}

@@ -26,4 +26,8 @@ updates:
     directory: "/packages/at_secondary_server"
     schedule:
       interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/tools" # Location of package manifests
+    schedule:
+      interval: "daily"
       

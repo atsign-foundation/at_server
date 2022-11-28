@@ -1,8 +1,12 @@
-FROM dart:2.18.4 AS buildimage
+FROM dart:2.18.5@sha256:7744c20385e247d71d421e36ee95a569666afadae1379aebab7e8345cd2c7170 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
+# Context for this Dockerfile needs to be at_server repo root
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/secondary \
+## -f tools/build_secondary/Dockerfile .
 COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
 COPY ./packages/at_secondary_server/ ./at_secondary_server
 RUN \
