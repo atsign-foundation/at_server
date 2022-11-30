@@ -70,7 +70,7 @@ void main() {
     }
     print('*** serverVersion $serverVersion');
 
-    /// UPDATE VERB
+    /// Delete VERB
     for (int i = 1; i <= noOfTests; i++) {
       await socket_writer(
           socketFirstAtsign!, 'delete:public:location$firstAtsign');
@@ -85,7 +85,9 @@ void main() {
             (!response.contains('null')));
       }
     }
-  });
+  },
+      skip:
+          'The changes related to throwing an exception on deleting a non-existent key are reverted in at_persistence_secondary_server : 3.0.42');
 
   test('update multiple key at the same time', () async {
     int noOfTests = 5;
