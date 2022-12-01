@@ -1,3 +1,7 @@
+## 3.0.26
+- Upgrade at_persistence_secondary_server version to 3.0.43
+- Upgrade at_lookup version to 3.0.33
+- Upgrade at_commons version to 3.0.32
 ## 3.0.25
 - Upgrade at_persistence_secondary_server version to 3.0.40
 - Upgrade at_commons version to 3.0.28

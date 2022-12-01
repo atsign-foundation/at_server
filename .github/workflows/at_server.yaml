@@ -558,6 +558,8 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
+
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
@@ -676,7 +678,7 @@ jobs:
         run: echo ${{ steps.docker_build.outputs.digest }}
 
       - name: Google Chat Notification
-        uses: Co-qn/google-chat-notification@b9227d9daa4638c9782a5bd16c4abb86268127a1 # v1
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
         with:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
