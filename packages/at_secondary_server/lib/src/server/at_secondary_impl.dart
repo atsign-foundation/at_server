@@ -548,7 +548,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _commitLog = atCommitLog;
     keyStoreManager.keyStore = hiveKeyStore;
     // Initialize the hive store
-    hiveKeyStore.init();
+    await hiveKeyStore.init();
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();
@@ -576,27 +576,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> _removeMalformedKeys() async {
-    try {
+    // The below code removes the invalid keys on server start-up
+    // Intended to remove only keys that starts with "public:cached:" or key is "public:publickey"
+    // Fix for the git issue: https://github.com/atsign-foundation/at_server/issues/865
+
+    // [AtSecondaryConfig.shouldRemoveInvalidKeys] is by default set to false.
+    if (AtSecondaryConfig.shouldRemoveInvalidKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
+      final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
+      List<String> keys = keyStore.getKeys();
       logger.finest('malformed keys from config: $malformedKeys');
-      for (String key in malformedKeys) {
-        final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
-        if (keyStore.isKeyExists(key)) {
+      for (String key in keys) {
+        if (key.startsWith('public:cached:') || (malformedKeys.contains(key))) {
           try {
             int? commitId = await keyStore.remove(key);
             logger.warning('commitId for removed key $key: $commitId');
-            // do not sync back the deleted malformed key. remove from commit log if commitId is not null
-            if (commitId != null) {
-              await _commitLog.commitLogKeyStore.remove(commitId);
-            }
-          } on KeyNotFoundException {
-            logger.warning('malformed $key does not exist in keystore');
-            continue;
+          } on KeyNotFoundException catch (e) {
+            logger
+                .severe('Exception in removing malformed key: ${e.toString()}');
           }
         }
       }
-    } on Exception catch (e) {
-      logger.severe('Exception in removing malformed key: ${e.toString()}');
     }
   }
 
