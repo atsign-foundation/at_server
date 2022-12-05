@@ -580,7 +580,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Intended to remove only keys that starts with "public:cached:" or key is "public:publickey"
     // Fix for the git issue: https://github.com/atsign-foundation/at_server/issues/865
 
-    // [AtSecondaryConfig.shouldRemoveInvalidKeys] is by default set to false.
+    // [AtSecondaryConfig.shouldRemoveInvalidKeys] is set to true by default.
+    // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveInvalidKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
       final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;

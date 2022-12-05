@@ -89,7 +89,7 @@ class AtSecondaryConfig {
 
   // Invalid Keys
   static final List<String> _malformedKeys = [];
-  static final bool _shouldRemoveInvalidKeys = false;
+  static final bool _shouldRemoveInvalidKeys = true;
 
   //version
   static final String? _secondaryServerVersion =
