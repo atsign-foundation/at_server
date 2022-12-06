@@ -29,6 +29,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:uuid/uuid.dart';
+import 'package:meta/meta.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
@@ -82,7 +83,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
-  late SecondaryPersistenceStore _secondaryPersistenceStore;
+  @visibleForTesting
+  late SecondaryPersistenceStore secondaryPersistenceStore;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
@@ -148,12 +150,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    _secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+    secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(currentAtSign)!;
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =
-        AtCompactionJob(_commitLog, _secondaryPersistenceStore);
+        AtCompactionJob(_commitLog, secondaryPersistenceStore);
     atCommitLogCompactionConfig = AtCompactionConfig(
         commitLogSizeInKB!,
         commitLogExpiryInDays!,
@@ -164,7 +166,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
-        AtCompactionJob(_accessLog, _secondaryPersistenceStore);
+        AtCompactionJob(_accessLog, secondaryPersistenceStore);
     atAccessLogCompactionConfig = AtCompactionConfig(
         accessLogSizeInKB!,
         accessLogExpiryInDays!,
@@ -175,7 +177,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
-        AtNotificationKeystore.getInstance(), _secondaryPersistenceStore);
+        AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
     atNotificationCompactionConfig = AtCompactionConfig(
         AtSecondaryConfig.notificationKeyStoreSizeInKB!,
         AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
@@ -212,7 +214,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     // clean up malformed keys from keystore
-    await _removeMalformedKeys();
+    await removeMalformedKeys();
 
     try {
       _isRunning = true;
@@ -575,7 +577,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await keyStore.deleteExpiredKeys();
   }
 
-  Future<void> _removeMalformedKeys() async {
+  Future<void> removeMalformedKeys() async {
     // The below code removes the invalid keys on server start-up
     // Intended to remove only keys that starts with "public:cached:" or key is "public:publickey"
     // Fix for the git issue: https://github.com/atsign-foundation/at_server/issues/865
@@ -584,7 +586,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
-      final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
+      final keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
       List<String> keys = keyStore.getKeys();
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in keys) {
