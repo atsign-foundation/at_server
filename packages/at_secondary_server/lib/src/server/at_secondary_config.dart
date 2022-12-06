@@ -89,7 +89,7 @@ class AtSecondaryConfig {
 
   // Invalid Keys
   static final List<String> _malformedKeys = [];
-  static final bool _shouldRemoveInvalidKeys = true;
+  static final bool _shouldRemoveMalformedKeys = true;
 
   //version
   static final String? _secondaryServerVersion =
@@ -636,15 +636,15 @@ class AtSecondaryConfig {
     }
   }
 
-  static bool get shouldRemoveInvalidKeys {
-    var result = _getBoolEnvVar('shouldRemoveInvalidKeys');
+  static bool get shouldRemoveMalformedKeys {
+    var result = _getBoolEnvVar('shouldRemoveMalformedKeys');
     if (result != null) {
       return result;
     }
     try {
-      return getConfigFromYaml(['hive', 'shouldRemoveInvalidKeys']);
+      return getConfigFromYaml(['hive', 'shouldRemoveMalformedKeys']);
     } on ElementNotFoundException {
-      return _shouldRemoveInvalidKeys;
+      return _shouldRemoveMalformedKeys;
     }
   }
 

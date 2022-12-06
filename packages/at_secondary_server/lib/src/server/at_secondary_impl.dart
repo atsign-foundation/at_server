@@ -582,7 +582,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // [AtSecondaryConfig.shouldRemoveInvalidKeys] is set to true by default.
     // To retain the invalid keys on server start-up, set the flag to false.
-    if (AtSecondaryConfig.shouldRemoveInvalidKeys) {
+    if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
       final keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
       List<String> keys = keyStore.getKeys();
