@@ -87,7 +87,7 @@ class AtSecondaryConfig {
   static final int _syncBufferSize = 5242880;
   static final int _syncPageLimit = 100;
 
-  // Invalid Keys
+  // Malformed Keys
   static final List<String> _malformedKeys = [];
   static final bool _shouldRemoveMalformedKeys = true;
 

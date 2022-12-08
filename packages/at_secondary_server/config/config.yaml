@@ -38,8 +38,8 @@ hive:
   expiringRunFrequencyMins: 12
   # List of malformed keys that will be deleted on server startup
   malformedKeys: 'public:publickey'
-  # Delete keys that starts with "public:cached" on server startup
-  # This is set to true by default. To retain the invalid keys on server start-up,
+  # Delete keys that start with "public:cached" on server startup
+  # This is set to true by default. To retain the malformed keys on server start-up,
   # set the flag to false.
   shouldRemoveMalformedKeys: true
 
