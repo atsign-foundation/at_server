@@ -41,7 +41,7 @@ hive:
   # Delete keys that starts with "public:cached" on server startup
   # This is set to true by default. To retain the invalid keys on server start-up,
   # set the flag to false.
-  shouldRemoveInvalidKeys: true
+  shouldRemoveMalformedKeys: true
 
 # The @Protocol connection configurations.
 connection:
