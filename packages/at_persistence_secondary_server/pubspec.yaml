@@ -17,26 +17,25 @@ dependencies:
   at_utils: ^3.0.11
   at_commons: ^3.0.29
   at_utf7: ^1.0.0
-  meta: ^1.8.0  
+  meta: ^1.8.0
 
 dependency_overrides:
-   at_persistence_spec:
-     path: ../at_persistence_spec
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_persistence/at_persistence_spec
-#       ref: trunk
-#  at_utils:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_utils
-#      ref: trunk
-   at_commons:
-
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+  at_persistence_spec:
+    path: ../at_persistence_spec
+  #     git:
+  #       url: https://github.com/atsign-foundation/at_server.git
+  #       path: at_persistence/at_persistence_spec
+  #       ref: trunk
+  #  at_utils:
+  #    git:
+  #      url: https://github.com/atsign-foundation/at_tools.git
+  #      path: at_utils
+  #      ref: trunk
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: compaction_changes
 
 
 dev_dependencies:

@@ -1,5 +1,4 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_utils/at_logger.dart';
 
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
@@ -11,7 +10,6 @@ class AtCompactionService {
   }
 
   AtCompactionStats atCompactionStats = AtCompactionStats();
-  final _logger = AtSignLogger('AtCompactionService');
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on

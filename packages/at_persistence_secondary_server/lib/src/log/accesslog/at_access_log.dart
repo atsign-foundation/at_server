@@ -77,7 +77,7 @@ class AtAccessLog implements AtLogType<int, AccessLogEntry> {
     int firstNKeys =
         (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
     try {
-      return await _accessLogKeyStore.getFirstNEntries(firstNKeys);
+      return _accessLogKeyStore.getFirstNEntries(firstNKeys);
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException while getting keys for compaction:${e.toString()}');
