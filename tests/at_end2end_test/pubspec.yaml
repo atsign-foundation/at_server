@@ -20,6 +20,16 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_tools.git
       path: packages/at_commons
       ref: compaction_changes
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_spec
+      ref: compaction_changes
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: compaction_changes
 
 dev_dependencies:
   lints: ^1.0.1
