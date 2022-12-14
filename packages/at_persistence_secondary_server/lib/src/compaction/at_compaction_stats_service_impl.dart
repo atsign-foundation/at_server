@@ -5,10 +5,15 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
   late HiveKeystore _keyStore;
+  late final AtCompaction _atCompaction;
+  @visibleForTesting
+  late String compactionStatsKey;
+  final _logger = AtSignLogger("AtCompactionStats");
 
   AtCompactionStatsServiceImpl(
       this._atCompaction, this._secondaryPersistenceStore) {
@@ -16,21 +21,14 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
     _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
   }
 
-  late AtCompaction _atCompaction;
-  late String compactionStatsKey;
-  late String atLogName;
-  final _logger = AtSignLogger("AtCompactionStats");
-
   @override
-  Future<void> handleStats(atCompactionStats) async {
-    if (atCompactionStats != null) {
-      _logger.finer('$_atCompaction: ${atCompactionStats?.toString()}');
-      try {
-        await _keyStore.put(compactionStatsKey,
-            AtData()..data = json.encode(atCompactionStats?.toJson()));
-      } on Exception catch (_, e) {
-        _logger.severe(e);
-      }
+  Future<void> handleStats(AtCompactionStats atCompactionStats) async {
+    _logger.finer('$_atCompaction: ${atCompactionStats.toString()}');
+    try {
+      await _keyStore.put(compactionStatsKey,
+          AtData()..data = json.encode(atCompactionStats.toJson()));
+    } on Exception catch (_, e) {
+      _logger.severe(e);
     }
   }
 

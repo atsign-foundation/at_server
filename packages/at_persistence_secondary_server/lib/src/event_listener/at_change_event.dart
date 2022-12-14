@@ -41,7 +41,7 @@ enum KeyStoreType {
 
 /// Represents the list of keys of [CommitEntry].
 class CompactionSortedList {
-  final _list = [];
+  final _list = <int>[];
 
   /// Adds the hive key of [CommitEntry] to the list and sort's the keys in descending order.
   void add(int commitEntryKey) {
@@ -50,7 +50,7 @@ class CompactionSortedList {
   }
 
   /// Returns the keys to compact.
-  List getKeysToCompact() {
+  List<int> getKeysToCompact() {
     // _list.sublist(1) to retain the latest key and return the remaining.
     var expiredKeys = _list.sublist(1);
     return expiredKeys;

@@ -6,7 +6,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main commit logs on the secondary server for create, update and remove operations on keys
-class AtCommitLog implements AtLogType {
+class AtCommitLog implements AtLogType<int, CommitEntry> {
   var logger = AtSignLogger('AtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
@@ -191,23 +191,21 @@ class AtCommitLog implements AtLogType {
   }
 
   @override
-  Future<void> deleteKeyForCompaction(String key) async {
-    List<dynamic> deleteList = [];
-    deleteList.add(key);
+  Future<void> deleteKeyForCompaction(List<int> keysList) async {
     try {
-      await _commitLogKeyStore.delete(key);
+      await _commitLogKeyStore.deleteAll(keysList);
     } on Exception catch (e) {
       throw DataStoreException(
-          'DataStoreException while deleting $key for compaction:${e.toString()}');
+          'DataStoreException while deleting for compaction:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
-          'Hive error while deleting $key for compaction:${e.toString()}');
+          'Hive error while deleting for compaction:${e.toString()}');
     }
   }
 
   @override
-  Future<List> getKeysToDeleteOnCompaction() async {
-    List<dynamic>? entries = [];
+  Future<List<int>> getKeysToDeleteOnCompaction() async {
+    List<int> entries = [];
     try {
       entries = await _commitLogKeyStore.getDuplicateEntries();
     } on Exception catch (e) {
@@ -223,5 +221,10 @@ class AtCommitLog implements AtLogType {
   @override
   void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
     this.atCompactionConfig = atCompactionConfig;
+  }
+
+  @override
+  String toString() {
+    return runtimeType.toString();
   }
 }

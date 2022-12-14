@@ -5,7 +5,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
-class AtAccessLog implements AtLogType {
+class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   var logger = AtSignLogger('AtAccessLog');
 
   // ignore: prefer_typing_uninitialized_variables
@@ -59,22 +59,20 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  Future<void> deleteKeyForCompaction(String key) async {
-    List<dynamic> deleteKeysList = [];
-    deleteKeysList.add(key);
+  Future<void> deleteKeyForCompaction(List<int> keysList) async {
     try {
-      await _accessLogKeyStore.delete(deleteKeysList);
+      await _accessLogKeyStore.deleteAll(keysList);
     } on Exception catch (e) {
       throw DataStoreException(
-          'DataStoreException while deleting $key for compaction:${e.toString()}');
+          'DataStoreException while deleting for compaction:${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
-          'Hive error while deleting $key for compaction:${e.toString()}');
+          'Hive error while deleting for compaction:${e.toString()}');
     }
   }
 
   @override
-  Future<List> getKeysToDeleteOnCompaction() async {
+  Future<List<int>> getKeysToDeleteOnCompaction() async {
     int totalKeys = entriesCount();
     int firstNKeys =
         (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
@@ -110,5 +108,10 @@ class AtAccessLog implements AtLogType {
   @override
   void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
     this.atCompactionConfig = atCompactionConfig;
+  }
+
+  @override
+  String toString() {
+    return runtimeType.toString();
   }
 }

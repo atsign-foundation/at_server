@@ -27,9 +27,9 @@ dependencies:
 
 dependency_overrides:
   at_persistence_spec:
-    path: ../../at_persistence/at_persistence_spec
+    path: ../at_persistence_spec
   at_persistence_secondary_server:
-    path: ../../at_secondary/at_persistence_secondary_server
+    path: ../at_persistence_secondary_server
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -50,11 +50,11 @@ dependency_overrides:
 #     url: https://github.com/atsign-foundation/at_server.git
 #     path: at_secondary/at_persistence_secondary_server
 #     ref: trunk
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: atkey_types
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: compaction_changes
 #   at_persistence_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git

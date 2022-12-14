@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_logger.dart';
 
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
@@ -9,33 +10,61 @@ class AtCompactionService {
     return _singleton;
   }
 
-  late AtCompactionStatsService atCompactionStatsService;
-  late AtCompactionStats? atCompactionStats;
+  AtCompactionStats atCompactionStats = AtCompactionStats();
+  final _logger = AtSignLogger('AtCompactionService');
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
-  ///[atCompaction] specifies which logs the compaction job will run on
+  ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
-  Future<void> executeCompaction(
-      AtCompactionConfig atCompactionConfig,
-      AtCompaction atCompaction,
-      SecondaryPersistenceStore secondaryPersistenceStore) async {
-    atCompactionStatsService =
-        AtCompactionStatsServiceImpl(atCompaction, secondaryPersistenceStore);
-    atCompaction.setCompactionConfig(atCompactionConfig);
-    final keysToCompact = await atCompaction.getKeysToDeleteOnCompaction();
-    for (String key in keysToCompact) {
-      try {
-        await atCompaction.deleteKeyForCompaction(key);
-      } on Exception catch (e) {
-        //# TODO handle
-      }
-    }
-    atCompactionStats = _generateStats(keysToCompact);
-    await atCompactionStatsService.handleStats(atCompactionStats);
+  Future<AtCompactionStats> executeCompaction(AtLogType atLogType) async {
+    int dataTimeBeforeCompactionInMills =
+        DateTime.now().toUtc().millisecondsSinceEpoch;
+    int numberOfKeysBeforeCompaction = atLogType.entriesCount();
+    await executeCompactionInternal(atLogType);
+    int dataTimeAfterCompactionInMills =
+        DateTime.now().toUtc().millisecondsSinceEpoch;
+    int numberOfKeysAfterCompaction = atLogType.entriesCount();
+    AtCompactionStats atCompactionStats = _generateStats(
+        atLogType,
+        dataTimeBeforeCompactionInMills,
+        numberOfKeysBeforeCompaction,
+        dataTimeAfterCompactionInMills,
+        numberOfKeysAfterCompaction);
+    return atCompactionStats;
   }
 
-  AtCompactionStats _generateStats(keysToCompact) {
-    //# TODO implement
-    return AtCompactionStats();
+  Future<void> executeCompactionInternal(AtLogType atLogType) async {
+    final keysToCompact = await atLogType.getKeysToDeleteOnCompaction();
+    await atLogType.deleteKeyForCompaction(keysToCompact);
+  }
+
+  AtCompactionStats _generateStats(
+      AtLogType atLogType,
+      int dataTimeBeforeCompactionInMills,
+      int numberOfKeysBeforeCompaction,
+      int dataTimeAfterCompactionInMills,
+      int numberOfKeysAfterCompaction) {
+    _resetAtCompactionStats();
+    atCompactionStats
+      ..preCompactionEntriesCount = numberOfKeysBeforeCompaction
+      ..postCompactionEntriesCount = numberOfKeysAfterCompaction
+      ..compactionDuration =
+          DateTime.fromMillisecondsSinceEpoch(dataTimeAfterCompactionInMills)
+              .difference(DateTime.fromMillisecondsSinceEpoch(
+                  dataTimeBeforeCompactionInMills))
+      ..deletedKeysCount =
+          (numberOfKeysBeforeCompaction - numberOfKeysAfterCompaction)
+      ..lastCompactionRun = DateTime.now().toUtc()
+      ..atCompaction = atLogType;
+    return atCompactionStats;
+  }
+
+  _resetAtCompactionStats() {
+    atCompactionStats
+      ..preCompactionEntriesCount = -1
+      ..postCompactionEntriesCount = -1
+      ..deletedKeysCount = -1
+      ..compactionDuration = Duration()
+      ..lastCompactionRun = DateTime.now().toUtc();
   }
 }

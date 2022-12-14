@@ -71,10 +71,16 @@ class AccessLogKeyStore
   }
 
   @override
-  Future<void> delete(expiredKeys) async {
-    if (expiredKeys.isNotEmpty) {
-      await _getBox().deleteAll(expiredKeys);
+  Future<void> delete(int deleteKey) async {
+    await _getBox().delete(deleteKey);
+  }
+
+  @override
+  Future<void> deleteAll(List<int> deleteKeysList) async {
+    if (deleteKeysList.isEmpty) {
+      return;
     }
+    await _getBox().deleteAll(deleteKeysList);
   }
 
   /// Returns the total number of keys
@@ -110,10 +116,10 @@ class AccessLogKeyStore
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List getFirstNEntries(int N) {
-    var entries = [];
+  List<int> getFirstNEntries(int N) {
+    List<int> entries;
     try {
-      entries = _getBox().keys.toList().take(N).toList();
+      entries = List<int>.from(_getBox().keys.toList().take(N).toList());
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');

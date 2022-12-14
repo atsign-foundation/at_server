@@ -14,10 +14,12 @@ class AtNotificationKeystore
       AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
+
   late String currentAtSign;
   late String _boxName;
   final _notificationExpiryInHours = 72;
   late AtCompactionConfig atCompactionConfig;
+
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
@@ -243,7 +245,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<void> deleteKeyForCompaction(String key) async {
+  Future<void> deleteKeyForCompaction(dynamic key) async {
     await remove(key);
   }
 
@@ -255,5 +257,10 @@ class AtNotificationKeystore
   @override
   void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
     this.atCompactionConfig = atCompactionConfig;
+  }
+
+  @override
+  String toString() {
+    return runtimeType.toString();
   }
 }

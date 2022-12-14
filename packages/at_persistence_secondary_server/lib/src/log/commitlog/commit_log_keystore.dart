@@ -250,10 +250,16 @@ class CommitLogKeyStore
   /// Removes the expired keys from the log.
   /// @param - expiredKeys : The expired keys to remove
   @override
-  Future<void> delete(dynamic expiredKeys) async {
-    if (expiredKeys.isNotEmpty) {
-      await _getBox().deleteAll(expiredKeys);
+  Future<void> delete(int expiredKeys) async {
+    await _getBox().delete(expiredKeys);
+  }
+
+  @override
+  Future<void> deleteAll(List<int> deleteKeysList) async {
+    if (deleteKeysList.isEmpty) {
+      return;
     }
+    await _getBox().deleteAll(deleteKeysList);
   }
 
   @override
@@ -263,32 +269,36 @@ class CommitLogKeyStore
     var commitLogMap = await toMap();
     commitLogMap.forEach((key, value) {
       if (value.opTime != null &&
-          value.opTime!
-              .isBefore(now.subtract(Duration(days: expiryInDays)))) {
+          value.opTime!.isBefore(now.subtract(Duration(days: expiryInDays)))) {
         expiredKeys.add(key);
       }
     });
     return expiredKeys;
   }
 
-  Future<List> getDuplicateEntries() async {
+  Future<List<int>> getDuplicateEntries() async {
     var commitLogMap = await toMap();
-    //defensive fix for commit entries with commitId equal to null
-    Set keysWithNullCommitIdsInValue = {};
-    commitLogMap.forEach((key, value) {
-      if (value.commitId == null) {
-        keysWithNullCommitIdsInValue.add(key);
-        _logger.severe('Commit ID is null for key $key with value $value');
+    // Remove commit entries with null commitId only the Server
+    // In client the entries with null commitId indicate
+    // the keys to sync server - Do not delete them
+    if (enableCommitId) {
+      //defensive fix for commit entries with commitId equal to null
+      Set keysWithNullCommitIdsInValue = {};
+      commitLogMap.forEach((key, value) {
+        if (value.commitId == null) {
+          keysWithNullCommitIdsInValue.add(key);
+          _logger.severe('Commit ID is null for key $key with value $value');
+        }
+      });
+      for (var key in keysWithNullCommitIdsInValue) {
+        commitLogMap.remove(key);
       }
-    });
-    for (var key in keysWithNullCommitIdsInValue) {
-      commitLogMap.remove(key);
     }
     var sortedKeys = commitLogMap.keys.toList(growable: false)
       ..sort((k1, k2) =>
           commitLogMap[k2]!.commitId!.compareTo(commitLogMap[k1]!.commitId!));
     var tempSet = <String>{};
-    var expiredKeys = [];
+    var expiredKeys = <int>[];
     for (var entry in sortedKeys) {
       _processEntry(entry, tempSet, expiredKeys, commitLogMap);
     }
@@ -317,21 +327,20 @@ class CommitLogKeyStore
       var startKey = sequenceNumber + 1;
       _logger.finer('startKey: $startKey all commit log entries: $values');
       limit ??= values.length + 1;
-        for (CommitEntry element in values) {
-          if (element.key >= startKey &&
-              _acceptKey(element.atKey!, regexString) &&
-              changes.length <= limit) {
-            if (enableCommitId == false){
-              if(element.commitId == null){
-                changes.add(element);
-              }
-            } else {
-                changes.add(element);
+      for (CommitEntry element in values) {
+        if (element.key >= startKey &&
+            _acceptKey(element.atKey!, regexString) &&
+            changes.length <= limit) {
+          if (enableCommitId == false) {
+            if (element.commitId == null) {
+              changes.add(element);
             }
+          } else {
+            changes.add(element);
           }
         }
-        return changes;
-
+      }
+      return changes;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
     } on HiveError catch (e) {

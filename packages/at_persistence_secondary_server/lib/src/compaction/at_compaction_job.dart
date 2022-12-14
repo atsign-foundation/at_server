@@ -5,26 +5,32 @@ import 'package:at_persistence_secondary_server/src/compaction/at_compaction_ser
 import 'package:cron/cron.dart';
 
 class AtCompactionJob {
-  late Cron _cron;
+  final Cron _cron = Cron();
   late ScheduledTask _schedule;
-  AtCompaction _atCompaction;
+  late AtCompactionService atCompactionService;
+  late AtCompactionStatsService atCompactionStatsService;
+  final AtLogType _atLogType;
+
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
-  late final SecondaryPersistenceStore _secondaryPersistenceStore;
+  late final SecondaryPersistenceStore secondaryPersistenceStore;
   static final Random _random = Random();
 
-  AtCompactionJob(this._atCompaction, this._secondaryPersistenceStore);
+  AtCompactionJob(this._atLogType, this.secondaryPersistenceStore);
 
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
-    var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
-    _cron = Cron();
-    _schedule =
-        _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
-      var compactionService = AtCompactionService.getInstance();
+    var runFrequencyInMins = atCompactionConfig.compactionFrequencyInMins;
+    _schedule = _cron.schedule(Schedule.parse('*/$runFrequencyInMins * * * *'),
+        () async {
+      atCompactionService = AtCompactionService.getInstance();
+      atCompactionStatsService =
+          AtCompactionStatsServiceImpl(_atLogType, secondaryPersistenceStore);
       // adding delay to randomize the cron jobs
       // Generates a random number between 0 and 12 and wait's for that many seconds.
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      compactionService.executeCompaction(
-          atCompactionConfig, _atCompaction, _secondaryPersistenceStore);
+      _atLogType.setCompactionConfig(atCompactionConfig);
+      AtCompactionStats atCompactionStats =
+          await atCompactionService.executeCompaction(_atLogType);
+      await atCompactionStatsService.handleStats(atCompactionStats);
     });
   }
 
