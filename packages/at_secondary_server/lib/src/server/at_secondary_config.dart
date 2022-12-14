@@ -86,7 +86,10 @@ class AtSecondaryConfig {
   //Sync Configurations
   static final int _syncBufferSize = 5242880;
   static final int _syncPageLimit = 100;
+
+  // Malformed Keys
   static final List<String> _malformedKeys = [];
+  static final bool _shouldRemoveMalformedKeys = true;
 
   //version
   static final String? _secondaryServerVersion =
@@ -630,6 +633,18 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'malformedKeys']).split(',');
     } on ElementNotFoundException {
       return _malformedKeys;
+    }
+  }
+
+  static bool get shouldRemoveMalformedKeys {
+    var result = _getBoolEnvVar('shouldRemoveMalformedKeys');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['hive', 'shouldRemoveMalformedKeys']);
+    } on ElementNotFoundException {
+      return _shouldRemoveMalformedKeys;
     }
   }
 
