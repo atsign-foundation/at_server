@@ -16,12 +16,12 @@ dependencies:
   at_lookup: ^3.0.32
   
 
-#dependency_overrides:
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: trunk
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: compaction_changes
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
