@@ -55,7 +55,7 @@ jobs:
           project_id: ${{ secrets.GKE_PROD_PROJECT }}
 
       # Get the GKE credentials so we can deploy to the cluster
-      - uses: google-github-actions/get-gke-credentials@ef10cc0013c465a6ea0b8e36c24064576ec25f87 # v1.0.0
+      - uses: google-github-actions/get-gke-credentials@894c221960ab1bc16a69902f29f090638cca753f # v1.0.1
         with:
           cluster_name: ${{ secrets.GKE_PROD_CLUSTER }}
           location: ${{ secrets.GKE_PROD_ZONE }}
