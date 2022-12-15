@@ -92,7 +92,7 @@ class AtAccessLog implements AtLogType<int, AccessLogEntry> {
     return _accessLogKeyStore.getSize();
   }
 
-  Future<AccessLogEntry?> getLastAccessLogEntry() async {
+  Future<AccessLogEntry> getLastAccessLogEntry() async {
     return await _accessLogKeyStore.getLastEntry();
   }
 

@@ -159,11 +159,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = commitLogCompactionPercentage
       ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
-    // commitLogSizeInKB!
-    // ,
-    // commitLogExpiryInDays!,
-    // commitLogCompactionPercentage!,
-    // commitLogCompactionFrequencyMins!);
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
@@ -173,12 +168,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = accessLogCompactionPercentage!
       ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
-    // accessLogSizeInKB!,
-    // accessLogExpiryInDays!,
-    // accessLogCompactionPercentage!,
-    // accessLogCompactionFrequencyMins!);
-    // await accessLogCompactionJobInstance
-    //     .scheduleCompactionJob(atAccessLogCompactionConfig);
+    await accessLogCompactionJobInstance
+        .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
@@ -188,12 +179,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
       ..compactionFrequencyInMins =
           AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
-    // AtSecondaryConfig.notificationKeyStoreSizeInKB!,
-    // AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
-    // AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
-    // AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
-    // await notificationKeyStoreCompactionJobInstance
-    //     .scheduleCompactionJob(atNotificationCompactionConfig);
+    await notificationKeyStoreCompactionJobInstance
+        .scheduleCompactionJob(atNotificationCompactionConfig);
 
     // Refresh Cached Keys
     var random = Random();

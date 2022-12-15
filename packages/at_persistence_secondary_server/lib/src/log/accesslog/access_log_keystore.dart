@@ -205,7 +205,7 @@ class AccessLogKeyStore
   }
 
   ///Get last [AccessLogEntry] entry.
-  Future<AccessLogEntry?> getLastEntry() async {
+  Future<AccessLogEntry> getLastEntry() async {
     var accessLogMap = await _toMap();
     return accessLogMap!.values.last;
   }

@@ -263,8 +263,8 @@ class CommitLogKeyStore
   }
 
   @override
-  Future<List<dynamic>> getExpired(int expiryInDays) async {
-    var expiredKeys = <dynamic>[];
+  Future<List<int>> getExpired(int expiryInDays) async {
+    var expiredKeys = <int>[];
     var now = DateTime.now().toUtc();
     var commitLogMap = await toMap();
     commitLogMap.forEach((key, value) {

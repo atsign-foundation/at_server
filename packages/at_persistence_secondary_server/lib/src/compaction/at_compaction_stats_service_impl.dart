@@ -7,6 +7,8 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart'
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
+/// An implementation class of [AtCompactionStatsService] to write the compaction
+/// metrics to the [SecondaryKeyStore]
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
   late HiveKeystore _keyStore;

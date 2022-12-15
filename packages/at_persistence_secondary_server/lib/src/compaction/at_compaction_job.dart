@@ -4,6 +4,13 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
 import 'package:cron/cron.dart';
 
+/// The class responsible for the triggering the compaction job.
+///
+/// The configurations for the compaction job can be set in [AtCompactionConfig]
+/// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
+/// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
+///
+/// The [AtCompactionStats] contains the metrics of the compaction job.
 class AtCompactionJob {
   final Cron _cron = Cron();
   late ScheduledTask _schedule;
@@ -17,6 +24,11 @@ class AtCompactionJob {
 
   AtCompactionJob(this._atLogType, this.secondaryPersistenceStore);
 
+  /// Triggers the compaction job.
+  ///
+  /// Accepts [AtCompactionConfig] that contains the configurations required for the compaction job
+  /// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
+  /// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
     var runFrequencyInMins = atCompactionConfig.compactionFrequencyInMins;
     _schedule = _cron.schedule(Schedule.parse('*/$runFrequencyInMins * * * *'),
