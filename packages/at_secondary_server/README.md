@@ -2,5 +2,5 @@
 
 # at_secondary_server
 
-An at_secondary_server provides a place for @signs to sync their data and a
-pathway for connection to other atSigns.
+at_secondary_server provides the implementation of atServer, a place for
+atSigns to sync their data and a pathway for connection to other atSigns.
