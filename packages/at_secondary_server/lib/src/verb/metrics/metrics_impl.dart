@@ -204,7 +204,7 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     var entry = await atAccessLog!.getLastAccessLogEntry();
-    return entry?.requestDateTime!.toUtc().toString();
+    return entry.requestDateTime!.toUtc().toString();
   }
 
   @override
@@ -287,9 +287,11 @@ class NotificationsMetricImpl implements MetricProvider {
       NotificationsMetricImpl._internal();
 
   NotificationsMetricImpl._internal();
+
   factory NotificationsMetricImpl.getInstance() {
     return _singleton;
   }
+
   String _asString(dynamic enumData) {
     return enumData == null ? 'null' : enumData.toString().split('.')[1];
   }
