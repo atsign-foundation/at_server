@@ -19,10 +19,10 @@ class AtCompactionJob {
   final AtLogType _atLogType;
 
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
-  late final SecondaryPersistenceStore secondaryPersistenceStore;
+  late final SecondaryPersistenceStore _secondaryPersistenceStore;
   static final Random _random = Random();
 
-  AtCompactionJob(this._atLogType, this.secondaryPersistenceStore);
+  AtCompactionJob(this._atLogType, this._secondaryPersistenceStore);
 
   /// Triggers the compaction job.
   ///
@@ -35,7 +35,7 @@ class AtCompactionJob {
         () async {
       atCompactionService = AtCompactionService.getInstance();
       atCompactionStatsService =
-          AtCompactionStatsServiceImpl(_atLogType, secondaryPersistenceStore);
+          AtCompactionStatsServiceImpl(_atLogType, _secondaryPersistenceStore);
       // adding delay to randomize the cron jobs
       // Generates a random number between 0 and 12 and wait's for that many seconds.
       await Future.delayed(Duration(seconds: _random.nextInt(12)));

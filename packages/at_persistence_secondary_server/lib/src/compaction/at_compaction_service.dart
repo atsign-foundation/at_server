@@ -7,8 +7,7 @@ import 'package:meta/meta.dart';
 /// The [executeCompaction] method is responsible for fetching the oldest keys and removing
 /// from the keystore
 ///
-/// The [_generateStats] method collects the metrics of the compaction and stores it in the
-/// keystore.
+/// The [_generateStats] method collects the metrics of the compaction and returns [AtCompactionStats]
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
 
