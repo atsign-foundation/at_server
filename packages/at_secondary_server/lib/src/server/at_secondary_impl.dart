@@ -276,7 +276,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       //subscriber for inbound_max_limit change
       logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
           ?.listen((newSize) {
         inboundConnectionFactory.init(newSize, isColdInit: false);
         logger.finest(

@@ -12,7 +12,7 @@ import 'package:test/test.dart';
 void main() async {
   // ignore: prefer_typing_uninitialized_variables
   late OutboundClientPool outboundClientPool;
-  final int outboundIdleTimeMillis = 2000;
+  final int outboundIdleTimeMillis = 200;
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = outboundIdleTimeMillis;

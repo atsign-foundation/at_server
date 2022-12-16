@@ -5,11 +5,10 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
-  static Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners =
-      {};
+  static final Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners = {};
   //Certs
-  static final bool? _useSSL = true;
-  static final bool? _clientCertificateRequired = true;
+  static final bool _useSSL = true;
+  static final bool _clientCertificateRequired = true;
   static final bool _testingMode = false;
 
   //Certificate Paths
@@ -18,23 +17,23 @@ class AtSecondaryConfig {
   static final String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
-  static final String? _storagePath = 'storage/hive';
-  static final String? _commitLogPath = 'storage/commitLog';
-  static final String? _accessLogPath = 'storage/accessLog';
-  static final String? _notificationStoragePath = 'storage/notificationLog.v1';
-  static final int? _expiringRunFreqMins = 10;
+  static final String _storagePath = 'storage/hive';
+  static final String _commitLogPath = 'storage/commitLog';
+  static final String _accessLogPath = 'storage/accessLog';
+  static final String _notificationStoragePath = 'storage/notificationLog.v1';
+  static final int _expiringRunFreqMins = 10;
 
   //Commit Log
-  static final int? _commitLogCompactionFrequencyMins = 30;
-  static final int? _commitLogCompactionPercentage = 20;
-  static final int? _commitLogExpiryInDays = 15;
-  static final int? _commitLogSizeInKB = 2;
+  static final int _commitLogCompactionFrequencyMins = 30;
+  static final int _commitLogCompactionPercentage = 20;
+  static final int _commitLogExpiryInDays = 15;
+  static final int _commitLogSizeInKB = 2;
 
   //Access Log
-  static final int? _accessLogCompactionFrequencyMins = 15;
-  static final int? _accessLogCompactionPercentage = 30;
-  static final int? _accessLogExpiryInDays = 15;
-  static final int? _accessLogSizeInKB = 2;
+  static final int _accessLogCompactionFrequencyMins = 15;
+  static final int _accessLogCompactionPercentage = 30;
+  static final int _accessLogExpiryInDays = 15;
+  static final int _accessLogSizeInKB = 2;
 
   //Notification
   static final bool _autoNotify = true;
@@ -52,10 +51,10 @@ class AtSecondaryConfig {
   // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
   static final int _notificationExpiresAfterMins = 1440;
 
-  static final int? _notificationKeyStoreCompactionFrequencyMins = 5;
-  static final int? _notificationKeyStoreCompactionPercentage = 30;
-  static final int? _notificationKeyStoreExpiryInDays = 1;
-  static final int? _notificationKeyStoreSizeInKB = -1;
+  static final int _notificationKeyStoreCompactionFrequencyMins = 5;
+  static final int _notificationKeyStoreCompactionPercentage = 30;
+  static final int _notificationKeyStoreExpiryInDays = 1;
+  static final int _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
   static final int _runRefreshJobHour = 3;
@@ -706,7 +705,7 @@ class AtSecondaryConfig {
         return commitLogCompactionFrequencyMins;
       case ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins:
         return notificationKeyStoreCompactionFrequencyMins;
-      case ModifiableConfigs.inbound_max_limit:
+      case ModifiableConfigs.inboundMaxLimit:
         return inbound_max_limit;
       case ModifiableConfigs.autoNotify:
         return autoNotify;
@@ -784,7 +783,7 @@ String? getStringValueFromYaml(List<String> keyParts) {
 }
 
 enum ModifiableConfigs {
-  inbound_max_limit,
+  inboundMaxLimit,
   commitLogCompactionFrequencyMins,
   accessLogCompactionFrequencyMins,
   notificationKeyStoreCompactionFrequencyMins,
@@ -794,8 +793,8 @@ enum ModifiableConfigs {
 
 class ModifiableConfigurationEntry {
   late StreamController<dynamic> streamController;
-  late var defaultValue;
-  var currentValue;
+  late dynamic defaultValue;
+  dynamic currentValue;
 }
 
 class ElementNotFoundException extends AtException {

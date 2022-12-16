@@ -14,7 +14,7 @@ AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 
 void main() async {
   setUpAll(() {
-    serverContext.inboundIdleTimeMillis = 1000;
+    serverContext.inboundIdleTimeMillis = 250;
     serverContext.inboundConnectionLowWaterMarkRatio = 0.5;
     serverContext.unauthenticatedMinAllowableIdleTimeMillis = 20;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;

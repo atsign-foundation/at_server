@@ -7,14 +7,16 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
-/// The schedule job runs at a time interval specified in [notification][statsNotificationJobTimeInterval]
-/// in [config.yaml]. Defaults to 15 Seconds.
-/// To disable the service, set [notification][statsNotificationJobTimeInterval] in [config.yaml] to -1.
+/// The schedule job runs at a time interval which defaults to the value specified
+/// in [AtSecondaryConfig.statsNotificationJobTimeInterval] in [config.yaml]
+/// To disable the service, set [AtSecondaryConfig.statsNotificationJobTimeInterval] in [config.yaml] to -1.
 /// The [schedule] method is invoked during the server start-up and should be called only
-/// once.
+/// once. The [schedule] method takes an optional parameter to allow overriding of the default
+/// value for [AtSecondaryConfig.statsNotificationJobTimeInterval]
 /// NOTE: THE CHANGE IN TIME INTERVAL AFFECTS THE SYNC PERFORMANCE.
 /// The at_client_sdk gets the latest commit of server via the stats notification service.
 /// Sample JSON written to monitor connection.
@@ -43,30 +45,53 @@ class StatsNotificationService {
   InboundConnectionPool inboundConnectionPool =
       InboundConnectionPool.getInstance();
 
+  static final Duration zeroDuration = Duration(microseconds: 0);
+
   // Counter for number of active monitor connections. Used for logging purpose.
   int numOfMonitorConn = 0;
 
   Notification notification = Notification.empty();
 
+  @visibleForTesting
+  /// Set to true while the job is being scheduled, false once it has been scheduled.
+  bool scheduling = false;
+  @visibleForTesting
+  /// Set to true once the job has been scheduled, false when [cancel] is called.
+  bool scheduled = false;
+
+  @visibleForTesting
+  /// Timer is created when [schedule] is called successfully. [Timer.cancel] is called
+  /// when this class's [cancel] method is called, and [timer] will be set to null.
+  Timer? timer;
+
   /// Starts the [StatsNotificationService] and notifies the latest commitID
-  /// to the active monitor connections.
-  /// The [AtSecondaryConfig.statsNotificationJobTimeInterval] represents the time interval between the jobs.
-  Future<void> schedule(String currentAtSign) async {
-    // If set to -1, the feature is disabled. Do nothing.
-    if (AtSecondaryConfig.statsNotificationJobTimeInterval == -1) {
-      _logger.info('StatsNotificationService is disabled');
+  /// to the active monitor connections. By default, [schedule] will write to monitor connections every
+  /// [AtSecondaryConfig.statsNotificationJobTimeInterval] seconds. The optional [interval]
+  /// parameter is provided so that we can run unit tests using much shorter durations.
+  /// Throws a [StateError] If the service is already either [scheduling] or [scheduled].
+  /// Creates a periodic Timer which will call the [writeStatsToMonitor] method every [interval]
+  /// and sets the [timer] instance variable accordingly.
+  Future<void> schedule(String currentAtSign, {Duration? interval}) async {
+    interval ??= Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval);
+
+    // We interpret an interval of less than zero duration to mean that this service should not run.
+    if (interval < Duration.zero) {
+      _logger.info('Interval ($interval) is less than zero - will not schedule.');
       return;
     }
-    _logger.info(
-        'StatsNotificationService is enabled. Runs every ${AtSecondaryConfig.statsNotificationJobTimeInterval} seconds');
+    if (scheduled) {
+      throw StateError('This StatsNotificationService job has already been scheduled');
+    }
+    if (scheduling) {
+      throw StateError('This StatsNotificationService job is already being scheduled');
+    }
+    scheduling = true;
+    _logger.info('StatsNotificationService is enabled. Runs every $interval');
     this.currentAtSign = currentAtSign;
-    atCommitLog ??=
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
+    atCommitLog ??= await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
 
     // Runs the _schedule method as long as server is up and running.
-    Timer.periodic(
-        Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval),
-        (timer) {
+    timer = Timer.periodic(interval, (timer) {
       try {
         _logger.finer('Stats Notification Job triggered');
         writeStatsToMonitor();
@@ -78,9 +103,19 @@ class StatsNotificationService {
         _logger.severe('Error occurred when writing stats ${error.toString()}');
       }
     });
+    scheduled = true;
+    scheduling = false;
   }
 
-  /// Writes the lastCommitID to the monitor connection for every [AtSecondaryConfig.statsNotificationJobTimeInterval] seconds. Defaulted to 15 seconds
+  cancel() {
+    _logger.info('cancel() called');
+    timer?.cancel();
+    timer = null;
+    scheduled = false;
+    scheduling = false;
+  }
+
+  /// Writes the lastCommitID to all Monitor connections
   void writeStatsToMonitor({String? latestCommitID, String? operationType}) {
     try {
       latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
