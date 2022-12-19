@@ -97,7 +97,7 @@ void main() {
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
 
-      int ttb = 1000; // ttb, in milliseconds
+      int ttb = 100; // ttb, in milliseconds
       //Update Meta
       var updateMetaVerbHandler =
           UpdateMetaVerbHandler(keyStoreManager.getKeyStore());
@@ -165,7 +165,7 @@ void main() {
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
 
-      int ttl = 1000; // in milliseconds
+      int ttl = 100; // in milliseconds
 
       //Update Meta
       var updateMetaVerbHandler =

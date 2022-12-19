@@ -596,8 +596,8 @@ void main() {
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
 
-      int ttl = 1000; // in milliseconds
-      int ttb = 1000; // in milliseconds
+      int ttl = 50; // in milliseconds
+      int ttb = 50; // in milliseconds
 
       updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');

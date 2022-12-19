@@ -10,14 +10,14 @@ import 'package:test/test.dart';
 void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = 4000;
+    serverContext.outboundIdleTimeMillis = 50;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });
 
   group('A group of outbound client tests', () {
     test('test outbound client - invalid outbound client if inbound is invalid',
         () {
-      var dummySocket;
+      Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -26,16 +26,16 @@ void main() {
     });
 
     test('test outbound client - invalid outbound client idle', () {
-      var dummySocket;
+      Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      sleep(Duration(seconds: 5));
+      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis + 1));
       expect(client.isInValid(), true);
     });
 
     test('test outbound client - valid outbound client', () {
-      var dummySocket;
+      Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -45,7 +45,7 @@ void main() {
     test(
         'test outbound client - stale connection - connection invalid exception',
         () {
-      var dummySocket;
+      Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
@@ -59,7 +59,7 @@ void main() {
     test(
         'test outbound client - closed connection - connection invalid exception',
         () {
-      var dummySocket;
+      Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');

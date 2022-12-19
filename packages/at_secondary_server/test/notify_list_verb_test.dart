@@ -13,7 +13,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
+  var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
@@ -231,11 +231,9 @@ void main() {
   });
   group('A group of tests on expiry ', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
-    test(
-        'A test to verify notify list does not return expired entries - 1 expired entry',
-        () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+    test('A test to verify notify list does not return expired entries - 1 expired entry', () async {
+      var ttl = 100;
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -252,7 +250,7 @@ void main() {
             ..strategy = 'latest'
             ..notifier = 'persona'
             ..depth = 3
-            ..ttl = 100)
+            ..ttl = ttl)
           .build();
 
       var notification2 = (AtNotificationBuilder()
@@ -275,7 +273,11 @@ void main() {
 
       await AtNotificationKeystore.getInstance().put('122', notification1);
       await AtNotificationKeystore.getInstance().put('125', notification2);
-      sleep(Duration(milliseconds: 500));
+
+      // We set a ttl on notification1 (id 122) - let's wait until that ttl has passed
+      // When we then list the notifications we should only see notification2 (id 125)
+      sleep(Duration(milliseconds: ttl + 1));
+
       var verb = NotifyList();
       var command = 'notify:list';
       var regex = verb.syntax();
@@ -284,11 +286,9 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
-        ..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(
-          response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
       expect(result.length, 1);
@@ -297,10 +297,8 @@ void main() {
       await AtNotificationKeystore.getInstance().remove('125');
     });
 
-    test('A test to verify notify list expired entries - No expired entry',
-        () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+    test('A test to verify notify list expired entries - No expired entry', () async {
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -317,7 +315,7 @@ void main() {
             ..strategy = 'latest'
             ..notifier = 'persona'
             ..depth = 3
-            ..ttl = 60000)
+            ..ttl = 60)
           .build();
 
       var notification2 = (AtNotificationBuilder()
@@ -336,12 +334,16 @@ void main() {
             ..strategy = 'latest'
             ..notifier = 'persona'
             ..depth = 3
-            ..ttl = 70000)
+            ..ttl = 70)
           .build();
 
       await AtNotificationKeystore.getInstance().put('122', notification1);
       await AtNotificationKeystore.getInstance().put('125', notification2);
-      sleep(Duration(milliseconds: 500));
+
+      // We set ttls of 60 and 70 milliseconds respectively on notifications 1 and 2
+      // Let's sleep for 20 milliseconds and then verify neither have yet expired
+      sleep(Duration(milliseconds: 20));
+
       var verb = NotifyList();
       var command = 'notify:list';
       var regex = verb.syntax();
@@ -350,11 +352,9 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
-        ..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(
-          response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
       expect(result.length, 2);
