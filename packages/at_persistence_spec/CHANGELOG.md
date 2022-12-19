@@ -1,3 +1,5 @@
+## 2.0.10
+- fix: Add AtCompaction spec for keystore compaction 
 ## 2.0.9
 - fix: rollback keystore delete KeyNotFoundException
 ## 2.0.8
