@@ -156,33 +156,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance =
         AtCompactionJob(_commitLog, secondaryPersistenceStore);
-    atCommitLogCompactionConfig = AtCompactionConfig(
-        commitLogSizeInKB!,
-        commitLogExpiryInDays!,
-        commitLogCompactionPercentage!,
-        commitLogCompactionFrequencyMins!);
+    atCommitLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = commitLogCompactionPercentage
+      ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, secondaryPersistenceStore);
-    atAccessLogCompactionConfig = AtCompactionConfig(
-        accessLogSizeInKB!,
-        accessLogExpiryInDays!,
-        accessLogCompactionPercentage!,
-        accessLogCompactionFrequencyMins!);
+    atAccessLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = accessLogCompactionPercentage!
+      ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
-    atNotificationCompactionConfig = AtCompactionConfig(
-        AtSecondaryConfig.notificationKeyStoreSizeInKB!,
-        AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
-        AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
-        AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
+    atNotificationCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage =
+          AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
+      ..compactionFrequencyInMins =
+          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
@@ -262,7 +258,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'Received new frequency for $atLogType compaction: $newFrequency');
       await atCompactionJob.stopCompactionJob();
       logger.finest('Existing cron job of $atLogType compaction terminated');
-      atCompactionConfig.compactionFrequencyMins = newFrequency;
+      atCompactionConfig.compactionFrequencyInMins = newFrequency;
       atCompactionJob.scheduleCompactionJob(atCompactionConfig);
       logger.finest('New compaction cron job started for $atLogType');
     }
