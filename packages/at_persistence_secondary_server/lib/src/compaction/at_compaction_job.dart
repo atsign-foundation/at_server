@@ -1,31 +1,48 @@
 import 'dart:math';
 
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
 import 'package:cron/cron.dart';
 
+/// The class responsible for the triggering the compaction job.
+///
+/// The configurations for the compaction job can be set in [AtCompactionConfig]
+/// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
+/// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
+///
+/// The [AtCompactionStats] contains the metrics of the compaction job.
 class AtCompactionJob {
-  late Cron _cron;
+  final Cron _cron = Cron();
   late ScheduledTask _schedule;
-  AtLogType atLogType;
+  late AtCompactionService atCompactionService;
+  late AtCompactionStatsService atCompactionStatsService;
+  final AtLogType _atLogType;
+
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
   static final Random _random = Random();
 
-  AtCompactionJob(this.atLogType, this._secondaryPersistenceStore);
+  AtCompactionJob(this._atLogType, this._secondaryPersistenceStore);
 
+  /// Triggers the compaction job.
+  ///
+  /// Accepts [AtCompactionConfig] that contains the configurations required for the compaction job
+  /// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
+  /// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
   void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
-    var runFrequencyMins = atCompactionConfig.compactionFrequencyMins;
-    _cron = Cron();
-    _schedule =
-        _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
-      var compactionService = AtCompactionService.getInstance();
+    var runFrequencyInMins = atCompactionConfig.compactionFrequencyInMins;
+    _schedule = _cron.schedule(Schedule.parse('*/$runFrequencyInMins * * * *'),
+        () async {
+      atCompactionService = AtCompactionService.getInstance();
+      atCompactionStatsService =
+          AtCompactionStatsServiceImpl(_atLogType, _secondaryPersistenceStore);
       // adding delay to randomize the cron jobs
       // Generates a random number between 0 and 12 and wait's for that many seconds.
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      compactionService.executeCompaction(
-          atCompactionConfig, atLogType, _secondaryPersistenceStore);
+      _atLogType.setCompactionConfig(atCompactionConfig);
+      AtCompactionStats atCompactionStats =
+          await atCompactionService.executeCompaction(_atLogType);
+      await atCompactionStatsService.handleStats(atCompactionStats);
     });
   }
 

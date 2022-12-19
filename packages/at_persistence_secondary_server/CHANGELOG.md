@@ -1,3 +1,5 @@
+## 3.0.44
+- fix: Refactor AtCompaction job
 ## 3.0.43
 - fix: Fetch only commit entries with 'null' commit-id for uncommitted entries in at_client persistence
 ## 3.0.42
