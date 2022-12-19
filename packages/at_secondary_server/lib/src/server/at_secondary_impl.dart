@@ -33,7 +33,7 @@ import 'package:meta/meta.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
-  static final bool? useSSL = AtSecondaryConfig.useSSL;
+  static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
       AtSecondaryServerImpl._internal();
   static final inboundConnectionFactory =
@@ -129,7 +129,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (verbManager == null) {
       throw AtServerException('Verb handler manager is not initialized');
     }
-    if (useSSL! && serverContext!.securityContext == null) {
+    if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
 
@@ -218,7 +218,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     try {
       _isRunning = true;
-      if (useSSL!) {
+      if (useTLS!) {
         _startSecuredServer();
       } else {
         _startUnSecuredServer();

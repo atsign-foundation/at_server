@@ -7,7 +7,7 @@ import 'package:at_secondary/src/conf/config_util.dart';
 class AtSecondaryConfig {
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners = {};
   //Certs
-  static final bool _useSSL = true;
+  static final bool _useTLS = true;
   static final bool _clientCertificateRequired = true;
   static final bool _testingMode = false;
 
@@ -111,15 +111,28 @@ class AtSecondaryConfig {
         _defaultLogLevel;
   }
 
-  static bool? get useSSL {
-    var result = _getBoolEnvVar('useSSL');
+  /// Used to be called "useSSL" and check env and config for "useSSL"
+  /// Now we are checking env and config for "useTLS", and for backwards
+  /// compatibility reasons we will fallback check env and config for "useSSL"
+  static bool? get useTLS {
+    var result = _getBoolEnvVar('useTLS');
     if (result != null) {
       return result;
     }
+
+    result = _getBoolEnvVar('useSSL');
+    if (result != null) {
+      return result;
+    }
+
     try {
-      return getConfigFromYaml(['security', 'useSSL']);
+      return getConfigFromYaml(['security', 'useTLS']);
     } on ElementNotFoundException {
-      return _useSSL;
+      try {
+        return getConfigFromYaml(['security', 'useSSL']);
+      } on ElementNotFoundException {
+        return _useTLS;
+      }
     }
   }
 

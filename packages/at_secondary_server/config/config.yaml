@@ -13,10 +13,10 @@ log:
 
 # The @Protocol security configurations.
 security:
-  # To start secondary server in Secure/UnSecure mode. When [useSSL] is set to false, the secondary server starts in un-secure mode.
-  # When [useSSL] is set to true, the secondary server starts in secure mode. On setting useSSL to true, the [certificateChainLocation] and
+  # To start secondary server in Secure/UnSecure mode. When [useTLS] is set to false, the secondary server starts in un-secure mode.
+  # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
   # [privateKeyLocation] should be populated with the path's to respective certificates.
-  useSSL: true
+  useTLS: true
   certificateChainLocation: 'certs/fullchain.pem'
   privateKeyLocation: 'certs/privkey.pem'
   trustedCertificateLocation: '/etc/cacert/cacert.pem'

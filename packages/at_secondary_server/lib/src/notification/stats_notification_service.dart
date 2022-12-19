@@ -9,6 +9,16 @@ import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
+/// Used to guard state of this service
+enum StatsNotificationServiceState {
+  /// Periodic job not currently running. Can call [schedule] to start
+  notScheduled,
+  /// [schedule] has been called but has not yet completed
+  scheduling,
+  /// Job has been scheduled to run periodically. To cancel, call [cancel].
+  /// When [cancel] is called, the state will reset to [notScheduled]
+  scheduled
+}
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
 /// The schedule job runs at a time interval which defaults to the value specified
@@ -53,11 +63,7 @@ class StatsNotificationService {
   Notification notification = Notification.empty();
 
   @visibleForTesting
-  /// Set to true while the job is being scheduled, false once it has been scheduled.
-  bool scheduling = false;
-  @visibleForTesting
-  /// Set to true once the job has been scheduled, false when [cancel] is called.
-  bool scheduled = false;
+  StatsNotificationServiceState state = StatsNotificationServiceState.notScheduled;
 
   @visibleForTesting
   /// Timer is created when [schedule] is called successfully. [Timer.cancel] is called
@@ -79,13 +85,16 @@ class StatsNotificationService {
       _logger.info('Interval ($interval) is less than zero - will not schedule.');
       return;
     }
-    if (scheduled) {
-      throw StateError('This StatsNotificationService job has already been scheduled');
+    switch (state) {
+      case StatsNotificationServiceState.notScheduled:
+        break;
+      case StatsNotificationServiceState.scheduling:
+        throw StateError('This StatsNotificationService job is in the process of being scheduled');
+      case StatsNotificationServiceState.scheduled:
+          throw StateError('This StatsNotificationService job has already been scheduled');
     }
-    if (scheduling) {
-      throw StateError('This StatsNotificationService job is already being scheduled');
-    }
-    scheduling = true;
+    state = StatsNotificationServiceState.scheduling;
+
     _logger.info('StatsNotificationService is enabled. Runs every $interval');
     this.currentAtSign = currentAtSign;
     atCommitLog ??= await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
@@ -103,16 +112,14 @@ class StatsNotificationService {
         _logger.severe('Error occurred when writing stats ${error.toString()}');
       }
     });
-    scheduled = true;
-    scheduling = false;
+    state = StatsNotificationServiceState.scheduled;
   }
 
   cancel() {
     _logger.info('cancel() called');
     timer?.cancel();
     timer = null;
-    scheduled = false;
-    scheduling = false;
+    state = StatsNotificationServiceState.notScheduled;
   }
 
   /// Writes the lastCommitID to all Monitor connections
