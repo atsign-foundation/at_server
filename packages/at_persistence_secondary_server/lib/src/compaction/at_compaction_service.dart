@@ -24,9 +24,9 @@ class AtCompactionService {
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
   Future<AtCompactionStats> executeCompaction(AtLogType atLogType) async {
     // Pre-compaction metrics
+    int numberOfKeysBeforeCompaction = atLogType.entriesCount();
     int dataTimeBeforeCompactionInMills =
         DateTime.now().toUtc().millisecondsSinceEpoch;
-    int numberOfKeysBeforeCompaction = atLogType.entriesCount();
     // Run compaction
     await executeCompactionInternal(atLogType);
     // Post-compaction metrics
@@ -64,14 +64,15 @@ class AtCompactionService {
     atCompactionStats
       ..preCompactionEntriesCount = numberOfKeysBeforeCompaction
       ..postCompactionEntriesCount = numberOfKeysAfterCompaction
-      ..compactionDuration =
+      ..compactionDurationInMills =
           DateTime.fromMillisecondsSinceEpoch(dataTimeAfterCompactionInMills)
               .difference(DateTime.fromMillisecondsSinceEpoch(
                   dataTimeBeforeCompactionInMills))
+              .inMilliseconds
       ..deletedKeysCount =
           (numberOfKeysBeforeCompaction - numberOfKeysAfterCompaction)
       ..lastCompactionRun = DateTime.now().toUtc()
-      ..atCompaction = atLogType;
+      ..atCompactionType = atLogType.toString();
     return atCompactionStats;
   }
 
@@ -81,7 +82,7 @@ class AtCompactionService {
       ..preCompactionEntriesCount = -1
       ..postCompactionEntriesCount = -1
       ..deletedKeysCount = -1
-      ..compactionDuration = Duration()
+      ..compactionDurationInMills = 0
       ..lastCompactionRun = DateTime.now().toUtc();
   }
 }

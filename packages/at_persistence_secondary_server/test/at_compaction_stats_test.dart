@@ -61,9 +61,9 @@ Future<void> main() async {
       // Assertions
       expect(atCompactionStats.preCompactionEntriesCount, 2);
       expect(atCompactionStats.postCompactionEntriesCount, 1);
-      expect(atCompactionStats.compactionDuration.inMicroseconds > 0, true);
+      expect(atCompactionStats.compactionDurationInMills > 0, true);
       expect(
-          atCompactionStats.compactionDuration.inMicroseconds <
+          atCompactionStats.compactionDurationInMills <
               (dateTimeAfterCompactionInMilliSeconds -
                   dateTimeBeforeCompactionInMilliSeconds),
           true);
@@ -133,12 +133,12 @@ Future<void> main() async {
       AtCompactionStats atCompactionStats = AtCompactionStats();
       atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
           atNotificationKeystore, secondaryPersistenceStore!);
-      atCompactionStats.compactionDuration = Duration(minutes: 36);
+      atCompactionStats.compactionDurationInMills = 2000;
       atCompactionStats.deletedKeysCount = 239;
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 302;
       atCompactionStats.preCompactionEntriesCount = 404;
-      atCompactionStats.atCompaction = atNotificationKeystore;
+      atCompactionStats.atCompactionType = atNotificationKeystore.toString();
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
       AtData? atData = await secondaryPersistenceStore!
           .getSecondaryKeyStore()
@@ -148,8 +148,7 @@ Future<void> main() async {
       expect(decodedData["deletedKeysCount"].toString(), '239');
       expect(decodedData["postCompactionEntriesCount"].toString(), '302');
       expect(decodedData["preCompactionEntriesCount"].toString(), '404');
-      expect(
-          decodedData["duration"].toString(), Duration(minutes: 36).toString());
+      expect(decodedData["duration"].toString(), '2000');
     });
 
     tearDown(() async => await tearDownMethod());

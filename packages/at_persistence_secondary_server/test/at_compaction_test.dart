@@ -9,13 +9,14 @@ String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 AtCommitLog? atCommitLog;
 
-Future<void> setUpMethod() async {
+Future<void> setUpMethod({bool enableCommitId = true}) async {
+  String atSign = '@alice';
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice');
+      .getSecondaryPersistenceStore(atSign);
   // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir, enableCommitId: true);
+  atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign,
+      commitLogPath: storageDir, enableCommitId: enableCommitId);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
   await secondaryPersistenceStore!
@@ -24,7 +25,7 @@ Future<void> setUpMethod() async {
 }
 
 void main() {
-  group('A group of test to verify commit log compaction job', () {
+  group('A group of test to verify commit log compaction job on server', () {
     setUp(() async {
       await setUpMethod();
     });
@@ -52,6 +53,29 @@ void main() {
     tearDown(() async {
       await tearDownMethod();
     });
+  });
+
+  group('A group of test to verify commit log compaction job on client', () {
+    setUp(() async {
+      // Setting enableCommitId to false to replicate the client side commit log
+      await setUpMethod(enableCommitId: false);
+    });
+    test(
+        'A test to verify commit log compaction on the client side does not remove null values',
+        () async {
+      await atCommitLog!.commitLogKeyStore.add(
+          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 1);
+      await atCommitLog!.commitLogKeyStore.add(
+          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 2);
+      await atCommitLog!.commitLogKeyStore.add(
+          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
+      var atCompactionService = AtCompactionService.getInstance();
+      await atCompactionService.executeCompactionInternal(atCommitLog!);
+      expect(atCommitLog!.entriesCount(), 2);
+    });
+    tearDown(() async => await tearDownMethod());
   });
 
   group('A group of test to verify access log compaction job', () {

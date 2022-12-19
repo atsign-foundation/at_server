@@ -6,9 +6,9 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 class AtCompactionStats {
   @Deprecated('Use AtCompaction')
   CompactionType? compactionType;
-  late AtCompaction atCompaction;
+  late String atCompactionType;
   late DateTime lastCompactionRun;
-  late Duration compactionDuration;
+  late int compactionDurationInMills;
   late int preCompactionEntriesCount;
   late int postCompactionEntriesCount;
   late int deletedKeysCount;
@@ -17,12 +17,15 @@ class AtCompactionStats {
 
   ///maps predefined keys to their values which will be ready to encode to json
   Map toJson() => {
-        'atCompaction': atCompaction.toString(),
-        'lastCompactionRun': lastCompactionRun.toString(),
-        'duration': compactionDuration.toString(),
-        'preCompactionEntriesCount': preCompactionEntriesCount.toString(),
-        'postCompactionEntriesCount': postCompactionEntriesCount.toString(),
-        'deletedKeysCount': deletedKeysCount.toString()
+        AtCompactionConstants.atCompactionType: atCompactionType,
+        AtCompactionConstants.lastCompactionRun: lastCompactionRun.toString(),
+        AtCompactionConstants.compactionDurationInMills:
+            compactionDurationInMills.toString(),
+        AtCompactionConstants.preCompactionEntriesCount:
+            preCompactionEntriesCount.toString(),
+        AtCompactionConstants.postCompactionEntriesCount:
+            postCompactionEntriesCount.toString(),
+        AtCompactionConstants.deletedKeysCount: deletedKeysCount.toString()
       };
 
   @override
@@ -32,5 +35,10 @@ class AtCompactionStats {
 }
 
 class AtCompactionConstants {
-  static final compactionType = 'compactionType';
+  static const atCompactionType = 'atCompactionType';
+  static const lastCompactionRun = 'lastCompactionRun';
+  static const compactionDurationInMills = 'compactionDurationInMills';
+  static const preCompactionEntriesCount = 'preCompactionEntriesCount';
+  static const postCompactionEntriesCount = 'postCompactionEntriesCount';
+  static const deletedKeysCount = 'deletedKeysCount';
 }

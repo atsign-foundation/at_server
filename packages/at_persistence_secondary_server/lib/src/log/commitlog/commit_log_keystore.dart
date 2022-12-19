@@ -200,6 +200,7 @@ class CommitLogKeyStore
     return lastSyncedEntry;
   }
 
+  /// Sorts the [CommitEntry]'s order by commit in descending order
   int _sortByCommitId(dynamic c1, dynamic c2) {
     if (c1.commitId == null && c2.commitId == null) {
       return 0;
@@ -278,25 +279,15 @@ class CommitLogKeyStore
 
   Future<List<int>> getDuplicateEntries() async {
     var commitLogMap = await toMap();
-    // Remove commit entries with null commitId only the Server
-    // In client the entries with null commitId indicate
-    // the keys to sync server - Do not delete them
-    if (enableCommitId) {
-      //defensive fix for commit entries with commitId equal to null
-      Set keysWithNullCommitIdsInValue = {};
-      commitLogMap.forEach((key, value) {
-        if (value.commitId == null) {
-          keysWithNullCommitIdsInValue.add(key);
-          _logger.severe('Commit ID is null for key $key with value $value');
-        }
-      });
-      for (var key in keysWithNullCommitIdsInValue) {
-        commitLogMap.remove(key);
-      }
-    }
+
+    // When fetching the duplicates entries for compaction, ignore the values
+    // with commit-Id not equal to null.
+    // On the client side, the entries with commit null indicates the entries have to
+    // be synced to cloud secondary and should not be deleted. Hence removing the keys from
+    // commitLogMap.
+    commitLogMap.removeWhere((key, value) => value.commitId == null);
     var sortedKeys = commitLogMap.keys.toList(growable: false)
-      ..sort((k1, k2) =>
-          commitLogMap[k2]!.commitId!.compareTo(commitLogMap[k1]!.commitId!));
+      ..sort((k1, k2) => _sortByCommitId(commitLogMap[k1], commitLogMap[k2]));
     var tempSet = <String>{};
     var expiredKeys = <int>[];
     for (var entry in sortedKeys) {
