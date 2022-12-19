@@ -85,7 +85,7 @@ Future<void> main() async {
       expect(decodedData['deletedKeysCount'], '1');
       expect(decodedData['postCompactionEntriesCount'], '1');
       expect(decodedData['preCompactionEntriesCount'], '2');
-      expect(decodedData['atCompaction'], 'AtCommitLog');
+      expect(decodedData['atCompactionType'], 'AtCommitLog');
     });
 
     tearDown(() async => await tearDownMethod());
@@ -145,10 +145,20 @@ Future<void> main() async {
           ?.get('privatekey:notificationCompactionStats');
       var data = (atData?.data);
       var decodedData = jsonDecode(data!) as Map;
-      expect(decodedData["deletedKeysCount"].toString(), '239');
-      expect(decodedData["postCompactionEntriesCount"].toString(), '302');
-      expect(decodedData["preCompactionEntriesCount"].toString(), '404');
-      expect(decodedData["duration"].toString(), '2000');
+      expect(decodedData[AtCompactionConstants.deletedKeysCount].toString(),
+          '239');
+      expect(
+          decodedData[AtCompactionConstants.postCompactionEntriesCount]
+              .toString(),
+          '302');
+      expect(
+          decodedData[AtCompactionConstants.preCompactionEntriesCount]
+              .toString(),
+          '404');
+      expect(
+          decodedData[AtCompactionConstants.compactionDurationInMills]
+              .toString(),
+          '2000');
     });
 
     tearDown(() async => await tearDownMethod());
