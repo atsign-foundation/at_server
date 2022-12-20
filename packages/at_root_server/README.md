@@ -2,6 +2,4 @@
 
 # at_root_server
 
-
-
 The at_root_server provides the atDirectory lookup service for atServers.
