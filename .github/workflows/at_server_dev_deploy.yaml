@@ -2,7 +2,7 @@ name: at_root deploy (dev)
 on:
   push:
     branches:
-      - issues_gke_creds_issue
+      - trunk
     paths:
       - packages/*_root_server/**
 
