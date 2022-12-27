@@ -5,11 +5,13 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
-class AtAccessLog implements AtLogType {
+class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   var logger = AtSignLogger('AtAccessLog');
 
   // ignore: prefer_typing_uninitialized_variables
-  late var _accessLogKeyStore;
+  late AccessLogKeyStore _accessLogKeyStore;
+
+  late AtCompactionConfig atCompactionConfig;
 
   AtAccessLog(AccessLogKeyStore keyStore) {
     _accessLogKeyStore = keyStore;
@@ -50,19 +52,6 @@ class AtAccessLog implements AtLogType {
     return await _accessLogKeyStore.mostVisitedKeys(length);
   }
 
-  /// Returns the list of expired keys.
-  /// @param expiryInDays - The count of days after which the keys expires
-  /// @return List<dynamic> - The list of expired keys.
-  @override
-  Future<List<dynamic>> getExpired(int expiryInDays) async {
-    return await _accessLogKeyStore.getExpired(expiryInDays);
-  }
-
-  @override
-  Future<void> delete(expiredKeys) async {
-    await _accessLogKeyStore.delete(expiredKeys);
-  }
-
   @override
   int entriesCount() {
     final count = _accessLogKeyStore.entriesCount();
@@ -70,8 +59,32 @@ class AtAccessLog implements AtLogType {
   }
 
   @override
-  Future<List> getFirstNEntries(int N) async {
-    return await _accessLogKeyStore.getFirstNEntries(N);
+  Future<void> deleteKeyForCompaction(List<int> keysList) async {
+    try {
+      await _accessLogKeyStore.removeAll(keysList);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while deleting for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while deleting for compaction:${e.toString()}');
+    }
+  }
+
+  @override
+  Future<List<int>> getKeysToDeleteOnCompaction() async {
+    int totalKeys = entriesCount();
+    int firstNKeys =
+        (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
+    try {
+      return _accessLogKeyStore.getFirstNEntries(firstNKeys);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while getting keys for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while getting keys for compaction:${e.toString()}');
+    }
   }
 
   @override
@@ -90,5 +103,15 @@ class AtAccessLog implements AtLogType {
   ///Closes the [accessLogKeyStore] instance.
   void close() {
     _accessLogKeyStore.close();
+  }
+
+  @override
+  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
+    this.atCompactionConfig = atCompactionConfig;
+  }
+
+  @override
+  String toString() {
+    return runtimeType.toString();
   }
 }
