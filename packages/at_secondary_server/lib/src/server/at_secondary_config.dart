@@ -718,7 +718,7 @@ class AtSecondaryConfig {
         return commitLogCompactionFrequencyMins;
       case ModifiableConfigs.notification_keystore_compaction_freq_mins:
         return notificationKeyStoreCompactionFrequencyMins;
-      case ModifiableConfigs.inboundMaxLimit:
+      case ModifiableConfigs.inbound_max_limit:
         return inbound_max_limit;
       case ModifiableConfigs.auto_notify:
         return autoNotify;
