@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -103,7 +102,7 @@ void main() {
   group('A group of notificationStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        Directory.current.path + '/test/hive',
+        '${Directory.current.path}/test/hive',
         atsign: '@alice'));
     // test for notificationstats
     test('notificationstats command accept test', () {
@@ -120,7 +119,7 @@ void main() {
     });
 
     test('the value of the notificationStats', () async {
-      Map<String, dynamic> _metricsMap = <String, dynamic>{
+      Map<String, dynamic> metricsMap = <String, dynamic>{
         'total': 0,
         'type': <String, int>{
           'sent': 0,
@@ -247,19 +246,19 @@ void main() {
           response, verbParams3, atConnection);
       await notifyListVerbHandler.processVerb(
           response, verbParams4, atConnection);
-      _metricsMap = await NotificationsMetricImpl.getInstance()
-          .getNotificationStats(_metricsMap);
-      expect(_metricsMap['total'], 4);
-      expect(_metricsMap['type']['sent'], 2);
-      expect(_metricsMap['type']['received'], 2);
-      expect(_metricsMap['status']['delivered'], 1);
-      expect(_metricsMap['status']['failed'], 1);
-      expect(_metricsMap['status']['queued'], 2);
-      expect(_metricsMap['operations']['update'], 3);
-      expect(_metricsMap['operations']['delete'], 1);
-      expect(_metricsMap['messageType']['key'], 3);
-      expect(_metricsMap['messageType']['text'], 1);
-      expect(_metricsMap['createdOn'] is int, true);
+      metricsMap = await NotificationsMetricImpl.getInstance()
+          .getNotificationStats(metricsMap);
+      expect(metricsMap['total'], 4);
+      expect(metricsMap['type']['sent'], 2);
+      expect(metricsMap['type']['received'], 2);
+      expect(metricsMap['status']['delivered'], 1);
+      expect(metricsMap['status']['failed'], 1);
+      expect(metricsMap['status']['queued'], 2);
+      expect(metricsMap['operations']['update'], 3);
+      expect(metricsMap['operations']['delete'], 1);
+      expect(metricsMap['messageType']['key'], 3);
+      expect(metricsMap['messageType']['text'], 1);
+      expect(metricsMap['createdOn'] is int, true);
     });
     tearDown(() async => await tearDownFunc());
   });
@@ -267,7 +266,7 @@ void main() {
   group('A group of commitLogCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        Directory.current.path + '/test/hive',
+        '${Directory.current.path}/test/hive',
         atsign: '@alice'));
 
     test('commitLogCompactionStats command accept test', () {
@@ -287,31 +286,40 @@ void main() {
       AtCompactionStats atCompactionStats = AtCompactionStats();
       var keyStore = keyStoreManager?.getKeyStore();
 
-      atCompactionStats.compactionDuration = Duration(minutes: 14);
+      atCompactionStats.compactionDurationInMills = 1000;
       atCompactionStats.deletedKeysCount = 41;
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 92;
       atCompactionStats.preCompactionEntriesCount = 96;
-      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
+      atCompactionStats.atCompactionType =
+          (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
+              .toString();
       await keyStore?.put(commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats.getInstance().getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(decodedData["deletedKeysCount"].toString(), '41');
-      expect(decodedData["postCompactionEntriesCount"].toString(), '92');
-      expect(decodedData["preCompactionEntriesCount"].toString(), '96');
       expect(
-          decodedData["duration"].toString(), Duration(minutes: 14).toString());
-      expect(decodedData['compactionType'].toString(),
-          CompactionType.timeBasedCompaction.toString());
+          decodedData[AtCompactionConstants.deletedKeysCount].toString(), '41');
+      expect(
+          decodedData[AtCompactionConstants.postCompactionEntriesCount]
+              .toString(),
+          '92');
+      expect(
+          decodedData[AtCompactionConstants.preCompactionEntriesCount]
+              .toString(),
+          '96');
+      expect(
+          decodedData[AtCompactionConstants.compactionDurationInMills]
+              .toString(),
+          '1000');
     });
   });
 
   group('A group of accessLogCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        Directory.current.path + '/test/hive',
+        '${Directory.current.path}/test/hive',
         atsign: '@alice'));
 
     test('accessLogCompactionStats command acceptance test', () {
@@ -331,31 +339,33 @@ void main() {
       AtCompactionStats atCompactionStats = AtCompactionStats();
       var keyStore = keyStoreManager?.getKeyStore();
 
-      atCompactionStats.compactionDuration = Duration(minutes: 2);
+      atCompactionStats.compactionDurationInMills = 10000;
       atCompactionStats.deletedKeysCount = 431;
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 902;
       atCompactionStats.preCompactionEntriesCount = 906;
-      atCompactionStats.compactionType = CompactionType.sizeBasedCompaction;
+      atCompactionStats.atCompactionType =
+          (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
+              .toString();
       await keyStore?.put(accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await AccessLogCompactionStats.getInstance().getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(decodedData["deletedKeysCount"].toString(), '431');
-      expect(decodedData["postCompactionEntriesCount"].toString(), '902');
-      expect(decodedData["preCompactionEntriesCount"].toString(), '906');
+      expect(decodedData[AtCompactionConstants.deletedKeysCount], '431');
       expect(
-          decodedData["duration"].toString(), Duration(minutes: 2).toString());
-      expect(decodedData['compactionType'].toString(),
-          CompactionType.sizeBasedCompaction.toString());
+          decodedData[AtCompactionConstants.postCompactionEntriesCount], '902');
+      expect(
+          decodedData[AtCompactionConstants.preCompactionEntriesCount], '906');
+      expect(decodedData[AtCompactionConstants.compactionDurationInMills],
+          '10000');
     });
   });
 
   group('A group of notificationCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        Directory.current.path + '/test/hive',
+        '${Directory.current.path}/test/hive',
         atsign: '@alice'));
 
     test('notificationCompactionStats command accept test', () {
@@ -375,24 +385,24 @@ void main() {
       AtCompactionStats atCompactionStats = AtCompactionStats();
       var keyStore = keyStoreManager?.getKeyStore();
 
-      atCompactionStats.compactionDuration = Duration(minutes: 1);
+      atCompactionStats.compactionDurationInMills = 10000;
       atCompactionStats.deletedKeysCount = 1;
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 1;
       atCompactionStats.preCompactionEntriesCount = 1;
-      atCompactionStats.compactionType = CompactionType.timeBasedCompaction;
+      atCompactionStats.atCompactionType =
+          AtNotificationKeystore.getInstance().toString();
       await keyStore?.put(commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats.getInstance().getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(decodedData["deletedKeysCount"].toString(), '1');
-      expect(decodedData["postCompactionEntriesCount"].toString(), '1');
-      expect(decodedData["preCompactionEntriesCount"].toString(), '1');
+      expect(decodedData[AtCompactionConstants.deletedKeysCount], '1');
       expect(
-          decodedData["duration"].toString(), Duration(minutes: 1).toString());
-      expect(decodedData['compactionType'.toString()],
-          CompactionType.timeBasedCompaction.toString());
+          decodedData[AtCompactionConstants.postCompactionEntriesCount], '1');
+      expect(decodedData[AtCompactionConstants.preCompactionEntriesCount], '1');
+      expect(
+          decodedData[AtCompactionConstants.compactionDurationInMills], '10000');
     });
   });
 }

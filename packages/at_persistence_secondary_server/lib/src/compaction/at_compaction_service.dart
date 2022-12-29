@@ -1,8 +1,13 @@
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/compaction/at_size_based_compaction.dart';
-import 'package:at_persistence_secondary_server/src/compaction/at_time_based_compaction.dart';
+import 'package:meta/meta.dart';
 
+/// The [AtCompactionService] is runs on the [Keystore] and removes the oldest keys to
+/// reduce the size of the Keystore.
+///
+/// The [executeCompaction] method is responsible for fetching the oldest keys and removing
+/// from the keystore
+///
+/// The [_generateStats] method collects the metrics of the compaction and returns [AtCompactionStats]
 class AtCompactionService {
   static final AtCompactionService _singleton = AtCompactionService._internal();
 
@@ -12,53 +17,72 @@ class AtCompactionService {
     return _singleton;
   }
 
-  late AtCompactionStatsService atCompactionStatsService;
-  late AtCompactionStats? atCompactionStats;
+  AtCompactionStats atCompactionStats = AtCompactionStats();
 
   ///[atCompactionConfig] is an object containing compaction configuration/parameters
   ///[atLogType] specifies which logs the compaction job will run on
   ///Method chooses which type of compaction to be run based on [atCompactionConfig]
-  Future<void> executeCompaction(
-      AtCompactionConfig atCompactionConfig,
+  Future<AtCompactionStats> executeCompaction(AtLogType atLogType) async {
+    // Pre-compaction metrics
+    int numberOfKeysBeforeCompaction = atLogType.entriesCount();
+    int dataTimeBeforeCompactionInMills =
+        DateTime.now().toUtc().millisecondsSinceEpoch;
+    // Run compaction
+    await executeCompactionInternal(atLogType);
+    // Post-compaction metrics
+    int dataTimeAfterCompactionInMills =
+        DateTime.now().toUtc().millisecondsSinceEpoch;
+    int numberOfKeysAfterCompaction = atLogType.entriesCount();
+    // Sets the metrics to AtCompactionStats
+    AtCompactionStats atCompactionStats = _generateStats(
+        atLogType,
+        dataTimeBeforeCompactionInMills,
+        numberOfKeysBeforeCompaction,
+        dataTimeAfterCompactionInMills,
+        numberOfKeysAfterCompaction);
+    return atCompactionStats;
+  }
+
+  /// Gets the keys to delete on compaction and removes from the keystore
+  ///
+  /// The [AtLogType] defines the type of Keystore to compaction (e.g. AtCommitLog, AtAccessLog)
+  @visibleForTesting
+  Future<void> executeCompactionInternal(AtLogType atLogType) async {
+    final keysToCompact = await atLogType.getKeysToDeleteOnCompaction();
+    await atLogType.deleteKeyForCompaction(keysToCompact);
+  }
+
+  AtCompactionStats _generateStats(
       AtLogType atLogType,
-      SecondaryPersistenceStore secondaryPersistenceStore) async {
-    var timeBasedCompactionConfigured =
-        atCompactionConfig.timeBasedCompaction();
-    var sizeBasedCompactionConfigured =
-        atCompactionConfig.sizeBasedCompaction();
-    atCompactionStatsService =
-        AtCompactionStatsServiceImpl(atLogType, secondaryPersistenceStore);
+      int dataTimeBeforeCompactionInMills,
+      int numberOfKeysBeforeCompaction,
+      int dataTimeAfterCompactionInMills,
+      int numberOfKeysAfterCompaction) {
+    // Reset the compaction stats to clear the earlier stats metrics
+    _resetAtCompactionStats();
+    // Sets the compaction stats and return
+    atCompactionStats
+      ..preCompactionEntriesCount = numberOfKeysBeforeCompaction
+      ..postCompactionEntriesCount = numberOfKeysAfterCompaction
+      ..compactionDurationInMills =
+          DateTime.fromMillisecondsSinceEpoch(dataTimeAfterCompactionInMills)
+              .difference(DateTime.fromMillisecondsSinceEpoch(
+                  dataTimeBeforeCompactionInMills))
+              .inMilliseconds
+      ..deletedKeysCount =
+          (numberOfKeysBeforeCompaction - numberOfKeysAfterCompaction)
+      ..lastCompactionRun = DateTime.now().toUtc()
+      ..atCompactionType = atLogType.toString();
+    return atCompactionStats;
+  }
 
-    // Check if any of the compaction strategy's configured.
-    // If none of the are configured return.
-    if ((timeBasedCompactionConfigured || sizeBasedCompactionConfigured) ==
-        false) {
-      // Log no compaction strategy is configured. Which means logs will live for ever.
-      return;
-    }
-
-    // Time based compaction is configured
-    if (timeBasedCompactionConfigured) {
-      // If the are logs that met the time criteria delete them.
-      var timeBasedCompaction = TimeBasedCompaction(
-          atCompactionConfig.timeInDays,
-          atCompactionConfig.compactionPercentage);
-      atCompactionStats =
-          await timeBasedCompaction.performCompaction(atLogType);
-      //write compaction statistics returned by timeBasedCompaction into keystore
-      await atCompactionStatsService.handleStats(atCompactionStats);
-    }
-
-    // Size based compaction is configured
-    // When both are configured we have to run both.
-    if (sizeBasedCompactionConfigured) {
-      // If the are logs that met the size criteria delete them.
-      var sizeBasedCompaction = SizeBasedCompaction(
-          atCompactionConfig.sizeInKB, atCompactionConfig.compactionPercentage);
-      atCompactionStats =
-          (await sizeBasedCompaction.performCompaction(atLogType));
-      //write compaction statistics returned by sizeBasedCompaction into keystore
-      await atCompactionStatsService.handleStats(atCompactionStats);
-    }
+  /// Reset the state of the [AtCompactionStats]
+  void _resetAtCompactionStats() {
+    atCompactionStats
+      ..preCompactionEntriesCount = -1
+      ..postCompactionEntriesCount = -1
+      ..deletedKeysCount = -1
+      ..compactionDurationInMills = 0
+      ..lastCompactionRun = DateTime.now().toUtc();
   }
 }

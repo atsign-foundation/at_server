@@ -33,7 +33,7 @@ import 'package:meta/meta.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
-  static final bool? useSSL = AtSecondaryConfig.useSSL;
+  static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
       AtSecondaryServerImpl._internal();
   static final inboundConnectionFactory =
@@ -129,7 +129,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (verbManager == null) {
       throw AtServerException('Verb handler manager is not initialized');
     }
-    if (useSSL! && serverContext!.securityContext == null) {
+    if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
 
@@ -156,33 +156,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Commit Log Compaction
     commitLogCompactionJobInstance =
         AtCompactionJob(_commitLog, secondaryPersistenceStore);
-    atCommitLogCompactionConfig = AtCompactionConfig(
-        commitLogSizeInKB!,
-        commitLogExpiryInDays!,
-        commitLogCompactionPercentage!,
-        commitLogCompactionFrequencyMins!);
+    atCommitLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = commitLogCompactionPercentage
+      ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
     await commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, secondaryPersistenceStore);
-    atAccessLogCompactionConfig = AtCompactionConfig(
-        accessLogSizeInKB!,
-        accessLogExpiryInDays!,
-        accessLogCompactionPercentage!,
-        accessLogCompactionFrequencyMins!);
+    atAccessLogCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage = accessLogCompactionPercentage!
+      ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
     await accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
-    atNotificationCompactionConfig = AtCompactionConfig(
-        AtSecondaryConfig.notificationKeyStoreSizeInKB!,
-        AtSecondaryConfig.notificationKeyStoreExpiryInDays!,
-        AtSecondaryConfig.notificationKeyStoreCompactionPercentage!,
-        AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!);
+    atNotificationCompactionConfig = AtCompactionConfig()
+      ..compactionPercentage =
+          AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
+      ..compactionFrequencyInMins =
+          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
@@ -218,7 +214,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     try {
       _isRunning = true;
-      if (useSSL!) {
+      if (useTLS!) {
         _startSecuredServer();
       } else {
         _startUnSecuredServer();
@@ -262,7 +258,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'Received new frequency for $atLogType compaction: $newFrequency');
       await atCompactionJob.stopCompactionJob();
       logger.finest('Existing cron job of $atLogType compaction terminated');
-      atCompactionConfig.compactionFrequencyMins = newFrequency;
+      atCompactionConfig.compactionFrequencyInMins = newFrequency;
       atCompactionJob.scheduleCompactionJob(atCompactionConfig);
       logger.finest('New compaction cron job started for $atLogType');
     }
@@ -276,7 +272,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       //subscriber for inbound_max_limit change
       logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.inbound_max_limit)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
           ?.listen((newSize) {
         inboundConnectionFactory.init(newSize, isColdInit: false);
         logger.finest(

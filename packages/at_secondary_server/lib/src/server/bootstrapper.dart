@@ -14,7 +14,7 @@ import 'package:at_utils/at_utils.dart';
 /// and call the start method to start the secondary server.
 class SecondaryServerBootStrapper {
   List<String> arguments;
-  static final bool? useSSL = AtSecondaryConfig.useSSL;
+  static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final int inboundMaxLimit = AtSecondaryConfig.inbound_max_limit;
   static final int outboundMaxLimit = AtSecondaryConfig.outbound_max_limit;
   static final int inboundIdleTimeMillis =
@@ -42,7 +42,7 @@ class SecondaryServerBootStrapper {
       secondaryContext.outboundConnectionLimit = outboundMaxLimit;
       secondaryContext.inboundIdleTimeMillis = inboundIdleTimeMillis;
       secondaryContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
-      if (useSSL!) {
+      if (useTLS!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }
       secondaryContext.trainingMode = results['training'];

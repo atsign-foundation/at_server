@@ -1,7 +1,7 @@
 import 'dart:collection';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 

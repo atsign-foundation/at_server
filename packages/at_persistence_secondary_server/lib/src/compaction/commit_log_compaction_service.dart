@@ -64,7 +64,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
     var atKeyList = _commitLogEntriesMap[atKey];
     var expiredKeys = atKeyList?.getKeysToCompact();
     if (expiredKeys != null && expiredKeys.isNotEmpty) {
-      await _commitLogKeyStore.delete(expiredKeys);
+      await _commitLogKeyStore.removeAll(expiredKeys);
       atKeyList?.deleteCompactedKeys(expiredKeys);
     }
   }

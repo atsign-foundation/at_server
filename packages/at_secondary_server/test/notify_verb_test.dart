@@ -849,7 +849,7 @@ void main() {
           notifyResponse, firstNotificationVerbParams, atConnection);
       // store current date time to capture the difference
       var currentDateTime = DateTime.now();
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(Duration(milliseconds: 50));
       // process second notification
       secondNotificationVerbParams.putIfAbsent(
           'forAtSign', () => '@test_user_1');
@@ -876,7 +876,7 @@ void main() {
           notifyResponse, firstNotificationVerbParams, atConnection);
       // store current date time to capture the difference
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(Duration(milliseconds: 50));
       // process second notification
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);

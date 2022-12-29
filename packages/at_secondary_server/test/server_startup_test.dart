@@ -40,7 +40,7 @@ void main() {
               e.message == 'Verb handler manager is not initialized')));
     });
 
-    // precondition. useSSL is set to true in config file
+    // precondition. useTLS is set to true in config file
     test('security context not set', () {
       var secondaryServerInstance = AtSecondaryServerImpl.getInstance();
       var context = AtSecondaryContext();
