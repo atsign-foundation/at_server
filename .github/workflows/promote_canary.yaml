@@ -1,30 +1,34 @@
 name: promote_canary
 # Workflow to promote a canary release to production
 on:
+  push:
+    tags:
+      - 'p*.*.*'
   workflow_dispatch:
 
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
-  # Deploy canary image to secondary image
-  deploy_canary_image_to_prod_secondary_image:
-    env:
-      working-directory: at_server
+  # Add layer to canary secondary image with prod pubspec.yaml
+  deploy_canary_secondary_to_prod_image:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # v3.2.0
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.0.0
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -32,14 +36,54 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_canary_to_prod
-        uses: docker/build-push-action@v3.1.1
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
         with:
-          push: true 
-          file: ./at_secondary/Dockerfile.canary_to_prod
-          context: at_secondary
+          push: true
+          file: tools/build_secondary/Dockerfile.canary_to_prod
+          context: .
           tags: |
             atsigncompany/secondary:prod
+            atsigncompany/secondary:dess
             atsigncompany/secondary:prod-${{ env.VERSION }}
           platforms: |
             linux/amd64
-            linux/arm64/v8           
+            linux/arm64/v8
+            linux/arm/v7
+
+  # Add layer to canary virtualenv image with prod pubspec.yaml
+  deploy_canary_virtualenv_to_prod_image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b  # v3.2.0
+
+      # Extract version for docker tag
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@e81a89b1732b9c48d79cd809d8d81d79c4647a18 # v2.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325 # v2.2.1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Builds and pushes the secondary server image to docker hub.
+      - name: Build and push virtualenv image for amd64 and arm64
+        id: docker_build_canary_to_vip
+        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5 # v3.2.0
+        with:
+          push: true
+          file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
+          context: .
+          tags: |
+            atsigncompany/virtualenv:vip
+            atsigncompany/virtualenv:vip-${{ env.VERSION }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8

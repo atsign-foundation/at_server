@@ -13,20 +13,23 @@ on:
         default: true
         description: Rollback Canary secondary image
         required: true
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
 jobs:
   # Rollback prod secondary image.
   rollback_prod_secondary_image:
     if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.0.2
-      
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # v3.2.0
+
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
-        
+
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -36,13 +39,13 @@ jobs:
           docker pull --platform=linux/amd64 atsigncompany/secondary:prod-${{ env.VERSION }}
           docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
           docker push atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-      
+
       - name: Create arm64 labels
         run: |
           docker pull --platform=linux/arm64 atsigncompany/secondary:prod-${{ env.VERSION }}
           docker tag atsigncompany/secondary:prod-${{ env.VERSION }} atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
           docker push atsigncompany/secondary:prod-${{ env.VERSION }}-arm64
-      
+
       - name: Create and push multi-arch prod manifest
         run: |
           docker manifest create atsigncompany/secondary:prod \
@@ -55,21 +58,21 @@ jobs:
           docker manifest create atsigncompany/secondary:prod-${{ env.VERSION }} \
             --amend atsigncompany/secondary:prod-${{ env.VERSION }}-arm64 \
             --amend atsigncompany/secondary:prod-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:prod-${{ env.VERSION }}          
-  
+          docker manifest push atsigncompany/secondary:prod-${{ env.VERSION }}
+
   # Rollback canary secondary image.
   rollback_canary_secondary_image:
     if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.0.2
-      
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # v3.2.0
+
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2.0.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -79,7 +82,7 @@ jobs:
           docker pull --platform=linux/amd64 atsigncompany/secondary:canary-${{ env.VERSION }}
           docker tag atsigncompany/secondary:canary-${{ env.VERSION }} atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
           docker push atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-      
+
       - name: Create and push multi-arch canary manifest
         run: |
           docker manifest create atsigncompany/secondary:canary \
@@ -90,4 +93,4 @@ jobs:
         run: |
           docker manifest create atsigncompany/secondary:canary-${{ env.VERSION }} \
             --amend atsigncompany/secondary:canary-${{ env.VERSION }}-amd64
-          docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}  
+          docker manifest push atsigncompany/secondary:canary-${{ env.VERSION }}

@@ -1,0 +1,10 @@
+FROM atsigncompany/virtualenv:canary
+# Context for this Dockerfile needs to be at_server repo root
+# If building manually then (from the repo root):
+## sudo docker build -t atsigncompany/virtualenv:vip \
+## -f tools/build_virtual_environment/ve/Dockerfile.canary_to_vip .
+COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml /atsign/secondary/
+USER root
+EXPOSE 64 6379 9001
+# Run supervisor configuration file on container startup
+CMD ["supervisord", "-n"]

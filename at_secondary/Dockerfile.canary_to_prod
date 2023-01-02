@@ -1,6 +1,0 @@
-FROM atsigncompany/secondary:canary
-ENV HOMEDIR=/atsign
-COPY --chown=atsign:atsign ./at_secondary_server/pubspec.yaml $HOMEDIR/
-WORKDIR /atsign
-USER atsign
-ENTRYPOINT ["/usr/local/at/secondary"]
