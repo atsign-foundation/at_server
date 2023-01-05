@@ -187,7 +187,7 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
-        run: dart run test
+        run: dart run test --concurrency=1
 
       # On push event, upload secondary server binary
       - name: upload secondary server
