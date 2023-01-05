@@ -105,4 +105,10 @@ void main() {
           (!response.contains('null')));
     }
   });
+
+  tearDown(() {
+    //Closing the socket connection
+    clear();
+    socketFirstAtsign!.destroy();
+  });
 }

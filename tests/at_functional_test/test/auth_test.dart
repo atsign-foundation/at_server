@@ -1,10 +1,11 @@
-import 'package:test/test.dart';
-import 'commons.dart';
 import 'dart:io';
+
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:test/test.dart';
+
+import 'commons.dart';
 
 void main() {
-
   var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 
@@ -26,16 +27,20 @@ void main() {
   });
 
   test('authenticate multiple times', () async {
-    int noOfTests =10;
+    int noOfTests = 10;
     socketFirstAtsign =
         await secure_socket_connection(firstAtsignServer, firstAtsignPort);
     socket_listener(socketFirstAtsign!);
-    for(int i=1; i <=noOfTests; i++){
+    for (int i = 1; i <= noOfTests; i++) {
       await prepare(socketFirstAtsign!, firstAtsign);
-    }    
+    }
   });
 
-
+  tearDown(() {
+    //Closing the socket connection
+    clear();
+    socketFirstAtsign!.destroy();
+  });
 }
 
 Future<void> timeDifference(var beforeCommand, var afterCommand) async {

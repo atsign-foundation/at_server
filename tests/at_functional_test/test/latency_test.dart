@@ -91,6 +91,12 @@ void main() {
     var timeAfterStats = DateTime.now().millisecondsSinceEpoch;
     timeDifference(timeBeforeStats, timeAfterStats);
   }, timeout: Timeout(Duration(minutes: 3)));
+
+  tearDown(() {
+    //Closing the socket connection
+    clear();
+    socketFirstAtsign!.destroy();
+  });
 }
 
 // calculates the time difference between command before and after execution

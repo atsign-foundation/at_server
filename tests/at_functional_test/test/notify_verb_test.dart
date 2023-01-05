@@ -89,4 +89,10 @@ void main() {
           true);
     });
   });
+
+  tearDown(() {
+    //Closing the socket connection
+    clear();
+    socketFirstAtsign!.destroy();
+  });
 }
