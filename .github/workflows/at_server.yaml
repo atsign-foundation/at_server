@@ -180,10 +180,6 @@ jobs:
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
       
-      #tmate to debug actions
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v1
-        
         # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: ${{ env.ftest-working-directory }}
