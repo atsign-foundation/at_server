@@ -1,128 +1,135 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:math';
 
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:cron/cron.dart';
+import 'package:meta/meta.dart';
 
-///[AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
-/// 1. Replace the old certificates with new certificates in the certs location.
-/// 2. Place the restart file in the certificates location which indicates the server that new certificates are available.
-/// 3. On detecting the restart file:
-///       a. If force restart is set to true:
-///               The secondary server restarts immediately terminating all the active connections.
-///       b. If force restart is set to false:
-///               The secondary server waits until all the active connections become zero or the total number of active
-///               connections equals the number of active connections that run the monitor verb.
+/// [AtCertificateValidationJob] rebinds the new certificates to at_secondary server.
+/// The process for refreshing the certificates is:
+/// - Replace the old certificates with new certificates in the certs location.
+/// - Place the restart file in the certificates location which indicates the server that new certificates are available.
+/// - On detecting the restart file, this class does the following:
+///     - If force restart is set to true, the secondary server restarts immediately regardless of whether or not
+///     a request is currently being handled.
+///     - If force restart is set to false, the secondary server waits for a configurable duration which defaults to [defaultGracefulWaitTimeout].
 class AtCertificateValidationJob {
-  static final AtCertificateValidationJob _singleton =
-      AtCertificateValidationJob._internal();
-
   static final logger = AtSignLogger('AtCertificationValidation');
-  var restartFile = 'restart';
-  var filePath = AtSecondaryConfig.certificateChainLocation;
-  var isCertificateExpired = false;
 
-  AtCertificateValidationJob._internal();
+  /// Default value for [gracefulExitWaitTimeout]
+  static const Duration defaultGracefulWaitTimeout = Duration(seconds:30);
 
-  factory AtCertificateValidationJob.getInstance() {
-    return _singleton;
-  }
+  /// The location at which we will find the file which indicates we need to restart
+  String restartFilePath;
 
-  /// Spawns an isolate job to verify for the expiry of certificates.
-  Future<void> runCertificateExpiryCheckJob() async {
-    filePath = filePath!.replaceAll('fullchain.pem', '');
-    var mainIsolateReceivePort = ReceivePort();
-    SendPort? childIsolateSendPort;
-    var isolate = await Isolate.spawn(
-        _verifyChangeInCertificate, [mainIsolateReceivePort.sendPort]);
-    mainIsolateReceivePort.listen((data) async {
-      if (childIsolateSendPort == null && data is SendPort) {
-        childIsolateSendPort = data;
-        childIsolateSendPort!.send(filePath);
-      } else {
-        if (data == null) {
-          return;
-        }
-        isCertificateExpired = data;
-        isolate.kill();
-        _initializeRestartProcess(null);
-      }
-    });
-  }
+  /// The secondary server we are going to pause, stop and start
+  AtSecondaryServer secondaryServer;
 
-  /// Isolate job to verify certificates expiry. Sends [true] to main isolate upon creation of [restart] file which acts as a trigger
-  /// to indicate the new certificates are in place.
-  static void _verifyChangeInCertificate(List<SendPort> commList) async {
-    var childIsolateReceivePort = ReceivePort();
-    var mainIsolateSendPort = commList[0];
-    mainIsolateSendPort.send(childIsolateReceivePort.sendPort);
-    var cron = Cron();
-    // Generates a random number between 0 to 11
+  /// When true, server will be restarted immediately regardless of whether or not a request is currently being handled.
+  bool forceRestart;
+
+  /// When a restart is required we pause the server, which prevents new connections being established,
+  /// and prevents existing connections from handling new verb requests. We then wait for some duration
+  /// for existing requests to complete. Once that duration has passed, we will restart the server.
+  /// The value defaults to [defaultGracefulWaitTimeout] and can be overridden by constructor.
+  Duration gracefulExitWaitTimeout;
+
+  Cron? _cron;
+
+  AtCertificateValidationJob(
+      this.secondaryServer,
+      this.restartFilePath,
+      this.forceRestart,
+      {this.gracefulExitWaitTimeout = defaultGracefulWaitTimeout});
+
+  /// May only be called once. Will throw a StateError if called more than once.
+  /// When called, it schedules [checkAndRestartIfRequired] to run every twelve hours
+  /// picking a random first hour at which to run.
+  Future<void> start() async {
+    if (_cron != null) {
+      throw StateError('CertificateExpiryCheck cron is already running');
+    }
+    _cron = Cron();
+    // Run the cron job twice a day.
+    // Generate a random number between 0 and 11
     var certsJobHour = Random().nextInt(11);
-    logger.info(
-        'Certificates reload job scheduled to run at $certsJobHour hours and ${certsJobHour + 12} hours');
-    childIsolateReceivePort.listen((filePath) {
-      var file = File(filePath + 'restart');
-      // Run the cron job twice a day.
-      cron.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), () {
-        if (file.existsSync()) {
-          logger.info(
-              'Restart file found. Initializing secondary server restart process');
-          mainIsolateSendPort.send(true);
-        }
-      });
-    });
+    _cron!.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), checkAndRestartIfRequired);
   }
 
-  /// Restarts the secondary server.
-  Future<void> _restartServer() async {
-    var secondary = AtSecondaryServerImpl.getInstance();
-    await secondary.stop();
-    await secondary.start();
+  @visibleForTesting
+  /// This method is called every time the cron job triggers. It checks if a restart is
+  /// required and if so, it
+  /// - calls [cron.close]
+  /// - waits for [waitUntilReadyToRestart]
+  /// - waits for [restartServer]
+  Future<void> checkAndRestartIfRequired() async
+  {
+    bool shouldRestart = await isRestartRequired();
+    if (shouldRestart) {
+      if (forceRestart) {
+        logger.info('forceRestart is true - will restart immediately');
+      } else {
+        await waitUntilReadyToRestart();
+      }
+
+      logger.info('Restarting secondary server');
+      await restartServer();
+    }
   }
 
-  dynamic _initializeRestartProcess(_) async {
-    //Pause the server to prevent it from accepting any incoming connections
+  @visibleForTesting
+  Future<bool> isRestartRequired() async {
+    return File(restartFilePath).exists();
+  }
+
+  @visibleForTesting
+  /// Restarts the secondary server by calling secondaryServer.stop() and then secondaryServer.start()
+  Future<void> restartServer() async {
+    // Secondary Server start will create a new instance of this job, we need to stop this cron
+    unawaited(_cron!.close());
+
+    await secondaryServer.stop();
+    secondaryServer.start();
+  }
+
+  /// - Calls secondaryServer.pause() which tells the server that it should not accept
+  /// any new connections, should close existing idle connections, should prevent existing connections
+  /// from accepting new requests, and should close existing active connections once they have finished
+  /// handling whatever they are currently doing
+  /// - Immediately, and subsequently every second until the [gracefulExitWaitTimeout] has passed
+  ///     - checks count of active connections excluding connections which are sending data to clients
+  ///     asynchronously (e.g. monitor connections, fsync connections)
+  ///     - If count is 0, return true (we're able to restart gracefully)
+  /// - If the gracefulExitWaitTimeout has passed, we need to restart anyway. Return false
+  Future<bool> waitUntilReadyToRestart() async {
     AtSecondaryServerImpl.getInstance().pause();
-    var isForceRestart = AtSecondaryConfig.isForceRestart!;
-    if (isForceRestart) {
-      logger.info('Initializing force restart on secondary server');
-      _deleteRestartFile(filePath! + restartFile);
-      await _restartServer();
-      return;
+
+    DateTime gracePeriodEnd = DateTime.now().add(gracefulExitWaitTimeout);
+
+    while (DateTime.now().toUtc().microsecondsSinceEpoch < gracePeriodEnd.microsecondsSinceEpoch) {
+      var monitorSize = ConnectionUtil.getMonitorConnectionSize();
+      logger.finer('Total number of monitor connections are $monitorSize');
+      var totalSize = ConnectionUtil.getActiveConnectionSize();
+      logger.finer('Total number of active connections are $totalSize');
+      if (totalSize == 0 || totalSize == monitorSize) {
+        logger.info('No active connections except for asynchronous connections - OK to restart server');
+        return true;
+      } else {
+        await Future.delayed(Duration(seconds: 1));
+      }
     }
-    var stopWaiting = false;
-    var monitorSize = ConnectionUtil.getMonitorConnectionSize();
-    logger.info(
-        'Waiting for total number of active connections to 0 or equal to number of monitor connections');
-    logger.info('Total number of monitor connections are $monitorSize');
-    var totalSize = ConnectionUtil.getActiveConnectionSize();
-    logger.info('Total number of active connections are $totalSize');
-    if (totalSize == 0 || totalSize == monitorSize) {
-      // Setting stopWaiting to true to prevent server start-up process into loop.
-      stopWaiting = true;
-      _deleteRestartFile(filePath! + restartFile);
-      logger.severe('Certificates expired. Restarting secondary server');
-      await _restartServer();
-    }
-    if (!stopWaiting) {
-      // Calls _initializeRestartProcess method for every 10 seconds until totalConnections are 0 or
-      //totalConnections equals total monitor connections.
-      await Future.delayed(Duration(seconds: 10), () {})
-          .then(_initializeRestartProcess);
-    }
+    logger.warning('gracefulExitWaitTimeout $gracefulExitWaitTimeout has passed. Will restart server even though we may have active connections');
+    return false;
   }
 
-  void _deleteRestartFile(String restartFile) {
-    var file = File(restartFile);
-    try {
-      file.deleteSync();
-    } on Exception catch (exception) {
-      logger.info('Failed to delete the restart file : $exception');
+  Future<void> deleteRestartFile() async {
+    var file = File(restartFilePath);
+    if (await file.exists()) {
+      await file.delete();
     }
   }
 }

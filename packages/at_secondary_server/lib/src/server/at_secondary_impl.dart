@@ -188,9 +188,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atRefreshJob = AtRefreshJob(serverContext!.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
-    //Certificate reload
-    var certificateReload = AtCertificateValidationJob.getInstance();
-    await certificateReload.runCertificateExpiryCheckJob();
+    // Certificate reload
+    var certificateReloadJob = AtCertificateValidationJob(
+        this,
+        AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
+        AtSecondaryConfig.isForceRestart!);
+    // We're currently in process of restarting, so we can delete the file which triggers restarts
+    await certificateReloadJob.deleteRestartFile();
+    await certificateReloadJob.start();
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
@@ -202,7 +207,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    StatsNotificationService.getInstance().schedule(currentAtSign);
+    await StatsNotificationService.getInstance().schedule(currentAtSign);
 
     //initializes subscribers for dynamic config change 'config:Set'
     if (AtSecondaryConfig.testingMode) {
@@ -285,7 +290,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(
+        await restartCompaction(
             notificationKeyStoreCompactionJobInstance,
             atNotificationCompactionConfig,
             newFrequency,
@@ -298,7 +303,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(accessLogCompactionJobInstance,
+        await restartCompaction(accessLogCompactionJobInstance,
             atAccessLogCompactionConfig, newFrequency, _accessLog);
       });
 
@@ -308,7 +313,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(commitLogCompactionJobInstance,
+        await restartCompaction(commitLogCompactionJobInstance,
             atCommitLogCompactionConfig, newFrequency, _commitLog);
       });
 
@@ -351,14 +356,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
       if (_isPaused) {
-        logger.info('Server cannot accept connections now.');
+        var msg = 'Server is paused and not accepting new connections';
+        logger.info('serverSocket.listen : $msg');
+        try {
+          clientSocket.write(msg);
+          clientSocket.flush();
+          clientSocket.destroy();
+        } catch (e) {
+          logger.warning('Server is paused - failed to either write response to, flush, or destroy socket with exception $e');
+        }
         return;
       }
+
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
-        logger.finer(
-            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+        logger.finer('In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
         connection = inBoundConnectionManager.createConnection(clientSocket,
             sessionId: sessionID);
@@ -433,6 +446,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       String command, InboundConnection connection) async {
     logger.finer('inside _executeVerbCallBack: $command');
     try {
+      if (_isPaused) {
+        await GlobalExceptionHandler.getInstance().handle(
+            ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+            atConnection: connection);
+        return;
+      }
+
+      // We're not paused - let's try to execute the command
       command = SecondaryUtil.convertCommand(command);
       logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbManager!);

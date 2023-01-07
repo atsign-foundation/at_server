@@ -116,15 +116,15 @@ class OutboundMessageListener {
   /// Logs the error and closes the [OutboundClient]
   void _errorHandler(error) async {
     logger.severe(error.toString());
-    await _closeOutboundClient();
+    _closeOutboundClient();
   }
 
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
-    await _closeOutboundClient();
+    _closeOutboundClient();
   }
 
-  Future<void> _closeOutboundClient() async {
+  _closeOutboundClient() {
     // Changed the code here to no longer check if the client is invalid or not, since the outbound client can be
     // invalid if the *inbound* connection has become invalid, which can happen if the inbound client has closed
     // its socket immediately after making a request; this would in turn lead to the outbound client here not being
