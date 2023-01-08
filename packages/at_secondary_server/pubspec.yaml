@@ -23,16 +23,16 @@ dependencies:
   at_lookup: 3.0.34
   at_server_spec: 3.0.11
   at_utils: 3.0.11
-  at_commons: 3.0.33
+  at_commons: 3.0.34
   version: 3.0.2
   meta: 1.8.0
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_commons
-      ref: gkc-add-ServerIsPausedException
+#dependency_overrides:
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: packages/at_commons
+#      ref: gkc-add-ServerIsPausedException
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
