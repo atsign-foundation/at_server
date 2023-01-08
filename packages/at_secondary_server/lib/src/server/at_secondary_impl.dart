@@ -220,9 +220,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       _isRunning = true;
       if (useTLS!) {
-        _startSecuredServer();
+        await _startSecuredServer();
       } else {
-        _startUnSecuredServer();
+        await _startUnSecuredServer();
       }
     } on Exception catch (e, stacktrace) {
       _isRunning = false;
@@ -388,7 +388,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Starts the secondary server in secure mode and calls the listen method of server socket.
-  void _startSecuredServer() {
+  Future<void> _startSecuredServer() async {
     var secCon = SecurityContext();
     var retryCount = 0;
     var certsAvailable = false;
@@ -408,33 +408,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         retryCount++;
         logger.info('${e.message}:${e.path}');
         logger.info('certs unavailable. Retry count $retryCount');
-        sleep(Duration(seconds: 10));
+        await Future.delayed(Duration(seconds:10));
       }
     }
     if (certsAvailable) {
-      SecureServerSocket.bind(
+      _serverSocket = await SecureServerSocket.bind(
               InternetAddress.anyIPv4, serverContext!.port, secCon,
-              requestClientCertificate: true)
-          .then((SecureServerSocket socket) {
-        logger.info(
-            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-        logger.info('Secure Socket open for $currentAtSign !');
-        _serverSocket = socket;
-        _listen(_serverSocket);
-      });
+              requestClientCertificate: true);
+      logger.info(
+          'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
+      logger.info('Secure Socket open for $currentAtSign !');
+      _listen(_serverSocket);
     } else {
       logger.severe('certs not available');
     }
   }
 
   /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
-  void _startUnSecuredServer() {
-    ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port)
-        .then((ServerSocket socket) {
-      logger.info('Unsecure Socket open');
-      _serverSocket = socket;
-      _listen(_serverSocket);
-    });
+  Future<void> _startUnSecuredServer() async {
+    _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
+    logger.info('Unsecure Socket open');
+    _listen(_serverSocket);
   }
 
   ///Accepts the command and the inbound connection and invokes a call to execute method.
