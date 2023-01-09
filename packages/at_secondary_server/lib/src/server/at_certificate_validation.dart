@@ -60,7 +60,9 @@ class AtCertificateValidationJob {
     _cron!.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), checkAndRestartIfRequired);
   }
 
-  @visibleForTesting
+  /// To prevent two checks running concurrently
+  bool _checkInProgress = false;
+
   /// This method is called every time the cron job triggers. It checks if a restart is
   /// required and if so, it
   /// - calls [cron.close]
@@ -68,20 +70,28 @@ class AtCertificateValidationJob {
   /// - waits for [restartServer]
   Future<void> checkAndRestartIfRequired() async
   {
-    bool shouldRestart = await isRestartRequired();
-    if (shouldRestart) {
-      if (forceRestart) {
-        logger.info('forceRestart is true - will restart immediately');
-      } else {
-        await waitUntilReadyToRestart();
-      }
+    if (_checkInProgress) {
+      return;
+    }
 
-      logger.info('Restarting secondary server');
-      await restartServer();
+    _checkInProgress = true;
+    try {
+      bool shouldRestart = await isRestartRequired();
+      if (shouldRestart) {
+        if (forceRestart) {
+          logger.info('forceRestart is true - will restart immediately');
+        } else {
+          await waitUntilReadyToRestart();
+        }
+
+        logger.info('Restarting secondary server');
+        await restartServer();
+      }
+    } finally {
+      _checkInProgress = false;
     }
   }
 
-  @visibleForTesting
   Future<bool> isRestartRequired() async {
     return File(restartFilePath).exists();
   }
@@ -96,6 +106,7 @@ class AtCertificateValidationJob {
     secondaryServer.start();
   }
 
+  @visibleForTesting
   /// - Calls secondaryServer.pause() which tells the server that it should not accept
   /// any new connections, should close existing idle connections, should prevent existing connections
   /// from accepting new requests, and should close existing active connections once they have finished
@@ -130,6 +141,13 @@ class AtCertificateValidationJob {
     var file = File(restartFilePath);
     if (await file.exists()) {
       await file.delete();
+    }
+  }
+
+  Future<void> createRestartFile() async {
+    var file = File(restartFilePath);
+    if (! await file.exists()) {
+      await file.create();
     }
   }
 }

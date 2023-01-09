@@ -19,17 +19,25 @@ extension Value on ConfigOp {
 
 /// [ConfigVerbHandler] processes 'config' verb.
 ///
-/// 'config' can be used to configure/view block/allow list of an [@sign].
+/// 'config' can be used for three types of operations:
+/// 1. config:block:[..] to configure/view block/allow list of an [@sign]
 /// ```
-/// Example
-///   1. config:block:add:@alice @bob //adds @alice @bob into blocklist
-///   2. config:block:show //shows blocklist
+/// Examples:
+///   config:block:add:@alice @bob //adds @alice @bob into blocklist
+///   config:block:show //shows blocklist
 /// ```
+/// 2. config:set:name=value to change config parameters while server is running.
+/// `config:set` requires the server to be in testing mode
+/// 3. config:reset:name to reset config parameters back to defaults while server is running.
+/// `config:reset` requires the server to be in testing mode
+/// 4. config:print:name to return the current values for the various configurable parameters.
+/// `config:print` requires the server to be in testing mode
+///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
   ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
-  late var atConfigInstance;
+  late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;
   late String? setConfigValue;
 
