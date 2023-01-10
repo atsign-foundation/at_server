@@ -148,6 +148,7 @@ void main() {
         /// 5. The "updatedAt" is populated and is less than now()
         /// 6. The "createdBy" is assigned to currentAtSign
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
+        /// /// TODO : #4 to #7 cannot be asserted because of following git issue: https://github.com/atsign-foundation/at_server/issues/1126
         // Inserting a new key into keystore
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -494,9 +495,8 @@ void main() {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "firstname@sitaram",
-        ///    "value": "alice",
-        ///    "commitId": 2,
+        ///    "atKey": "public:phone.wavi@alice",
+        ///    "commitId": 0,
         ///    "operation": "*"
         AtMetaData atMetadata = (AtMetadataBuilder()
               ..setTTL(1000)
@@ -547,7 +547,7 @@ void main() {
           () async {
         /// Preconditions:
         /// 1. ServerCommitId is at 2
-        /// 2. The entry to sync from server is "public:firstName.wavi@alice" with commitOp.Update
+        /// 2. The entry to sync from server is "public:phone.wavi@alice" with commitOp.Update
         /// 3. sync command received: sync:from:1:limit:10
         ///
         /// Operations:
@@ -555,8 +555,7 @@ void main() {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "firstname@sitaram",
-        ///    "value": "alice",
+        ///    "atKey": "public:phone.wavi@alice",
         ///    "metadata": <AtMetadata of the key>
         ///    "commitId": 2,
         ///    "operation": "#"
@@ -589,7 +588,7 @@ void main() {
           () async {
         /// Preconditions:
         /// 1. ServerCommitId is at 2
-        /// 2. The entry to sync from server is "public:firstName.wavi@alice" with commitOp.Update
+        /// 2. The entry to sync from server is "public:phone.wavi@alice" with commitOp.Update
         /// 3. sync command received: sync:from:1:limit:10
         ///
         /// Operations:
@@ -597,7 +596,7 @@ void main() {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "firstname@sitaram",
+        ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 2,
         ///    "operation": "-"
         await secondaryPersistenceStore!
