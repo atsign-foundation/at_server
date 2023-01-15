@@ -58,6 +58,7 @@ class AtCertificateValidationJob {
     // Generate a random number between 0 and 11
     var certsJobHour = Random().nextInt(11);
     _cron!.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), checkAndRestartIfRequired);
+    logger.info("CertificateExpiryCheck cron scheduled - will run (24-hour-clock) at $certsJobHour:00 and ${certsJobHour+12}:00");
   }
 
   /// To prevent two checks running concurrently
@@ -71,21 +72,28 @@ class AtCertificateValidationJob {
   Future<void> checkAndRestartIfRequired() async
   {
     if (_checkInProgress) {
+      logger.info('checkAndRestartIfRequired called - but checkAndRestartIfRequired is already in progress. Returning.');
       return;
     }
 
     _checkInProgress = true;
+    logger.info('checkAndRestartIfRequired called');
     try {
+      logger.info('Checking if restart is required');
       bool shouldRestart = await isRestartRequired();
       if (shouldRestart) {
+        logger.info('Restart is required');
         if (forceRestart) {
           logger.info('forceRestart is true - will restart immediately');
         } else {
+          logger.info('Waiting until ready to restart');
           await waitUntilReadyToRestart();
         }
 
         logger.info('Restarting secondary server');
         await restartServer();
+      } else {
+        logger.info('Restart is NOT required. Check complete.');
       }
     } finally {
       _checkInProgress = false;
@@ -99,10 +107,16 @@ class AtCertificateValidationJob {
   @visibleForTesting
   /// Restarts the secondary server by calling secondaryServer.stop() and then secondaryServer.start()
   Future<void> restartServer() async {
+    logger.info("restartServer called");
+
     // Secondary Server start will create a new instance of this job, we need to stop this cron
+    logger.info("stopping cron");
     unawaited(_cron!.close());
 
+    logger.info("awaiting secondaryServer.stop()");
     await secondaryServer.stop();
+
+    logger.info("calling secondaryServer.start()");
     secondaryServer.start();
   }
 
@@ -121,11 +135,12 @@ class AtCertificateValidationJob {
 
     DateTime gracePeriodEnd = DateTime.now().add(gracefulExitWaitTimeout);
 
+    int monitorSize, totalSize, activeSize;
     while (DateTime.now().toUtc().microsecondsSinceEpoch < gracePeriodEnd.microsecondsSinceEpoch) {
-      var monitorSize = ConnectionUtil.getMonitorConnectionSize();
-      logger.finer('Total number of monitor connections are $monitorSize');
-      var totalSize = ConnectionUtil.getActiveConnectionSize();
-      logger.finer('Total number of active connections are $totalSize');
+      monitorSize = ConnectionUtil.getMonitorConnectionSize();
+      totalSize = ConnectionUtil.getActiveConnectionSize();
+      activeSize = totalSize - monitorSize;
+      logger.info('Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
       if (totalSize == 0 || totalSize == monitorSize) {
         logger.info('No active connections except for asynchronous connections - OK to restart server');
         return true;
@@ -133,7 +148,11 @@ class AtCertificateValidationJob {
         await Future.delayed(Duration(seconds: 1));
       }
     }
+    monitorSize = ConnectionUtil.getMonitorConnectionSize();
+    totalSize = ConnectionUtil.getActiveConnectionSize();
+    activeSize = totalSize - monitorSize;
     logger.warning('gracefulExitWaitTimeout $gracefulExitWaitTimeout has passed. Will restart server even though we may have active connections');
+    logger.info('Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
     return false;
   }
 

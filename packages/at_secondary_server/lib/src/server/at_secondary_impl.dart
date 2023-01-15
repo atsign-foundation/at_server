@@ -71,7 +71,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   AtSecondaryServerImpl._internal();
 
-  static late var _serverSocket;
+  dynamic _serverSocket;
   bool _isRunning = false;
   var currentAtSign;
   var _commitLog;
@@ -378,19 +378,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _listen(var serverSocket) {
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
-      if (_isPaused) {
-        var msg = 'Server is paused and not accepting new connections';
-        logger.info('serverSocket.listen : $msg');
-        try {
-          clientSocket.write(msg);
-          clientSocket.flush();
-          clientSocket.destroy();
-        } catch (e) {
-          logger.warning('Server is paused - failed to either write response to, flush, or destroy socket with exception $e');
-        }
-        return;
-      }
-
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
@@ -490,6 +477,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _streamCallBack(List<int> data, InboundConnection sender) {
     var streamId = sender.getMetaData().streamId;
     logger.finer('stream id:$streamId');
+    if (_isPaused) {
+      GlobalExceptionHandler.getInstance().handle(
+          ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+          atConnection: sender);
+      return;
+    }
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
@@ -506,6 +499,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       //close server socket
       logger.info("Closing ServerSocket");
       _serverSocket.close();
+
+      logger.info("Stopping StatsNotificationService");
+      await StatsNotificationService.getInstance().cancel();
 
       logger.info("Terminating all inbound connections");
       inboundConnectionFactory.removeAllConnections();

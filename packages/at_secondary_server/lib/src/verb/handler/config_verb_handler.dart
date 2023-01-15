@@ -9,14 +9,6 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
 
-enum ConfigOp { ADD, REMOVE, SHOW }
-
-extension Value on ConfigOp {
-  String get name {
-    return toString().split('.').last.toLowerCase();
-  }
-}
-
 /// [ConfigVerbHandler] processes 'config' verb.
 ///
 /// 'config' can be used for three types of operations:
@@ -43,7 +35,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.config) + ':');
+      command.startsWith('${getName(VerbEnum.config)}:');
 
   @override
   Verb getVerb() {
@@ -61,7 +53,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           await AtCommitLogManagerImpl.getInstance()
               .getCommitLog(currentAtSign),
           currentAtSign);
-      var result;
+      dynamic result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
@@ -70,7 +62,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         switch (operation) {
           case 'show':
             var blockList = await atConfigInstance.getBlockList();
-            result = (blockList != null && blockList.isNotEmpty)
+            result = (blockList.isNotEmpty)
                 ? _toJsonResponse(blockList)
                 : null;
             break;
@@ -122,7 +114,6 @@ class ConfigVerbHandler extends AbstractVerbHandler {
                 AtSecondaryConfig.broadcastConfigChange(
                     setConfigName!, setConfigValue!);
               }
-              ;
               result = 'ok';
             } else {
               result = 'testing mode disabled by default';
