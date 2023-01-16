@@ -136,7 +136,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             dataSignature: dataSignature,
             sharedKeyEncrypted: sharedKeyEncrypted,
             publicKeyChecksum: publicKeyChecksum,
-            encoding: encoding);
+            encoding: encoding,
+            atSign: persistenceManager?.atsign);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
@@ -180,6 +181,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
     var hive_data = keyStoreHelper.prepareDataForCreate(value!,
+        atSign: persistenceManager?.atsign,
         ttl: time_to_live,
         ttb: time_to_born,
         ttr: time_to_refresh,
@@ -356,15 +358,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       int? result;
       String hive_key = keyStoreHelper.prepareKey(key);
-      value!.metaData = AtMetadataBuilder(newAtMetaData: metadata).build();
-      // Updating the version of the metadata.
-      int? version = metadata!.version;
-      if (version != null) {
-        version = version + 1;
-      } else {
-        version = 0;
-      }
-      metadata.version = version;
+      value!.metaData = AtMetadataBuilder(
+              newAtMetaData: metadata, atSign: persistenceManager?.atsign)
+          .build();
       await persistenceManager!.getBox().put(hive_key, value);
       _metaDataCache[key] = value.metaData!;
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
@@ -386,16 +382,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       }
       AtData newData = existingData ?? AtData();
       newData.metaData = AtMetadataBuilder(
-              newAtMetaData: metadata, existingMetaData: newData.metaData)
+              newAtMetaData: metadata,
+              existingMetaData: newData.metaData,
+              atSign: persistenceManager?.atsign)
           .build();
-      // Updating the version of the metadata.
-      int? version = newData.metaData?.version;
-      if (version != null) {
-        version = version + 1;
-      } else {
-        version = 0;
-      }
-      newData.metaData?.version = version;
 
       await persistenceManager!.getBox().put(hive_key, newData);
       _metaDataCache[hive_key] = newData.metaData!;

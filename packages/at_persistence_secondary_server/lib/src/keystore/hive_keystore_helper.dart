@@ -29,10 +29,12 @@ class HiveKeyStoreHelper {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding}) {
+      String? encoding,
+      String? atSign}) {
     var atData = AtData();
     atData.data = newData.data;
     atData.metaData = AtMetadataBuilder(
+            atSign: atSign,
             newAtMetaData: newData.metaData,
             ttl: ttl,
             ttb: ttb,
@@ -45,7 +47,7 @@ class HiveKeyStoreHelper {
             publicKeyChecksum: publicKeyChecksum,
             encoding: encoding)
         .build();
-    atData.metaData!.version = 0;
+
     return atData;
   }
 
@@ -59,8 +61,10 @@ class HiveKeyStoreHelper {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding}) {
-    existingData.metaData = AtMetadataBuilder(
+      String? encoding,
+      String? atSign}) {
+    newData.metaData = AtMetadataBuilder(
+            atSign: atSign,
             newAtMetaData: newData.metaData,
             existingMetaData: existingData.metaData,
             ttl: ttl,
@@ -74,18 +78,7 @@ class HiveKeyStoreHelper {
             publicKeyChecksum: publicKeyChecksum,
             encoding: encoding)
         .build();
-//    (existingData.metaData!.version == null)
-//        ? existingData.metaData!.version = 0
-//        : existingData.metaData!.version += 1;
-    var version = existingData.metaData!.version;
-    if (version != null) {
-      version = version + 1;
-    } else {
-      version = 0;
-    }
-    existingData.metaData!.version = version;
-    existingData.data = newData.data;
-    return existingData;
+    return newData;
   }
 
   static bool hasValueChanged(AtData newData, AtData oldData) {
