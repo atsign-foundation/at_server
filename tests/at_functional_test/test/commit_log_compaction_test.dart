@@ -39,7 +39,7 @@ void main() async {
       expect(response, contains('data:ok'));
 
       // Updating the same key multiple times
-      int noOfTests = 30;
+      int noOfTests = 40;
       for (int i = 1; i <= noOfTests; i++) {
         await socket_writer(
             socketFirstAtsign!, 'update:public:role$firstAtsign Dev');
@@ -48,9 +48,8 @@ void main() async {
         assert((!response.contains('Invalid syntax')) &&
             (!response.contains('null')));
       }
-
       // wait till the commit log compaction job runs
-      await Future.delayed(Duration(seconds: 30));
+      await Future.delayed(Duration(seconds: 50));
       var afterUpdate = await compactionStats(socketFirstAtsign!, 12);
       // pre compaction entries count
       var preCompactionCount = await afterUpdate['preCompactionEntriesCount'];
