@@ -26,17 +26,17 @@ dependencies:
   version: 3.0.2
   meta: 1.8.0
 
-#dependency_overrides:
+dependency_overrides:
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: trunk
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: packages/at_persistence_secondary_server
-#      ref: rollback_delete_keynotfound
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: fix_version_not_updated
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
