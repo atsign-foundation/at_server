@@ -112,7 +112,7 @@ void main() async {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)!
           .getSecondaryKeyStore();
-      var key = '@bob:mobile@alice';
+      var key = '@bob:city@alice';
       await hiveKeyStore?.putAll(
           key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
