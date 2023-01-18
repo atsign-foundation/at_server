@@ -358,8 +358,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       int? result;
       String hive_key = keyStoreHelper.prepareKey(key);
+      AtData? existingData;
+      if (isKeyExists(key)) {
+        existingData = await get(key);
+      }
       value!.metaData = AtMetadataBuilder(
-              newAtMetaData: metadata, atSign: persistenceManager?.atsign)
+              newAtMetaData: metadata,
+              existingMetaData: existingData?.metaData,
+              atSign: persistenceManager?.atsign)
           .build();
       await persistenceManager!.getBox().put(hive_key, value);
       _metaDataCache[key] = value.metaData!;
@@ -380,10 +386,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       if (isKeyExists(key)) {
         existingData = await get(key);
       }
+      // putMeta is intended to updates only the metadata of a key.
+      // So, fetch the value from the existing key and set the same value.
       AtData newData = existingData ?? AtData();
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata,
-              existingMetaData: newData.metaData,
+              existingMetaData: existingData?.metaData,
               atSign: persistenceManager?.atsign)
           .build();
 

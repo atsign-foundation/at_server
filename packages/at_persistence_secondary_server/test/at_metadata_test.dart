@@ -114,10 +114,10 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:mobile@alice';
       await hiveKeyStore?.putAll(
-          key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
+          key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtc();
-      await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
+      await hiveKeyStore?.putAll(key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
       expect(
