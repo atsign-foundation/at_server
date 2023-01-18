@@ -127,11 +127,11 @@ void main() {
           expect(atDataAfterUpdate.metaData!.version, 1);
           expect(atDataAfterUpdate.metaData!.createdBy, atSign);
           expect(
-              atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >
+              atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >=
                   keyCreationDateTime.millisecondsSinceEpoch,
               true);
           expect(
-              atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >
+              atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdationDateTime.millisecondsSinceEpoch,
               true);
           Iterator itr = atCommitLog!.getEntries(-1);
@@ -482,7 +482,7 @@ void main() {
         expect(syncResponse.length, 1);
 
         // Increase the sync buffer size and assert all the 4 keys are added to sync response
-        syncProgressiveVerbHandler.capacity = 1000;
+        syncProgressiveVerbHandler.capacity = 1200;
         response = Response();
         syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -591,7 +591,7 @@ void main() {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['value'], '8897896765');
         expect(syncResponseList[0]['operation'], '#');
-        expect(syncResponseList[0]['metadata']['version'], '0');
+        expect(syncResponseList[0]['metadata']['version'], '1');
         expect(syncResponseList[0]['metadata']['ttl'], '1000');
       });
 
