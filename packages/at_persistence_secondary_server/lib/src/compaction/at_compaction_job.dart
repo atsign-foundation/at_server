@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
 import 'package:cron/cron.dart';
 
 /// The class responsible for the triggering the compaction job.
@@ -13,7 +12,7 @@ import 'package:cron/cron.dart';
 /// The [AtCompactionStats] contains the metrics of the compaction job.
 class AtCompactionJob {
   final Cron _cron = Cron();
-  late ScheduledTask _schedule;
+  ScheduledTask? _schedule;
   late AtCompactionService atCompactionService;
   late AtCompactionStatsService atCompactionStatsService;
   final AtLogType _atLogType;
@@ -48,11 +47,17 @@ class AtCompactionJob {
 
   //Method to cancel the current schedule. The Cron instance is not close and can be re-used
   Future<void> stopCompactionJob() async {
-    await _schedule.cancel();
+    await _schedule?.cancel();
+    _schedule = null;
   }
 
   //Method to stop compaction and also close the Cron instance.
   void close() {
     _cron.close();
+  }
+
+  /// Returns true if the compaction job is not running, else returns false.
+  bool isScheduled() {
+    return _schedule != null;
   }
 }
