@@ -29,7 +29,7 @@ void main() async {
     assert(response.contains('"name":"CommitLogCompactionStats"'));
   });
 
-  test('commit log compaction', () async {
+  test('commit log compaction for mutiple updates ', () async {
     try {
       // setting the commit log compaction value to 1
       await socket_writer(
@@ -39,12 +39,51 @@ void main() async {
       expect(response, contains('data:ok'));
 
       // Updating the same key multiple times
-      int noOfTests = 40;
+      int noOfTests = 20;
       for (int i = 1; i <= noOfTests; i++) {
         await socket_writer(
             socketFirstAtsign!, 'update:public:role$firstAtsign Dev');
         var response = await read();
         print('update verb response : $response');
+        assert((!response.contains('Invalid syntax')) &&
+            (!response.contains('null')));
+      }
+      // wait till the commit log compaction job runs
+      await Future.delayed(Duration(seconds: 50));
+      var afterUpdate = await compactionStats(socketFirstAtsign!, 12);
+      // pre compaction entries count
+      var preCompactionCount = await afterUpdate['preCompactionEntriesCount'];
+      // post compaction entries count
+      var postCompactionCount = await afterUpdate['postCompactionEntriesCount'];
+      // Verifying whether post compaction count is less than pre compaction count
+      expect((int.parse(postCompactionCount) < (int.parse(preCompactionCount))),
+          true);
+    } finally {
+      //  reset the commit log compaction to default after the test
+      await socket_writer(
+          socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+      var response = await read();
+      print('config reset verb response is $response');
+      expect(response, contains('data:ok'));
+    }
+  }, timeout: Timeout(Duration(seconds: 150)));
+
+  test('commit log compaction for mutiple deletes ', () async {
+    try {
+      // setting the commit log compaction value to 1
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins= 1');
+      var response = await read();
+      print('config set verb response is $response');
+      expect(response, contains('data:ok'));
+
+      // Updating the same key multiple times
+      int noOfTests = 10;
+      for (int i = 1; i <= noOfTests; i++) {
+        await socket_writer(
+            socketFirstAtsign!, 'delete:public:role$firstAtsign');
+        var response = await read();
+        print('delete verb response : $response');
         assert((!response.contains('Invalid syntax')) &&
             (!response.contains('null')));
       }
