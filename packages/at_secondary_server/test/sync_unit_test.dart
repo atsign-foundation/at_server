@@ -112,7 +112,7 @@ void main() {
               commitEntryListBeforeUpdate.first!.atKey, '@alice:phone@alice');
           expect(commitEntryListBeforeUpdate.first!.commitId, 0);
           // Update the same key again
-          var keyUpdationDateTime = DateTime.now().toUtc();
+          var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
               '@alice:phone@alice',
               AtData()
@@ -132,7 +132,7 @@ void main() {
               true);
           expect(
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
-                  keyUpdationDateTime.millisecondsSinceEpoch,
+                  keyUpdateDateTime.millisecondsSinceEpoch,
               true);
           Iterator itr = atCommitLog!.getEntries(-1);
           while (itr.moveNext()) {
@@ -165,7 +165,7 @@ void main() {
             .getSecondaryKeyStore()
             ?.put('@alice:phone@alice', AtData()..data = '123');
         // Updating the existing key
-        var keyUpdationDateTime = DateTime.now().toUtc();
+        var keyUpdateDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
@@ -179,7 +179,7 @@ void main() {
             true);
         expect(
             atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
-                keyUpdationDateTime.millisecondsSinceEpoch,
+                keyUpdateDateTime.millisecondsSinceEpoch,
             true);
         expect(atData.metaData!.version, 1);
         expect(atData.metaData!.createdBy, atSign);
