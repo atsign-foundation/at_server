@@ -159,12 +159,13 @@ void main() {
         /// 5. The "updatedAt" is populated and is less than now()
         /// 6. The "createdBy" is assigned to currentAtSign
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
-        /// /// TODO : #4 to #7 cannot be asserted because of following git issue: https://github.com/atsign-foundation/at_server/issues/1126
         // Inserting a new key into keystore
+        var keyCreationDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.put('@alice:phone@alice', AtData()..data = '123');
         // Updating the existing key
+        var keyUpdationDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
@@ -172,7 +173,17 @@ void main() {
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
             .get('@alice:phone@alice');
-        expect(atData!.metaData!.ttl, 10000);
+        expect(
+            atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
+                keyCreationDateTime.millisecondsSinceEpoch,
+            true);
+        expect(
+            atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
+                keyUpdationDateTime.millisecondsSinceEpoch,
+            true);
+        expect(atData.metaData!.version, 1);
+        expect(atData.metaData!.createdBy, atSign);
+        expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
             atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
