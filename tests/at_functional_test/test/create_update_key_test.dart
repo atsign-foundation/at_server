@@ -58,9 +58,9 @@ void main() {
     });
 
     test(
-        'A test to assert of default fields in metadata are populated on updation of a key',
+        'A test to assert of default fields in metadata are populated on update of a key',
         () async {
-      // The test asserts the following on updation of a key
+      // The test asserts the following on update of a key
       // 1. The version of the key should be set to 1
       // 2. The createdAt should be populated with currentDateTime (now),
       // 3. The updatedAt should be populated with DateTime which is higher than now,
@@ -71,7 +71,7 @@ void main() {
       await socket_writer(
           socketFirstAtsign!, 'update:public:$key$firstAtsign new-value');
       var response = await read();
-      var keyUpdationDateTime = DateTime.now().toUtc();
+      var keyUpdateDateTime = DateTime.now().toUtc();
       await socket_writer(
           socketFirstAtsign!, 'update:public:$key$firstAtsign updated-value');
       response = await read();
@@ -91,7 +91,7 @@ void main() {
       expect(
           DateTime.parse(atData['metaData']['updatedAt'])
                   .millisecondsSinceEpoch >=
-              keyUpdationDateTime.millisecondsSinceEpoch,
+              keyUpdateDateTime.millisecondsSinceEpoch,
           true);
       expect(atData['metaData']['createdBy'], firstAtsign);
       expect(atData['metaData']['updatedBy'], firstAtsign);
