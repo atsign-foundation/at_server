@@ -9,6 +9,13 @@ publish_to: none
 environment:
   sdk: '>=2.12.0 <3.0.0'
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: gkc-additional-encryption-metadata
+
 dependencies:
   args: 2.3.1
   uuid: 3.0.7
