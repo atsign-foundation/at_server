@@ -1,5 +1,7 @@
+## 3.0.46
+- fix: AtMetadata.version does not update on the update of a key
 ## 3.0.45
-- fix: Introduce "isScheduled" method in "AtCompactionService" to know if the compaction job is running  
+- fix: Introduce "isScheduled" method in "AtCompactionService" to know if the compaction job is running
 ## 3.0.44
 - fix: Refactor AtCompaction job
 ## 3.0.43
