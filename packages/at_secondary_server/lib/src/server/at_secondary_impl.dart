@@ -199,8 +199,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           this,
           AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
           AtSecondaryConfig.isForceRestart!);
-      // We're currently in process of restarting, so we can delete the file which triggers restarts
-      await certificateReloadJob!.deleteRestartFile();
       await certificateReloadJob!.start();
 
       // setting checkCertificateReload to true will trigger a check (and restart if required)
@@ -223,6 +221,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
       });
     }
+    // We're currently in process of restarting, so we can delete the file which triggers restarts
+    await certificateReloadJob!.deleteRestartFile();
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
