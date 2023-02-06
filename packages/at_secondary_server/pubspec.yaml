@@ -19,8 +19,8 @@ dependencies:
   collection: 1.17.0
   basic_utils: 5.4.2
   at_persistence_spec: 2.0.10
-  at_persistence_secondary_server: 3.0.44
-  at_lookup: 3.0.34
+  at_persistence_secondary_server: 3.0.46
+  at_lookup: 3.0.33
   at_server_spec: 3.0.11
   at_utils: 3.0.11
   at_commons: 3.0.34
@@ -28,21 +28,12 @@ dependencies:
   meta: 1.8.0
 
 #dependency_overrides:
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: packages/at_commons
-#      ref: gkc-add-ServerIsPausedException
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: trunk
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: packages/at_persistence_secondary_server
-#      ref: rollback_delete_keynotfound
+
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -53,6 +44,11 @@ dependencies:
 #     url: https://github.com/atsign-foundation/at_server.git
 #     path: at_secondary/at_persistence_secondary_server
 #     ref: trunk
+#  at_commons:
+#    git:
+#      url: https://github.com/atsign-foundation/at_tools.git
+#      path: at_commons
+#      ref: atkey_types
 #   at_persistence_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git

@@ -1,5 +1,5 @@
 ## 3.0.27
-- Upgrade at_persistence_secondary_server version to 3.0.44 for at_compaction
+- Upgrade at_persistence_secondary_server version to 3.0.46 for at_compaction
 ## 3.0.26
 - Upgrade at_persistence_secondary_server version to 3.0.43
 - Upgrade at_lookup version to 3.0.33

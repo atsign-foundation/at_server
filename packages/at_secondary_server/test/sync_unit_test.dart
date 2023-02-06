@@ -17,21 +17,22 @@ import 'package:test/test.dart';
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 AtCommitLog? atCommitLog;
+String atSign = '@alice';
 
 Future<void> setUpMethod() async {
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice');
+      .getSecondaryPersistenceStore(atSign);
   // Initialize commit log
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir, enableCommitId: true);
+      .getCommitLog(atSign, commitLogPath: storageDir, enableCommitId: true);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
   await secondaryPersistenceStore!
       .getHivePersistenceManager()!
       .init(storageDir);
   // Set currentAtSign
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
 }
 
 void main() {
@@ -53,8 +54,6 @@ void main() {
         /// 3. The "createdAt" is less than now()
         /// 4. The "createdBy" is assigned to currentAtSign
         /// 5. The entry in commitLog should be created with CommitOp.Update
-        /// TODO: #2 and #4 is cannot be asserted because of the following
-        /// TODO: git issue: https://github.com/atsign-foundation/at_server/issues/1126
         // Setup
         DateTime currentDateTime = DateTime.now();
         await secondaryPersistenceStore!
@@ -77,6 +76,7 @@ void main() {
                 1,
             true);
         expect(atData.metaData!.version, 0);
+        expect(atData.metaData?.createdBy, atSign);
         // verify commit entry data
         CommitEntry? commitEntry = await atCommitLog!.getEntry(0);
         expect(commitEntry!.operation, CommitOp.UPDATE);
@@ -99,8 +99,8 @@ void main() {
           /// 5. The "createdAt" is less than now()
           /// 6. The "updatedAt" is populated and is less than now()
           /// 7. The "createdBy" is assigned to currentAtSign
-          /// TODO : #4 to #7 cannot be asserted because of following git issue: https://github.com/atsign-foundation/at_server/issues/1126
           // Inserting a new key into keystore
+          var keyCreationDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
               ?.put('@alice:phone@alice', AtData()..data = '123');
@@ -112,6 +112,7 @@ void main() {
               commitEntryListBeforeUpdate.first!.atKey, '@alice:phone@alice');
           expect(commitEntryListBeforeUpdate.first!.commitId, 0);
           // Update the same key again
+          var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
               '@alice:phone@alice',
               AtData()
@@ -123,6 +124,16 @@ void main() {
               .get('@alice:phone@alice');
           expect(atDataAfterUpdate!.data, '345');
           expect(atDataAfterUpdate.metaData!.ttl, 10000);
+          expect(atDataAfterUpdate.metaData!.version, 1);
+          expect(atDataAfterUpdate.metaData!.createdBy, atSign);
+          expect(
+              atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >=
+                  keyCreationDateTime.millisecondsSinceEpoch,
+              true);
+          expect(
+              atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
+                  keyUpdateDateTime.millisecondsSinceEpoch,
+              true);
           Iterator itr = atCommitLog!.getEntries(-1);
           while (itr.moveNext()) {
             expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
@@ -148,12 +159,13 @@ void main() {
         /// 5. The "updatedAt" is populated and is less than now()
         /// 6. The "createdBy" is assigned to currentAtSign
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
-        /// /// TODO : #4 to #7 cannot be asserted because of following git issue: https://github.com/atsign-foundation/at_server/issues/1126
         // Inserting a new key into keystore
+        var keyCreationDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.put('@alice:phone@alice', AtData()..data = '123');
         // Updating the existing key
+        var keyUpdateDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
@@ -161,7 +173,17 @@ void main() {
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
             .get('@alice:phone@alice');
-        expect(atData!.metaData!.ttl, 10000);
+        expect(
+            atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
+                keyCreationDateTime.millisecondsSinceEpoch,
+            true);
+        expect(
+            atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
+                keyUpdateDateTime.millisecondsSinceEpoch,
+            true);
+        expect(atData.metaData!.version, 1);
+        expect(atData.metaData!.createdBy, atSign);
+        expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
             atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
@@ -471,7 +493,7 @@ void main() {
         expect(syncResponse.length, 1);
 
         // Increase the sync buffer size and assert all the 4 keys are added to sync response
-        syncProgressiveVerbHandler.capacity = 1000;
+        syncProgressiveVerbHandler.capacity = 1200;
         response = Response();
         syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -580,7 +602,7 @@ void main() {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['value'], '8897896765');
         expect(syncResponseList[0]['operation'], '#');
-        expect(syncResponseList[0]['metadata']['version'], '0');
+        expect(syncResponseList[0]['metadata']['version'], '1');
         expect(syncResponseList[0]['metadata']['ttl'], '1000');
       });
 
