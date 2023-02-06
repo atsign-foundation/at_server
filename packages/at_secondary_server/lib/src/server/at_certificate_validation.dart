@@ -46,7 +46,7 @@ class AtCertificateValidationJob {
       this.forceRestart,
       {this.gracefulExitWaitTimeout = defaultGracefulWaitTimeout});
 
-  /// May only be called once. Will throw a StateError if called more than once.
+  /// [start] May only be called once. Will throw a StateError if called more than once.
   /// When called, it schedules [checkAndRestartIfRequired] to run every twelve hours
   /// picking a random first hour at which to run.
   Future<void> start() async {
@@ -66,7 +66,6 @@ class AtCertificateValidationJob {
 
   /// This method is called every time the cron job triggers. It checks if a restart is
   /// required and if so, it
-  /// - calls [cron.close]
   /// - waits for [waitUntilReadyToRestart]
   /// - waits for [restartServer]
   Future<void> checkAndRestartIfRequired() async
@@ -108,10 +107,6 @@ class AtCertificateValidationJob {
   /// Restarts the secondary server by calling secondaryServer.stop() and then secondaryServer.start()
   Future<void> restartServer() async {
     logger.info("restartServer called");
-
-    // Secondary Server start will create a new instance of this job, we need to stop this cron
-    logger.info("stopping cron");
-    unawaited(_cron!.close());
 
     logger.info("awaiting secondaryServer.stop()");
     await secondaryServer.stop();
@@ -159,14 +154,24 @@ class AtCertificateValidationJob {
   Future<void> deleteRestartFile() async {
     var file = File(restartFilePath);
     if (await file.exists()) {
-      await file.delete();
+      try {
+        await file.delete();
+      } catch (e) {
+        logger.warning("deleteRestartFile apparently failed to delete file: $e");
+      }
     }
+    logger.info("after deleteRestartFile(): file.exists() is ${await file.exists()}");
   }
 
   Future<void> createRestartFile() async {
     var file = File(restartFilePath);
     if (! await file.exists()) {
-      await file.create();
+      try {
+        await file.create();
+      } catch (e) {
+        logger.warning("createRestartFile apparently failed to create file: $e");
+      }
     }
+    logger.info("after createRestartFile(): file.exists() is ${await file.exists()}");
   }
 }

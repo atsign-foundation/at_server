@@ -85,7 +85,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
   @visibleForTesting
-  late AtCertificateValidationJob certificateReloadJob;
+  AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late var atCommitLogCompactionConfig;
@@ -192,13 +192,37 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     // Certificate reload
-    certificateReloadJob = AtCertificateValidationJob(
-        this,
-        AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
-        AtSecondaryConfig.isForceRestart!);
-    // We're currently in process of restarting, so we can delete the file which triggers restarts
-    await certificateReloadJob.deleteRestartFile();
-    await certificateReloadJob.start();
+    // We are only ever creating ONE of these jobs in the server - i.e. reusing the same instance
+    // across soft restarts
+    if (certificateReloadJob == null) {
+      certificateReloadJob = AtCertificateValidationJob(
+          this,
+          AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
+          AtSecondaryConfig.isForceRestart!);
+      // We're currently in process of restarting, so we can delete the file which triggers restarts
+      await certificateReloadJob!.deleteRestartFile();
+      await certificateReloadJob!.start();
+
+      // setting checkCertificateReload to true will trigger a check (and restart if required)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.checkCertificateReload)
+          ?.listen((newValue) async {
+        //parse bool from string
+        if (newValue.toString() == 'true') {
+          unawaited(certificateReloadJob!.checkAndRestartIfRequired());
+        }
+      });
+
+      // setting checkCertificateReload to true will trigger a check (and restart if required)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.shouldReloadCertificates)
+          ?.listen((newValue) async {
+        //parse bool from string
+        if (newValue.toString() == 'true') {
+          await certificateReloadJob!.createRestartFile();
+        } else if (newValue.toString() == 'false') {
+          await certificateReloadJob!.deleteRestartFile();
+        }
+      });
+    }
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
@@ -346,26 +370,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             'Received new value for config \'maxNotificationRetries\': $newCount');
         ResourceManager.getInstance().setMaxRetries(newCount);
         QueueManager.getInstance().setMaxRetries(newCount);
-      });
-
-      // setting checkCertificateReload to true will trigger a check (and restart if required)
-      AtSecondaryConfig.subscribe(ModifiableConfigs.checkCertificateReload)
-          ?.listen((newValue) async {
-        //parse bool from string
-        if (newValue.toString() == 'true') {
-          unawaited(certificateReloadJob.checkAndRestartIfRequired());
-        }
-      });
-
-      // setting checkCertificateReload to true will trigger a check (and restart if required)
-      AtSecondaryConfig.subscribe(ModifiableConfigs.shouldReloadCertificates)
-          ?.listen((newValue) async {
-        //parse bool from string
-        if (newValue.toString() == 'true') {
-          await certificateReloadJob.createRestartFile();
-        } else if (newValue.toString() == 'false') {
-          await certificateReloadJob.deleteRestartFile();
-        }
       });
     }
   }

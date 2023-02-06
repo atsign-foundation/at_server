@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import 'commons.dart';
+import 'functional_test_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
 ///The below test functions runs a complete flow of all verbs
