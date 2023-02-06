@@ -18,7 +18,7 @@ dependencies:
   collection: 1.17.0
   basic_utils: 5.4.2
   at_persistence_spec: 2.0.10
-  at_persistence_secondary_server: 3.0.44
+  at_persistence_secondary_server: 3.0.46
   at_lookup: 3.0.33
   at_server_spec: 3.0.11
   at_utils: 3.0.11
@@ -26,17 +26,13 @@ dependencies:
   version: 3.0.2
   meta: 1.8.0
 
-dependency_overrides:
+#dependency_overrides:
 #  at_server_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: trunk
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_secondary_server
-      ref: fix_version_not_updated
+
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
