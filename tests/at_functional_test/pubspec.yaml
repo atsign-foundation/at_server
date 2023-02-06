@@ -14,6 +14,7 @@ dependencies:
       path: at_demo_data
       ref: master
   at_lookup: ^3.0.32
+  uuid: ^3.0.7
   
 
 #dependency_overrides:
