@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_typing_uninitialized_variables
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -70,7 +71,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   AtSecondaryServerImpl._internal();
 
-  static late var _serverSocket;
+  dynamic _serverSocket;
   bool _isRunning = false;
   var currentAtSign;
   var _commitLog;
@@ -83,6 +84,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
+  @visibleForTesting
+  AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late var atCommitLogCompactionConfig;
@@ -188,9 +191,38 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atRefreshJob = AtRefreshJob(serverContext!.currentAtSign);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
-    //Certificate reload
-    var certificateReload = AtCertificateValidationJob.getInstance();
-    await certificateReload.runCertificateExpiryCheckJob();
+    // Certificate reload
+    // We are only ever creating ONE of these jobs in the server - i.e. reusing the same instance
+    // across soft restarts
+    if (certificateReloadJob == null) {
+      certificateReloadJob = AtCertificateValidationJob(
+          this,
+          AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
+          AtSecondaryConfig.isForceRestart!);
+      await certificateReloadJob!.start();
+
+      // setting checkCertificateReload to true will trigger a check (and restart if required)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.checkCertificateReload)
+          ?.listen((newValue) async {
+        //parse bool from string
+        if (newValue.toString() == 'true') {
+          unawaited(certificateReloadJob!.checkAndRestartIfRequired());
+        }
+      });
+
+      // setting checkCertificateReload to true will trigger a check (and restart if required)
+      AtSecondaryConfig.subscribe(ModifiableConfigs.shouldReloadCertificates)
+          ?.listen((newValue) async {
+        //parse bool from string
+        if (newValue.toString() == 'true') {
+          await certificateReloadJob!.createRestartFile();
+        } else if (newValue.toString() == 'false') {
+          await certificateReloadJob!.deleteRestartFile();
+        }
+      });
+    }
+    // We're currently in process of restarting, so we can delete the file which triggers restarts
+    await certificateReloadJob!.deleteRestartFile();
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
@@ -202,7 +234,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    StatsNotificationService.getInstance().schedule(currentAtSign);
+    await StatsNotificationService.getInstance().schedule(currentAtSign);
 
     //initializes subscribers for dynamic config change 'config:Set'
     if (AtSecondaryConfig.testingMode) {
@@ -215,9 +247,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       _isRunning = true;
       if (useTLS!) {
-        _startSecuredServer();
+        await _startSecuredServer();
       } else {
-        _startUnSecuredServer();
+        await _startUnSecuredServer();
       }
     } on Exception catch (e, stacktrace) {
       _isRunning = false;
@@ -285,7 +317,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(
+        await restartCompaction(
             notificationKeyStoreCompactionJobInstance,
             atNotificationCompactionConfig,
             newFrequency,
@@ -298,7 +330,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(accessLogCompactionJobInstance,
+        await restartCompaction(accessLogCompactionJobInstance,
             atAccessLogCompactionConfig, newFrequency, _accessLog);
       });
 
@@ -308,7 +340,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        restartCompaction(commitLogCompactionJobInstance,
+        await restartCompaction(commitLogCompactionJobInstance,
             atCommitLogCompactionConfig, newFrequency, _commitLog);
       });
 
@@ -350,15 +382,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _listen(var serverSocket) {
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
-      if (_isPaused) {
-        logger.info('Server cannot accept connections now.');
-        return;
-      }
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
-        logger.finer(
-            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+        logger.finer('In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
         connection = inBoundConnectionManager.createConnection(clientSocket,
             sessionId: sessionID);
@@ -375,7 +402,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Starts the secondary server in secure mode and calls the listen method of server socket.
-  void _startSecuredServer() {
+  Future<void> _startSecuredServer() async {
     var secCon = SecurityContext();
     var retryCount = 0;
     var certsAvailable = false;
@@ -395,33 +422,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         retryCount++;
         logger.info('${e.message}:${e.path}');
         logger.info('certs unavailable. Retry count $retryCount');
-        sleep(Duration(seconds: 10));
+        await Future.delayed(Duration(seconds:10));
       }
     }
     if (certsAvailable) {
-      SecureServerSocket.bind(
+      _serverSocket = await SecureServerSocket.bind(
               InternetAddress.anyIPv4, serverContext!.port, secCon,
-              requestClientCertificate: true)
-          .then((SecureServerSocket socket) {
-        logger.info(
-            'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-        logger.info('Secure Socket open for $currentAtSign !');
-        _serverSocket = socket;
-        _listen(_serverSocket);
-      });
+              requestClientCertificate: true);
+      logger.info(
+          'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
+      logger.info('Secure Socket open for $currentAtSign !');
+      _listen(_serverSocket);
     } else {
       logger.severe('certs not available');
     }
   }
 
   /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
-  void _startUnSecuredServer() {
-    ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port)
-        .then((ServerSocket socket) {
-      logger.info('Unsecure Socket open');
-      _serverSocket = socket;
-      _listen(_serverSocket);
-    });
+  Future<void> _startUnSecuredServer() async {
+    _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
+    logger.info('Unsecure Socket open');
+    _listen(_serverSocket);
   }
 
   ///Accepts the command and the inbound connection and invokes a call to execute method.
@@ -433,6 +454,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       String command, InboundConnection connection) async {
     logger.finer('inside _executeVerbCallBack: $command');
     try {
+      if (_isPaused) {
+        await GlobalExceptionHandler.getInstance().handle(
+            ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+            atConnection: connection);
+        return;
+      }
+
+      // We're not paused - let's try to execute the command
       command = SecondaryUtil.convertCommand(command);
       logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbManager!);
@@ -452,6 +481,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _streamCallBack(List<int> data, InboundConnection sender) {
     var streamId = sender.getMetaData().streamId;
     logger.finer('stream id:$streamId');
+    if (_isPaused) {
+      GlobalExceptionHandler.getInstance().handle(
+          ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+          atConnection: sender);
+      return;
+    }
     if (streamId != null) {
       StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
     }
@@ -468,6 +503,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       //close server socket
       logger.info("Closing ServerSocket");
       _serverSocket.close();
+
+      logger.info("Stopping StatsNotificationService");
+      await StatsNotificationService.getInstance().cancel();
 
       logger.info("Terminating all inbound connections");
       inboundConnectionFactory.removeAllConnections();

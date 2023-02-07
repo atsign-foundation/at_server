@@ -13,6 +13,7 @@ dependencies:
   args: 2.3.1
   uuid: 3.0.7
   convert: 3.1.1
+  cron: ^0.5.1
   crypto: 3.0.2
   crypton: 2.1.0
   collection: 1.17.0
@@ -22,7 +23,7 @@ dependencies:
   at_lookup: 3.0.33
   at_server_spec: 3.0.11
   at_utils: 3.0.11
-  at_commons: 3.0.33
+  at_commons: 3.0.34
   version: 3.0.2
   meta: 1.8.0
 

@@ -55,14 +55,17 @@ class SecondaryServerBootStrapper {
 
       //starting secondary in a zone
       //prevents secondary from terminating due to uncaught non-fatal errors
-      runZonedGuarded(() async {
+      unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, stackTrace) {
         logger.severe('Uncaught error: $error \n Stacktrace: $stackTrace');
-      });
+        handleTerminateSignal(ProcessSignal.sigstop);
+      }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
       ProcessSignal.sigint.watch().listen(handleTerminateSignal);
     } on Exception {
+      rethrow;
+    } on Error {
       rethrow;
     }
   }
@@ -81,8 +84,13 @@ class SecondaryServerBootStrapper {
         exit(0);
       }
     } on Exception catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence");
+      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
+      exit(1);
+    } on Error catch (e, stacktrace) {
+      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(stacktrace.toString());
+      exit(1);
     } finally {
       logger
           .info("Somehow made it to the finally block - exiting with status 1");

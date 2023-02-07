@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:args/args.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -56,6 +55,12 @@ class GlobalExceptionHandler {
       // This is SEVERE and requires different handling so we use _handleInboundLimit
       logger.severe(exception.toString());
       await _handleInboundLimit(exception, clientSocket!);
+
+    } else if (exception is ServerIsPausedException) {
+      // This is thrown when a new verb request comes in and the server is paused (likely
+      // pending restart)
+      await _sendResponseForException(exception, atConnection);
+      _closeConnection(atConnection);
 
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||

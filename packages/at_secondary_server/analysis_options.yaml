@@ -9,6 +9,7 @@ linter:
   rules:
     - camel_case_types
     - await_only_futures
+    - unawaited_futures
     - unnecessary_brace_in_string_interps
 
 analyzer:

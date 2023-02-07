@@ -724,6 +724,10 @@ class AtSecondaryConfig {
         return autoNotify;
       case ModifiableConfigs.maxNotificationRetries:
         return maxNotificationRetries;
+      case ModifiableConfigs.checkCertificateReload:
+        return false;
+      case ModifiableConfigs.shouldReloadCertificates:
+        return false;
     }
   }
 
@@ -801,7 +805,9 @@ enum ModifiableConfigs {
   accessLogCompactionFrequencyMins,
   notificationKeyStoreCompactionFrequencyMins,
   autoNotify,
-  maxNotificationRetries
+  maxNotificationRetries,
+  checkCertificateReload,
+  shouldReloadCertificates
 }
 
 class ModifiableConfigurationEntry {
