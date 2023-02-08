@@ -19,8 +19,8 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+  var storageDir = '${Directory.current.path}/test/hive';
+  late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
   group('A group of update accept tests', () {
@@ -719,7 +719,7 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
-      expectLater(
+      await expectLater(
               () async =>
           await handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>

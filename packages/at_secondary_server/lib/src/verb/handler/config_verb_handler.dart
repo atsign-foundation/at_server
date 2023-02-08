@@ -9,33 +9,33 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_commons/at_commons.dart';
 
-enum ConfigOp { ADD, REMOVE, SHOW }
-
-extension Value on ConfigOp {
-  String get name {
-    return toString().split('.').last.toLowerCase();
-  }
-}
-
 /// [ConfigVerbHandler] processes 'config' verb.
 ///
-/// 'config' can be used to configure/view block/allow list of an [@sign].
+/// 'config' can be used for three types of operations:
+/// 1. config:block:[..] to configure/view block/allow list of an [@sign]
 /// ```
-/// Example
-///   1. config:block:add:@alice @bob //adds @alice @bob into blocklist
-///   2. config:block:show //shows blocklist
+/// Examples:
+///   config:block:add:@alice @bob //adds @alice @bob into blocklist
+///   config:block:show //shows blocklist
 /// ```
+/// 2. config:set:name=value to change config parameters while server is running.
+/// `config:set` requires the server to be in testing mode
+/// 3. config:reset:name to reset config parameters back to defaults while server is running.
+/// `config:reset` requires the server to be in testing mode
+/// 4. config:print:name to return the current values for the various configurable parameters.
+/// `config:print` requires the server to be in testing mode
+///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
   ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
-  late var atConfigInstance;
+  late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;
   late String? setConfigValue;
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.config) + ':');
+      command.startsWith('${getName(VerbEnum.config)}:');
 
   @override
   Verb getVerb() {
@@ -53,7 +53,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           await AtCommitLogManagerImpl.getInstance()
               .getCommitLog(currentAtSign),
           currentAtSign);
-      var result;
+      dynamic result;
       var operation = verbParams[AT_OPERATION];
       var atsigns = verbParams[AT_SIGN];
       String? setOperation = verbParams[SET_OPERATION];
@@ -62,7 +62,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         switch (operation) {
           case 'show':
             var blockList = await atConfigInstance.getBlockList();
-            result = (blockList != null && blockList.isNotEmpty)
+            result = (blockList.isNotEmpty)
                 ? _toJsonResponse(blockList)
                 : null;
             break;
@@ -114,7 +114,6 @@ class ConfigVerbHandler extends AbstractVerbHandler {
                 AtSecondaryConfig.broadcastConfigChange(
                     setConfigName!, setConfigValue!);
               }
-              ;
               result = 'ok';
             } else {
               result = 'testing mode disabled by default';

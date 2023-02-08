@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
@@ -43,15 +45,15 @@ class ResourceManager {
   /// Ensures that notification processing starts immediately if it's not already
   void nudge() async {
     _nudged = true;
-    _processNotificationQueue();
+    unawaited(_processNotificationQueue());
   }
 
   ///Runs for every configured number of seconds(5).
   Future<void> _schedule() async {
     await _processNotificationQueue();
     var millisBetweenRuns = notificationJobFrequency * 1000;
-    Future.delayed(Duration(milliseconds: millisBetweenRuns))
-        .then((value) => _schedule());
+    unawaited(Future.delayed(Duration(milliseconds: millisBetweenRuns))
+        .then((value) => _schedule()));
   }
 
   Future<void> _processNotificationQueue() async {
@@ -95,8 +97,8 @@ class ResourceManager {
     } finally {
       _isProcessingQueue = false;
       if (_nudged) {
-        Future.delayed(Duration(milliseconds: 0))
-            .then((value) => _processNotificationQueue());
+        unawaited(Future.delayed(Duration(milliseconds: 0))
+            .then((value) => _processNotificationQueue()));
       }
     }
   }

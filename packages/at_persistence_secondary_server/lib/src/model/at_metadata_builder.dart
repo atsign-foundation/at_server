@@ -26,11 +26,25 @@ class AtMetadataBuilder {
       String? encoding}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
-    atMetaData!.createdAt ??= currentUtcTime;
+    // createdAt indicates the date and time of the key created.
+    // For a new key, the currentDateTime is set and remains unchanged
+    // on an update event.
+    (existingMetaData?.createdAt == null)
+        ? atMetaData!.createdAt = currentUtcTime
+        : atMetaData!.createdAt = existingMetaData?.createdAt;
     atMetaData!.createdBy ??= atSign;
     atMetaData!.updatedBy = atSign;
+    // updatedAt indicates the date and time of the key updated.
+    // For a new key, the updatedAt is same as createdAt and on key
+    // update, set the updatedAt to the currentDateTime.
     atMetaData!.updatedAt = currentUtcTime;
     atMetaData!.status = 'active';
+    // The version indicates the number of updates a key has received.
+    // Version is set to 0 for a new key and for each update the key receives,
+    // the version increases by 1
+    (existingMetaData?.version == null)
+        ? atMetaData?.version = 0
+        : atMetaData?.version = (existingMetaData!.version! + 1);
 
     //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
     ttl ??= newAtMetaData.ttl;
