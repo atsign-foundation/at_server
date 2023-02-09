@@ -114,14 +114,12 @@ void main() {
       expect(paramsMap[AT_VALUE], 'emoji');
     });
 
-    test('test update with multiple : in key', () {
+    test('test update with multiple : in key - should fail', () {
       var verb = Update();
       var command = 'update:ttl:1:public:location:city@alice Hyderbad:TG';
       var regex = verb.syntax();
-      var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:city');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderbad:TG');
+      expect(() => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update key- no atsign', () {
@@ -132,12 +130,12 @@ void main() {
       expect(paramsMap[AT_KEY], 'location');
     });
 
-    test('test update key- key with colon', () {
+    test('test update key- key with colon - should fail', () {
       var verb = Update();
       var command = 'update:location:local us';
       var regex = verb.syntax();
-      var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:local');
+      expect(() => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
@@ -248,7 +246,7 @@ void main() {
 
     test('test update key- invalid keyword', () {
       var verb = Update();
-      var command = 'updation:location@alice us';
+      var command = 'updatee:location@alice us';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -292,10 +290,10 @@ void main() {
     test('test update with ttl and ttb with values', () {
       var verb = Update();
       var command =
-          'update:ttl:20000:ttb:20000:public:location:city@alice Hyderbad:TG';
+          'update:ttl:20000:ttb:20000:public:location.city@alice Hyderbad:TG';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:city');
+      expect(paramsMap[AT_KEY], 'location.city');
       expect(paramsMap[AT_TTL], '20000');
       expect(paramsMap[AT_TTB], '20000');
       expect(paramsMap[AT_SIGN], 'alice');
