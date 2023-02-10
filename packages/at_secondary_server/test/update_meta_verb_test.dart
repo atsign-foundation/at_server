@@ -29,7 +29,7 @@ void main() {
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AT_KEY], 'location');
       expect(paramsMap[AT_SIGN], 'kevin');
-      expect(paramsMap[FOR_AT_SIGN], '@bob');
+      expect(paramsMap[FOR_AT_SIGN], 'bob');
       expect(paramsMap[AT_TTL], '123');
       expect(paramsMap[AT_TTB], '124');
       expect(paramsMap[AT_TTR], '125');
