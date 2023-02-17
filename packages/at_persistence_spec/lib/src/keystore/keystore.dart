@@ -11,6 +11,8 @@ abstract class Keystore<K, V> {
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
 abstract class WritableKeystore<K, V> implements Keystore<K, V> {
+  Future<void> initialize();
+
   /// Associates the specified value with the specified key.
   /// If the key store previously contained a mapping for the key, the old value is replaced by the specified value.
   ///

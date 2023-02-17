@@ -27,6 +27,12 @@ dependencies:
   version: 3.0.2
   meta: 1.8.0
 
+dependency_overrides:
+  at_persistence_spec:
+    path: ../at_persistence_spec
+  at_persistence_secondary_server:
+    path: ../at_persistence_secondary_server
+
 #dependency_overrides:
 #  at_server_spec:
 #    git:

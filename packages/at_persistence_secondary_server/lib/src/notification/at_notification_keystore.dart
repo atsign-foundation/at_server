@@ -263,4 +263,7 @@ class AtNotificationKeystore
   String toString() {
     return runtimeType.toString();
   }
+
+  @override
+  AtLogType? commitLog;
 }

@@ -88,6 +88,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
+  late SecondaryKeyStore<String, AtData?, AtMetaData?> hiveKeyStore;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
@@ -188,7 +189,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Refresh Cached Keys
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
-    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign);
+    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     // Certificate reload
@@ -540,12 +541,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [AtCommitLog], [AtAccessLog] and [HivePersistenceManager] instances.
   Future<void> _initializePersistentInstances() async {
     // Initialize commit log
-    var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
+    _commitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
         commitLogPath: commitLogPath);
-    LastCommitIDMetricImpl.getInstance().atCommitLog = atCommitLog;
-    atCommitLog!.addEventListener(
-        CommitLogCompactionService(atCommitLog.commitLogKeyStore));
+    LastCommitIDMetricImpl.getInstance().atCommitLog = _commitLog;
+    _commitLog!.addEventListener(
+        CommitLogCompactionService(_commitLog.commitLogKeyStore));
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
@@ -577,14 +578,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStoreManager()!;
-    var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+    hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStore()!;
-    hiveKeyStore.commitLog = atCommitLog;
-    _commitLog = atCommitLog;
+    hiveKeyStore.commitLog = _commitLog;
+
     keyStoreManager.keyStore = hiveKeyStore;
     // Initialize the hive store
-    await hiveKeyStore.init();
+    await hiveKeyStore.initialize();
     serverContext!.isKeyStoreInitialized =
         true; //TODO check hive for sample data
     var keyStore = keyStoreManager.getKeyStore();

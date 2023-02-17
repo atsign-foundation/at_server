@@ -21,11 +21,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   HiveKeystore();
 
-  set commitLog(value) {
-    _commitLog = value;
+  @override
+  set commitLog(log) {
+    _commitLog = log as AtCommitLog;
   }
 
-  Future<void> init() async {
+  @override
+  get commitLog => _commitLog;
+
+  @override
+  Future<void> initialize() async {
     await _initMetaDataCache();
   }
 
