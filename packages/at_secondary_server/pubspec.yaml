@@ -26,6 +26,7 @@ dependencies:
   at_commons: 3.0.35
   version: 3.0.2
   meta: 1.8.0
+  mutex: ^3.0.1
 
 dependency_overrides:
   at_persistence_spec:

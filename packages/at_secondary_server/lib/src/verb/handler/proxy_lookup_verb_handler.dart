@@ -23,7 +23,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   // Input: command
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.plookup) + ':');
+      command.startsWith('${getName(VerbEnum.plookup)}:');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override
@@ -87,6 +87,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       var atData = await keyStore!.get(key);
       return SecondaryUtil.prepareResponseData(operation, atData);
     }
+    return null;
   }
 
   /// Performs the remote lookup and returns the value of the key.
