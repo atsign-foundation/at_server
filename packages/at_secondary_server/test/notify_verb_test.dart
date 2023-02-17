@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -20,10 +21,15 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+
   var storageDir = '${Directory.current.path}/test/hive';
-  late var keyStoreManager;
+  late SecondaryKeyStoreManager keyStoreManager;
 
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
@@ -280,7 +286,7 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -332,7 +338,7 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -369,7 +375,7 @@ void main() {
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
       var response = queueManager.dequeue('@alice');
-      late var atNotification;
+      late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
       }
@@ -533,7 +539,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -589,7 +595,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -665,7 +671,7 @@ void main() {
       notificationMap.add(atNotification3);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -743,7 +749,7 @@ void main() {
       notificationMap.add(atNotification3);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }

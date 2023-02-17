@@ -12,8 +12,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 // BatchVerbHandler is used to process batch of commands
 class BatchVerbHandler extends AbstractVerbHandler {
   static Batch batch = Batch();
+  final VerbHandlerManager verbHandlerManager;
 
-  BatchVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  BatchVerbHandler(SecondaryKeyStore keyStore, this.verbHandlerManager) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -48,9 +49,9 @@ class BatchVerbHandler extends AbstractVerbHandler {
     for (var value in batchJson) {
       var batchId = value['id'];
       var command = value['command'];
-      var handlerManager =
-          DefaultVerbHandlerManager(); //gets instance of singleton
-      var verbHandler = handlerManager.getVerbHandler(command);
+
+      var verbHandler = verbHandlerManager.getVerbHandler(command);
+
       if (verbHandler is AbstractVerbHandler) {
         try {
           var response =

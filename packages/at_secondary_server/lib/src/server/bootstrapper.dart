@@ -50,8 +50,6 @@ class SecondaryServerBootStrapper {
       // Start the secondary server
       secondaryServerInstance.setServerContext(secondaryContext);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      secondaryServerInstance
-          .setVerbHandlerManager(DefaultVerbHandlerManager());
 
       //starting secondary in a zone
       //prevents secondary from terminating due to uncaught non-fatal errors

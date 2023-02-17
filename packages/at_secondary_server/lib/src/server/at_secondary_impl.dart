@@ -80,7 +80,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   var signingKey;
   AtSecondaryContext? serverContext;
   VerbExecutor? executor;
-  VerbHandlerManager? verbManager;
+  VerbHandlerManager? verbHandlerManager;
   late AtCacheRefreshJob atRefreshJob;
   late AtCacheManager cacheManager;
   late var commitLogCompactionJobInstance;
@@ -91,6 +91,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> hiveKeyStore;
+  late OutboundClientManager outboundClientManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
@@ -102,7 +103,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   @override
   void setVerbHandlerManager(VerbHandlerManager verbManager) {
-    this.verbManager = verbManager;
+    verbHandlerManager = verbManager;
   }
 
   @override
@@ -132,9 +133,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (executor == null) {
       throw AtServerException('Verb executor is not initialized');
     }
-    if (verbManager == null) {
-      throw AtServerException('Verb handler manager is not initialized');
-    }
+
+    // We used to check at this stage that a verbHandlerManager was set
+    // but now we don't, as if it's not set we will create a DefaultVerbHandlerManager
+
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
@@ -148,9 +150,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Initializing all the hive instances
     await _initializePersistentInstances();
-
-    //Initializing verb handler manager
-    DefaultVerbHandlerManager().init();
 
     if (!serverContext!.isKeyStoreInitialized) {
       throw AtServerException('Secondary keystore is not initialized');
@@ -188,12 +187,21 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
+    // Moved this to here so we can inject it into the AtCacheManger and the
+    // DefaultVerbHandlerManager if we create one
+    outboundClientManager = OutboundClientManager.getInstance();
+    outboundClientManager.init(serverContext!.outboundConnectionLimit);
+
     // Refresh Cached Keys
-    cacheManager = AtCacheManager(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
+    cacheManager = AtCacheManager(serverContext!.currentAtSign!, hiveKeyStore, outboundClientManager);
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
     atRefreshJob = AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
+
+    // If a verbHandlerManager has not yet been supplied, use a DefaultVerbHandlerManager
+    // and inject the secondaryKeyStore and the outboundClientManager
+    verbHandlerManager ??= DefaultVerbHandlerManager(hiveKeyStore, outboundClientManager);
 
     // Certificate reload
     // We are only ever creating ONE of these jobs in the server - i.e. reusing the same instance
@@ -230,9 +238,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize inbound factory and outbound manager
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
-
-    OutboundClientManager.getInstance()
-        .init(serverContext!.outboundConnectionLimit);
 
     // Notification job
     ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
@@ -468,7 +473,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       // We're not paused - let's try to execute the command
       command = SecondaryUtil.convertCommand(command);
       logger.finer('after conversion : $command');
-      await executor!.execute(command, connection, verbManager!);
+      await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e) {
       logger.severe(
           'Exception occurred in executing the verb: $command ${e.toString()}');

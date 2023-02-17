@@ -16,8 +16,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 ///Ex: scan\n
 class ScanVerbHandler extends AbstractVerbHandler {
   static Scan scan = Scan();
+  OutboundClientManager outboundClientManager;
 
-  ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  ScanVerbHandler(SecondaryKeyStore? keyStore, this.outboundClientManager) : super(keyStore);
 
   /// Verifies whether command is accepted or not
   ///
@@ -99,8 +100,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
-    var outBoundClient =
-        OutboundClientManager.getInstance().getClient(forAtSign, atConnection)!;
+    var outBoundClient = outboundClientManager.getClient(forAtSign, atConnection)!;
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {

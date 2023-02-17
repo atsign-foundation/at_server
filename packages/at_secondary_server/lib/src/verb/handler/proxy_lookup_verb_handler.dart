@@ -16,8 +16,9 @@ import 'package:at_utils/at_utils.dart';
 // Class which will process plookup (proxy lookup) verb
 class ProxyLookupVerbHandler extends AbstractVerbHandler {
   static ProxyLookup pLookup = ProxyLookup();
+  OutboundClientManager outboundClientManager;
 
-  ProxyLookupVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  ProxyLookupVerbHandler(SecondaryKeyStore? keyStore, this.outboundClientManager) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -93,8 +94,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   /// Performs the remote lookup and returns the value of the key.
   Future<String?> _getRemoteValue(
       String query, String? atSign, InboundConnection atConnection) async {
-    var outBoundClient = OutboundClientManager.getInstance()
-        .getClient(atSign, atConnection, isHandShake: false)!;
+    var outBoundClient = outboundClientManager.getClient(atSign, atConnection, isHandShake: false)!;
     if (!outBoundClient.isConnectionCreated) {
       logger.finer('creating outbound connection $atSign');
       await outBoundClient.connect(handshake: false);

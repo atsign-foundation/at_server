@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -11,13 +12,20 @@ import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 
 import 'notify_verb_test.dart';
 
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+
   group('A group of stats verb tests', () {
     test('test stats getVerb', () {
       var handler = StatsVerbHandler(null);
@@ -91,8 +99,8 @@ void main() {
       var command = 'statsn';
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
-      var defaultVerbHandlerManager = DefaultVerbHandlerManager();
-      defaultVerbHandlerManager.init();
+      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager);
+
       expect(
           () => defaultVerbExecutor.execute(
               command, inbound, defaultVerbHandlerManager),
@@ -141,7 +149,7 @@ void main() {
         'createdOn': 0,
       };
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager!.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager!.getKeyStore(), mockOutboundClientManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'

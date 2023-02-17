@@ -16,8 +16,9 @@ import 'package:at_utils/at_utils.dart';
 class LookupVerbHandler extends AbstractVerbHandler {
   static Lookup lookup = Lookup();
   static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
+  OutboundClientManager outboundClientManager;
 
-  LookupVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  LookupVerbHandler(SecondaryKeyStore? keyStore, this.outboundClientManager) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -82,8 +83,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (response.data == null ||
             response.data == '' ||
             byPassCacheStr == 'true') {
-          var outBoundClient = OutboundClientManager.getInstance()
-              .getClient(atSign, atConnection)!;
+          var outBoundClient = outboundClientManager.getClient(atSign, atConnection)!;
           // Need not connect again if the client's handshake is already done
           if (!outBoundClient.isHandShakeDone) {
             var connectResult = await outBoundClient.connect();

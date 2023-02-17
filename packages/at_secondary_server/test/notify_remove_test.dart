@@ -4,15 +4,21 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_server_spec/verbs.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+
+  var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
   group('A group of test to verify NotifyDeleteVerb', () {
     test('Test to verify notify delete getVerb', () {
@@ -44,7 +50,7 @@ void main() {
       var response = Response();
       // Verify Notification is inserted into keystore
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notifyListParams = getVerbParam(NotifyList().syntax(), 'notify:list');
       await notifyListVerbHandler.processVerb(
           response, notifyListParams, atConnection);

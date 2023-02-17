@@ -20,8 +20,9 @@ class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
+  OutboundClientManager outboundClientManager;
 
-  PolVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  PolVerbHandler(SecondaryKeyStore? keyStore, this.outboundClientManager) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -52,22 +53,22 @@ class PolVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
-    var _from = atConnectionMetadata.from;
-    logger.info('from : ${_from.toString()}');
+
+    logger.info('from : ${atConnectionMetadata.from.toString()}');
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
-    if (_from == true) {
+    if (atConnectionMetadata.from == true) {
       // Getting secondary server URL
-      var secondary_url = await AtLookupImpl.findSecondary(
+      // ignore: deprecated_member_use
+      var secondaryUrl = await AtLookupImpl.findSecondary(
           fromAtSign!, _rootDomain, _rootPort!);
-      logger.finer('secondary url : $secondary_url');
-      if (secondary_url != null && secondary_url.contains(':')) {
+      logger.finer('secondary url : $secondaryUrl');
+      if (secondaryUrl != null && secondaryUrl.contains(':')) {
         var lookUpKey = '$sessionID$fromAtSign';
         // Connect to the other secondary server and get the secret
-        var outBoundClient = OutboundClientManager.getInstance()
-            .getClient(fromAtSign, atConnection);
+        var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection);
         if (outBoundClient == null) {
           logger.severe('max outbound limit reached');
           throw AtConnectException('max outbound limit reached');
@@ -83,7 +84,7 @@ class PolVerbHandler extends AbstractVerbHandler {
         var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
         fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
         // Getting stored secret from this secondary server
-        var secret = await keyStore!.get('public:' + sessionID! + fromAtSign);
+        var secret = await keyStore!.get('public:${sessionID!}$fromAtSign');
         var message = secret?.data;
         if (fromPublicKey != null && signedChallenge != null) {
           // Comparing secretLookup form other secondary and stored secret are same or not
