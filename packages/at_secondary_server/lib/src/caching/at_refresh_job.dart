@@ -61,32 +61,26 @@ class AtRefreshJob {
   Future<String?> _lookupValue(String key, {bool isHandShake = true}) async {
     var index = key.indexOf('@');
     var atSign = key.substring(index);
-    String? lookupResult;
     var outBoundClient = OutboundClientManager.getInstance().getClient(
         atSign, DummyInboundConnection(),
         isHandShake: isHandShake)!;
     // Need not connect again if the client's handshake is already done
-    try {
-      if (!outBoundClient.isHandShakeDone) {
-        var connectResult =
-            await outBoundClient.connect(handshake: isHandShake);
-        logger.finer('connect result: $connectResult');
-      }
-      lookupResult = await outBoundClient.lookUp(key, handshake: isHandShake);
-    } catch (exception) {
-      logger.severe(
-          'Exception while refreshing cached key ${exception.toString()}');
+
+    if (!outBoundClient.isHandShakeDone) {
+      var connectResult =
+      await outBoundClient.connect(handshake: isHandShake);
+      logger.finer('connect result: $connectResult');
     }
-    return lookupResult;
+    return await outBoundClient.lookUp(key, handshake: isHandShake);
   }
 
   /// Updates the cached key with the new value.
   Future<void> _updateCachedValue(
-      String? newValue, AtData? oldValue, var element) async {
+      String? newValue, AtData? oldValue, var cachedKeyName) async {
     var atData = AtData();
     atData.data = newValue;
     atData.metaData = oldValue?.metaData;
-    await keyStore?.put(element, atData);
+    await keyStore?.put(cachedKeyName, atData);
   }
 
   /// The refresh job
@@ -96,15 +90,21 @@ class AtRefreshJob {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var itr = keysToRefresh.iterator;
     while (itr.moveNext()) {
-      var element = itr.current;
-      lookupKey = element;
+      var cachedKeyName = itr.current;
+      lookupKey = cachedKeyName;
       String? newValue;
-      if (lookupKey.startsWith('cached:public:')) {
-        lookupKey = lookupKey.replaceAll('cached:public:', '');
-        newValue = await _lookupValue(lookupKey, isHandShake: false);
-      } else {
-        lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
-        newValue = await _lookupValue(lookupKey);
+
+      try {
+        if (lookupKey.startsWith('cached:public:')) {
+          lookupKey = lookupKey.replaceAll('cached:public:', '');
+          newValue = await _lookupValue(lookupKey, isHandShake: false);
+        } else {
+          lookupKey = lookupKey.replaceAll('$CACHED:$atSign:', '');
+          newValue = await _lookupValue(lookupKey);
+        }
+      } catch (e) {
+        logger.info("Exception while looking up $lookupKey : $e");
+        continue;
       }
       // If new value is null, do nothing. Continue for next key.
       if (newValue == null) {
@@ -120,17 +120,17 @@ class AtRefreshJob {
       }
       // If old value and new value are equal, then do not update;
       // Continue for next key.
-      var oldValue = await keyStore?.get(element);
+      var oldValue = await keyStore?.get(cachedKeyName);
       if (oldValue?.data == newValue) {
         logger.finest(
             '$lookupKey cached value is same as looked-up value. Not updating the cached key');
         continue;
       }
       logger.finest('Updated the cached key value of $lookupKey with $newValue');
-      await _updateCachedValue(newValue, oldValue, element);
+      await _updateCachedValue(newValue, oldValue, cachedKeyName);
       //Update the refreshAt date for the next interval.
       var atMetadata = AtMetadataBuilder(ttr: oldValue!.metaData!.ttr).build();
-      await keyStore?.putMeta(element, atMetadata);
+      await keyStore?.putMeta(cachedKeyName, atMetadata);
     }
   }
 
