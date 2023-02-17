@@ -15,14 +15,13 @@ import 'package:at_utils/at_utils.dart';
 
 class LookupVerbHandler extends AbstractVerbHandler {
   static Lookup lookup = Lookup();
-  static final DEPTH_OF_RESOLUTION =
-      AtSecondaryConfig.lookup_depth_of_resolution;
+  static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
 
   LookupVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.lookup) + ':');
+      command.startsWith('${getName(VerbEnum.lookup)}:');
 
   @override
   Verb getVerb() {
@@ -57,10 +56,10 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // lookUp secondary of atSign for the key
     if (atConnectionMetadata.isAuthenticated) {
       if (currentAtSign == atSign) {
-        var lookup_key = currentAtSign + ':' + key;
-        var lookup_value = await keyStore!.get(lookup_key);
+        var lookupKey = currentAtSign + ':' + key;
+        var lookupValue = await keyStore!.get(lookupKey);
         response.data =
-            SecondaryUtil.prepareResponseData(operation, lookup_value);
+            SecondaryUtil.prepareResponseData(operation, lookupValue);
 
         //Resolving value references to correct value
         if (response.data != null &&
@@ -102,16 +101,16 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (!(atConnectionMetadata.isAuthenticated)) {
       keyPrefix = (fromAtSign == null || fromAtSign == '')
           ? 'public:'
-          : fromAtSign + ':';
+          : '$fromAtSign:';
     }
     // Form the look up key
-    var lookup_key = keyPrefix + key;
-    logger.finer('lookup_key in lookupVerbHandler : ' + lookup_key);
+    var lookupKey = keyPrefix + key;
+    logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
     // Find the value for the key from the data store
-    var lookup_data = await keyStore!.get(lookup_key);
-    var isActive = SecondaryUtil.isActiveKey(lookup_data);
+    var lookupData = await keyStore!.get(lookupKey);
+    var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (isActive) {
-      response.data = SecondaryUtil.prepareResponseData(operation, lookup_data);
+      response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
       //Resolving value references to correct values
       if (response.data != null &&
           response.data!.contains(AT_VALUE_REFERENCE)) {
@@ -137,23 +136,22 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// @param - keyPrefix : The prefix for the key: <atsign> or public.
   Future<String?> resolveValueReference(String value, String keyPrefix) async {
     var resolutionCount = 1;
-    var lookup_value;
 
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
     while (value.contains(AT_VALUE_REFERENCE) &&
-        resolutionCount <= DEPTH_OF_RESOLUTION!) {
+        resolutionCount <= depthOfResolution!) {
       var index = value.indexOf('/');
       var keyToResolve = value.substring(index + 2, value.length);
       if (!keyPrefix.endsWith(':')) {
-        keyPrefix = keyPrefix + ':';
+        keyPrefix = '$keyPrefix:';
       }
       keyToResolve = keyPrefix + keyToResolve;
-      lookup_value = await keyStore!.get(keyToResolve);
-      value = lookup_value?.data;
+      var lookupValue = await keyStore!.get(keyToResolve);
+      value = lookupValue?.data;
       // If the value is null for a private key, searches on public namespace.
       keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookup_value = await keyStore!.get(keyToResolve);
-      value = lookup_value?.data;
+      lookupValue = await keyStore!.get(keyToResolve);
+      value = lookupValue?.data;
       resolutionCount++;
     }
     return value.contains(AT_VALUE_REFERENCE) ? null : value;
@@ -185,5 +183,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
         return atData;
       }
     }
+    return null;
   }
 }
