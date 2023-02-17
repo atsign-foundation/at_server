@@ -1,8 +1,8 @@
 # alice atsign details
 first_atsign_server:
-  first_atsign_name: "@alice"
+  first_atsign_name: "@alice🛠"
   # # The port to connect to first atsign server
-  first_atsign_port: 10000
+  first_atsign_port: 25000
   # # The url to connect to first atsign server
   first_atsign_url: vip.ve.atsign.zone
 
