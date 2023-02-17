@@ -6,6 +6,8 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/at_refresh_job.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -14,7 +16,6 @@ import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
-import 'package:at_secondary/src/caching/at_refresh_job.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
@@ -81,6 +82,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   VerbExecutor? executor;
   VerbHandlerManager? verbManager;
   late AtRefreshJob atRefreshJob;
+  late CacheManager cacheManager;
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
@@ -187,9 +189,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
     // Refresh Cached Keys
+    cacheManager = CacheManager(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
-    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
+    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     // Certificate reload
