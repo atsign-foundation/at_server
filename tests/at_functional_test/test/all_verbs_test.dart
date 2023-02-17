@@ -120,13 +120,13 @@ void main() async {
       print('config verb response $response');
       expect(response, contains('data:ok'));
 
-      //this ensures that the reset actually works and the current value is 60(default value)
+      //this ensures that the reset actually works and the current value is 18(default value)
       await socket_writer(
           socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
       //await Future.delayed(Duration(seconds: 2));
       response = await read();
       print('config verb response $response');
-      expect(response, contains('data:30'));
+      expect(response, contains('data:18'));
   });
 
   test('config verb test set-print', () async {

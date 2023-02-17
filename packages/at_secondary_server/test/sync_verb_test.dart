@@ -9,7 +9,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
@@ -62,7 +61,7 @@ void main() async {
     });
     test('test sync accept invalid keyword', () {
       var command = 'syncing:1';
-      var handler = SyncVerbHandler(null);
+      var handler = SyncProgressiveVerbHandler(null);
       expect(handler.accept(command), false);
     });
     test('test sync verb upper case', () {

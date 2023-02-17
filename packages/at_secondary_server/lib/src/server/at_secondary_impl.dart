@@ -519,6 +519,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Terminating all inbound connections");
       inboundConnectionFactory.removeAllConnections();
 
+      verbHandlerManager = null;
+
       logger.info("Closing CommitLog HiveBox");
       await AtCommitLogManagerImpl.getInstance().close();
       logger.info("Closing AccessLog HiveBox");
@@ -594,8 +596,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     keyStoreManager.keyStore = hiveKeyStore;
     // Initialize the hive store
     await hiveKeyStore.initialize();
-    serverContext!.isKeyStoreInitialized =
-        true; //TODO check hive for sample data
+    serverContext!.isKeyStoreInitialized = true;
     var keyStore = keyStoreManager.getKeyStore();
     if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
       await keyStore.put(AT_CRAM_SECRET, atData);
