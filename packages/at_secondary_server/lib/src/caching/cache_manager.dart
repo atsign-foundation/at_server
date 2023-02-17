@@ -4,14 +4,14 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_utils/at_logger.dart';
 
-class CacheManager {
+class AtCacheManager {
   final String atSign;
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final OutboundClientManager outboundClientManager;
 
-  final logger = AtSignLogger('CacheManager');
+  final logger = AtSignLogger('AtCacheManager');
 
-  CacheManager(this.atSign, this.keyStore, this.outboundClientManager);
+  AtCacheManager(this.atSign, this.keyStore, this.outboundClientManager);
 
   /// Returns the list of cached keys
   Future<List<String>> getCachedKeys() async {

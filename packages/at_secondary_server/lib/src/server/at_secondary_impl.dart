@@ -6,7 +6,7 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/caching/at_refresh_job.dart';
+import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -81,8 +81,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtSecondaryContext? serverContext;
   VerbExecutor? executor;
   VerbHandlerManager? verbManager;
-  late AtRefreshJob atRefreshJob;
-  late CacheManager cacheManager;
+  late AtCacheRefreshJob atRefreshJob;
+  late AtCacheManager cacheManager;
   late var commitLogCompactionJobInstance;
   late var accessLogCompactionJobInstance;
   late var notificationKeyStoreCompactionJobInstance;
@@ -189,10 +189,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
     // Refresh Cached Keys
-    cacheManager = CacheManager(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
+    cacheManager = AtCacheManager(serverContext!.currentAtSign!, hiveKeyStore, OutboundClientManager.getInstance());
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
-    atRefreshJob = AtRefreshJob(serverContext!.currentAtSign!, cacheManager);
+    atRefreshJob = AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     // Certificate reload

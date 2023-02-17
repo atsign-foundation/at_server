@@ -3,12 +3,12 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 
-class AtRefreshJob {
+class AtCacheRefreshJob {
   final String atSign;
   late Cron _cron;
-  final CacheManager cacheManager;
+  final AtCacheManager cacheManager;
 
-  AtRefreshJob(this.atSign, this.cacheManager);
+  AtCacheRefreshJob(this.atSign, this.cacheManager);
 
   final logger = AtSignLogger('AtRefreshJob');
 
