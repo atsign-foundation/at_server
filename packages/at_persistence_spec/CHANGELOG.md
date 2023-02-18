@@ -1,6 +1,6 @@
 ## 2.0.11
-- refactor: Add some methods to KeyStore specs to reduce abstraction leakiness
-  - added `Future<void> initialize()` method to WritableKeyStore spec
+- feat: Added to WritableKeyStore and SecondaryKeyStore specs to address some leaked abstractions
+ - added `Future<void> initialize()` method to WritableKeyStore spec
   - added `AtLogType? commitLog` setter and getter to SecondaryKeyStore spec
 ## 2.0.10
 - fix: Add AtCompaction spec for keystore compaction 
