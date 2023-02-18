@@ -13,7 +13,7 @@ abstract class Keystore<K, V> {
 abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// Subclasses should put any necessary post-construction async initialization
   /// in this method
-  Future<void> initialize();
+  Future<void> initialize() async {}
 
   /// Associates the specified value with the specified key.
   /// If the key store previously contained a mapping for the key, the old value is replaced by the specified value.

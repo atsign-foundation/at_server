@@ -19,8 +19,8 @@ abstract class SecondaryKeyStore<K, V, T>
   bool isKeyExists(String key);
 
   /// A SecondaryKeyStore has an associated commit log
-  AtLogType? get commitLog;
+  AtLogType? get commitLog => null;
 
   /// A SecondaryKeyStore has an associated commit log
-  set commitLog(AtLogType? log);
+  set commitLog(AtLogType? log) {}
 }
