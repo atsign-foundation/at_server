@@ -1,3 +1,5 @@
+## 3.0.47
+- feat: conform to at_persistence_spec 2.0.11
 ## 3.0.46
 - fix: AtMetadata.version does not update on the update of a key
 ## 3.0.45
