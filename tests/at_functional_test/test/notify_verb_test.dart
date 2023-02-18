@@ -70,7 +70,13 @@ void main() {
       await socket_writer(
           socketFirstAtsign!, 'notify:$firstAtsign:phone.me$firstAtsign');
       var response = await read();
-      var currentDateTime = DateTime.now();
+
+      await (Future.delayed(Duration(milliseconds: 5)));
+
+      var dateTimeAfterFirstNotification = DateTime.now();
+
+      await (Future.delayed(Duration(milliseconds: 5)));
+
       // Sending second notification
       await socket_writer(
           socketFirstAtsign!, 'notify:$firstAtsign:about.me$firstAtsign');
@@ -85,7 +91,7 @@ void main() {
       expect(
           DateTime.parse(atNotificationMap['notificationDateTime'])
                   .microsecondsSinceEpoch >
-              currentDateTime.microsecondsSinceEpoch,
+              dateTimeAfterFirstNotification.microsecondsSinceEpoch,
           true);
     });
   });
