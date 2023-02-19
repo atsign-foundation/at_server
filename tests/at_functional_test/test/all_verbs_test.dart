@@ -125,9 +125,11 @@ void main() async {
       await socket_writer(
           socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
       //await Future.delayed(Duration(seconds: 2));
-      response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:18'));
+      response = (await read()).trim();
+      print('config verb response [$response]');
+      // TODO gkc 20230219 It's two values because we used to set to 30 but now we're setting to 18.
+      // TODO gkc 20230219 We can remove the 'or' once build_virtual_environment is merged to trunk
+      expect((response == 'data:18' || response == 'data:30'), true);
   });
 
   test('config verb test set-print', () async {
