@@ -21,7 +21,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
-  UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -107,7 +107,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           updateParams.metadata!.isPublic!) {
         key = 'public:$key';
       }
-      var metadata = await keyStore!.getMeta(key);
+      var metadata = await keyStore.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
       ttrMillis = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
@@ -144,7 +144,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       }
 
       // update the key in data store
-      var result = await keyStore!.put(key, atData,
+      var result = await keyStore.put(key, atData,
           time_to_live: ttlMillis,
           time_to_born: ttbMillis,
           time_to_refresh: ttrMillis,

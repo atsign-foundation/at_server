@@ -27,7 +27,7 @@ import 'package:at_commons/at_commons.dart';
 ///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
-  ConfigVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  ConfigVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;

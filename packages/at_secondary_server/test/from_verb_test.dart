@@ -11,10 +11,15 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
 
-void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
+void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
+  var storageDir = '${Directory.current.path}/test/hive';
+  late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
@@ -63,18 +68,18 @@ void main() async {
   group('A group of from verb accept test', () {
     test('test from accept', () {
       var command = 'from:@alice';
-      var handler = FromVerbHandler(null);
+      var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
       var command = 'to:@alice';
-      var handler = FromVerbHandler(null);
+      var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
       var command = 'FROM:@ALICE';
       command = SecondaryUtil.convertCommand(command);
-      var handler = FromVerbHandler(null);
+      var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
     });
   });
@@ -97,7 +102,7 @@ void main() async {
       expect(verb is From, true);
     });
 
-    test('test from verb handler processverb from atsign contains @', () async {
+    test('test from verb handler from atsign contains @', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
@@ -112,7 +117,7 @@ void main() async {
       expect(connectionMetadata.self, true);
     });
 
-    test('test from verb handler processverb from atsign does not contain @',
+    test('test from verb handler from atsign does not contain @',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -130,7 +135,7 @@ void main() async {
     });
 
     /*test(
-        'test from verb handler processverb from atsign is different from current atsign',
+        'test from verb handler - from atsign is different from current atsign',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl().currentAtSign = '@tokyo';

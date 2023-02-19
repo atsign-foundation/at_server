@@ -21,7 +21,7 @@ enum Type { sent, received }
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
 
-  NotifyVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
@@ -238,10 +238,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           return;
         }
 
-        var isKeyPresent = keyStore!.isKeyExists(notifyKey);
+        var isKeyPresent = keyStore.isKeyExists(notifyKey);
         AtMetaData? atMetadata;
         if (isKeyPresent) {
-          atMetadata = await keyStore!.getMeta(notifyKey);
+          atMetadata = await keyStore.getMeta(notifyKey);
         }
         if (atValue != null && ttrMillis != null) {
           var metadata = AtMetadataBuilder(
@@ -296,21 +296,21 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     atData.data = atValue;
     atData.metaData = atMetaData;
     logger.info('Cached $notifyKey');
-    return await keyStore!.put(notifyKey, atData);
+    return await keyStore.put(notifyKey, atData);
   }
 
   Future<int> _updateMetadata(String notifyKey, AtMetaData? atMetaData) async {
     logger.info('Updating the metadata of $notifyKey');
-    return await keyStore!.putMeta(notifyKey, atMetaData);
+    return await keyStore.putMeta(notifyKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   ///key Key to delete.
   Future<int?> _removeCachedKey(String key) async {
-    var metadata = await keyStore!.getMeta(key);
+    var metadata = await keyStore.getMeta(key);
     if (metadata != null && metadata.isCascade) {
       logger.info('Removed cached key $key');
-      return await keyStore!.remove(key);
+      return await keyStore.remove(key);
     } else {
       return null;
     }

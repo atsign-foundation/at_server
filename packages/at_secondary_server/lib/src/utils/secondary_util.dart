@@ -11,8 +11,8 @@ class SecondaryUtil {
   static Future<void> saveCookie(
       String key, String value, String? atSign) async {
     logger.finer('In Secondary Util saveCookie');
-    logger.finer('saveCookie key : ' + key);
-    logger.finer('signed challenge : ' + value);
+    logger.finer('saveCookie key : $key');
+    logger.finer('signed challenge : $value');
     var atData = AtData();
     atData.data = value;
 
@@ -39,7 +39,7 @@ class SecondaryUtil {
   static List<String> getCookieParams(String fromResult) {
     var proof = fromResult.replaceFirst('\n@', '');
     proof = proof.trim();
-    logger.info('proof : ' + proof);
+    logger.info('proof : $proof');
     List listAnswer = proof.split(':');
     return listAnswer as List<String>;
   }
@@ -58,23 +58,29 @@ class SecondaryUtil {
     return command;
   }
 
+  /// Checks if this record is 'active' i.e. it is non-null, it's been 'born', and it is still 'alive'.
+  /// * If [Metadata.availableAt] is set, and we've not reached that time yet, return `false`,
+  ///   as the record hasn't yet been 'born'
+  /// * If [Metadata.expiresAt] is set, and we've passed that time, return `false`,
+  ///   as the record is no longer 'alive'
+  /// * Otherwise return `true`
   static bool isActiveKey(AtData? atData) {
     if (atData == null) {
       return false;
     }
     var now = DateTime.now().toUtc().millisecondsSinceEpoch;
     if (atData.metaData != null) {
-      var ttb = atData.metaData!.availableAt;
-      var ttl = atData.metaData!.expiresAt;
-      if (ttb == null && ttl == null) return true;
-      if (ttb != null) {
-        var ttbMillis = ttb.toUtc().millisecondsSinceEpoch;
+      var birthTime = atData.metaData!.availableAt;
+      var endOfLifeTime = atData.metaData!.expiresAt;
+      if (birthTime == null && endOfLifeTime == null) return true;
+      if (birthTime != null) {
+        var ttbMillis = birthTime.toUtc().millisecondsSinceEpoch;
         if (ttbMillis > now) {
           return false;
         }
       }
-      if (ttl != null) {
-        var ttlMillis = ttl.toUtc().millisecondsSinceEpoch;
+      if (endOfLifeTime != null) {
+        var ttlMillis = endOfLifeTime.toUtc().millisecondsSinceEpoch;
         if (ttlMillis < now) {
           return false;
         }

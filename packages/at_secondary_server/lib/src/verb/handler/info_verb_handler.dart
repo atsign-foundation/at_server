@@ -11,7 +11,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
   static int? approximateStartTimeMillis;
-  InfoVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore) {
+  InfoVerbHandler(SecondaryKeyStore keyStore) : super(keyStore) {
     approximateStartTimeMillis ??= DateTime.now().millisecondsSinceEpoch;
   }
 
@@ -58,6 +58,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
     int uHours = uptime.inHours.remainder(24);
     int uMins = uptime.inMinutes.remainder(60);
     int uSeconds = uptime.inSeconds.remainder(60);
+    // ignore: prefer_interpolation_to_compose_strings
     String uptimeAsWords = (uDays > 0 ? "$uDays days " : "") +
         ((uDays > 0 || uHours > 0) ? "$uHours hours " : "") +
         ((uDays > 0 || uHours > 0 || uMins > 0) ? "$uMins minutes " : "") +

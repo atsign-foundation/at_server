@@ -24,9 +24,9 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
 
-  FromVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  FromVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
-  late var atConfigInstance;
+  late AtConfig atConfigInstance;
 
   @override
   bool accept(String command) =>
@@ -80,7 +80,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     //store key with private/public prefix, sessionId and fromAtSign
-    await keyStore!.put(
+    await keyStore.put(
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign', atData,
         time_to_live: 60 * 1000); //expire in 1 min
     response.data =
@@ -106,27 +106,27 @@ class FromVerbHandler extends AbstractVerbHandler {
       String fromAtSign, InboundConnection atConnection) async {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
-    var secondaryUrl =
-        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
+    // ignore: deprecated_member_use
+    var secondaryUrl = await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $fromAtSign');
     }
-    logger.finer('_verifyFromAtSign secondayUrl : $secondaryUrl');
+    logger.finer('_verifyFromAtSign secondaryUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
     var secSocket = atConnection.getSocket() as SecureSocket;
     logger.finer('secSocket : $secSocket');
-    var CN = secSocket.peerCertificate;
-    logger.finer('CN : $CN');
-    if (CN == null) {
+    var cn = secSocket.peerCertificate;
+    logger.finer('CN : $cn');
+    if (cn == null) {
       logger.finer(
           'CN is null.stream flag ${atConnection.getMetaData().isStream}');
       return atConnection.getMetaData().isStream;
     }
 
     if (clientCertificateRequired!) {
-      var result = _verifyClientCerts(CN, host);
+      var result = _verifyClientCerts(cn, host);
       return result;
     }
     return true;

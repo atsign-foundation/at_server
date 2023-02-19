@@ -15,7 +15,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
 
-  DeleteVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  DeleteVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -73,10 +73,10 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
     if (deleteKey == AT_CRAM_SECRET) {
-      await keyStore!.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
+      await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
     try {
-      var result = await keyStore!.remove(deleteKey);
+      var result = await keyStore.remove(deleteKey);
       response.data = result?.toString();
       logger.finer('delete success. delete key: $deleteKey');
     } on KeyNotFoundException {

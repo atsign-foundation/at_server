@@ -1,3 +1,4 @@
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -5,8 +6,13 @@ import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
   group('a group of config verb regex test', () {
     test('test config add operation', () {
       var verb = Config();
@@ -98,7 +104,7 @@ void main() {
   group('A group of config verb handler test', () {
     test('test config verb handler - add config', () {
       var command = 'config:block:add:@alice @bob';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(null);
+      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -109,7 +115,7 @@ void main() {
 
     test('test config verb handler - remove config', () {
       var command = 'config:block:remove:@alice @bob';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(null);
+      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -120,7 +126,7 @@ void main() {
 
     test('test config verb handler - show config', () {
       var command = 'config:block:show';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(null);
+      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -131,21 +137,21 @@ void main() {
 
     test('test config key- invalid add command', () {
       var command = 'config:block:add';
-      AbstractVerbHandler handler = ConfigVerbHandler(null);
+      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });
 
     test('test config key- invalid remove command', () {
       var command = 'config:block:remove:';
-      AbstractVerbHandler handler = ConfigVerbHandler(null);
+      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });
 
     test('test config key- invalid show command', () {
       var command = 'config:block:show:@alice';
-      AbstractVerbHandler handler = ConfigVerbHandler(null);
+      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });
