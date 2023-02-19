@@ -12,11 +12,11 @@ import 'package:at_utils/at_utils.dart';
 class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
 
-  LocalLookupVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  LocalLookupVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.llookup) + ':');
+      command.startsWith('${getName(VerbEnum.llookup)}:');
 
   @override
   Verb getVerb() {
@@ -56,12 +56,12 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     if (verbParams.containsKey('isCached')) {
       key = 'cached:$key';
     }
-    var lookup_data = await keyStore!.get(key);
+    AtData? atData = await keyStore.get(key);
     var isActive = false;
-    isActive = SecondaryUtil.isActiveKey(lookup_data);
+    isActive = SecondaryUtil.isActiveKey(atData);
     if (isActive) {
       logger.finer('isActiveKey($key) : $isActive');
-      response.data = SecondaryUtil.prepareResponseData(operation, lookup_data);
+      response.data = SecondaryUtil.prepareResponseData(operation, atData);
     }
   }
 }

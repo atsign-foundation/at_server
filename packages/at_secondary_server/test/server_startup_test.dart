@@ -28,26 +28,12 @@ void main() {
               e.message == 'Verb executor is not initialized')));
     });
 
-    test('verb handler manager not set', () {
-      var secondaryServerInstance = AtSecondaryServerImpl.getInstance();
-      var context = AtSecondaryContext();
-      secondaryServerInstance.setServerContext(context);
-      secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      expect(
-          () => secondaryServerInstance.start(),
-          throwsA(predicate((dynamic e) =>
-              e is AtServerException &&
-              e.message == 'Verb handler manager is not initialized')));
-    });
-
     // precondition. useTLS is set to true in config file
     test('security context not set', () {
       var secondaryServerInstance = AtSecondaryServerImpl.getInstance();
       var context = AtSecondaryContext();
       secondaryServerInstance.setServerContext(context);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      secondaryServerInstance
-          .setVerbHandlerManager(DefaultVerbHandlerManager());
       expect(
           () => secondaryServerInstance.start(),
           throwsA(predicate((dynamic e) =>
@@ -61,8 +47,6 @@ void main() {
       context.currentAtSign = '@alice';
       secondaryServerInstance.setServerContext(context);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      secondaryServerInstance
-          .setVerbHandlerManager(DefaultVerbHandlerManager());
       context.securityContext = AtSecurityContextImpl();
       expect(
           () => secondaryServerInstance.start(),
@@ -76,8 +60,6 @@ void main() {
       var context = AtSecondaryContext();
       secondaryServerInstance.setServerContext(context);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      secondaryServerInstance
-          .setVerbHandlerManager(DefaultVerbHandlerManager());
       context.securityContext = AtSecurityContextImpl();
       context.isKeyStoreInitialized = true;
       expect(

@@ -120,13 +120,16 @@ void main() async {
       print('config verb response $response');
       expect(response, contains('data:ok'));
 
-      //this ensures that the reset actually works and the current value is 60(default value)
+      // this ensures that the reset actually works and the current value is 18 as per the config
+      // at tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/config/config.yaml
       await socket_writer(
           socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
       //await Future.delayed(Duration(seconds: 2));
-      response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:30'));
+      response = (await read()).trim();
+      print('config verb response [$response]');
+      // TODO gkc 20230219 It's two values because we used to set to 30 but now we're setting to 18.
+      // TODO gkc 20230219 We can remove the 'or' once build_virtual_environment is merged to trunk
+      expect((response == 'data:18' || response == 'data:30'), true);
   });
 
   test('config verb test set-print', () async {

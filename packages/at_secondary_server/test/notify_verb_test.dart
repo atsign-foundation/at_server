@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -20,10 +21,17 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+
   var storageDir = '${Directory.current.path}/test/hive';
-  late var keyStoreManager;
+  late SecondaryKeyStoreManager keyStoreManager;
 
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
@@ -50,35 +58,35 @@ void main() {
   group('A group of notify accept tests', () {
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept test for different atsign', () {
       var command = 'notify:@bob:location@colin';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without WhomToNotify', () {
       var command = 'notify location@colin';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, false);
     });
 
     test('test notify command accept negative test without from AtSign', () {
       var command = 'notify:@colin:location';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without what to notify', () {
       var command = 'notify:@bob:@colin';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -135,7 +143,7 @@ void main() {
     });
 
     test('test notify verb - invalid ttl value', () {
-      var notifyVerb = NotifyVerbHandler(null);
+      var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
@@ -147,7 +155,7 @@ void main() {
     });
 
     test('test notify verb - invalid ttb value', () {
-      var notifyVerb = NotifyVerbHandler(null);
+      var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
@@ -159,7 +167,7 @@ void main() {
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
-      var notifyVerb = NotifyVerbHandler(null);
+      var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
@@ -172,14 +180,14 @@ void main() {
 
     test('test notify key- invalid command', () {
       var command = 'notify:location@alice';
-      AbstractVerbHandler handler = NotifyVerbHandler(null);
+      AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
       var command = 'notify:update:ttr:1000:ccd:test:location@alice';
-      AbstractVerbHandler handler = NotifyVerbHandler(null);
+      AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
@@ -280,7 +288,7 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -332,7 +340,7 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore);
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -369,7 +377,7 @@ void main() {
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
       var response = queueManager.dequeue('@alice');
-      late var atNotification;
+      late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
       }
@@ -533,7 +541,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -589,7 +597,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -665,7 +673,7 @@ void main() {
       notificationMap.add(atNotification3);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -743,7 +751,7 @@ void main() {
       notificationMap.add(atNotification3);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      var atsign;
+      String? atsign;
       while (atsignIterator.moveNext()) {
         atsign = atsignIterator.current;
       }
@@ -760,14 +768,14 @@ void main() {
   group(
       'A group of tests to verify public key checksum and shared key on metadata',
       () {
-    test('notify command accept test for public key checksum and sharedkey',
+    test('notify command accept test for pubKeyCS and sharedKeyEnc',
         () {
       var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
-      var handler = NotifyVerbHandler(null);
+      var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
-    test('verify public key checksum and sharedkey in metadata', () async {
+    test('verify pubKeyCS and sharedKeyEnc in metadata', () async {
       final atMetaData = AtMetaData()
         ..pubKeyCS = '123'
         ..sharedKeyEnc = 'abc';

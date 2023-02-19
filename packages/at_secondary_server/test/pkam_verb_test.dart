@@ -8,10 +8,14 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  var keyStoreManager;
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  var storageDir = '${Directory.current.path}/test/hive';
+  SecondaryKeyStoreManager? keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   test('test for pkam correct syntax', () {
     var verb = Pkam();
@@ -33,18 +37,18 @@ void main() {
 
   test('test pkam accept', () {
     var command = 'pkam:abc123';
-    var handler = PkamVerbHandler(null);
+    var handler = PkamVerbHandler(mockKeyStore);
     expect(handler.accept(command), true);
   });
 
   test('test pkam accept invalid keyword', () {
     var command = 'pkamer:';
-    var handler = PkamVerbHandler(null);
+    var handler = PkamVerbHandler(mockKeyStore);
     expect(handler.accept(command), false);
   });
 
   test('test pkam verb handler getVerb', () {
-    var verbHandler = PkamVerbHandler(keyStoreManager.getKeyStore());
+    var verbHandler = PkamVerbHandler(keyStoreManager!.getKeyStore());
     var verb = verbHandler.getVerb();
     expect(verb is Pkam, true);
   });
@@ -52,7 +56,7 @@ void main() {
   test('test pkam verb - upper case with spaces', () {
     var command = 'PK AM:';
     command = SecondaryUtil.convertCommand(command);
-    var handler = PkamVerbHandler(null);
+    var handler = PkamVerbHandler(mockKeyStore);
     var result = handler.accept(command);
     print('result : $result');
     expect(result, true);

@@ -1,5 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -22,9 +23,7 @@ import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/sync_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -33,18 +32,15 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class DefaultVerbHandlerManager implements VerbHandlerManager {
   late List<VerbHandler> _verbHandlers;
 
-  static final DefaultVerbHandlerManager _singleton =
-      DefaultVerbHandlerManager._internal();
-
-  DefaultVerbHandlerManager._internal();
-
-  factory DefaultVerbHandlerManager() {
-    return _singleton;
+  final SecondaryKeyStore keyStore;
+  final OutboundClientManager outboundClientManager;
+  final AtCacheManager cacheManager;
+  DefaultVerbHandlerManager(this.keyStore, this.outboundClientManager, this.cacheManager) {
+    _loadVerbHandlers();
   }
 
-  /// Initializing verb handlers
-  void init() {
-    _verbHandlers = _loadVerbHandlers();
+  void close() {
+
   }
 
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
@@ -64,12 +60,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   }
 
   List<VerbHandler> _loadVerbHandlers() {
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(
-                AtSecondaryServerImpl.getInstance().currentAtSign)!;
-    var keyStore =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager()!.getKeyStore();
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
@@ -77,22 +67,20 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(UpdateVerbHandler(keyStore));
     _verbHandlers.add(UpdateMetaVerbHandler(keyStore));
     _verbHandlers.add(LocalLookupVerbHandler(keyStore));
-    _verbHandlers.add(ProxyLookupVerbHandler(keyStore));
-    _verbHandlers.add(LookupVerbHandler(keyStore));
-    _verbHandlers.add(ScanVerbHandler(keyStore));
-    _verbHandlers.add(PolVerbHandler(keyStore));
+    _verbHandlers.add(ProxyLookupVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers.add(LookupVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers.add(ScanVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers.add(PolVerbHandler(keyStore, outboundClientManager, cacheManager));
     _verbHandlers.add(DeleteVerbHandler(keyStore));
     _verbHandlers.add(StatsVerbHandler(keyStore));
-    _verbHandlers.add(SyncVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));
     _verbHandlers.add(MonitorVerbHandler(keyStore));
     _verbHandlers.add(StreamVerbHandler(keyStore));
     _verbHandlers.add(NotifyVerbHandler(keyStore));
-    _verbHandlers.add(NotifyListVerbHandler(keyStore));
-    _verbHandlers.add(BatchVerbHandler((keyStore)));
+    _verbHandlers.add(NotifyListVerbHandler(keyStore, outboundClientManager));
+    _verbHandlers.add(BatchVerbHandler(keyStore, this));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore));
-    _verbHandlers.add(SyncFromVerbHandler(keyStore));
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));

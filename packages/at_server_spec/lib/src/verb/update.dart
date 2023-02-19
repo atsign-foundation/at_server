@@ -37,7 +37,7 @@ class Update extends Verb {
 
   @override
   String usage() {
-    return 'e.g update:@alice:location@bob sanfrancisco';
+    return 'e.g. update:@alice:location@bob San Francisco';
   }
 
   @override

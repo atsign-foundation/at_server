@@ -10,7 +10,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NotifyRemoveVerbHandler extends AbstractVerbHandler {
   static NotifyRemove notifyRemove = NotifyRemove();
 
-  NotifyRemoveVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  NotifyRemoveVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) => command.startsWith('notify:remove:');

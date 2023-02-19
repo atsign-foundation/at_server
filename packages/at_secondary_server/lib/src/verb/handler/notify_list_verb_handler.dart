@@ -3,22 +3,21 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/src/keystore/secondary_keystore.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
-import 'package:at_server_spec/src/connection/inbound_connection.dart';
-import 'package:at_server_spec/src/verb/notify_list.dart';
-import 'package:at_server_spec/src/verb/verb.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 
 import 'abstract_verb_handler.dart';
 
 /// class to handle notify:list verb
 class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
+  final OutboundClientManager outboundClientManager;
 
-  NotifyListVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  NotifyListVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager) : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -35,8 +34,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var regex = verbParams[AT_REGEX];
-    var fromDateInEpoch;
-    var toDateInEpoch;
+    int? fromDateInEpoch;
+    int toDateInEpoch;
     try {
       fromDateInEpoch = (verbParams['fromDate'] != null)
           ? DateTime.parse(verbParams['fromDate']!).millisecondsSinceEpoch
@@ -69,7 +68,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     responseList =
         _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
-    var result;
+    String? result;
     if (responseList.isNotEmpty) {
       result = jsonEncode(responseList);
     }
@@ -93,8 +92,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   void _fetchNotificationEntries(
       element, responseList, notificationKeyStore) async {
     AtNotification notificationEntry = await notificationKeyStore.get(element);
-    if (notificationEntry != null &&
-        notificationEntry.type == NotificationType.received &&
+    if (notificationEntry.type == NotificationType.received &&
         !notificationEntry.isExpired()) {
       responseList.add(Notification(notificationEntry));
     }
@@ -107,17 +105,16 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
   Future<List> _getSentNotifications(List responseList, String? fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient = OutboundClientManager.getInstance()
-        .getClient(fromAtSign, atConnection)!;
+    var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection)!;
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();
       logger.finer('connect result: $connectResult');
     }
     var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
-    sentNotifications.forEach((element) {
+    for (var element in sentNotifications) {
       responseList.add(Notification(element));
-    });
+    }
     return responseList;
   }
 

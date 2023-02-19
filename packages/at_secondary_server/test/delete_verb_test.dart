@@ -1,11 +1,17 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
   group('A group of delete verb tests', () {
     test('test delete key-value', () {
       var verb = Delete();
@@ -18,14 +24,14 @@ void main() {
     });
 
     test('test delete getVerb', () {
-      var handler = DeleteVerbHandler(null);
+      var handler = DeleteVerbHandler(mockKeyStore);
       var verb = handler.getVerb();
       expect(verb is Delete, true);
     });
 
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
-      var handler = DeleteVerbHandler(null);
+      var handler = DeleteVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -34,7 +40,7 @@ void main() {
     test('test delete command command with upper case and spaces', () {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
-      var handler = DeleteVerbHandler(null);
+      var handler = DeleteVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);

@@ -13,10 +13,15 @@ import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
 
-void main() async {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
+void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
+  var storageDir = '${Directory.current.path}/test/hive';
+  late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
   group('A group of cram verb regex test', () {
     test('test from correct syntax with digest', () {
@@ -29,12 +34,12 @@ void main() async {
 
     test('test cram accept', () {
       var command = 'cram:abc123';
-      var handler = CramVerbHandler(null);
+      var handler = CramVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
       var command = 'cramer:';
-      var handler = CramVerbHandler(null);
+      var handler = CramVerbHandler(mockKeyStore);
       expect(handler.accept(command), false);
     });
     test('test cram  without digest', () {
@@ -99,7 +104,7 @@ void main() async {
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}randomfromresponse';
+      var combo = '${secretData.data}random_from_response';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
@@ -124,7 +129,7 @@ void main() async {
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
       var cramVerbParams = HashMap<String, String>();
-      var combo = 'randomstring';
+      var combo = 'random_string';
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
