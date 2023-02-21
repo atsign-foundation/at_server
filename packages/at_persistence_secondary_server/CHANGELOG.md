@@ -1,3 +1,5 @@
+## 3.0.48
+- fix: Ensure HiveKeystore's metaDataCache's keys are in lower case
 ## 3.0.47
 - feat: conform to at_persistence_spec 2.0.11
 ## 3.0.46
