@@ -120,7 +120,7 @@ void main() {
 
     ///UPDATE VERB
     await socket_writer(
-        socketFirstAtsign!, 'update:ttl:3000:ttlkey.me$firstAtsign 1245');
+        socketFirstAtsign!, 'update:ttl:3000:ttlKEY.me$firstAtsign 1245');
     var response = await read();
     print('update verb response : $response');
     assert(
@@ -130,11 +130,12 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(response, contains('"ttlkey.me$firstAtsign"'));
+    expect(false, response.contains('"ttlKEY.me$firstAtsign"')); // server ensures lower-case
+    expect(true, response.contains('"ttlkey.me$firstAtsign"'));
 
     // update ttl to a lesser value so that key expires for scan
     await socket_writer(
-        socketFirstAtsign!, 'update:ttl:200:ttlkey.me$firstAtsign 1245');
+        socketFirstAtsign!, 'update:ttl:200:ttlKEY.me$firstAtsign 1245');
     response = await read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -145,6 +146,7 @@ void main() {
     response = await read();
     print('scan verb response : $response');
     expect(false, response.contains('"ttlkey.me$firstAtsign"'));
+    expect(false, response.contains('"ttlKEY.me$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb does not return unborn keys', () async {
