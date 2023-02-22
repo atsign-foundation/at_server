@@ -99,7 +99,7 @@ class SecondaryUtil {
     return base64Encode(signature);
   }
 
-  static String? prepareResponseData(String? operation, AtData? atData) {
+  static String? prepareResponseData(String? operation, AtData? atData, {String? keyToUseIfNotAlreadySetInAtData}) {
     String? result;
     if (atData == null) {
       return result;
@@ -109,7 +109,11 @@ class SecondaryUtil {
         result = json.encode(atData.metaData!.toJson());
         break;
       case 'all':
-        result = json.encode(atData.toJson());
+        var atDataAsMap = atData.toJson();
+        if (!atDataAsMap.containsKey('key') && keyToUseIfNotAlreadySetInAtData != null) {
+          atDataAsMap['key'] = keyToUseIfNotAlreadySetInAtData;
+        }
+        result = json.encode(atDataAsMap);
         break;
       default:
         result = atData.data;
