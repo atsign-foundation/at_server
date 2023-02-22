@@ -1,3 +1,5 @@
+## 3.0.49
+- fix: AtData.toJson() now works when the key is null
 ## 3.0.48
 - fix: Ensure HiveKeystore's metaDataCache's keys are in lower case
 ## 3.0.47

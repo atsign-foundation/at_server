@@ -51,7 +51,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var cachedKeyName = 'cached:public:$keyName';
 
     //If key is cached, return cached value.
-    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+     var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
     var result = SecondaryUtil.prepareResponseData(operation, atData);
     // If cached key value is null or byPassCache is true, perform a remote plookup.
     if (result == null || byPassCacheStr == 'true') {
