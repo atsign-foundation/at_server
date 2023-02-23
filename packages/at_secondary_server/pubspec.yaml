@@ -1,10 +1,9 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.27
+version: 3.0.28
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
-
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -19,7 +18,7 @@ dependencies:
   collection: 1.17.0
   basic_utils: 5.4.2
   at_persistence_spec: 2.0.11
-  at_persistence_secondary_server: 3.0.47
+  at_persistence_secondary_server: 3.0.49
   at_lookup: 3.0.33
   at_server_spec: 3.0.11
   at_utils: 3.0.11
@@ -27,41 +26,6 @@ dependencies:
   version: 3.0.2
   meta: 1.8.0
   mutex: ^3.0.1
-
-#dependency_overrides:
-#  at_server_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_server_spec
-#      ref: trunk
-
-#  at_persistence_spec:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: at_persistence/at_persistence_spec
-#      ref: at_persistence_encode_public_data
-#  at_persistence_secondary_server:
-#   git:
-#     url: https://github.com/atsign-foundation/at_server.git
-#     path: at_secondary/at_persistence_secondary_server
-#     ref: trunk
-#  at_commons:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: atkey_types
-#   at_persistence_spec:
-#     git:
-#       url: https://github.com/atsign-foundation/at_server.git
-#       path: at_persistence/at_persistence_spec
-#       ref: at_annotation
-#  at_utils:
-#    git:
-#      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_utils
-#      ref: trunk
-
-
 
 dev_dependencies:
   test: ^1.22.1

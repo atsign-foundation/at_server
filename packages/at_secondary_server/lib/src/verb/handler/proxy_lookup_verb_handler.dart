@@ -51,7 +51,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var cachedKeyName = 'cached:public:$keyName';
 
     //If key is cached, return cached value.
-    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+     var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
     var result = SecondaryUtil.prepareResponseData(operation, atData);
     // If cached key value is null or byPassCache is true, perform a remote plookup.
     if (result == null || byPassCacheStr == 'true') {
@@ -61,14 +61,12 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
         return;
       }
 
-      if (operation != 'all') {
-        result = SecondaryUtil.prepareResponseData(operation, atData);
-      }
-      // Caching of keys is refrained when looked up the currentAtSign user
-      // Cache keys only if currentAtSign is not equal to atSign
+      // Cache keys only if currentAtSign is not equal to the owner of the key being looked up
       if (cacheManager.atSign != atSign) {
         await cacheManager.put(cachedKeyName, atData);
       }
+
+      result = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: keyName);
     }
     response.data = result;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()

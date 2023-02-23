@@ -120,18 +120,33 @@ void main() {
 
     ///UPDATE VERB
     await socket_writer(
-        socketFirstAtsign!, 'update:public:verifyingTTL$firstAtsign Working?');
+        socketFirstAtsign!, 'update:ttl:3000:ttlKEY.me$firstAtsign 1245');
     var response = await read();
     print('update verb response : $response');
-    //update ttl so that key is expired
-    await socket_writer(socketFirstAtsign!,
-        'update:ttl:6000:public:verifyingTTL$firstAtsign 1');
-    sleep(Duration(seconds: 2));
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///SCAN VERB should return the key before it expires
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(
-        false, response.contains('"update:public:verifyingTTL$firstAtsign"'));
+    expect(false, response.contains('"ttlKEY.me$firstAtsign"')); // server ensures lower-case
+    expect(true, response.contains('"ttlkey.me$firstAtsign"'));
+
+    // update ttl to a lesser value so that key expires for scan
+    await socket_writer(
+        socketFirstAtsign!, 'update:ttl:200:ttlKEY.me$firstAtsign 1245');
+    response = await read();
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    //  scan verb should not return the expired key
+    await Future.delayed(Duration(milliseconds: 300));
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response : $response');
+    expect(false, response.contains('"ttlkey.me$firstAtsign"'));
+    expect(false, response.contains('"ttlKEY.me$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test('Scan verb does not return unborn keys', () async {
@@ -144,17 +159,30 @@ void main() {
 
     ///UPDATE VERB
     await socket_writer(
-        socketFirstAtsign!, 'update:public:verifyingTTB$firstAtsign Working?');
+        socketFirstAtsign!, 'update:ttb:4000:ttbkey$firstAtsign Working?');
     var response = await read();
-    print('update verb response : $response');
-    //update ttb so that key is not born yet
-    await socket_writer(socketFirstAtsign!,
-        'update:ttb:6000:public:verifyingTTB$firstAtsign 600000');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // scan verb should not return the unborn key
     await socket_writer(socketFirstAtsign!, 'scan');
     response = await read();
     print('scan verb response : $response');
-    expect(
-        false, response.contains('"update:public:verifyingTTB$firstAtsign"'));
+    expect(false, response.contains('"ttbkey$firstAtsign"'));
+
+    // update ttb to a lesser value so that key becomes born
+    await socket_writer(
+        socketFirstAtsign!, 'update:ttb:200:ttbkey$firstAtsign Working?');
+    response = await read();
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    //  scan verb should return the born key
+    await Future.delayed(Duration(milliseconds: 300));
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response : $response');
+    expect(response, contains('"ttbkey$firstAtsign"'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
   tearDown(() {

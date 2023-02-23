@@ -13,13 +13,17 @@ class AtData extends HiveObject {
 
   @override
   String toString() {
-    return 'AtData{data: $data, metaData: ${metaData.toString()}';
+    return 'AtData{key:$key, data: $data, metaData: ${metaData.toString()}';
   }
 
   Map toJson() {
-    // ignore: omit_local_variable_types
     Map map = {};
-    map['key'] = Utf7.decode(key);
+    // If this AtData has been constructed from json there is no 'key' in the AtData object, since
+    // [fromJson] does not set a key (indeed, it cannot set a key as HiveObject doesn't allow that).
+    // So we do a null check here to ensure we don't cause Utf7.decode to throw an exception
+    if (key != null) {
+      map['key'] = Utf7.decode(key);
+    }
     map['data'] = data;
     map['metaData'] = metaData!.toJson();
     return map;
