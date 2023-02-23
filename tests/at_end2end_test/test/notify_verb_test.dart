@@ -58,7 +58,13 @@ void main() {
     expect(notificationJSON['id'], notificationId);
     expect(notificationJSON['fromAtSign'], atSign_2);
     expect(notificationJSON['toAtSign'], atSign_1);
-    expect(notificationJSON['notification'], 'email');
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh2.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(notificationJSON['notification'], 'email');
+    } else {
+      expect(notificationJSON['notification'], '$atSign_1:email$atSign_2');
+    }
     expect(notificationJSON['type'], 'NotificationType.sent');
     expect(notificationJSON['opType'], 'OperationType.update');
     expect(notificationJSON['messageType'], 'MessageType.key');
@@ -72,7 +78,13 @@ void main() {
     expect(notificationJSON['id'], notificationId);
     expect(notificationJSON['fromAtSign'], atSign_2);
     expect(notificationJSON['toAtSign'], atSign_1);
-    expect(notificationJSON['notification'], 'email');
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(notificationJSON['notification'], 'email');
+    } else {
+      expect(notificationJSON['notification'], '$atSign_1:email$atSign_2');
+    }
     expect(notificationJSON['type'], 'NotificationType.received');
     expect(notificationJSON['opType'], 'OperationType.update');
     expect(notificationJSON['messageType'], 'MessageType.key');
@@ -133,8 +145,13 @@ void main() {
     ///notify:list verb
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    print('notify list verb response : $response');
-    expect(response, contains('"key":"contact-no","value":null'));
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(response, contains('"key":"contact-no","value":null'));
+    } else {
+      expect(response, contains('"key":"$atSign_1:contact-no$atSign_2"'));
+    }
   });
 
   test('notify verb without messageType', () async {
@@ -158,8 +175,17 @@ void main() {
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
     print('notify list verb response : $response');
-    expect(response,
-        contains('"key":"fav-city","value":"$value","operation":"update"'));
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(response,
+          contains('"key":"fav-city","value":"$value","operation":"update"'));
+    } else {
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:fav-city$atSign_2","value":"$value","operation":"update"'));
+    }
   });
 
   test('notify verb for notifying a text update to another atSign', () async {
@@ -187,7 +213,13 @@ void main() {
     expect(notificationJSON['id'], notificationId);
     expect(notificationJSON['fromAtSign'], atSign_2);
     expect(notificationJSON['toAtSign'], atSign_1);
-    expect(notificationJSON['notification'], value);
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(notificationJSON['notification'], value);
+    } else {
+      expect(notificationJSON['notification'], '$atSign_1:$value');
+    }
     expect(notificationJSON['type'], 'NotificationType.received');
     expect(notificationJSON['opType'], 'OperationType.update');
     expect(notificationJSON['messageType'], 'MessageType.text');
@@ -213,8 +245,14 @@ void main() {
     await sh2.writeCommand('notify:list:email');
     response = await sh2.read();
     print('notify list verb response : $response');
-    expect(response,
-        contains('"key":"email","value":"null","operation":"delete"'));
+    //TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh2.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(response,
+          contains('"key":"email","value":"null","operation":"delete"'));
+    } else {
+      expect(response, contains('"key":"@cicd4:email@cicd3"'));
+    }
   });
 
   test('notify verb without giving message type value', () async {
@@ -476,7 +514,13 @@ void main() {
     var decodedJSON = jsonDecode(response);
     expect(decodedJSON['fromAtSign'], atSign_1);
     expect(decodedJSON['toAtSign'], atSign_2);
-    expect(decodedJSON['notification'], key);
+    // TODO: Remove version check after 3.0.28 version is released to production.
+    var serverResponse = Version.parse(await sh1.getVersion());
+    if (serverResponse > Version(3, 0, 27)) {
+      expect(decodedJSON['notification'], key);
+    } else {
+      expect(decodedJSON['notification'], '$atSign_2:$key$atSign_1');
+    }
     expect(decodedJSON['type'], 'NotificationType.sent');
     expect(decodedJSON['opType'], 'OperationType.update');
     expect(decodedJSON['messageType'], 'MessageType.key');
