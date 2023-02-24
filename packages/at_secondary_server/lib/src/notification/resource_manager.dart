@@ -12,15 +12,16 @@ import 'package:meta/meta.dart';
 
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
+  static final logger = AtSignLogger('NotificationResourceManager');
   static final ResourceManager _singleton = ResourceManager._internal();
+
   bool _isProcessingQueue = false;
 
   bool get isProcessingQueue => _isProcessingQueue;
 
-  bool _isStarted = false;
-  bool get isStarted => _isStarted;
-
   bool _nudged = false;
+
+  bool _started = false;
 
   static var maxRetries = AtSecondaryConfig.maxNotificationRetries;
 
@@ -30,26 +31,41 @@ class ResourceManager {
     return _singleton;
   }
 
-  void init(int outboundConnectionLimit) {
-    NotifyConnectionsPool.getInstance().init(outboundConnectionLimit);
-    _isStarted = true;
+  final NotifyConnectionsPool _notifyConnectionsPool = NotifyConnectionsPool.getInstance();
+
+  int get outboundConnectionLimit => _notifyConnectionsPool.size;
+  set outboundConnectionLimit (int ocl) => _notifyConnectionsPool.size = ocl;
+
+  void start() {
+    _started = true;
+    logger.info('start() called');
     Future.delayed(Duration(milliseconds: 0)).then((value) {
       _schedule();
     });
   }
 
-  final logger = AtSignLogger('NotificationResourceManager');
+  void stop() {
+    logger.info('stop() called');
+    _started = false;
+  }
+
   var quarantineDuration = AtSecondaryConfig.notificationQuarantineDuration;
   int notificationJobFrequency = AtSecondaryConfig.notificationJobFrequency;
 
   /// Ensures that notification processing starts immediately if it's not already
   void nudge() async {
+    if (_started == false) {
+      return;
+    }
     _nudged = true;
     unawaited(_processNotificationQueue());
   }
 
   ///Runs for every configured number of seconds(5).
   Future<void> _schedule() async {
+    if (_started == false) {
+      return;
+    }
     await _processNotificationQueue();
     var millisBetweenRuns = notificationJobFrequency * 1000;
     unawaited(Future.delayed(Duration(milliseconds: millisBetweenRuns))
@@ -57,22 +73,26 @@ class ResourceManager {
   }
 
   Future<void> _processNotificationQueue() async {
+    if (_started == false) {
+      return;
+    }
+
     if (_isProcessingQueue) {
       return;
     }
     _isProcessingQueue = true;
     _nudged = false;
-    String? atSign;
+
     late Iterator notificationIterator;
     try {
-      //1. Check how many outbound connections are free.
-      var N = NotifyConnectionsPool.getInstance().size;
+      //1. Find the cap on the notifyConnectionsPool size
+      var numberOfOutboundConnections = _notifyConnectionsPool.size;
 
       //2. Get the atsign on priority basis.
-      var atSignIterator = AtNotificationMap.getInstance().getAtSignToNotify(N);
+      var atSignIterator = AtNotificationMap.getInstance().getAtSignToNotify(numberOfOutboundConnections);
 
       while (atSignIterator.moveNext()) {
-        atSign = atSignIterator.current;
+        String atSign = atSignIterator.current;
         notificationIterator = QueueManager.getInstance().dequeue(atSign);
         //3. Connect to the atSign and send the notifications
         OutboundClient outboundClient;
@@ -89,7 +109,7 @@ class ResourceManager {
           await _enqueueErrorList(errorList);
           continue;
         }
-        await sendNotifications(atSign!, outboundClient, notificationIterator);
+        await sendNotifications(atSign, outboundClient, notificationIterator);
       }
     } on Exception catch (ex, stackTrace) {
       logger.severe("_processNotificationQueue() caught exception $ex");
@@ -106,8 +126,8 @@ class ResourceManager {
   /// Establish an outbound connection to [toAtSign]
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
-  Future<OutboundClient> _connect(String? toAtSign) async {
-    var outBoundClient = NotifyConnectionsPool.getInstance().get(toAtSign);
+  Future<OutboundClient> _connect(String toAtSign) async {
+    var outBoundClient = _notifyConnectionsPool.get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
         var isConnected = await outBoundClient.connect();

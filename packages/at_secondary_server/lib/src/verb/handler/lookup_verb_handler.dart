@@ -46,8 +46,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var atAccessLog =
         await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
-    var atSign = verbParams[AT_SIGN];
-    atSign = AtUtils.formatAtSign(atSign);
+    String atSign = verbParams[AT_SIGN]!;
+    atSign = AtUtils.formatAtSign(atSign)!;
     var key = verbParams[AT_KEY];
     key = '$key$atSign';
     var operation = verbParams[OPERATION];
@@ -71,7 +71,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
               response.data.toString(), currentAtSign);
         }
         try {
-          await atAccessLog!.insert(atSign!, lookup.name(), lookupKey: key);
+          await atAccessLog!.insert(atSign, lookup.name(), lookupKey: key);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }
@@ -86,7 +86,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (response.data == null ||
             response.data == '' ||
             byPassCacheStr == 'true') {
-          var outBoundClient = outboundClientManager.getClient(atSign, atConnection)!;
+          var outBoundClient = outboundClientManager.getClient(atSign, atConnection);
           // Need not connect again if the client's handshake is already done
           if (!outBoundClient.isHandShakeDone) {
             var connectResult = await outBoundClient.connect();
@@ -122,7 +122,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       //Omit all keys starting with '_' to record in access log
       if (!key.startsWith('_')) {
         try {
-          await atAccessLog!.insert(atSign!, lookup.name(), lookupKey: key);
+          await atAccessLog!.insert(atSign, lookup.name(), lookupKey: key);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }

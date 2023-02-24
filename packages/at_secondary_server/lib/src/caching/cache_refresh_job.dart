@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_utils/at_logger.dart';
@@ -25,8 +26,9 @@ class AtCacheRefreshJob {
     int valueUnchanged = 0;
     int valueChanged = 0;
     int deletedByRemote = 0;
+    int exceptionFromRemote = 0;
     try {
-      var keysToRefresh = await cacheManager.getCachedKeyNames();
+      var keysToRefresh = await cacheManager.getKeyNamesToRefresh();
 
       var itr = keysToRefresh.iterator;
       while (itr.moveNext()) {
@@ -36,9 +38,13 @@ class AtCacheRefreshJob {
         AtData? newValue;
 
         try {
-          newValue = await cacheManager.remoteLookUp(cachedKeyName);
+          newValue = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: false);
+        } on KeyNotFoundException {
+          deletedByRemote++;
+          continue;
         } catch (e) {
           logger.info("Exception while trying to get latest value for $cachedKeyName : $e");
+          exceptionFromRemote++;
           continue;
         }
         // If new value is null, it means it no longer exists. We need to remove it from our cache.
@@ -69,7 +75,8 @@ class AtCacheRefreshJob {
       "keysChecked":keysChecked,
       "valueUnchanged":valueUnchanged,
       "valueChanged":valueChanged,
-      "deletedByRemote":deletedByRemote
+      "deletedByRemote":deletedByRemote,
+      "exceptionFromRemote":exceptionFromRemote
     }.toString();
   }
 

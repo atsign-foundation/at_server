@@ -50,25 +50,6 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var keyName = '$entityName$atSign';
     var cachedKeyName = 'cached:public:$keyName';
 
-    //If key is cached, return cached value.
-     var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
-    var result = SecondaryUtil.prepareResponseData(operation, atData);
-    // If cached key value is null or byPassCache is true, perform a remote plookup.
-    if (result == null || byPassCacheStr == 'true') {
-      AtData? atData = await cacheManager.remoteLookUp(cachedKeyName);
-      if (atData == null) {
-        await cacheManager.delete(cachedKeyName);
-        return;
-      }
-
-      // Cache keys only if currentAtSign is not equal to the owner of the key being looked up
-      if (cacheManager.atSign != atSign) {
-        await cacheManager.put(cachedKeyName, atData);
-      }
-
-      result = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: keyName);
-    }
-    response.data = result;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
@@ -76,6 +57,19 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }
+
+    // First, check if we've even got a cached value
+    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+    var result = SecondaryUtil.prepareResponseData(operation, atData);
+
+    // If we don't have a cached value, or byPassCache parameter is set to 'true', then do a remote lookUp.
+    if (result == null || byPassCacheStr == 'true') {
+      AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
+      if (atData != null) {
+        result = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: keyName);
+      }
+    }
+    response.data = result;
     return;
   }
 }

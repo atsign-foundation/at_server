@@ -54,7 +54,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var fromAtSign = atConnectionMetadata.fromAtSign;
+    String fromAtSign = atConnectionMetadata.fromAtSign!;
     var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign
@@ -103,9 +103,9 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param fromAtSign : atsign who look up to the current atsign server
   /// @param atConnection : The inbound connection.
   /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
-  Future<List> _getSentNotifications(List responseList, String? fromAtSign,
+  Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection)!;
+    var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection);
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();

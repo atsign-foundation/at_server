@@ -102,7 +102,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
-    var outBoundClient = outboundClientManager.getClient(forAtSign, atConnection)!;
+    var outBoundClient = outboundClientManager.getClient(forAtSign, atConnection);
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {

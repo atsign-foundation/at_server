@@ -16,8 +16,8 @@ class AtCacheManager {
 
   AtCacheManager(this.atSign, this.keyStore, this.outboundClientManager);
 
-  /// Returns a List of keyNames of all cached records
-  Future<List<String>> getCachedKeyNames() async {
+  /// Returns a List of keyNames of all cached records due to refresh
+  Future<List<String>> getKeyNamesToRefresh() async {
     List<String> keysList = keyStore.getKeys(regex: CACHED);
     var cachedKeys = <String>[];
     var now = DateTime.now().toUtc();
@@ -26,58 +26,111 @@ class AtCacheManager {
     while (itr.moveNext()) {
       var key = itr.current;
       AtMetaData? metadata = await keyStore.getMeta(key);
-      // Setting metadata.ttr = -1 represents not to updated the cached key.
-      // Hence skipping the key from refresh job.
-      if (metadata == null || metadata.ttr == -1) {
+
+      if (metadata == null) {
+        // Should never be true. Log a warning.
+        logger.warning('getKeyNamesToRefresh: Null metadata for $key');
         continue;
       }
-      if (metadata.ttr != -1 &&
-          metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
-        continue;
-      }
-      // If metadata.availableAt is in the future, key's TTB is not met.
+
+      // If metadata.availableAt is in the future, key's TTB is not met, we should not refresh
       if (metadata.availableAt != null &&
           metadata.availableAt!.millisecondsSinceEpoch >= nowInEpoch) {
         continue;
       }
-      // If metadata.expiresAt is in the past, key's TTL is expired.
+
+      // If metadata.expiresAt is in the past, key's TTL is expired, we should not refresh.
+      // TODO Should we actually remove it at this point?
       if (metadata.expiresAt != null &&
           nowInEpoch >= metadata.expiresAt!.millisecondsSinceEpoch) {
         continue;
       }
+
+      // Is this cached key supposed to auto-refresh? Values of null or -1 mean no, you can cache indefinitely.
+      if (metadata.ttr == null || metadata.ttr == -1) {
+        continue;
+      }
+
+      // Is it time to refresh yet?
+      if (metadata.refreshAt != null && metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
+        continue;
+      }
+
       cachedKeys.add(key);
     }
     return cachedKeys;
   }
 
-  /// Looks up the value of a key, which we've cached locally, on another secondary
-  /// server. Figures out whether to use an unauthenticated lookup (for a cachedKeyName
-  /// that starts with `cached:public:`) or an authenticated lookup (for a cachedKeyName
-  /// that starts with `cached:@myAtSign:`)
-  Future<AtData?> remoteLookUp(String cachedKeyName) async {
+  /// Looks up the value of a key on another atServer. Figures out whether to use
+  /// * an unauthenticated lookup (for a cachedKeyName / that starts with `cached:public:`)
+  /// * or an authenticated lookup (for a cachedKeyName / that starts with `cached:@myAtSign:`)
+  ///
+  /// If [maintainCache] is set to true, then remoteLookUp will update the cache as required:
+  ///   * If we get a 'null' response, delete from the cache
+  ///   * If we get KeyNotFoundException, delete from the cache
+  ///   * If we get a valid response, update the cache
+  ///
+  /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
+  Future<AtData?> remoteLookUp(String cachedKeyName, {bool maintainCache = false}) async {
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException('AtCacheManager.remoteLookUp called with invalid cachedKeyName $cachedKeyName');
     }
 
     String? remoteResponse;
-    if (cachedKeyName.startsWith('cached:public:')) {
-      String remoteKeyName = cachedKeyName.replaceAll('cached:public:', '');
-      remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
-    } else if (cachedKeyName.startsWith('cached:$atSign')) {
-      String remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
-      remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
-    } else {
-      throw IllegalArgumentException('remoteLookup called with invalid cachedKeyName $cachedKeyName');
+    String? remoteKeyName;
+    try {
+      if (cachedKeyName.startsWith('cached:public:')) {
+        remoteKeyName = cachedKeyName.replaceAll('cached:public:', '');
+        remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
+      } else if (cachedKeyName.startsWith('cached:$atSign')) {
+        remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
+        remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
+      } else {
+        throw IllegalArgumentException('remoteLookup called with invalid cachedKeyName $cachedKeyName');
+      }
+    } on KeyNotFoundException {
+      if (maintainCache) {
+        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
+            ' - removing $cachedKeyName from cache');
+        await delete(cachedKeyName);
+      } else {
+        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
+            ' - but maintainCache is false, so leaving $cachedKeyName in cache');
+      }
+      rethrow;
     }
 
     // OutboundMessageListener will throw exceptions upon any 'error:' responses, malformed response, or timeouts
     // So we only have to worry about 'data:' response here
     remoteResponse = remoteResponse!.replaceAll('data:', '');
     if (remoteResponse == 'null') {
-      return null;
+      if (maintainCache) {
+        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName'
+            ' - removing $cachedKeyName from cache');
+        await delete(cachedKeyName);
+      } else {
+        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName'
+            ' - but maintainCache is false, so leaving $cachedKeyName in cache');
+      }
+      throw KeyNotFoundException("remoteLookUp: remote atServer returned String value 'null' for $remoteKeyName");
     }
 
-    return AtData().fromJson(jsonDecode(remoteResponse));
+    AtData atData = AtData().fromJson(jsonDecode(remoteResponse));
+
+    // We only cache other people's stuff
+    if (cachedKeyName.endsWith(atSign)) {
+      // TODO Why would we ever do a 'remote' lookup on our own stuff?
+      logger.warning('Bizarrely, we did a remoteLookup of our own data $remoteKeyName');
+    } else {
+      if (maintainCache) {
+        logger.info('remoteLookUp: Successfully looked up $remoteKeyName - updating cache for $cachedKeyName');
+        await put(cachedKeyName, atData);
+      } else {
+        logger.info('remoteLookUp: Successfully looked up $remoteKeyName - but maintainCache is false, so not adding to cache');
+      }
+    }
+
+    return atData;
   }
 
   /// Fetch the currently cached value, if any.
@@ -155,7 +208,7 @@ class AtCacheManager {
     var otherAtSign = key.substring(index);
     var outBoundClient = outboundClientManager.getClient(
         otherAtSign, DummyInboundConnection(),
-        isHandShake: isHandShake)!;
+        isHandShake: isHandShake);
     // Need not connect again if the client's handshake is already done
 
     if (!outBoundClient.isHandShakeDone) {

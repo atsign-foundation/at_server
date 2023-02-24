@@ -68,10 +68,7 @@ class OutboundMessageListener {
   /// Throws [AtConnectException] upon an 'error:...' response from the remote secondary.
   /// Throws [AtConnectException] upon a bad response (not 'data:...', not 'error:...') from remote secondary.
   /// Throws [TimeoutException] If there is no message in queue after [maxWaitMilliSeconds].
-  Future<String?> read({int maxWaitMilliSeconds = 3000}) async {
-    // ignore: prefer_typing_uninitialized_variables
-    var result;
-
+  Future<String> read({int maxWaitMilliSeconds = 3000}) async {
     //wait maxWaitMilliSeconds seconds for response from remote socket
     var loopCount = (maxWaitMilliSeconds / 50).round();
 
@@ -79,7 +76,7 @@ class OutboundMessageListener {
       await Future.delayed(Duration(milliseconds: 50));
       var queueLength = _queue.length;
       if (queueLength > 0) {
-        result = _queue.removeFirst();
+        String result = _queue.removeFirst();
         // result from another secondary should be either data: or error: or a @<atSign>@ denoting handshake completion
         if (result.startsWith('data:') ||
             (result.startsWith('@') && result.endsWith('@'))) {

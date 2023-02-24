@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
@@ -20,20 +22,16 @@ class OutboundClient {
   var logger = AtSignLogger('OutboundClient');
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
-  InboundConnection inboundConnection;
 
-  OutboundConnection? outboundConnection;
+  final InboundConnection inboundConnection;
+  final String toAtSign;
 
-  String? toAtSign;
   String? toHost;
   String? toPort;
-
+  OutboundConnection? outboundConnection;
   bool isConnectionCreated = false;
-
   bool isHandShakeDone = false;
-
   DateTime lastUsed = DateTime.now();
-
 
   @override
   String toString() {
@@ -71,6 +69,9 @@ class OutboundClient {
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
       messageListener.listen();
+
+      await checkRemotePublicKey();
+
       // 3. Establish handshake if required
       if (handshake) {
         result = await _establishHandShake();
@@ -88,11 +89,58 @@ class OutboundClient {
       logger.severe('HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     }
+
     lastUsed = DateTime.now();
     return result;
   }
 
+  /// This method is called by [connect] after the connection has been established, but
+  /// before the connection has been authenticated (because looking up public data on another
+  /// atServer requires the connection be unauthenticated).
+  /// 1. Gets the `publickey@atSign` from the remote atServer
+  /// 2. If got a response, calls [AtCacheManager.put] on [cacheManager]
+  /// 3. If we got a KeyNotFound  from remote atServer, calls [AtCacheManager.delete] on [cacheManager]
+  /// If [cacheManager] not supplied, fall back (for now) to the server singleton's cacheManager.
+  Future<void> checkRemotePublicKey({AtCacheManager? cacheManager}) async {
+    var remotePublicKeyName = 'publickey$toAtSign';
+    var cachedPublicKeyName = 'cached:public:$remotePublicKeyName';
+    late AtData atData;
+    late String remoteResponse;
+
+    cacheManager ??= AtSecondaryServerImpl.getInstance().cacheManager;
+
+    try {
+      remoteResponse = (await lookUp('all:$remotePublicKeyName', handshake: false))!;
+    } on KeyNotFoundException {
+      try {
+        logger.warning('checkRemotePublicKey: got KeyNotFoundException from remote atServer for $remotePublicKeyName - removing from cache');
+        await cacheManager.delete(cachedPublicKeyName);
+      } catch (e, st) {
+        logger.severe('Caught $e while removing $cachedPublicKeyName from cache');
+        logger.severe(st);
+      }
+      return;
+    }
+
+    String doing = 'removing "data:" from the response';
+    try {
+      if (remoteResponse.startsWith('data:')) {
+        remoteResponse = remoteResponse.replaceFirst('data:', '');
+      }
+      doing = 'parsing response from looking up $remotePublicKeyName';
+      atData = AtData().fromJson(jsonDecode(remoteResponse));
+
+      doing = 'updating $cachedPublicKeyName in cache';
+      await AtSecondaryServerImpl.getInstance().cacheManager.put(cachedPublicKeyName, atData);
+    } catch (e, st) {
+      logger.severe('Caught $e while $doing');
+      logger.severe(st);
+      return;
+    }
+  }
+
   Future<String> _findSecondary(toAtSign) async {
+    // ignore: deprecated_member_use
     var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
         toAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
@@ -132,7 +180,7 @@ class OutboundClient {
 
       //2. Receive proof
       var fromResult = await messageListener.read();
-      if (fromResult == null || fromResult == '') {
+      if (fromResult == '') {
         throw HandShakeException(
             'no response received for From:$toAtSign command');
       }
@@ -151,10 +199,6 @@ class OutboundClient {
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
-      if (handShakeResult == null) {
-        await outboundConnection!.close();
-        throw HandShakeException('no response received for pol command');
-      }
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       if (handShakeResult.startsWith('$currentAtSign@')) {
         result = true;
@@ -179,7 +223,10 @@ class OutboundClient {
   Future<String?> lookUp(String key, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
-          'Handshake did not succeed. Cannot perform a lookup');
+          'Handshake not complete. Cannot perform a lookup');
+    }
+    if (isHandShakeDone && !handshake) {
+      throw LookupException("Handshake has been done, but we require handshake false");
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
@@ -193,11 +240,8 @@ class OutboundClient {
     }
 
     // Actually read the response from the remote secondary
-    var lookupResult = await messageListener.read();
-
-    if (lookupResult != null) {
-      lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
-    }
+    String lookupResult = await messageListener.read();
+    lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return lookupResult;
   }
@@ -222,9 +266,7 @@ class OutboundClient {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
-    if (scanResult != null) {
-      scanResult = scanResult.replaceFirst(RegExp(r'\n\S+'), '');
-    }
+    scanResult = scanResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return scanResult;
   }
