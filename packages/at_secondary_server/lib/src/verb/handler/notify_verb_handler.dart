@@ -31,7 +31,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// A hashmap which holds the AtMetadata objects.
   /// The key represents if the notification text is encrypted or not
   /// The value represents the AtMetadata object where isEncrypted flag set to appropriate state.
-  final Map<bool, AtMetaData> _atMetadataPool = {};
+  final Map<bool, AtMetaData> _atMetadataPool = {
+    true: AtMetaData()
+      ..isEncrypted = true
+      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign,
+    false: AtMetaData()
+      ..isEncrypted = false
+      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign
+  };
 
   @override
   bool accept(String command) =>
@@ -67,130 +74,140 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var key = verbParams[AT_KEY];
       logger.finer(
           'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${atSign.toString()} \n key : $key');
-
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
       // Else, store the notification to keystore and notify to the toAtSign.
       if (atConnectionMetadata.isAuthenticated) {
-        logger.finer(
-            'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
-        final atNotificationBuilder =
-            _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
-        // If the currentAtSign and forAtSign are same, store the notification to keystore
-        // and return
-        if (currentAtSign == forAtSign) {
-          // Since notification is stored to keystore, marking the notification
-          // status as delivered
-          atNotificationBuilder.notificationStatus =
-              NotificationStatus.delivered;
-          var notificationId = await NotificationUtil.storeNotification(
-              atNotificationBuilder.build());
-          response.data = notificationId;
-          return;
-        }
-        // Send the notification to notification queue manager to notify to the forAtSign
-        // and return the notification Id to the currentAtSign
-        var notificationId = await NotificationManager.getInstance()
-            .notify(atNotificationBuilder.build());
-        response.data = notificationId;
-        return;
+        await _handleAuthenticatedConnection(
+            currentAtSign, forAtSign, atSign, verbParams, response);
       }
-
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
-      if (atConnectionMetadata.isPolAuthenticated) {
-        logger.info('Storing the notification $key');
-        var atNotificationBuilder = _populateNotificationBuilder(verbParams,
-            fromAtSign: atConnectionMetadata.fromAtSign!);
-        // When messageType is text, "atMetadata.isEncrypted" represents if the
-        // message is encrypted or not.
-        // To prevent creating AtMetadata instances for every notification,
-        // Creating AtMetadata instance on demand and adding it pool to reuse.
-        if (atNotificationBuilder.messageType == MessageType.text) {
-          atNotificationBuilder.atMetaData = _atMetadataPool.putIfAbsent(
-              SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED]),
-              () => AtMetaData()
-                ..isEncrypted =
-                    SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])
-                ..createdBy =
-                    AtSecondaryServerImpl.getInstance().currentAtSign);
-        } else {
-          // Populate the metadata from the verbParams
-          atNotificationBuilder.atMetaData =
-              _getAtMetadataForNotification(verbParams);
-        }
-        // Store the notification to the notification keystore.
-        await NotificationUtil.storeNotification(atNotificationBuilder.build());
-        OperationType operationType = getOperationType(verbParams[OPERATION]);
-        // When Operation is update, cache key only when TTR is set.
-        // So if TTR is null,  do nothing.
-        // Also, If operation is delete removed the cached key - irrespective of TTR value.
-        // So, If operation is not delete and TTR is null, return.
-        if (operationType != OperationType.delete &&
-            (_getTimeToRefresh(verbParams[AT_TTR]) == null)) {
-          response.data = 'data:success';
-          return;
-        }
-        // form a cached key
-        String cachedNotificationKey = CACHED;
-        // NOTE: When a public key is notified to the atSign, do not append the
-        // forAtSign to the cachedNotificationKey
-        // If forAtSign is not null and key does not start with public
-        // add the forAtSign to the cachedNotificationKey.
-        if (forAtSign != null && (!key!.startsWith('public:'))) {
-          cachedNotificationKey += ':$forAtSign';
-        }
-        cachedNotificationKey += ':$key$atSign';
-        // If operationType is delete, remove the cached key only
-        // when cascade delete is set to true
-        int? cachedKeyCommitId;
-        if (operationType == OperationType.delete) {
-          cachedKeyCommitId = await _removeCachedKey(cachedNotificationKey);
-          //write the latest commit id to the StatsNotificationService
-          _writeStats(cachedKeyCommitId, operationType.name);
-          response.data = 'data:success';
-          return;
-        }
-
-        var isKeyPresent = keyStore.isKeyExists(cachedNotificationKey);
-        AtMetaData? atMetadata;
-        if (isKeyPresent) {
-          atMetadata = await keyStore.getMeta(cachedNotificationKey);
-        }
-        // If TTR (time to refresh) is set and atValue is not null,
-        // store a cached key
-        if (_getTimeToRefresh(verbParams[AT_TTR]) != null &&
-            atNotificationBuilder.atValue != null) {
-          var metadata = AtMetadataBuilder(
-                  newAtMetaData: atNotificationBuilder.atMetaData,
-                  existingMetaData: atMetadata)
-              .build();
-
-          cachedKeyCommitId = await _storeCachedKeys(
-              cachedNotificationKey, metadata,
-              atValue: atNotificationBuilder.atValue);
-          //write the latest commit id to the StatsNotificationService
-          _writeStats(cachedKeyCommitId, operationType.name);
-          response.data = 'data:success';
-          return;
-        }
-
-        // Update metadata only if key is cached.
-        if (isKeyPresent) {
-          var atMetaData = atNotificationBuilder.atMetaData;
-          cachedKeyCommitId =
-              await _updateMetadata(cachedNotificationKey, atMetaData);
-          //write the latest commit id to the StatsNotificationService
-          _writeStats(cachedKeyCommitId, operationType.name);
-          response.data = 'data:success';
-          return;
-        }
-        response.data = 'data:success';
+      else if (atConnectionMetadata.isPolAuthenticated) {
+        await _handlePolAuthenticatedConnection(
+            key, verbParams, atConnectionMetadata, response, forAtSign, atSign);
       }
     } finally {
       processNotificationMutex.release();
     }
+  }
+
+  Future<void> _handlePolAuthenticatedConnection(
+      String? key,
+      HashMap<String, String?> verbParams,
+      InboundConnectionMetadata atConnectionMetadata,
+      Response response,
+      String? forAtSign,
+      String? atSign) async {
+    logger.info('Storing the notification $key');
+    var atNotificationBuilder = _populateNotificationBuilder(verbParams,
+        fromAtSign: atConnectionMetadata.fromAtSign!);
+    // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
+    // When messageType is text, atNotificationBuilder.atMetadata fields are
+    // not applicable except "atMetadata.isEncrypted".
+    // So "atNotificationBuilder.atMetadata" will be overwritten
+    // "atMetadata.isEncrypted" represents if the message is encrypted or not.
+    if (atNotificationBuilder.messageType == MessageType.text) {
+      atNotificationBuilder.atMetaData = _atMetadataPool[
+          SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])];
+    }
+    // Store the notification to the notification keystore.
+    await NotificationUtil.storeNotification(atNotificationBuilder.build());
+    OperationType operationType = getOperationType(verbParams[OPERATION]);
+    // When Operation is update, cache key only when TTR is set.
+    // So if TTR is null,  do nothing.
+    // Also, If operation is delete removed the cached key - irrespective of TTR value.
+    // So, If operation is not delete and TTR is null, return.
+    if (operationType != OperationType.delete &&
+        (_getTimeToRefresh(verbParams[AT_TTR]) == null)) {
+      response.data = 'data:success';
+      return;
+    }
+    // form a cached key
+    String cachedNotificationKey = CACHED;
+    // NOTE: when notifying the public keys to cache, the forAtSign contains the
+    // receiver atSign and the key contains "public:<key-entity>"
+    // When caching a public key, do not append the forAtSign to the
+    // cachedNotificationKey
+    if (forAtSign != null && (!key!.startsWith('public:'))) {
+      cachedNotificationKey += ':$forAtSign';
+    }
+    cachedNotificationKey += ':$key$atSign';
+    // If operationType is delete, remove the cached key only
+    // when cascade delete is set to true
+    int? cachedKeyCommitId;
+    if (operationType == OperationType.delete) {
+      cachedKeyCommitId = await _removeCachedKey(cachedNotificationKey);
+      //write the latest commit id to the StatsNotificationService
+      _writeStats(cachedKeyCommitId, operationType.name);
+      response.data = 'data:success';
+      return;
+    }
+
+    var isKeyPresent = keyStore.isKeyExists(cachedNotificationKey);
+    AtMetaData? atMetadata;
+    // If atValue is not null, store a cached key
+    if (atNotificationBuilder.atValue != null) {
+      // If the cached key is already present, get the existing metadata
+      // and update the new metadata.
+      if (isKeyPresent) {
+        atMetadata = await keyStore.getMeta(cachedNotificationKey);
+      }
+      var metadata = AtMetadataBuilder(
+              newAtMetaData: atNotificationBuilder.atMetaData,
+              existingMetaData: atMetadata)
+          .build();
+      cachedKeyCommitId = await _storeCachedKeys(
+          cachedNotificationKey, metadata,
+          atValue: atNotificationBuilder.atValue);
+      //write the latest commit id to the StatsNotificationService
+      _writeStats(cachedKeyCommitId, operationType.name);
+      response.data = 'data:success';
+      return;
+    }
+    // The updateMetadata gets invoked via the update_meta verb to update the
+    // cached key metadata.
+    else if (isKeyPresent) {
+      var atMetaData = atNotificationBuilder.atMetaData;
+      cachedKeyCommitId =
+          await _updateMetadata(cachedNotificationKey, atMetaData);
+      //write the latest commit id to the StatsNotificationService
+      _writeStats(cachedKeyCommitId, operationType.name);
+      response.data = 'data:success';
+      return;
+    }
+    response.data = 'data:success';
+    return;
+  }
+
+  Future<void> _handleAuthenticatedConnection(
+      currentAtSign,
+      String? forAtSign,
+      String? atSign,
+      HashMap<String, String?> verbParams,
+      Response response) async {
+    logger.finer(
+        'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
+    final atNotificationBuilder =
+        _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
+    // If the currentAtSign and forAtSign are same, store the notification to keystore
+    // and return
+    if (currentAtSign == forAtSign) {
+      // Since notification is stored to keystore, marking the notification
+      // status as delivered
+      atNotificationBuilder.notificationStatus = NotificationStatus.delivered;
+      var notificationId = await NotificationUtil.storeNotification(
+          atNotificationBuilder.build());
+      response.data = notificationId;
+      return;
+    }
+    // Send the notification to notification queue manager to notify to the forAtSign
+    // and return the notification Id to the currentAtSign
+    var notificationId = await NotificationManager.getInstance()
+        .notify(atNotificationBuilder.build());
+    response.data = notificationId;
+    return;
   }
 
   /// Create (or) update the cached key.
