@@ -72,6 +72,7 @@ class AtCacheManager {
   ///
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
   Future<AtData?> remoteLookUp(String cachedKeyName, {bool maintainCache = false}) async {
+    logger.info("remoteLookUp: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException('AtCacheManager.remoteLookUp called with invalid cachedKeyName $cachedKeyName');
     }
@@ -139,6 +140,7 @@ class AtCacheManager {
   ///   * Is this record 'active' i.e. it is non-null, it's been 'born', and it is still 'alive'
   ///   * Has this record been
   Future<AtData?> get(String cachedKeyName, {required bool applyMetadataRules}) async {
+    logger.info("get: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException('AtCacheManager.get called with invalid cachedKeyName $cachedKeyName');
     }
@@ -178,6 +180,7 @@ class AtCacheManager {
 
   /// Delete cached record
   Future<void> delete(String cachedKeyName) async {
+    logger.info("delete: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException('AtCacheManager.delete called with invalid cachedKeyName $cachedKeyName');
     }
@@ -192,6 +195,7 @@ class AtCacheManager {
 
   /// Update the cached data.
   Future<void> put(String cachedKeyName, AtData atData) async {
+    logger.info("put: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName');
     }
@@ -204,6 +208,7 @@ class AtCacheManager {
 
   /// Does the remote lookup - returns the atProtocol string which it receives
   Future<String?> _remoteLookUp(String key, {required bool isHandShake}) async {
+    logger.info("_remoteLookup: $key");
     var index = key.indexOf('@');
     var otherAtSign = key.substring(index);
     var outBoundClient = outboundClientManager.getClient(

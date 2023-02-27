@@ -8,7 +8,7 @@ class OutboundConnectionImpl extends OutboundConnection {
       AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
 
   OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket) {
-    var sessionId = '_' + Uuid().v4();
+    var sessionId = '_${Uuid().v4()}';
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
       ..toAtSign = toAtSign

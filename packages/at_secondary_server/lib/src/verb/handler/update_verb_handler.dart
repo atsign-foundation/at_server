@@ -75,8 +75,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     }
     try {
       // Get the key and update the value
-      var forAtSign = updateParams.sharedWith;
-      var atSign = updateParams.sharedBy;
+      var sharedWith = updateParams.sharedWith;
+      var sharedBy = updateParams.sharedBy;
       var key = updateParams.atKey;
       var value = updateParams.value;
       var atData = AtData();
@@ -94,13 +94,13 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       String? encoding = updateParams.metadata!.encoding;
 
       // Get the key using verbParams (forAtSign, key, atSign)
-      if (forAtSign != null) {
-        forAtSign = AtUtils.formatAtSign(forAtSign);
-        key = '$forAtSign:$key';
+      if (sharedWith != null) {
+        sharedWith = AtUtils.formatAtSign(sharedWith);
+        key = '$sharedWith:$key';
       }
-      if (atSign != null) {
-        atSign = AtUtils.formatAtSign(atSign);
-        key = '$key$atSign';
+      if (sharedBy != null) {
+        sharedBy = AtUtils.formatAtSign(sharedBy);
+        key = '$key$sharedBy';
       }
       // Append public: as prefix if key is public
       if (updateParams.metadata!.isPublic != null &&
@@ -116,8 +116,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       //cached key.
       if (ttrMillis != null &&
           ttrMillis > 0 &&
-          atSign != null &&
-          atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
+          sharedBy != null &&
+          sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
         key = 'cached:$key';
       }
 
@@ -135,8 +135,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
       if (_autoNotify!) {
         _notify(
-            atSign,
-            forAtSign,
+            sharedBy,
+            sharedWith,
             verbParams[AT_KEY],
             value,
             SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),

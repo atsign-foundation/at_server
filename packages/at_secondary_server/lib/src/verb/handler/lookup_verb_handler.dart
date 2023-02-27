@@ -6,7 +6,6 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -42,25 +41,25 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var thisServersAtSign = cacheManager.atSign;
     var atAccessLog =
-        await AtAccessLogManagerImpl.getInstance().getAccessLog(currentAtSign);
+        await AtAccessLogManagerImpl.getInstance().getAccessLog(thisServersAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
-    String atSign = verbParams[AT_SIGN]!;
-    atSign = AtUtils.formatAtSign(atSign)!;
+    String keyOwnersAtSign = verbParams[AT_SIGN]!;
+    keyOwnersAtSign = AtUtils.formatAtSign(keyOwnersAtSign)!;
     var key = verbParams[AT_KEY];
-    key = '$key$atSign';
+    key = '$key$keyOwnersAtSign';
     var operation = verbParams[OPERATION];
     String? byPassCacheStr = verbParams[bypassCache];
 
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${atSign.toString()} \n key : $key');
+        'fromAtSign : $fromAtSign \n atSign : ${keyOwnersAtSign.toString()} \n key : $key');
     // Connection is authenticated and the currentAtSign is not atSign
     // lookUp secondary of atSign for the key
     if (atConnectionMetadata.isAuthenticated) {
-      if (currentAtSign == atSign) {
+      if (thisServersAtSign == keyOwnersAtSign) {
         // We're looking up data owned by this server's atSign
-        var lookupKey = currentAtSign + ':' + key;
+        var lookupKey = '$thisServersAtSign:$key';
         var lookupValue = await keyStore.get(lookupKey);
         response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
 
@@ -68,16 +67,16 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (response.data != null &&
             response.data!.contains(AT_VALUE_REFERENCE)) {
           response.data = await resolveValueReference(
-              response.data.toString(), currentAtSign);
+              response.data.toString(), thisServersAtSign);
         }
         try {
-          await atAccessLog!.insert(atSign, lookup.name(), lookupKey: key);
+          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: key);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }
       } else {
         // We're looking up data owned by another atSign.
-        String cachedKeyName = '$CACHED:$currentAtSign:$key';
+        String cachedKeyName = '$CACHED:$thisServersAtSign:$key';
         //Get cached value.
         AtData? cachedValue = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
         response.data = SecondaryUtil.prepareResponseData(operation, cachedValue);
@@ -86,7 +85,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (response.data == null ||
             response.data == '' ||
             byPassCacheStr == 'true') {
-          var outBoundClient = outboundClientManager.getClient(atSign, atConnection);
+          var outBoundClient = outboundClientManager.getClient(keyOwnersAtSign, atConnection);
           // Need not connect again if the client's handshake is already done
           if (!outBoundClient.isHandShakeDone) {
             var connectResult = await outBoundClient.connect();
@@ -122,7 +121,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       //Omit all keys starting with '_' to record in access log
       if (!key.startsWith('_')) {
         try {
-          await atAccessLog!.insert(atSign, lookup.name(), lookupKey: key);
+          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: key);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }

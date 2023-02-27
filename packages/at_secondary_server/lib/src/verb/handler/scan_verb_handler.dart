@@ -59,8 +59,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // Throw UnAuthenticatedException.
     // When looking up keys of another atsign and connection is not authenticated,
     if (forAtSign != null && !atConnectionMetadata.isAuthenticated) {
-      throw UnAuthenticatedException(
-          'Scan to another atsign cannot be performed without auth');
+      throw UnAuthenticatedException('Scan to another atsign cannot be performed without auth');
     }
     try {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,

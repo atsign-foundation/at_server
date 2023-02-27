@@ -10,7 +10,7 @@ class OutboundMessageListener {
   OutboundClient outboundClient;
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
-  late Queue _queue;
+  Queue _queue = Queue();
 
   OutboundMessageListener(this.outboundClient);
 
@@ -19,7 +19,6 @@ class OutboundMessageListener {
   void listen() async {
     outboundClient.outboundConnection?.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
-    _queue = Queue();
     outboundClient.outboundConnection?.getMetaData().isListening = true;
   }
 

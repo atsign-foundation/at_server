@@ -15,6 +15,7 @@ import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 // Connects to an secondary and performs required handshake to be ready to run rest of the commands
 /// Handshake involves running "from", "pol" verbs on the secondary
@@ -32,6 +33,13 @@ class OutboundClient {
   bool isConnectionCreated = false;
   bool isHandShakeDone = false;
   DateTime lastUsed = DateTime.now();
+  int lookupTimeoutMillis = 5 * 1000;
+  int notifyTimeoutMillis = 10 * 1000;
+
+  at_lookup.SecondaryAddressFinder? secondaryAddressFinder;
+
+  @visibleForTesting
+  bool productionMode = true;
 
   @override
   String toString() {
@@ -41,7 +49,13 @@ class OutboundClient {
 
   late OutboundMessageListener messageListener;
 
-  OutboundClient(this.inboundConnection, this.toAtSign);
+  late OutboundConnectionFactory _outboundConnectionFactory;
+
+  OutboundClient(this.inboundConnection, this.toAtSign,
+      {this.secondaryAddressFinder, OutboundConnectionFactory? outboundConnectionFactory}) {
+    outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
+    _outboundConnectionFactory = outboundConnectionFactory;
+  }
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
   /// Handshake involves running "from", "pol" verbs on the secondary
@@ -58,13 +72,11 @@ class OutboundClient {
       // 1. Find secondary url for the toAtSign
       var secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
-      toHost = secondaryInfo[0];
-      toPort = secondaryInfo[1];
+      String toHost = secondaryInfo[0];
+      int toPort = int.parse(secondaryInfo[1]);
       // 2. Create an outbound connection for the host and port
-      var connectResult = await _createOutBoundConnection(toHost, toPort, toAtSign);
-      if (connectResult) {
-        isConnectionCreated = true;
-      }
+      outboundConnection = await _outboundConnectionFactory.createOutboundConnection(toHost, toPort, toAtSign);
+      isConnectionCreated = true;
 
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
@@ -107,18 +119,14 @@ class OutboundClient {
     late AtData atData;
     late String remoteResponse;
 
+    // TODO : This is only necessary until we have won the long war on singletons and can inject CacheManager at construction time
     cacheManager ??= AtSecondaryServerImpl.getInstance().cacheManager;
 
     try {
       remoteResponse = (await lookUp('all:$remotePublicKeyName', handshake: false))!;
     } on KeyNotFoundException {
-      try {
-        logger.warning('checkRemotePublicKey: got KeyNotFoundException from remote atServer for $remotePublicKeyName - removing from cache');
-        await cacheManager.delete(cachedPublicKeyName);
-      } catch (e, st) {
-        logger.severe('Caught $e while removing $cachedPublicKeyName from cache');
-        logger.severe(st);
-      }
+      // Do nothing - as per spec for reset handling
+      // TODO Actually add some of this stuff into the atProtocol specification
       return;
     }
 
@@ -131,7 +139,21 @@ class OutboundClient {
       atData = AtData().fromJson(jsonDecode(remoteResponse));
 
       doing = 'updating $cachedPublicKeyName in cache';
-      await AtSecondaryServerImpl.getInstance().cacheManager.put(cachedPublicKeyName, atData);
+      // Note: Yes, this is updating the cache. But potentially it's doing something much more.
+      // If the value of the public key has changed, we are dealing with the aftermath of an
+      // atServer reset where the owner has re-onboarded with a different encryption keypair.
+      // When that happens, we need to do some stuff in this atServer's keyStore so that
+      // some client for this atSign can know that it needs to cut a new shared encryption key
+      // (or, if client library supports it, reuse the old shared encryption key)
+      // and share it with the other atSign. (Context: sharing a shared encryption key involves
+      // encrypting it with the other atSign's encryption public key)
+      //
+      // In essence, this is the server providing the minimum crude signal to clients that
+      // they need to do something. As we extend the client libraries to understand these
+      // post-reset scenarios better, they can be smarter but right now all client libraries
+      // know that they first check if there is a shared key, and if not then they create one.
+      //
+      await cacheManager.put(cachedPublicKeyName, atData);
     } catch (e, st) {
       logger.severe('Caught $e while $doing');
       logger.severe(st);
@@ -140,6 +162,11 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
+    if (secondaryAddressFinder != null) {
+      at_lookup.SecondaryAddress address = await secondaryAddressFinder!.findSecondary(toAtSign);
+      return address.toString();
+    }
+
     // ignore: deprecated_member_use
     var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
         toAtSign, _rootDomain, _rootPort!);
@@ -150,25 +177,7 @@ class OutboundClient {
     return secondaryUrl;
   }
 
-  Future<bool> _createOutBoundConnection(host, port, toAtSign) async {
-    try {
-      var securityContext = AtSecurityContextImpl();
-      var secConConnect = SecurityContext();
-      secConConnect.useCertificateChain(securityContext.publicKeyPath());
-      secConConnect.usePrivateKey(securityContext.privateKeyPath());
-      secConConnect
-          .setTrustedCertificates(securityContext.trustedCertificatePath());
-      var secureSocket = await SecureSocket.connect(host, int.parse(port),
-          context: secConConnect);
-      outboundConnection = OutboundConnectionImpl(secureSocket, toAtSign);
-    } on SocketException {
-      throw SecondaryNotFoundException('unable to connect to secondary');
-    }
-    return true;
-  }
-
   Future<bool> _establishHandShake() async {
-    var result = false;
     if (!isConnectionCreated) {
       throw HandShakeException(
           'Handshake cannot be initiated without an outbound connection');
@@ -185,14 +194,21 @@ class OutboundClient {
             'no response received for From:$toAtSign command');
       }
 
-      //3. Save cookie
+      //3. Get the session ID and the pol challenge from the response
       var cookieParams = SecondaryUtil.getCookieParams(fromResult);
       var sessionIdWithAtSign = cookieParams[2];
-      var proof = cookieParams[3];
-      var signedChallenge = SecondaryUtil.signChallenge(
-          proof, AtSecondaryServerImpl.getInstance().signingKey);
-      await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-          AtSecondaryServerImpl.getInstance().currentAtSign);
+      var challenge = cookieParams[3];
+
+      if (productionMode) {
+        var signedChallenge = SecondaryUtil.signChallenge(
+            challenge, AtSecondaryServerImpl
+            .getInstance()
+            .signingKey);
+        await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+            AtSecondaryServerImpl
+                .getInstance()
+                .currentAtSign);
+      }
 
       //4. Create pol request
       outboundConnection!.write(AtRequestFormatter.createPolRequest());
@@ -201,15 +217,18 @@ class OutboundClient {
       var handShakeResult = await messageListener.read();
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       if (handShakeResult.startsWith('$currentAtSign@')) {
-        result = true;
+        logger.info("pol handshake complete");
+        return true;
+      } else {
+        logger.info("pol handshake failed - handShakeResult was $handShakeResult");
+        return false;
       }
     } on ConnectionInvalidException {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
-    } on Exception catch (e) {
+    } catch (e) {
       await outboundConnection!.close();
       throw HandShakeException(e.toString());
     }
-    return result;
   }
 
   /// Runs "lookup" verb on the secondary of the @sign that this instance represents.
@@ -222,11 +241,10 @@ class OutboundClient {
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
   Future<String?> lookUp(String key, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
-      throw UnAuthorizedException(
-          'Handshake not complete. Cannot perform a lookup');
+      throw LookupException('OutboundClient.lookUp: Handshake not done, but lookUp was called with handshake: true');
     }
     if (isHandShakeDone && !handshake) {
-      throw LookupException("Handshake has been done, but we require handshake false");
+      throw LookupException('OutboundClient.lookUp: Handshake done, but lookUp was called with handshake: false');
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
@@ -240,7 +258,7 @@ class OutboundClient {
     }
 
     // Actually read the response from the remote secondary
-    String lookupResult = await messageListener.read();
+    String lookupResult = await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
     lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return lookupResult;
@@ -310,7 +328,7 @@ class OutboundClient {
     }
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
     // response.
-    var notifyResult = await messageListener.read(maxWaitMilliSeconds: 30000);
+    var notifyResult = await messageListener.read(maxWaitMilliSeconds: notifyTimeoutMillis);
     //notifyResult = notifyResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return notifyResult;
@@ -341,5 +359,22 @@ class OutboundClient {
 
     lastUsed = DateTime.now();
     return notifyResult.sentNotifications;
+  }
+}
+
+abstract class OutboundConnectionFactory {
+  Future<OutboundConnection> createOutboundConnection(String host, int port, String toAtSign);
+}
+
+class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
+  @override
+  Future<OutboundConnection> createOutboundConnection(String host, int port, String toAtSign) async {
+    var securityContext = AtSecurityContextImpl();
+    var secConConnect = SecurityContext();
+    secConConnect.useCertificateChain(securityContext.publicKeyPath());
+    secConConnect.usePrivateKey(securityContext.privateKeyPath());
+    secConConnect.setTrustedCertificates(securityContext.trustedCertificatePath());
+    var secureSocket = await SecureSocket.connect(host, port, context: secConConnect);
+    return OutboundConnectionImpl(secureSocket, toAtSign);
   }
 }
