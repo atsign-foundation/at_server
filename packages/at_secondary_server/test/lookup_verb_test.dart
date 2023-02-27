@@ -79,9 +79,14 @@ void main() {
     // ignore: unused_local_variable
     late Function(Exception e) socketOnErrorFn;
 
-    String storageDir = '${Directory.current.path}/test/hive';
+    String storageDir = '${Directory.current.path}/unit_test_storage';
     SecondaryPersistenceStore? secondaryPersistenceStore;
     AtCommitLog? atCommitLog;
+
+    setUpAll(() async {
+      await AtAccessLogManagerImpl.getInstance()
+          .getAccessLog(alice, accessLogPath: storageDir);
+    });
 
     setUp(() async {
       // Initialize secondary persistent store
@@ -97,9 +102,6 @@ void main() {
           .init(storageDir);
 
       secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
-
-      await AtAccessLogManagerImpl.getInstance()
-          .getAccessLog(alice, accessLogPath: storageDir);
 
       mockSecondaryAddressFinder = MockSecondaryAddressFinder();
       when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -204,11 +206,14 @@ void main() {
     tearDown(() async {
       await SecondaryPersistenceStoreFactory.getInstance().close();
       await AtCommitLogManagerImpl.getInstance().close();
-      await AtAccessLogManagerImpl.getInstance().close();
       var isExists = await Directory(storageDir).exists();
       if (isExists) {
         Directory(storageDir).deleteSync(recursive: true);
       }
+    });
+
+    tearDownAll(() async {
+      await AtAccessLogManagerImpl.getInstance().close();
     });
 
     test('@alice, via authenticated client to @alice server, lookup an @alice key that exists', () async {
@@ -233,7 +238,7 @@ void main() {
     test('@bob, via pol connection to @alice server, lookup an @alice key that exists', () {});
     test('@bob, via pol connection to @alice server, lookup an @alice key that does not exist', () {});
     test('unauthenticated lookup a key', () {});
-  }, timeout: Timeout(Duration(hours:1)));
+  });
 
   group('lookup syntax tests', () {
     SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
