@@ -13,6 +13,7 @@ import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:meta/meta.dart';
 
 // UpdateVerbHandler is used to process update verb
 // update can be used to update the public/private keys
@@ -134,7 +135,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..encoding = encoding;
 
       if (_autoNotify!) {
-        _notify(
+        notify(
             atSign,
             forAtSign,
             verbParams[AT_KEY],
@@ -167,16 +168,16 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  void _notify(String? atSign, String? forAtSign, String? key, String? value,
-      NotificationPriority priority, AtMetaData atMetaData) {
+  @visibleForTesting
+  dynamic notify(String? atSign, String? forAtSign, String? key, String? value,
+      NotificationPriority priority, AtMetaData atMetaData) async {
     if (forAtSign == null) {
       return;
     }
-    key = '$forAtSign:$key$atSign';
-    DateTime? expiresAt;
-    if (atMetaData.ttl != null) {
-      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
-    }
+
+    final notificationExpiry = DateTime.now()
+        .toUtc()
+        .add(Duration(minutes: AtSecondaryConfig.notificationExpiryInMins));
 
     var atNotification = (AtNotificationBuilder()
           ..fromAtSign = atSign
@@ -185,12 +186,12 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           ..type = NotificationType.sent
           ..priority = priority
           ..opType = OperationType.update
-          ..expiresAt = expiresAt
           ..atValue = value
+          ..expiresAt = notificationExpiry
           ..atMetaData = atMetaData)
         .build();
 
-    NotificationManager.getInstance().notify(atNotification);
+    return await NotificationManager.getInstance().notify(atNotification);
   }
 
   UpdateParams _getUpdateParams(HashMap<String, String?> verbParams) {
