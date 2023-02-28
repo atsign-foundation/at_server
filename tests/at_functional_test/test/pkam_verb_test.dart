@@ -6,7 +6,6 @@ import 'package:at_chops/src/algorithm/ecc_signing_algo.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:elliptic/elliptic.dart';
 import 'package:test/test.dart';
-import 'package:crypton/crypton.dart';
 import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
@@ -84,8 +83,6 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'cram:$cramDigest');
     var cramResponse = await read();
     expect(cramResponse, 'data:success\n');
-    // - update the public key eccPrivateKey.publicKey to server.
-    //(update:privatekey:at_pkam_publickey <ecc_public key>
     await socket_writer(socketFirstAtsign!,
         'update:privatekey:at_pkam_publickey ${eccPrivateKey.publicKey}');
     var response = await read();
@@ -99,12 +96,9 @@ void main() {
     final dataToSign = fromResponse.trim();
     final dataInBytes = Uint8List.fromList(dataToSign.codeUnits);
     final signature = eccAlgo.sign(dataInBytes);
-
-    // await socket_writer(socketFirstAtsign!,
-    //     'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$signature');
-    // - call ecc pkam using pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:<signature>
+    String encodedSignature = base64Encode(signature);
     await socket_writer(socketFirstAtsign!,
-        'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$eccPrivateKey');
+        'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
     var pkamResult = await read();
     expect(pkamResult, 'data:success\n');
   });

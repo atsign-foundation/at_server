@@ -68,7 +68,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
       inputSignature = base64Decode(signature);
     } else if (signingAlgo == _eccAlgo) {
       signingAlgoEnum = SigningAlgoType.ecc_secp256r1;
-      inputSignature = Uint8List.fromList(signature.codeUnits);
+      // inputSignature = Uint8List.fromList(signature.codeUnits);
+      inputSignature = base64Decode(signature);
     } else if (signingAlgo == _rsa2048Algo) {
       signingAlgoEnum = SigningAlgoType.rsa2048;
       inputSignature = base64Decode(signature);
