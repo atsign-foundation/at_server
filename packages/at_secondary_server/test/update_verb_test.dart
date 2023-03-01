@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -705,16 +706,26 @@ void main() {
       expect(localLookUpResponse.data, 'hyderabad');
     });
 
-    test('test auto_notify notification expiry', () {
+    test('test auto_notify notification expiry', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       UpdateVerbHandler updateHandler = UpdateVerbHandler(keyStore);
       UpdateVerbHandler.setAutoNotify(true);
       AtMetaData metaData = AtMetaData()..ttl = 1000;
-      var notificationId = updateHandler.notify('@from', '@to', 'na',
-          'na-value', NotificationPriority.high, metaData);
-      print(notificationId);
+      AtNotification? notification;
+      try {
+        notification = await updateHandler.notify('@from', '@to', 'na',
+            'na-value', NotificationPriority.high, metaData);
+      } on Exception { //do nothing //exception is expected
+      }
+      DateTime expectedExpiry = notification!.notificationDateTime
+      !.toUtc().add(Duration(minutes: AtSecondaryConfig.notificationExpiryInMins));
+
+      expect(notification?.id, isNotNull);
+      expect(
+          notification?.expiresAt?.isAtSameMomentAs(expectedExpiry));
     });
   });
+
   group('A group of tests to validate sharedBy atsign', () {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
