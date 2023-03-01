@@ -170,7 +170,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
   @visibleForTesting
   dynamic notify(String? atSign, String? forAtSign, String? key, String? value,
-      NotificationPriority priority, AtMetaData atMetaData) async {
+      NotificationPriority priority, AtMetaData atMetaData) {
     if (forAtSign == null) {
       return;
     }
@@ -191,7 +191,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           ..atMetaData = atMetaData)
         .build();
 
-    return await NotificationManager.getInstance().notify(atNotification);
+    NotificationManager.getInstance().notify(atNotification);
+    return atNotification;
   }
 
   UpdateParams _getUpdateParams(HashMap<String, String?> verbParams) {
