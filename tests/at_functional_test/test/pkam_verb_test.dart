@@ -6,6 +6,7 @@ import 'package:at_chops/src/algorithm/ecc_signing_algo.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:elliptic/elliptic.dart';
 import 'package:test/test.dart';
+import 'at_demo_data.dart';
 import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
@@ -79,8 +80,8 @@ void main() {
     await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
     var fromResponse = await read();
     fromResponse = fromResponse.replaceAll('data:', '');
-    var cramDigest = getDigest(firstAtsign, fromResponse);
-    await socket_writer(socketFirstAtsign!, 'cram:$cramDigest');
+    var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+    await socket_writer(socketFirstAtsign!, 'pkam:$pkamDigest');
     var cramResponse = await read();
     expect(cramResponse, 'data:success\n');
     await socket_writer(socketFirstAtsign!,
@@ -101,5 +102,10 @@ void main() {
         'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
     var pkamResult = await read();
     expect(pkamResult, 'data:success\n');
+
+    // updating the public key to the original one
+    var publicKey = pkamPublicKeyMap[firstAtsign];
+    await socket_writer(socketFirstAtsign!,
+        'update:privatekey:at_pkam_publickey $publicKey');
   });
 }
