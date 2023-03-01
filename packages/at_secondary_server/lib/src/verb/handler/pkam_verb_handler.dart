@@ -1,10 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
-import 'package:crypton/crypton.dart';
-import 'package:ecdsa/ecdsa.dart';
-import 'package:elliptic/elliptic.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -13,6 +9,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
@@ -22,11 +19,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
   static const String _sha512 = 'sha512';
   AtChops? atChops;
 
-  PkamVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  PkamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.pkam) + ':');
+      command.startsWith('${getName(VerbEnum.pkam)}:');
 
   @override
   Verb getVerb() {
@@ -42,9 +39,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
     var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var publicKeyData = await keyStore!.get(AT_PKAM_PUBLIC_KEY);
+    var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
 
-    // If there is no public key in keystored then return error
+    // If there is no public key in the keystore then throw an exception
     if (publicKeyData == null) {
       response.data = 'failure';
       response.isError = true;
@@ -55,7 +52,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var isValidSignature = false;
 
     //retrieve stored secret using sessionid and atsign
-    var storedSecret = await keyStore!.get('private:$sessionID$atSign');
+    var storedSecret = await keyStore.get('private:$sessionID$atSign');
     storedSecret = storedSecret?.data;
 
     var signingAlgoEnum;

@@ -21,12 +21,23 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   HiveKeystore();
 
-  set commitLog(value) {
-    _commitLog = value;
+  @override
+  set commitLog(log) {
+    _commitLog = log as AtCommitLog;
   }
 
-  Future<void> init() async {
+  @override
+  get commitLog => _commitLog;
+
+  @override
+  Future<void> initialize() async {
     await _initMetaDataCache();
+  }
+
+  @Deprecated("Use [initialize]")
+  /// Deprecated. Use [initialize]
+  Future<void> init() async {
+    await initialize();
   }
 
   Future<void> _initMetaDataCache() async {
@@ -47,6 +58,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtData?> get(String key) async {
+    key = key.toLowerCase();
     AtData? value;
     try {
       String hiveKey = keyStoreHelper.prepareKey(key);
@@ -83,6 +95,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
       String? encoding}) async {
+    key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
       logger.warning('Key $key is invalid');
@@ -171,6 +184,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
       String? encoding}) async {
+    key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
       logger.warning('Key $key is invalid');
@@ -238,6 +252,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// Returns an integer if the key to be deleted is present in keystore or cache.
   @override
   Future<int?> remove(String key) async {
+    key = key.toLowerCase();
     int? result;
     try {
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
@@ -341,6 +356,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtMetaData?> getMeta(String key) async {
+    key = key.toLowerCase();
     if (_metaDataCache.containsKey(key)) {
       return _metaDataCache[key];
     }
@@ -350,6 +366,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @client
   Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
+    key = key.toLowerCase();
     final atKeyType = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKeyType == KeyType.invalidKey) {
       logger.warning('Key $key is invalid');
@@ -380,6 +397,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<int?> putMeta(String key, AtMetaData? metadata) async {
+    key = key.toLowerCase();
     try {
       String hive_key = keyStoreHelper.prepareKey(key);
       AtData? existingData;
@@ -410,6 +428,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @server
   bool isKeyExists(String key) {
+    key = key.toLowerCase();
     return persistenceManager!
         .getBox()
         .containsKey(keyStoreHelper.prepareKey(key));

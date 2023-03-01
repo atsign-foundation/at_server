@@ -1,3 +1,5 @@
+## 2.0.11
+- refactor: Added to specs to address some leaky abstractions
 ## 2.0.10
 - fix: Add AtCompaction spec for keystore compaction 
 ## 2.0.9

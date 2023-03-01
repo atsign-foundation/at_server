@@ -4,11 +4,15 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 // How the server processes updates from the client (including the responses it generates) and what the expectations are - i.e. can we reject? what happens when we reject? and more
@@ -35,7 +39,14 @@ Future<void> setUpMethod() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
 }
 
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+class MockAtCacheManager extends Mock implements AtCacheManager {}
+
 void main() {
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  AtCacheManager mockAtCacheManager = MockAtCacheManager();
+
   group(
       'A group of tests to validate how server process the updates from the client',
       () {
@@ -257,7 +268,8 @@ void main() {
         /// of list should be equal to the number of batch requests
         /// 2. The commit-id's should be incremented sequentially
         /// 3. Assert the data and metadata updated to keystore
-        DefaultVerbHandlerManager().init();
+        VerbHandlerManager verbHandlerManager =
+            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager);
         var batchRequestCommand = jsonEncode([
           BatchRequest(100, 'update:city@alice copenhagen'),
           BatchRequest(456, 'delete:phone@alice'),
@@ -268,7 +280,8 @@ void main() {
         ]);
         // Process Batch request
         var batchVerbHandler = BatchVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+            secondaryPersistenceStore!.getSecondaryKeyStore()!, verbHandlerManager);
+
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -321,14 +334,15 @@ void main() {
         /// Assertions
         /// 1. The valid commands should be processed and commit-id should be added to batch response
         /// 2. For the invalid batch request command, the error code and error message should be updated in the batch response
-        DefaultVerbHandlerManager().init();
+        VerbHandlerManager verbHandlerManager =
+            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager);
         var batchRequestCommand = jsonEncode([
           BatchRequest(1, 'delete:phone@alice'),
           BatchRequest(2, 'update:city@alice'),
           BatchRequest(3, 'update:public:country@alice denmark')
         ]);
         var batchVerbHandler = BatchVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+            secondaryPersistenceStore!.getSecondaryKeyStore()!, verbHandlerManager);
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);

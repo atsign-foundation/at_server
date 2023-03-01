@@ -71,23 +71,23 @@ commit_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
   sizeInKB: 10
 
-# The @Protocol notification keystore compaction job configurations.
-notification_keystore_compaction:
-  compactionFrequencyMins: 5
-  compactionPercentage: 30
-  expiryInDays: 1
-  sizeInKB: -1
-
-# The @Protocol notification keystore compaction job configurations.
+# The @Protocol access log compaction job configurations.
 access_log_compaction:
   # The frequent time interval (in minutes) to initiate the access log compaction job service.
-  compactionFrequencyMins: 21
+  compactionFrequencyMins: 15
   # The percentage of logs to remove through the access log compaction job service.
   compactionPercentage: 30
   # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
   expiryInDays: 15
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the access log compaction job service.
   sizeInKB: 2
+
+# The @Protocol notification keystore compaction job configurations.
+notification_keystore_compaction:
+  compactionFrequencyMins: 5
+  compactionPercentage: 30
+  expiryInDays: 1
+  sizeInKB: -1
 
 # The @Protocol key lookup configurations.
 lookup:
@@ -119,7 +119,7 @@ notification:
 
 # At refresh Job to refresh the cached keys.
 refreshJob:
-  # Hour at which the job has to run. Currently runs at 3 A.M. everyday.
+  # Hour at which the job has to run. Currently runs at 3 A.M. every day.
   runJobHour: 3
 
 certificate_expiry:

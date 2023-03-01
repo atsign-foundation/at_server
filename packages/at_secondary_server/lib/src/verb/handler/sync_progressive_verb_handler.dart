@@ -14,7 +14,7 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  SyncProgressiveVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  SyncProgressiveVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   /// Represents the size of the sync buffer
   @visibleForTesting
@@ -56,12 +56,12 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       if (itr.current.value.operation != CommitOp.DELETE) {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue.
-        if (!keyStore!.isKeyExists(itr.current.key)) {
+        if (!keyStore.isKeyExists(itr.current.key)) {
           logger.finer(
               '${itr.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
-        var atData = await keyStore!.get(itr.current.key);
+        var atData = await keyStore.get(itr.current.key);
         if (atData == null) {
           logger.info('atData is null for ${itr.current.key}');
           continue;

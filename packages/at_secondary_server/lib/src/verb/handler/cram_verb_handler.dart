@@ -13,11 +13,11 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  CramVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  CramVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.cram) + ':');
+      command.startsWith('${getName(VerbEnum.cram)}:');
 
   @override
   Verb getVerb() {
@@ -33,7 +33,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     var sessionID = atConnectionMetadata.sessionID;
     var digest = verbParams[AT_DIGEST];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var secret = await keyStore!.get('privatekey:at_secret');
+    var secret = await keyStore.get('privatekey:at_secret');
 
     // If there is no secret in keystore then return error
     if (secret == null) {
@@ -44,7 +44,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     secret = secret + '$sessionID$atSign';
 
     //retrieve stored secret using sessionid and atsign
-    var storedSecret = await keyStore!.get('private:$sessionID$atSign');
+    var storedSecret = await keyStore.get('private:$sessionID$atSign');
     storedSecret = storedSecret?.data;
     secret = '$secret:$storedSecret';
     secret = sha512.convert(utf8.encode(secret));

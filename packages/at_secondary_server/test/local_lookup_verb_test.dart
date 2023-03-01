@@ -15,8 +15,13 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
   group('A group of local_lookup verb tests', () {
     test('test lookup key-value', () {
       var verb = LocalLookup();
@@ -57,7 +62,7 @@ void main() {
 
     test('test lookup key-value - cached key', () {
       var command = 'llookup:cached:@bob:email@colin';
-      var handler = LocalLookupVerbHandler(null);
+      var handler = LocalLookupVerbHandler(mockKeyStore);
       var paramsMap = handler.parse(command);
       expect(paramsMap[AT_KEY], 'email');
       expect(paramsMap[AT_SIGN], 'colin');
@@ -66,14 +71,14 @@ void main() {
     });
 
     test('test local_lookup getVerb', () {
-      var handler = LocalLookupVerbHandler(null);
+      var handler = LocalLookupVerbHandler(mockKeyStore);
       var verb = handler.getVerb();
       expect(verb is LocalLookup, true);
     });
 
     test('test local_lookup command accept test', () {
       var command = 'llookup:@b0b:location@colin';
-      var handler = LocalLookupVerbHandler(null);
+      var handler = LocalLookupVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -131,8 +136,8 @@ void main() {
   });
 
   group('A group of hive related unit test', () {
-    var storageDir = Directory.current.path + '/test/hive';
-    late var keyStoreManager;
+    var storageDir = '${Directory.current.path}/test/hive';
+    late SecondaryKeyStoreManager keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
     test('test local lookup with private key', () async {
@@ -265,9 +270,4 @@ Future<void> tearDownFunc() async {
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
-}
-
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
-  return sha256.convert(bytes).toString();
 }
