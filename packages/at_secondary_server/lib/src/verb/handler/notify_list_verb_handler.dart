@@ -54,7 +54,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    String fromAtSign = atConnectionMetadata.fromAtSign!;
+    String fromAtSign = atConnectionMetadata.fromOtherAtSign!;
     var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign

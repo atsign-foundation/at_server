@@ -28,7 +28,7 @@ abstract class BaseResponseHandler implements ResponseHandler {
       var isAuthenticated = atConnectionMetadata.isAuthenticated;
       var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       var isPolAuthenticated = connection.getMetaData().isPolAuthenticated;
-      var fromAtSign = atConnectionMetadata.fromAtSign;
+      var fromAtSign = atConnectionMetadata.fromOtherAtSign;
       var prompt = isAuthenticated
           ? '$atSign@'
           : (isPolAuthenticated ? '$fromAtSign@' : '@');

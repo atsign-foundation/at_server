@@ -62,7 +62,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var atConnectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var fromAtSign = atConnectionMetadata.fromAtSign;
+      var fromAtSign = atConnectionMetadata.fromOtherAtSign;
       int? ttlMillis;
       int? ttbMillis;
       int? ttrMillis;

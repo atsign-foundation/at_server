@@ -44,22 +44,22 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog =
         await AtAccessLogManagerImpl.getInstance().getAccessLog(thisServersAtSign);
-    var fromAtSign = atConnectionMetadata.fromAtSign;
+    var fromAtSign = atConnectionMetadata.fromOtherAtSign;
     String keyOwnersAtSign = verbParams[AT_SIGN]!;
     keyOwnersAtSign = AtUtils.formatAtSign(keyOwnersAtSign)!;
-    var key = verbParams[AT_KEY];
-    key = '$key$keyOwnersAtSign';
+    var entity = verbParams[AT_KEY];
+    var keyAtAtSign = '$entity$keyOwnersAtSign';
     var operation = verbParams[OPERATION];
     String? byPassCacheStr = verbParams[bypassCache];
 
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${keyOwnersAtSign.toString()} \n key : $key');
+        'fromAtSign : $fromAtSign \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
     // Connection is authenticated and the currentAtSign is not atSign
     // lookUp secondary of atSign for the key
     if (atConnectionMetadata.isAuthenticated) {
-      if (thisServersAtSign == keyOwnersAtSign) {
+      if (keyOwnersAtSign == thisServersAtSign) {
         // We're looking up data owned by this server's atSign
-        var lookupKey = '$thisServersAtSign:$key';
+        var lookupKey = '$thisServersAtSign:$keyAtAtSign';
         var lookupValue = await keyStore.get(lookupKey);
         response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
 
@@ -70,13 +70,13 @@ class LookupVerbHandler extends AbstractVerbHandler {
               response.data.toString(), thisServersAtSign);
         }
         try {
-          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: key);
+          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }
-      } else {
+      } else { // keyOwnersAtSign != thisServersAtSign
         // We're looking up data owned by another atSign.
-        String cachedKeyName = '$CACHED:$thisServersAtSign:$key';
+        String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
         //Get cached value.
         AtData? cachedValue = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
         response.data = SecondaryUtil.prepareResponseData(operation, cachedValue);
@@ -85,50 +85,46 @@ class LookupVerbHandler extends AbstractVerbHandler {
         if (response.data == null ||
             response.data == '' ||
             byPassCacheStr == 'true') {
-          var outBoundClient = outboundClientManager.getClient(keyOwnersAtSign, atConnection);
-          // Need not connect again if the client's handshake is already done
-          if (!outBoundClient.isHandShakeDone) {
-            var connectResult = await outBoundClient.connect();
-            logger.finer('connect result: $connectResult');
+          AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
+          if (atData != null) {
+            response.data = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: keyAtAtSign);
           }
-          key = (operation != null) ? '$operation:$key' : key;
-          var lookupResult = await outBoundClient.lookUp(key);
-          response.data = lookupResult;
         }
       }
       return;
-    }
-    // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
-    var keyPrefix = '';
-    if (!(atConnectionMetadata.isAuthenticated)) {
-      keyPrefix = (fromAtSign == null || fromAtSign == '')
-          ? 'public:'
-          : '$fromAtSign:';
-    }
-    // Form the look up key
-    var lookupKey = keyPrefix + key;
-    logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-    // Find the value for the key from the data store
-    var lookupData = await keyStore.get(lookupKey);
-    var isActive = SecondaryUtil.isActiveKey(lookupData);
-    if (isActive) {
-      response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
-      //Resolving value references to correct values
-      if (response.data != null &&
-          response.data!.contains(AT_VALUE_REFERENCE)) {
-        response.data = await resolveValueReference(response.data!, keyPrefix);
+    } else { // isAuthenticated is false
+      // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
+      var keyPrefix = '';
+      if (!(atConnectionMetadata.isAuthenticated)) {
+        keyPrefix = (fromAtSign == null || fromAtSign == '')
+            ? 'public:'
+            : '$fromAtSign:';
       }
-      //Omit all keys starting with '_' to record in access log
-      if (!key.startsWith('_')) {
-        try {
-          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: key);
-        } on DataStoreException catch (e) {
-          logger.severe('Hive error adding to access log:${e.toString()}');
+      // Form the look up key
+      var lookupKey = keyPrefix + keyAtAtSign;
+      logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+      // Find the value for the key from the data store
+      var lookupData = await keyStore.get(lookupKey);
+      var isActive = SecondaryUtil.isActiveKey(lookupData);
+      if (isActive) {
+        response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
+        //Resolving value references to correct values
+        if (response.data != null &&
+            response.data!.contains(AT_VALUE_REFERENCE)) {
+          response.data = await resolveValueReference(response.data!, keyPrefix);
         }
+        //Omit all keys starting with '_' to record in access log
+        if (!keyAtAtSign.startsWith('_')) {
+          try {
+            await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+          } on DataStoreException catch (e) {
+            logger.severe('Hive error adding to access log:${e.toString()}');
+          }
+        }
+        return;
+      } else {
+        response.data = null;
       }
-      return;
-    } else {
-      response.data = null;
     }
   }
 

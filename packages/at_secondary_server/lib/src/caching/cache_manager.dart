@@ -33,6 +33,12 @@ class AtCacheManager {
         continue;
       }
 
+      if (metadata.ttr == null || metadata.ttr == 0) {
+        // ttr of null or 0 means "do not cache"
+        // Technically, we should NEVER have this situation
+        // However, we do, because of history
+      }
+
       // If metadata.availableAt is in the future, key's TTB is not met, we should not refresh
       if (metadata.availableAt != null &&
           metadata.availableAt!.millisecondsSinceEpoch >= nowInEpoch) {
@@ -46,8 +52,8 @@ class AtCacheManager {
         continue;
       }
 
-      // Is this cached key supposed to auto-refresh? Values of null or -1 mean no, you can cache indefinitely.
-      if (metadata.ttr == null || metadata.ttr == -1) {
+      // Is this cached key supposed to auto-refresh? -1 means no, you can cache indefinitely.
+      if (metadata.ttr == -1) {
         continue;
       }
 
@@ -125,7 +131,16 @@ class AtCacheManager {
     } else {
       if (maintainCache) {
         logger.info('remoteLookUp: Successfully looked up $remoteKeyName - updating cache for $cachedKeyName');
-        await put(cachedKeyName, atData);
+        if (atData.metaData == null) {
+          // No metaData? Should never happen. don't cache
+
+        } else if (atData.metaData!.ttr == 0) {
+          // ttr of zero means do not cache
+
+        } else {
+          // We're good to cache it
+          await put(cachedKeyName, atData);
+        }
       } else {
         logger.info('remoteLookUp: Successfully looked up $remoteKeyName - but maintainCache is false, so not adding to cache');
       }

@@ -84,7 +84,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       atData.metaData = AtMetaData();
       var ttlMillis = updateParams.metadata!.ttl;
       var ttbMillis = updateParams.metadata!.ttb;
-      var ttrMillis = updateParams.metadata!.ttr;
+      var ttrSeconds = updateParams.metadata!.ttr;
       var isBinary = updateParams.metadata!.isBinary;
       var isEncrypted = updateParams.metadata!.isEncrypted;
       var dataSignature = updateParams.metadata!.dataSignature;
@@ -108,14 +108,14 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         key = 'public:$key';
       }
       var metadata = await keyStore.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
-      ttrMillis = cacheRefreshMetaMap[AT_TTR];
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrSeconds, ccd);
+      ttrSeconds = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
 
       //If ttr is set and atsign is not equal to currentAtSign, the key is
       //cached key.
-      if (ttrMillis != null &&
-          ttrMillis > 0 &&
+      if (ttrSeconds != null &&
+          ttrSeconds > 0 &&
           sharedBy != null &&
           sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
         key = 'cached:$key';
@@ -124,7 +124,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var atMetadata = AtMetaData()
         ..ttl = ttlMillis
         ..ttb = ttbMillis
-        ..ttr = ttrMillis
+        ..ttr = ttrSeconds
         ..isCascade = ccd
         ..isBinary = isBinary
         ..isEncrypted = isEncrypted
@@ -147,7 +147,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var result = await keyStore.put(key, atData,
           time_to_live: ttlMillis,
           time_to_born: ttbMillis,
-          time_to_refresh: ttrMillis,
+          time_to_refresh: ttrSeconds,
           isCascade: ccd,
           isBinary: isBinary,
           isEncrypted: isEncrypted,

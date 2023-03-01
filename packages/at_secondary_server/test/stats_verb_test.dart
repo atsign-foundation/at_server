@@ -225,7 +225,7 @@ void main() {
             ..depth = 3)
           .build();
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@bob'
+        ..fromOtherAtSign = '@bob'
         ..isAuthenticated = true;
       await AtNotificationKeystore.getInstance().put('1031', testNotification);
       await AtNotificationKeystore.getInstance().put('1032', testNotification2);

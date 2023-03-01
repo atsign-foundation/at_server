@@ -73,6 +73,7 @@ void main() {
     late MockSecondaryAddressFinder mockSecondaryAddressFinder;
     late MockSecureSocket mockSecureSocket;
     InboundConnection inboundConnection = DummyInboundConnection();
+    registerFallbackValue(inboundConnection);
     late Function(dynamic data) socketOnDataFn;
     // ignore: unused_local_variable
     late Function() socketOnDoneFn;
@@ -132,11 +133,11 @@ void main() {
         ..productionMode = false;
 
       mockOutboundClientManager = MockOutboundClientManager();
-      when(() => mockOutboundClientManager.getClient(bob, inboundConnection, isHandShake: true))
+      when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: true))
           .thenAnswer((_) {
             return outboundClientWithHandshake;
       });
-      when(() => mockOutboundClientManager.getClient(bob, inboundConnection, isHandShake: false))
+      when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
           .thenAnswer((_) {
             return outboundClientWithoutHandshake;
       });
@@ -224,15 +225,18 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
 
       AtData randomData = utils.createRandomAtData();
+      randomData.metaData!.ttr = 10;
       String randomDataAsJson = SecondaryUtil.prepareResponseData('all', randomData, keyToUseIfNotAlreadySetInAtData: '$alice:$keyName')!;
 
       inboundConnection.getMetaData().isAuthenticated = true;
 
-      when(() => mockOutboundConnection.write('lookup:$keyName\n'))
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$randomDataAsJson\n$alice@".codeUnits);
       });
       await lookupVerbHandler.process('lookup:$keyName', inboundConnection);
+
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
     });
     test('@alice, via authenticated client to @alice server, lookup an @alice key that does not exist', () {});
     test('@bob, via pol connection to @alice server, lookup an @alice key that exists', () {});
