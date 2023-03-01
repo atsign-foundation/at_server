@@ -18,7 +18,6 @@ class ResourceManager {
   bool get isProcessingQueue => _isProcessingQueue;
 
   bool _isStarted = false;
-
   bool get isStarted => _isStarted;
 
   bool _nudged = false;
@@ -176,16 +175,8 @@ class ResourceManager {
   /// Returns the key of notification key.
   @visibleForTesting
   String prepareNotifyCommandBody(AtNotification atNotification) {
-    String commandBody = '';
-
-    // If message type is key, only then concatenate atSign's to key
-    if (atNotification.messageType == MessageType.key) {
-      commandBody =
-          '${atNotification.toAtSign}:${atNotification.notification}${atNotification.fromAtSign}';
-    } // If message type text do not concatenate fromAtSign (currentAtSign)
-    else if (atNotification.messageType == MessageType.text) {
-      commandBody = '${atNotification.toAtSign}:${atNotification.notification}';
-    }
+    String commandBody;
+    commandBody = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.pubKeyCS != null) {
@@ -196,7 +187,8 @@ class ResourceManager {
         commandBody =
             '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
-      if (atNotification.atMetadata!.isEncrypted == true) {
+      if (atNotification.atMetadata!.isEncrypted != null &&
+          atNotification.atMetadata!.isEncrypted == true) {
         commandBody = '$IS_ENCRYPTED:true:$commandBody';
       }
       if (atMetaData.ttr != null) {

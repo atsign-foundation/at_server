@@ -13,7 +13,7 @@ void main() {
   late String atSign_2;
   late e2e.SimpleOutboundSocketHandler sh2;
 
-  var randomValue = Random().nextInt(30);
+  var lastValue = Random().nextInt(30);
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -34,9 +34,9 @@ void main() {
     sh2.clear();
   });
 
-  test('notify verb for notifying a key update to the atSign', () async {
+  test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
-    var value = 'alice$randomValue@yahoo.com';
+    var value = 'alice$lastValue@yahoo.com';
     await sh2.writeCommand(
         'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_1:email$atSign_2:$value');
     String response = await sh2.read();
@@ -44,52 +44,21 @@ void main() {
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
+
     // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
-    ///Assert the notification data on the sender side using notify fetch
-    await sh2.writeCommand('notify:fetch:$notificationId');
-    response = await sh2.read();
-    response = response.replaceAll('data:', '');
-    var notificationJSON = jsonDecode(response);
-    expect(notificationJSON['id'], notificationId);
-    expect(notificationJSON['fromAtSign'], atSign_2);
-    expect(notificationJSON['toAtSign'], atSign_1);
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh2.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(notificationJSON['notification'], 'email');
-    } else {
-      expect(notificationJSON['notification'], '$atSign_1:email$atSign_2');
-    }
-    expect(notificationJSON['type'], 'NotificationType.sent');
-    expect(notificationJSON['opType'], 'OperationType.update');
-    expect(notificationJSON['messageType'], 'MessageType.key');
-    expect(notificationJSON['priority'], 'NotificationPriority.low');
-
-    ///Assert the notification data on the receiver side using notify fetch
-    await sh1.writeCommand('notify:fetch:$notificationId');
+    ///notify:list verb
+    await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    response = response.replaceAll('data:', '');
-    notificationJSON = jsonDecode(response);
-    expect(notificationJSON['id'], notificationId);
-    expect(notificationJSON['fromAtSign'], atSign_2);
-    expect(notificationJSON['toAtSign'], atSign_1);
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(notificationJSON['notification'], 'email');
-    } else {
-      expect(notificationJSON['notification'], '$atSign_1:email$atSign_2');
-    }
-    expect(notificationJSON['type'], 'NotificationType.received');
-    expect(notificationJSON['opType'], 'OperationType.update');
-    expect(notificationJSON['messageType'], 'MessageType.key');
-    expect(notificationJSON['priority'], 'NotificationPriority.low');
-    expect(notificationJSON['atValue'], 'alice$randomValue@yahoo.com');
+    print('notify list verb response : $response');
+    expect(
+        response,
+        contains(
+            '"key":"$atSign_1:email$atSign_2","value":"$value","operation":"update"'));
   });
 
   test('test to verify notify fetch verb for a valid notification-id',
@@ -128,7 +97,7 @@ void main() {
 
   test('notify verb without messageType and operation', () async {
     /// NOTIFY VERB
-    var value = '+91-901282346$randomValue';
+    var value = '+91-901282346$lastValue';
     await sh2.writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
     String response = await sh2.read();
     print('notify verb response : $response');
@@ -145,18 +114,14 @@ void main() {
     ///notify:list verb
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(response, contains('"key":"contact-no","value":null'));
-    } else {
-      expect(response, contains('"key":"$atSign_1:contact-no$atSign_2"'));
-    }
+    print('notify list verb response : $response');
+    expect(response,
+        contains('"key":"$atSign_1:contact-no$atSign_2","value":null'));
   });
 
   test('notify verb without messageType', () async {
     /// NOTIFY VERB
-    var value = '$randomValue-Hyderabad';
+    var value = '$lastValue-Hyderabad';
     await sh2.writeCommand(
         'notify:update:ttr:-1:$atSign_1:fav-city$atSign_2:$value');
     String response = await sh2.read();
@@ -175,22 +140,15 @@ void main() {
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
     print('notify list verb response : $response');
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(response,
-          contains('"key":"fav-city","value":"$value","operation":"update"'));
-    } else {
-      expect(
-          response,
-          contains(
-              '"key":"$atSign_1:fav-city$atSign_2","value":"$value","operation":"update"'));
-    }
+    expect(
+        response,
+        contains(
+            '"key":"$atSign_1:fav-city$atSign_2","value":"$value","operation":"update"'));
   });
 
-  test('notify verb for notifying a text update to another atSign', () async {
-    // Send the notification of type "text"
-    var value = '$randomValue-Hey,Hello!';
+  test('notify verb for notifying a text update to another atsign', () async {
+    //   /// NOTIFY VERB
+    var value = '$lastValue-Hey,Hello!';
     await sh2.writeCommand(
         'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:$value');
     String response = await sh2.read();
@@ -198,31 +156,19 @@ void main() {
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    // Assert the notification status on the sender side.
+
+    // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
-    // Assert the notification status on the receiver side.
-    await sh1.writeCommand('notify:fetch:$notificationId');
+    //   ///notify:list verb
+    await sh1.writeCommand('notify:list');
     response = await sh1.read();
     print('notify list verb response : $response');
-    response = response.replaceAll('data:', '');
-    var notificationJSON = jsonDecode(response);
-    expect(notificationJSON['id'], notificationId);
-    expect(notificationJSON['fromAtSign'], atSign_2);
-    expect(notificationJSON['toAtSign'], atSign_1);
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(notificationJSON['notification'], value);
-    } else {
-      expect(notificationJSON['notification'], '$atSign_1:$value');
-    }
-    expect(notificationJSON['type'], 'NotificationType.received');
-    expect(notificationJSON['opType'], 'OperationType.update');
-    expect(notificationJSON['messageType'], 'MessageType.text');
+    expect(response,
+        contains('"key":"$atSign_1:$value","value":null,"operation":"update"'));
   });
 
   test('notify verb for deleting a key for other atsign', () async {
@@ -245,14 +191,10 @@ void main() {
     await sh2.writeCommand('notify:list:email');
     response = await sh2.read();
     print('notify list verb response : $response');
-    //TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh2.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(response,
-          contains('"key":"email","value":"null","operation":"delete"'));
-    } else {
-      expect(response, contains('"key":"@cicd4:email@cicd3"'));
-    }
+    expect(
+        response,
+        contains(
+            '"key":"$atSign_2:email$atSign_1","value":"null","operation":"delete"'));
   });
 
   test('notify verb without giving message type value', () async {
@@ -268,7 +210,7 @@ void main() {
   });
 
   test('notify verb without giving notifier for strategy latest', () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     await sh1.writeCommand(
         'notify:update:messageType:key:strategy:latest:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
@@ -280,7 +222,7 @@ void main() {
   });
 
   test('notify verb with messageType text', () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     await sh1.writeCommand('notify:update:messageType:text:$atSign_2:Hello!');
     String response = await sh1.read();
     print('notify verb response : $response');
@@ -296,8 +238,8 @@ void main() {
   });
 
   test('notify verb with space in the value', () async {
-    // Notify verb
-    var value = '$randomValue Shris Infotech Services';
+    /// NOTIFY VERB
+    var value = '$lastValue Shris Infotech Services';
     await sh1.writeCommand(
         'notify:update:messageType:key:$atSign_2:company$atSign_1:$value');
     String response = await sh1.read();
@@ -313,8 +255,24 @@ void main() {
     expect(response, contains('data:delivered'));
   });
 
+  test('notify verb with messageType text', () async {
+    //   /// NOTIFY VERB
+    await sh1.writeCommand('notify:update:messageType:text:$atSign_2:Hello!');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    String notificationId = response.replaceAll('data:', '');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    // notify status
+    response = await getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+  });
+
   test('notify verb in an incorrect order', () async {
-    // Notify verb - incorrect order of messageType and update.
+    /// NOTIFY VERB
     await sh1.writeCommand(
         'notify:messageType:key:update:notifier:system:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
@@ -349,7 +307,7 @@ void main() {
   // });
 
   test('notify all for notifying a single atsign ', () async {
-    // atSign1: notify atSign2 about something
+    /// atSign1: notify atSign2 about something
     await sh1
         .writeCommand('notify:all:$atSign_2:whatsapp$atSign_1:+91-901291029');
     String response = await sh1.read();
@@ -357,12 +315,12 @@ void main() {
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    // atSign2: notify:list verb with regex
-    String shouldContain = '"key":"whatsapp"';
+    /// atSign2: notify:list verb with regex
+    String shouldContain = '"key":"$atSign_2:whatsapp$atSign_1"';
     response = await retryCommandUntilMatchOrTimeout(
         sh2, 'notify:list:whatsapp', shouldContain, 15000);
     print('notify list verb response : $response');
-    expect(response, contains('whatsapp'));
+    expect(response, contains(shouldContain));
   });
 
   // Commented the test as it needs a third atsign
@@ -390,7 +348,7 @@ void main() {
   // });
 
   test('notify verb with notification expiry for messageType key', () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     int ttln = 11000;
     await sh2.writeCommand(
         'notify:update:messageType:key:ttln:$ttln:ttr:-1:$atSign_1:message$atSign_2:Hey!');
@@ -402,7 +360,7 @@ void main() {
 
     int willExpireAt = DateTime.now().millisecondsSinceEpoch + ttln;
 
-    // notify status before ttln expiry time
+    //   // notify status before ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 10000);
     print('notify status response : $response');
@@ -414,7 +372,7 @@ void main() {
       await Future.delayed(Duration(milliseconds: willExpireAt - now));
     }
 
-    // notify status after ttln expiry time
+    /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
     print('notify status response : $response');
@@ -423,7 +381,7 @@ void main() {
 
   test('notify verb with notification expiry for errored- invalid atsign',
       () async {
-    // NOTIFY VERB
+    //   /// NOTIFY VERB
     int ttln = 11000;
     await sh2.writeCommand(
         'notify:update:messageType:key:ttln:$ttln:ttr:-1:@xyz:message$atSign_2:Hey!');
@@ -454,7 +412,7 @@ void main() {
   });
 
   test('notify verb with notification expiry with messageType text', () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     int ttln = 11000;
     await sh2.writeCommand(
         'notify:update:messageType:text:ttln:$ttln:ttr:-1:$atSign_1:Hello!');
@@ -485,9 +443,10 @@ void main() {
     expect(response, contains('data:expired'));
   });
 
+  ///
   test('notify verb with notification expiry in an incorrect spelling',
       () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     await sh2.writeCommand(
         'notify:update:ttlnn:5000:ttr:-1:$atSign_1:message$atSign_2:Hey!');
     String response = await sh2.read();
@@ -499,10 +458,10 @@ void main() {
   });
 
   test('Test to verify the update and delete caching of key', () async {
-    var key = 'testcachedkey-$randomValue';
+    var key = 'testcachedkey-$lastValue';
     // Sending the update notification from the sender side
     await sh1.writeCommand(
-        'notify:update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1:cachedvalue-$randomValue');
+        'notify:update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1:cachedvalue-$lastValue');
     var response = await sh1.read();
     response = response.replaceAll('data:', '');
     // assert the notification-id is not null.
@@ -514,13 +473,7 @@ void main() {
     var decodedJSON = jsonDecode(response);
     expect(decodedJSON['fromAtSign'], atSign_1);
     expect(decodedJSON['toAtSign'], atSign_2);
-    // TODO: Remove version check after 3.0.28 version is released to production.
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 27)) {
-      expect(decodedJSON['notification'], key);
-    } else {
-      expect(decodedJSON['notification'], '$atSign_2:$key$atSign_1');
-    }
+    expect(decodedJSON['notification'], '$atSign_2:$key$atSign_1');
     expect(decodedJSON['type'], 'NotificationType.sent');
     expect(decodedJSON['opType'], 'OperationType.update');
     expect(decodedJSON['messageType'], 'MessageType.key');
@@ -529,7 +482,7 @@ void main() {
     // Look for the value of the cached key on  the receiver atSign
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
     response = await sh2.read();
-    expect(response, 'data:cachedvalue-$randomValue');
+    expect(response, 'data:cachedvalue-$lastValue');
 
     // Send the delete notification from the sender side
     await sh1.writeCommand('notify:delete:$atSign_2:$key$atSign_1');
@@ -546,7 +499,7 @@ void main() {
   });
 
   test('notify verb with notification expiry without value for ttln', () async {
-    // Notify verb
+    //   /// NOTIFY VERB
     await sh2.writeCommand(
         'notify:update:ttln:ttr:-1:$atSign_1:message$atSign_2:Hey!');
     String response = await sh2.read();
@@ -558,7 +511,7 @@ void main() {
   });
 
   test('notify verb with notification expiry in an incorrect order', () async {
-    // Notify verb - Incorrect order of metadata. ttln should be before ttb and ttr
+    //   /// NOTIFY VERB
     await sh2.writeCommand(
         'notify:update:ttb:3000:ttr:-1:ttln:10000:$atSign_1:message$atSign_2:Hey!');
     String response = await sh2.read();
@@ -580,6 +533,9 @@ void main() {
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
@@ -599,7 +555,15 @@ void main() {
     // Sending first notification
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
     var response = await sh1.read();
-    var currentDateTime = DateTime.now();
+    response = response.replaceAll('data:', '');
+    await sh2.writeCommand('notify:fetch:$response');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var atNotificationMap = jsonDecode(response);
+    var firstNotificationDateInEpoch =
+        DateTime.parse(atNotificationMap['notificationDateTime'])
+            .microsecondsSinceEpoch;
+
     // Sending second notification
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
     response = await sh1.read();
@@ -607,12 +571,12 @@ void main() {
     await sh2.writeCommand('notify:fetch:$response');
     response = await sh2.read();
     response = response.replaceAll('data:', '');
-    var atNotificationMap = jsonDecode(response);
-    expect(
+    atNotificationMap = jsonDecode(response);
+    var secondNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
-                .microsecondsSinceEpoch >
-            currentDateTime.microsecondsSinceEpoch,
-        true);
+            .microsecondsSinceEpoch;
+
+    expect(secondNotificationDateInEpoch > firstNotificationDateInEpoch, true);
   });
 
   test('notify verb for notifying a key update with shared key metadata',

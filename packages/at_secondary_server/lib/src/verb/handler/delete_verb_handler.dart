@@ -113,6 +113,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (forAtSign == null) {
       return;
     }
+    key = '$forAtSign:$key$atSign';
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign

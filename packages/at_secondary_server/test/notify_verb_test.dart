@@ -145,13 +145,17 @@ void main() {
     });
 
     test('test notify verb - invalid ttl value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@bob';
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -159,13 +163,16 @@ void main() {
     });
 
     test('test notify verb - invalid ttb value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@bob';
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -173,13 +180,16 @@ void main() {
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@bob';
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -305,9 +315,8 @@ void main() {
       var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][FROM], '@test_user_1');
       expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], 'phone');
+      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'update');
     });
 
@@ -359,9 +368,8 @@ void main() {
       var notifyData = jsonDecode(notifyListResponse.data!);
       assert(notifyData[0][ID] != null);
       assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][FROM], '@test_user_1');
       expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], 'phone');
+      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'delete');
     });
     tearDown(() async => await tearDownFunc());
@@ -851,6 +859,8 @@ void main() {
       firstNotificationVerbParams.putIfAbsent('operation', () => 'update');
       firstNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
       firstNotificationVerbParams.putIfAbsent('atKey', () => 'phone');
+      firstNotificationVerbParams.putIfAbsent(
+          FOR_AT_SIGN, () => '@test_user_2');
 
       // second notification
       secondNotificationVerbParams.putIfAbsent('id', () => 'xyz-123');
@@ -890,7 +900,8 @@ void main() {
 
     test('test to verify notification date time on receiver side', () async {
       atConnection.metaData.isPolAuthenticated = true;
-      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = '@bob';
+      (atConnection.metaData as InboundConnectionMetadata).fromAtSign =
+          '@test_user1';
       // process first notification
       await notifyVerbHandler.processVerb(
           notifyResponse, firstNotificationVerbParams, atConnection);
@@ -898,6 +909,8 @@ void main() {
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
+      secondNotificationVerbParams.putIfAbsent(
+          'forAtSign', () => '@test_user_1');
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);
       // fetch second notification

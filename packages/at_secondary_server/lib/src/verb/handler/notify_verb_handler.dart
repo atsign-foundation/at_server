@@ -69,24 +69,23 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           atConnection.getMetaData() as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var forAtSign = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-      var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-      var key = verbParams[AT_KEY];
+      verbParams[FOR_AT_SIGN] = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
+      verbParams[AT_SIGN] = AtUtils.formatAtSign(verbParams[AT_SIGN]);
       logger.finer(
-          'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${atSign.toString()} \n key : $key');
+          'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AT_SIGN]} \n key : ${verbParams[AT_KEY]}');
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
       // Else, store the notification to keystore and notify to the toAtSign.
       if (atConnectionMetadata.isAuthenticated) {
         await _handleAuthenticatedConnection(
-            currentAtSign, forAtSign, atSign, verbParams, response);
+            currentAtSign, verbParams, response);
       }
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
       else if (atConnectionMetadata.isPolAuthenticated) {
         await _handlePolAuthenticatedConnection(
-            key, verbParams, atConnectionMetadata, response, forAtSign, atSign);
+            verbParams, atConnectionMetadata, response);
       }
     } finally {
       processNotificationMutex.release();
@@ -94,13 +93,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handlePolAuthenticatedConnection(
-      String? key,
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata atConnectionMetadata,
-      Response response,
-      String? forAtSign,
-      String? atSign) async {
-    logger.info('Storing the notification $key');
+      Response response) async {
+    logger.info('Storing the notification ${verbParams[AT_KEY]}');
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: atConnectionMetadata.fromAtSign!);
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
@@ -125,15 +121,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
     // form a cached key
-    String cachedNotificationKey = CACHED;
-    // NOTE: when notifying the public keys to cache, the forAtSign contains the
-    // receiver atSign and the key contains "public:<key-entity>"
-    // When caching a public key, do not append the forAtSign to the
-    // cachedNotificationKey
-    if (forAtSign != null && (!key!.startsWith('public:'))) {
-      cachedNotificationKey += ':$forAtSign';
-    }
-    cachedNotificationKey += ':$key$atSign';
+    String cachedNotificationKey =
+        '$CACHED${atNotificationBuilder.notification}';
+    // // NOTE: when notifying the public keys to cache, the forAtSign contains the
+    // // receiver atSign and the key contains "public:<key-entity>"
+    // // When caching a public key, do not append the forAtSign to the
+    // // cachedNotificationKey
+    // if (forAtSign != null && (!key!.startsWith('public:'))) {
+    //   cachedNotificationKey += ':$forAtSign';
+    // }
+    // cachedNotificationKey += ':$key$atSign';
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
@@ -181,19 +178,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return;
   }
 
-  Future<void> _handleAuthenticatedConnection(
-      currentAtSign,
-      String? forAtSign,
-      String? atSign,
-      HashMap<String, String?> verbParams,
-      Response response) async {
+  Future<void> _handleAuthenticatedConnection(currentAtSign,
+      HashMap<String, String?> verbParams, Response response) async {
     logger.finer(
-        'currentAtSign : $currentAtSign, forAtSign : $forAtSign, atSign : $atSign');
+        'currentAtSign : $currentAtSign, forAtSign : ${verbParams[FOR_AT_SIGN]}, atSign : ${verbParams[AT_SIGN]}');
     final atNotificationBuilder =
         _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
     // If the currentAtSign and forAtSign are same, store the notification to keystore
     // and return
-    if (currentAtSign == forAtSign) {
+    if (currentAtSign == verbParams[FOR_AT_SIGN]) {
       // Since notification is stored to keystore, marking the notification
       // status as delivered
       atNotificationBuilder.notificationStatus = NotificationStatus.delivered;
@@ -277,7 +270,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..toAtSign = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])
       ..fromAtSign = AtUtils.formatAtSign(verbParams[AT_SIGN]) ?? fromAtSign
       ..notificationDateTime = DateTime.now().toUtc()
-      ..notification = verbParams[AT_KEY]
+      ..notification = _getFullFormedAtKey(
+          getMessageType(verbParams[MESSAGE_TYPE]), verbParams)
       ..opType = getOperationType(verbParams[AT_OPERATION])
       ..priority = SecondaryUtil.getNotificationPriority(verbParams[PRIORITY])
       ..messageType = getMessageType(verbParams[MESSAGE_TYPE])
@@ -428,5 +422,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     } else {
       return true;
     }
+  }
+
+  String _getFullFormedAtKey(
+      MessageType messageType, HashMap<String, String?> verbParam) {
+    // If message type text do not concatenate fromAtSign (currentAtSign)
+    if (messageType == MessageType.text) {
+      return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}';
+    }
+    // If message type is key, only then concatenate atSign's to key
+    return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
   }
 }
