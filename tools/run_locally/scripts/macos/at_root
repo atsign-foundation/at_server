@@ -1,0 +1,22 @@
+#!/bin/bash
+
+scriptName=$(basename -- "$0")
+cd "$(dirname -- "$0")"
+scriptDir=$(pwd)
+
+# Script dir is <repo_root>/tools/run_locally/scripts/<platform>
+# We will create logs etc in <repo_root>/tools/run_locally/runtime which
+# is in .gitignore
+cd "$scriptDir"/../../runtime
+
+mkdir -p rootServer
+cd rootServer
+echo "Running $scriptName in working directory $(pwd)"
+
+if [ ! -L certs ]; then
+  echo "Linking root certs"
+  ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs .
+fi
+
+echo "Starting root server on default port 64"
+dart "$scriptDir"/../../../../packages/at_root_server/bin/main.dart -h vip.ve.atsign.zone -p 6379 -a foobared
