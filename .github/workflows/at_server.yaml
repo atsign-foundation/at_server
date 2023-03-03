@@ -185,6 +185,10 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_test_env.dart
 
+        # Set PKAM keys to the atsign's
+      - name: Set PKAM Keys
+        run: docker exec at_virtual_env_cont supervisorctl start pkamLoad
+
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test
