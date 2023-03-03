@@ -69,6 +69,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           atConnection.getMetaData() as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       verbParams[FOR_AT_SIGN] = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
       verbParams[AT_SIGN] = AtUtils.formatAtSign(verbParams[AT_SIGN]);
       logger.finer(
@@ -122,15 +123,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     // form a cached key
     String cachedNotificationKey =
-        '$CACHED${atNotificationBuilder.notification}';
-    // // NOTE: when notifying the public keys to cache, the forAtSign contains the
-    // // receiver atSign and the key contains "public:<key-entity>"
-    // // When caching a public key, do not append the forAtSign to the
-    // // cachedNotificationKey
-    // if (forAtSign != null && (!key!.startsWith('public:'))) {
-    //   cachedNotificationKey += ':$forAtSign';
-    // }
-    // cachedNotificationKey += ':$key$atSign';
+        '$CACHED:${atNotificationBuilder.notification}';
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
@@ -430,7 +423,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (messageType == MessageType.text) {
       return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}';
     }
-    // If message type is key, only then concatenate atSign's to key
-    return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    // If message type is key, concatenate the atSign's
+    // Prefix forAtSign only if key is shared key. Do not append forAtSign if
+    // key is public.
+    // For all key types, append atSign(currentAtSign) to the key.
+    if (!verbParam[AT_KEY]!.startsWith('public')) {
+      return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    }
+    return '${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
   }
 }
