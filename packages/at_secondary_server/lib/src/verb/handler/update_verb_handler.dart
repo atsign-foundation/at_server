@@ -175,9 +175,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       return;
     }
 
-    final notificationExpiry = DateTime.now()
-        .toUtc()
-        .add(Duration(minutes: AtSecondaryConfig.notificationExpiryInMins));
+    int ttlInMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+        .inMilliseconds;
 
     var atNotification = (AtNotificationBuilder()
           ..fromAtSign = atSign
@@ -187,7 +186,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           ..priority = priority
           ..opType = OperationType.update
           ..atValue = value
-          ..expiresAt = notificationExpiry
+          ..ttl = ttlInMillis
           ..atMetaData = atMetaData)
         .build();
 
