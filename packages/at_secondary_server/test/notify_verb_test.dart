@@ -154,6 +154,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
       notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
 
       expect(
@@ -173,6 +174,7 @@ void main() {
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
       notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
       notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -190,6 +192,7 @@ void main() {
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
       notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
       notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),

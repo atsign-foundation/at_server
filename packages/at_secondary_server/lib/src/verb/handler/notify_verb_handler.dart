@@ -424,12 +424,19 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}';
     }
     // If message type is key, concatenate the atSign's
-    // Prefix forAtSign only if key is shared key. Do not append forAtSign if
-    // key is public.
-    // For all key types, append atSign(currentAtSign) to the key.
-    if (!verbParam[AT_KEY]!.startsWith('public')) {
-      return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    // In the notify regex, although, "public" and "forAtSign" are mutually exclusive
+    // for the "publicScope" named group.
+    //
+    // When notifying the public key's, the receiver atSign is not a part of the atKey
+    // (which is not the case in the shared key Eg. "@receiverAtSign":something.namespace@senderAtSign").
+    // So the receiver atSign has to mentioned explicitly. So command would look like
+    // "@receiverAtSign:public:something.namespace@senderAtSign". So when regex is applied
+    // the "publicScope" named group contains "@receiverAtSign" and "atKey" named group contains
+    // "public:something.namespace".
+    //
+    if (verbParam[AT_KEY]!.startsWith('public')) {
+      return '${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
     }
-    return '${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
   }
 }
