@@ -180,18 +180,23 @@ jobs:
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
-        # could save around 4s here using a compiled binary
+      - name: Check docker readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_docker_readiness.dart
+
+        # Set PKAM keys to the atsign's
+      - name: Load PKAM Keys
+        run: docker exec at_virtual_env_cont supervisorctl start pkamLoad
+
+
+      # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_test_env.dart
 
-        # Set PKAM keys to the atsign's
-      - name: Set PKAM Keys
-        run: docker exec at_virtual_env_cont supervisorctl start pkamLoad
-
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
-        run: dart run test
+        run: dart run test --concurrency=1
 
       # On push event, upload secondary server binary
       - name: upload secondary server
