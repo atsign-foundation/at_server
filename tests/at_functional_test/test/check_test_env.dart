@@ -16,10 +16,10 @@ void main() {
     print('connection established');
     socket_listener(_secureSocket);
     String response = '';
-    while (response.isEmpty || response == 'data:null\n') {
+    while (response.isEmpty || response.startsWith('error:')) {
       _secureSocket.write('lookup:pkaminstalled$atsign\n');
       response = await read();
-      print('waiting for signing public key response : $response');
+      print('Waiting for PKAM keys to load : $response');
       await Future.delayed(Duration(seconds: 1));
     }
     await _secureSocket.close();
