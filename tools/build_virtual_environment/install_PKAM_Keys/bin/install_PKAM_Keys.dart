@@ -1,41 +1,57 @@
-//import 'package:install_PKAM_Keys/install_PKAM_Keys.dart' as install_PKAM_Keys;
 import 'package:at_demo_data/at_demo_data.dart' as at_demo_data;
 import 'package:at_lookup/at_lookup.dart';
 
 void main(List<String> arguments) async {
-  at_demo_data.allAtsigns.forEach((atSign) {
+  await Future.forEach(at_demo_data.allAtsigns, (atSign) async {
     if (atSign != 'anonymous') {
-      lookItUp(atSign);
+      await lookItUp(atSign);
     }
   });
 }
 
-void lookItUp(String atSign) async {
+Future<void> lookItUp(String atSign) async {
   try {
-    print(atSign);
     var _atLookup = AtLookupImpl(atSign, 'vip.ve.atsign.zone', 64);
-    //print(at_demo_data.cramKeyMap[atSign]);
-    await _atLookup.authenticate_cram(at_demo_data.cramKeyMap[atSign]);
-    var command = 'update:public:PKAMINSTALLED' + atSign + ' YES\n';
-    //print(command);
-    await _atLookup.executeCommand(command);
+    var isCramAuthSuccessful =
+        await _atLookup.authenticate_cram(at_demo_data.cramKeyMap[atSign]);
+    if (!isCramAuthSuccessful) {
+      print('CRAM Authentication failed for $atSign');
+      return;
+    }
+    print('CRAM Authentication is successful for $atSign');
 
-    command = 'update:privatekey:at_pkam_publickey ' +
-        at_demo_data.pkamPublicKeyMap[atSign] +
-        '\n';
-    print(command);
-    await _atLookup.executeCommand(command);
+    // Set PKAM private key
+    var command =
+        'update:privatekey:at_pkam_publickey ${at_demo_data.pkamPublicKeyMap[atSign]}\n';
+    var response = await _atLookup.executeCommand(command, auth: true);
+    if (response == 'data:-1') {
+      print('Setting of PKAM private key for $atSign is successful');
+    } else {
+      print('Failed to update PKAM private key for $atSign');
+      return;
+    }
 
-    command = 'update:public:publickey${atSign} ' +
-        at_demo_data.encryptionPublicKeyMap[atSign] +
-        '\n';
-    print(command);
-    await _atLookup.executeCommand(command);
+    // Set PKAM public key
+    command =
+        'update:public:publickey${atSign} ${at_demo_data.encryptionPublicKeyMap[atSign]}\n';
+    response = await _atLookup.executeCommand(command, auth: true);
+    if (response.startsWith('data:') && response != 'data:null') {
+      print('Setting of PKAM public key for $atSign is successful');
+    } else {
+      print('Failed to update PKAM public key for $atSign');
+      return;
+    }
 
-    var installed = await _atLookup.llookup('public:pkaminstalled');
-    ;
-    print('PKAM Installed for ${atSign} : ' +
-        installed.toString().replaceFirst('data:', ''));
+    // Set pkamInstalled key to "yes"
+    command = 'update:public:pkaminstalled$atSign yes\n';
+    response = await _atLookup.executeCommand(command, auth: true);
+    if (response.startsWith('data:') && response != 'data:null') {
+      print('Set pkaminstalled key for $atSign is successful');
+    } else {
+      print('Failed to update pkaminstalled key for $atSign');
+      return;
+    }
+
     await _atLookup.close();
   } on Exception catch (e) {
     print('error while setting keys for ${atSign} exception: ${e.toString()}');
