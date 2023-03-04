@@ -715,14 +715,19 @@ void main() {
       try {
         notification = await updateHandler.notify('@from', '@to', 'na',
             'na-value', NotificationPriority.high, metaData);
-      } on Exception { //do nothing //exception is expected
+      } on Exception {
+        //do nothing //exception is expected
       }
-      DateTime expectedExpiry = notification!.notificationDateTime
-      !.toUtc().add(Duration(minutes: AtSecondaryConfig.notificationExpiryInMins));
+      int ttlInMillis =
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds;
+      DateTime expectedExpiry = notification!.notificationDateTime!
+          .toUtc()
+          .add(Duration(milliseconds: ttlInMillis));
 
-      expect(notification?.id, isNotNull);
-      expect(
-          notification?.expiresAt?.isAtSameMomentAs(expectedExpiry));
+      expect(notification.id, isNotNull);
+      expect(notification.ttl, ttlInMillis);
+      expect(notification.expiresAt, expectedExpiry);
     });
   });
 
