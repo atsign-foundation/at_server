@@ -24,3 +24,5 @@ doc/api/
 *.ipr
 *.iws
 *.idea/
+
+test/hive/

@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -66,6 +67,39 @@ class AtMetaData extends HiveObject {
     return toJson().toString();
   }
 
+  AtMetaData();
+
+  Metadata toCommonsMetadata() {
+    return Metadata()
+      ..ttl = ttl
+      ..ttb = ttb
+      ..ttr = ttr
+      ..ccd = isCascade
+      ..isBinary = isBinary
+      ..isEncrypted = isEncrypted
+      ..dataSignature = dataSignature
+      ..sharedKeyEnc = sharedKeyEnc
+      ..pubKeyCS = pubKeyCS
+      ..encoding = encoding;
+  }
+
+  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+    var atMetadata = AtMetaData();
+    atMetadata
+      ..ttl = metadata.ttl
+      ..ttb = metadata.ttb
+      ..ttr = metadata.ttr
+      ..isCascade = metadata.ccd
+      ..isBinary = metadata.isBinary
+      ..isEncrypted = metadata.isEncrypted
+      ..dataSignature = metadata.dataSignature
+      ..sharedKeyEnc = metadata.sharedKeyEnc
+      ..pubKeyCS = metadata.pubKeyCS
+      ..encoding = metadata.encoding;
+
+    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+  }
+
   Map toJson() {
     // ignore: omit_local_variable_types
     Map map = {};
@@ -89,6 +123,10 @@ class AtMetaData extends HiveObject {
     map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
     map[ENCODING] = encoding;
     return map;
+  }
+
+  factory AtMetaData.fromJson(Map json) {
+    return AtMetaData().fromJson(json);
   }
 
   AtMetaData fromJson(Map json) {
@@ -116,17 +154,17 @@ class AtMetaData extends HiveObject {
       ttl = (json[AT_TTL] is String)
           ? int.parse(json[AT_TTL])
           : (json[AT_TTL] == null)
-              ? 0
+              ? null
               : json[AT_TTL];
       ttb = (json[AT_TTB] is String)
           ? int.parse(json[AT_TTB])
           : (json[AT_TTB] == null)
-              ? 0
+              ? null
               : json[AT_TTB];
       ttr = (json[AT_TTR] is String)
           ? int.parse(json[AT_TTR])
           : (json[AT_TTR] == null)
-              ? 0
+              ? null
               : json[AT_TTR];
       isCascade = json[CCD];
       isBinary = json[IS_BINARY];
@@ -140,6 +178,53 @@ class AtMetaData extends HiveObject {
     }
     return this;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AtMetaData &&
+          runtimeType == other.runtimeType &&
+          createdBy == other.createdBy &&
+          updatedBy == other.updatedBy &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt &&
+          expiresAt == other.expiresAt &&
+          status == other.status &&
+          version == other.version &&
+          availableAt == other.availableAt &&
+          ttb == other.ttb &&
+          ttl == other.ttl &&
+          ttr == other.ttr &&
+          refreshAt == other.refreshAt &&
+          isCascade == other.isCascade &&
+          isBinary == other.isBinary &&
+          isEncrypted == other.isEncrypted &&
+          dataSignature == other.dataSignature &&
+          sharedKeyEnc == other.sharedKeyEnc &&
+          pubKeyCS == other.pubKeyCS &&
+          encoding == other.encoding;
+
+  @override
+  int get hashCode =>
+      createdBy.hashCode ^
+      updatedBy.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode ^
+      expiresAt.hashCode ^
+      status.hashCode ^
+      version.hashCode ^
+      availableAt.hashCode ^
+      ttb.hashCode ^
+      ttl.hashCode ^
+      ttr.hashCode ^
+      refreshAt.hashCode ^
+      isCascade.hashCode ^
+      isBinary.hashCode ^
+      isEncrypted.hashCode ^
+      dataSignature.hashCode ^
+      sharedKeyEnc.hashCode ^
+      pubKeyCS.hashCode ^
+      encoding.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
