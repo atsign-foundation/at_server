@@ -72,8 +72,8 @@ class AtCacheManager {
   /// * or an authenticated lookup (for a cachedKeyName / that starts with `cached:@myAtSign:`)
   ///
   /// If [maintainCache] is set to true, then remoteLookUp will update the cache as required:
-  ///   * If we get a 'null' response, delete from the cache
-  ///   * If we get KeyNotFoundException, delete from the cache
+  ///   * If we get a KeyNotFoundException or a 'null' response, delete from the cache
+  ///     (except for encryption public keys e.g. publickey@alice)
   ///   * If we get a valid response, update the cache
   ///
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
@@ -97,9 +97,10 @@ class AtCacheManager {
       }
     } on KeyNotFoundException {
       if (maintainCache) {
-        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
-            ' - removing $cachedKeyName from cache');
-        await delete(cachedKeyName);
+        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName');
+        if (! cachedKeyName.startsWith('cached:public:publickey@')) {
+          await delete(cachedKeyName);
+        }
       } else {
         logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
             ' - but maintainCache is false, so leaving $cachedKeyName in cache');
@@ -112,9 +113,10 @@ class AtCacheManager {
     remoteResponse = remoteResponse!.replaceAll('data:', '');
     if (remoteResponse == 'null') {
       if (maintainCache) {
-        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName'
-            ' - removing $cachedKeyName from cache');
-        await delete(cachedKeyName);
+        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName');
+        if (! cachedKeyName.startsWith('cached:public:publickey@')) {
+          await delete(cachedKeyName);
+        }
       } else {
         logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName'
             ' - but maintainCache is false, so leaving $cachedKeyName in cache');
@@ -130,15 +132,31 @@ class AtCacheManager {
       logger.warning('Bizarrely, we did a remoteLookup of our own data $remoteKeyName');
     } else {
       if (maintainCache) {
+        late bool shouldCache;
         logger.info('remoteLookUp: Successfully looked up $remoteKeyName - updating cache for $cachedKeyName');
         if (atData.metaData == null) {
           // No metaData? Should never happen. don't cache
-
-        } else if (atData.metaData!.ttr == 0) {
-          // ttr of zero means do not cache
-
+          shouldCache = false;
+          logger.severe('No metadata in remote response for $remoteKeyName - will not cache');
+        } else if (atData.metaData!.ttr == 0 || atData.metaData!.ttr == null) {
+          // ttr of zero or null means do not cache
+          shouldCache = false;
+          if (cachedKeyName.startsWith('cached:public:')) {
+            // HOWEVER: publickey@atSign should be cached with ttr of -1 (cache indefinitely)
+            if (cachedKeyName.startsWith('cached:public:publickey:@')) {
+              shouldCache = true;
+              atData.metaData!.ttr = -1;
+            } else {
+              // AND: for backwards compatibility, we will temporarily cache other public data with a ttl of 24 hours
+              shouldCache = true;
+              atData.metaData!.ttl = 24 * 60 * 60 * 1000;
+            }
+          }
         } else {
-          // We're good to cache it
+          // We have a ttr with a positive or negative value - we're good to cache it
+          shouldCache = true;
+        }
+        if (shouldCache) {
           await put(cachedKeyName, atData);
         }
       } else {
@@ -217,8 +235,8 @@ class AtCacheManager {
     if (cachedKeyName.endsWith(atSign)) {
       throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName - we do not re-cache our own data');
     }
-    atData.metaData!.ttr ??= -1;
-    await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr);
+
+    await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr, time_to_live: atData.metaData!.ttl);
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives

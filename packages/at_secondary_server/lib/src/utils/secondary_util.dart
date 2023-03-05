@@ -110,7 +110,7 @@ class SecondaryUtil {
         break;
       case 'all':
         var atDataAsMap = atData.toJson();
-        if (!atDataAsMap.containsKey('key') && keyToUseIfNotAlreadySetInAtData != null) {
+        if (atDataAsMap['key'] == null && keyToUseIfNotAlreadySetInAtData != null) {
           atDataAsMap['key'] = keyToUseIfNotAlreadySetInAtData;
         }
         result = json.encode(atDataAsMap);

@@ -38,8 +38,11 @@ class DummyInboundConnection implements InboundConnection {
     return metadata.isClosed;
   }
 
+  String? lastWrittenData;
   @override
-  void write(String data) {}
+  void write(String data) {
+    lastWrittenData = data;
+  }
 
   @override
   bool? isMonitor;

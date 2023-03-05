@@ -1,26 +1,33 @@
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 final Random random = Random();
 
-Future<AtData> createRandomKeyStoreEntry(String keyName, SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore) async {
-  AtData entry = createRandomAtData();
+Map decodeResponse(String sentToClient) {
+  return jsonDecode(sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
+}
+
+Future<AtData> createRandomKeyStoreEntry(String atSign, String keyName, SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore) async {
+  AtData entry = createRandomAtData(atSign);
   await secondaryKeyStore.put(keyName, entry);
   return (await secondaryKeyStore.get(keyName))!;
 }
 
-AtData createRandomAtData() {
+AtData createRandomAtData(String atSign) {
   AtData atData = AtData();
   atData.data = createRandomString(100);
-  atData.metaData = createRandomAtMetaData();
+  atData.metaData = createRandomAtMetaData(atSign);
   return atData;
 }
 
-AtMetaData createRandomAtMetaData() {
+AtMetaData createRandomAtMetaData(String atSign) {
   AtMetaData md = AtMetaData();
   DateTime now = DateTime.now().toUtc();
+  md.createdBy = atSign;
+  md.updatedBy = atSign;
   md.createdAt = now;
   md.updatedAt = now;
   md.isEncrypted = createRandomNullableBoolean();
