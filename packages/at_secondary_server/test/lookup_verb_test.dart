@@ -207,10 +207,6 @@ void main() {
       }
     });
 
-    tearDownAll(() async {
-      await AtAccessLogManagerImpl.getInstance().close();
-    });
-
     test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response', () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
