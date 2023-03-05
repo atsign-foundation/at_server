@@ -67,6 +67,7 @@ class OutboundClient {
   /// Throws a [SocketException] when a socket connection to secondary cannot be established
   /// Throws a [HandShakeException] for any exception in the handshake process
   Future<bool> connect({bool handshake = true}) async {
+    logger.finer('connect(handshake:$handshake) called for $toAtSign');
     var result = false;
     try {
       // 1. Find secondary url for the toAtSign
@@ -240,6 +241,7 @@ class OutboundClient {
   /// Throws a [LookupException] if there is exception during lookup
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
   Future<String?> lookUp(String key, {bool handshake = true}) async {
+    logger.finer('lookUp($key, handshake:$handshake) called for $toAtSign');
     if (handshake && !isHandShakeDone) {
       throw LookupException('OutboundClient.lookUp: Handshake not done, but lookUp was called with handshake: true');
     }

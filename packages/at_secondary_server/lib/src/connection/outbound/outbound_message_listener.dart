@@ -68,11 +68,11 @@ class OutboundMessageListener {
   /// Throws [AtConnectException] upon a bad response (not 'data:...', not 'error:...') from remote secondary.
   /// Throws [TimeoutException] If there is no message in queue after [maxWaitMilliSeconds].
   Future<String> read({int maxWaitMilliSeconds = 3000}) async {
+    var loopMillis = 10;
     //wait maxWaitMilliSeconds seconds for response from remote socket
-    var loopCount = (maxWaitMilliSeconds / 50).round();
+    var loopCount = (maxWaitMilliSeconds / loopMillis).round();
 
     for (var i = 0; i < loopCount; i++) {
-      await Future.delayed(Duration(milliseconds: 50));
       var queueLength = _queue.length;
       if (queueLength > 0) {
         String result = _queue.removeFirst();
@@ -102,6 +102,7 @@ class OutboundMessageListener {
               "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
         }
       }
+      await Future.delayed(Duration(milliseconds: loopMillis));
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
     _closeOutboundClient();

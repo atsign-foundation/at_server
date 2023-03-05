@@ -66,7 +66,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     if (result == null || byPassCacheStr == 'true') {
       AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
       if (atData != null) {
-        result = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: keyName);
+        result = SecondaryUtil.prepareResponseData(operation, atData, key: keyName);
       }
     }
     response.data = result;

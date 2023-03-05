@@ -99,7 +99,11 @@ class SecondaryUtil {
     return base64Encode(signature);
   }
 
-  static String? prepareResponseData(String? operation, AtData? atData, {String? keyToUseIfNotAlreadySetInAtData}) {
+  /// When [key] is supplied, it will be used even if the [atData] already has a key.
+  /// This is relevant in the lookup and plookup verb handlers when we need the
+  /// client to be able to determine from the response whether the data was
+  /// served from cache or not
+  static String? prepareResponseData(String? operation, AtData? atData, {String? key}) {
     String? result;
     if (atData == null) {
       return result;
@@ -110,8 +114,8 @@ class SecondaryUtil {
         break;
       case 'all':
         var atDataAsMap = atData.toJson();
-        if (atDataAsMap['key'] == null && keyToUseIfNotAlreadySetInAtData != null) {
-          atDataAsMap['key'] = keyToUseIfNotAlreadySetInAtData;
+        if (key != null) {
+          atDataAsMap['key'] = key;
         }
         result = json.encode(atDataAsMap);
         break;
