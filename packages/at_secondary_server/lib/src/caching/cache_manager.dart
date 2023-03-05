@@ -227,6 +227,22 @@ class AtCacheManager {
 
 
   /// Update the cached data.
+  ///
+  /// If the cached key name starts with 'cached:public:publickey@' then it has special handling logic
+  ///
+  /// If the value of a cached:public:publickey@atSign has changed, we are dealing with the aftermath of an
+  /// atServer reset where the owner has re-onboarded with a different encryption keypair.
+  ///
+  /// When that happens, we need to do some stuff in this atServer's keyStore so that
+  /// some client for this atSign can know that it needs to cut a new shared encryption key
+  /// (or, if client library supports it, reuse the old shared encryption key)
+  /// and share it with the other atSign. (Context: sharing a shared encryption key involves
+  /// encrypting it with the other atSign's encryption public key)
+  ///
+  /// In essence, this is the server providing the minimum crude signal to clients that
+  /// they need to do something. As we extend the client libraries to understand these
+  /// post-reset scenarios better, they can be smarter but right now all client libraries
+  /// know that they first check if there is a shared key, and if not then they create one.
   Future<void> put(String cachedKeyName, AtData atData) async {
     logger.info("put: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
@@ -236,7 +252,50 @@ class AtCacheManager {
       throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName - we do not re-cache our own data');
     }
 
-    await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr, time_to_live: atData.metaData!.ttl);
+    var otherAtSignWithoutTheAt = cachedKeyName.replaceFirst('public:publickey@', '');
+
+    if (! cachedKeyName.startsWith('public:publickey@')) {
+      await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr, time_to_live: atData.metaData!.ttl);
+    } else {
+      try {
+        bool publicKeyChanged = false;
+        if (keyStore.isKeyExists(cachedKeyName)) {
+          // If existing value in cache
+          // ⁃	fetch it, and compare its value with the new value
+          late AtData existing;
+          try {
+            existing = (await keyStore.get(cachedKeyName))!;
+            if (existing.data != null && existing.data != 'null'
+                && atData.data != null && atData.data != 'null') {
+              // We previously had real data and we now have some new real data
+              // If different, set publicKeyChanged = true
+              if (existing.data != atData.data) {
+                publicKeyChanged = true;
+              }
+            }
+          } on KeyNotFoundException catch (unexpected) {
+            logger.severe(
+                'Unexpected KeyNotFoundException when retrieving $cachedKeyName after first checking that it existed : $unexpected');
+          }
+        }
+        if (publicKeyChanged) {
+          // Key has actually changed - let's cache it
+          await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+
+          var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+          // Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
+          // e.g. find shared_key.bob@alice and rename it to shared_key.bob.until.<epochMillis>@alice
+          var nameOfMyCopyOfSharedKey = 'shared_key.$otherAtSignWithoutTheAt$atSign';
+          if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+            AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
+            await keyStore.remove(nameOfMyCopyOfSharedKey);
+            await keyStore.put('shared_key.$otherAtSignWithoutTheAt.until.$now$atSign', data);
+          }
+        }
+      } catch (e, st) {
+        logger.severe('Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
+      }
+    }
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives

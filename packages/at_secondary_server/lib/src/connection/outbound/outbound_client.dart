@@ -111,23 +111,22 @@ class OutboundClient {
   /// before the connection has been authenticated (because looking up public data on another
   /// atServer requires the connection be unauthenticated).
   /// 1. Gets the `publickey@atSign` from the remote atServer
-  /// 2. If got a response, calls [AtCacheManager.put] on [cacheManager]
-  /// 3. If we got a KeyNotFound  from remote atServer, calls [AtCacheManager.delete] on [cacheManager]
-  /// If [cacheManager] not supplied, fall back (for now) to the server singleton's cacheManager.
-  Future<void> checkRemotePublicKey({AtCacheManager? cacheManager}) async {
+  /// 2. If got a response, calls [AtCacheManager.put]
+  /// 3. If we got a KeyNotFound  from remote atServer, calls [AtCacheManager.delete]
+  Future<void> checkRemotePublicKey() async {
     var remotePublicKeyName = 'publickey$toAtSign';
     var cachedPublicKeyName = 'cached:public:$remotePublicKeyName';
     late AtData atData;
     late String remoteResponse;
 
-    // TODO : This is only necessary until we have won the long war on singletons and can inject CacheManager at construction time
-    cacheManager ??= AtSecondaryServerImpl.getInstance().cacheManager;
+    // TODO Using singleton until we have won the long war on singletons and can inject the AtCacheManager
+    // TODO into this object at construction time.
+    AtCacheManager cacheManager = AtSecondaryServerImpl.getInstance().cacheManager;
 
     try {
       remoteResponse = (await lookUp('all:$remotePublicKeyName', handshake: false))!;
     } on KeyNotFoundException {
-      // Do nothing - as per spec for reset handling
-      // TODO Actually add some of this stuff into the atProtocol specification
+      // Do nothing
       return;
     }
 
@@ -140,20 +139,8 @@ class OutboundClient {
       atData = AtData().fromJson(jsonDecode(remoteResponse));
 
       doing = 'updating $cachedPublicKeyName in cache';
-      // Note: Yes, this is updating the cache. But potentially it's doing something much more.
-      // If the value of the public key has changed, we are dealing with the aftermath of an
-      // atServer reset where the owner has re-onboarded with a different encryption keypair.
-      // When that happens, we need to do some stuff in this atServer's keyStore so that
-      // some client for this atSign can know that it needs to cut a new shared encryption key
-      // (or, if client library supports it, reuse the old shared encryption key)
-      // and share it with the other atSign. (Context: sharing a shared encryption key involves
-      // encrypting it with the other atSign's encryption public key)
-      //
-      // In essence, this is the server providing the minimum crude signal to clients that
-      // they need to do something. As we extend the client libraries to understand these
-      // post-reset scenarios better, they can be smarter but right now all client libraries
-      // know that they first check if there is a shared key, and if not then they create one.
-      //
+      // Note: Potentially the put here may be doing a lot more than just the put.
+      // See AtCacheManager.put for detailed explanation.
       await cacheManager.put(cachedPublicKeyName, atData);
     } catch (e, st) {
       logger.severe('Caught $e while $doing');
