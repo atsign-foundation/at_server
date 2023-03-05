@@ -24,7 +24,6 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   AtConnectionMetaData getMetaData() {
-    metadata.fromOtherAtSign = null;
     return metadata;
   }
 

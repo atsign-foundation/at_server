@@ -64,8 +64,7 @@ void main() {
     late MockOutboundConnection mockOutboundConnection;
     late MockSecondaryAddressFinder mockSecondaryAddressFinder;
     late MockSecureSocket mockSecureSocket;
-    DummyInboundConnection inboundConnection = DummyInboundConnection();
-    registerFallbackValue(inboundConnection);
+    late DummyInboundConnection inboundConnection;
     late Function(dynamic data) socketOnDataFn;
     // ignore: unused_local_variable
     late Function() socketOnDoneFn;
@@ -108,6 +107,9 @@ void main() {
           .thenAnswer((invocation) async {
             return mockOutboundConnection;
       });
+
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
 
       outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
           secondaryAddressFinder: mockSecondaryAddressFinder, outboundConnectionFactory: mockOutboundConnectionFactory)
@@ -213,17 +215,7 @@ void main() {
       }
     });
 
-    test('@alice, via owner authenticated client to @alice server, lookup a key that @bob has shared with ttr 10', () async {
-      /// We are going to assert
-      /// * cache state before lookup (not present) and after lookup (present)
-      /// * cache fetch when looking up first time (nope), second time (yup)
-      /// * cache always bypassed if bypassCache is set
-      ///
-      /// We're going to assert on the responses for the various flavours of lookup operation
-      /// * just the value (lookup:<atKey>)
-      /// * just the metadata (lookup:meta:<atKey>)
-      /// * value and metadata (lookup:all:<atKey>
-
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response', () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
@@ -234,24 +226,25 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      expect(secondaryKeyStore.isKeyExists(keyName), false);
-      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
-      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
-
       AtData bobData = test_utils.createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
       String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
 
-      inboundConnection
-          .getMetaData()
-          .isAuthenticated = true; // owner connection, authenticated
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+
+      inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
       });
+
+      Map mapSentToClient;
+
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Response should have been cached
@@ -262,7 +255,6 @@ void main() {
       expect(cachedAtData.metaData!.toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
       expect(cachedAtData.key, cachedKeyName);
 
-      Map mapSentToClient;
       // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. @alice:foo.bar@bob
       mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
@@ -272,6 +264,84 @@ void main() {
 
       expect(secondaryKeyStore.isKeyExists(keyName), false);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+    });
+
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify publickey was cached', () async {
+      // some key sharedBy @bob
+      var keyName = 'some_key.some_namespace$bob';
+      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      var cachedKeyName = 'cached:$alice:$keyName';
+      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
+
+      await secondaryKeyStore.remove(keyName);
+      await secondaryKeyStore.remove(cachedKeyName);
+      await secondaryKeyStore.remove(cachedBobsPublicKeyName);
+
+      AtData bobData = test_utils.createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
+
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+
+      inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      Map mapSentToClient;
+
+      await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
+
+      // *************************************************************
+      // In the course of doing the remote lookup, Bob's public key should have been fetched and cached
+      //
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), true);
+      // Let's remove our cache of Bob's public key because then we can verify that after the next lookup
+      // retrieves from cache, there is no need to do a remote lookup and therefore Bob's public key won't have been fetched
+      await cacheManager.delete(cachedBobsPublicKeyName);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+      //
+      // *************************************************************
+
+    });
+
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify fetched from cache', () async {
+      // some key sharedBy @bob
+      var keyName = 'some_key.some_namespace$bob';
+      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      var cachedKeyName = 'cached:$alice:$keyName';
+      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
+
+      await secondaryKeyStore.remove(keyName);
+      await secondaryKeyStore.remove(cachedKeyName);
+      await secondaryKeyStore.remove(cachedBobsPublicKeyName);
+
+      AtData bobData = test_utils.createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
+
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+
+      inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      Map mapSentToClient;
+
+      await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // *************************************************************
       // In the course of doing the remote lookup, Bob's public key should have been fetched and cached
@@ -298,6 +368,40 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
       // We didn't do a remote lookup, so bob's public key should not have been cached
       expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+    });
+
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify bypassCache', () async {
+      // some key sharedBy @bob
+      var keyName = 'some_key.some_namespace$bob';
+      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      var cachedKeyName = 'cached:$alice:$keyName';
+      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
+
+      await secondaryKeyStore.remove(keyName);
+      await secondaryKeyStore.remove(cachedKeyName);
+      await secondaryKeyStore.remove(cachedBobsPublicKeyName);
+
+      AtData bobData = test_utils.createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
+
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+
+      inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      Map mapSentToClient;
+
+      // Do a first lookup, to populate the cache
+      await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Now let's do the lookup again, but setting the bypassCache flag
       // This time the 'key' in the response should NOT have the 'cached:' prefix
@@ -313,34 +417,65 @@ void main() {
       expect(mapSentToClient['key'], '$alice:$keyName');
 
       verify(() => mockOutboundConnection.write('lookup:all:$keyName\n')).called(1);
+    });
+
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify lookup flavours', () async {
+      // some key sharedBy @bob
+      var keyName = 'some_key.some_namespace$bob';
+      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      var cachedKeyName = 'cached:$alice:$keyName';
+      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
+
+      await secondaryKeyStore.remove(keyName);
+      await secondaryKeyStore.remove(cachedKeyName);
+      await secondaryKeyStore.remove(cachedBobsPublicKeyName);
+
+      AtData bobData = test_utils.createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
+
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
+      expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
+
+      inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      Map mapSentToClient;
 
       // Now let's test the other flavours of lookup (just data, just metadata)
       // First - just the data
-      // when doing remote lookup
+      // (a) when doing remote lookup
       await cacheManager.delete(cachedKeyName);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
       await lookupVerbHandler.process('lookup:$keyName', inboundConnection);
       expect(inboundConnection.lastWrittenData!, 'data:${bobData.data}\n$alice@');
-      // and when it's been cached
+      // (b) and when it's been cached
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
       await lookupVerbHandler.process('lookup:$keyName', inboundConnection);
       expect(inboundConnection.lastWrittenData!, 'data:${bobData.data}\n$alice@');
 
       // Second - just the metaData
-      // when doing remote lookup
+      // (a) when doing remote lookup
       await cacheManager.delete(cachedKeyName);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
       await lookupVerbHandler.process('lookup:meta:$keyName', inboundConnection);
       mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
       expect(AtMetaData.fromJson(mapSentToClient).toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
-      // and when it's been cached
+      // (b) and when it's been cached
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
       await lookupVerbHandler.process('lookup:meta:$keyName', inboundConnection);
       mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
       expect(AtMetaData.fromJson(mapSentToClient).toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
     });
 
-    test('@alice, via owner authenticated client to @alice server, lookup a key that @bob has shared with ttr null or zero', () async {
+    test('@alice, to @alice server, lookup a key that @bob has shared with ttr null or zero', () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
       // if @alice caches, the key would be prefixed with 'cached:@alice:'
@@ -375,7 +510,7 @@ void main() {
       expect(mapSentToClient['key'], '$alice:$keyName');
     });
 
-    test('@alice, via owner authenticated client to @alice server, lookup a key that does not exist', () async {
+    test('@alice, to @alice server, lookup a key that does not exist', () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
 
@@ -388,12 +523,105 @@ void main() {
       await expectLater(lookupVerbHandler.process('lookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
     });
 
-    test('@alice, via pol connection to @bob server, lookup a key that @bob has shared', () {});
-    test('@alice, via pol connection to @bob server, lookup a key that does not exist', () {});
-    test('unauthenticated client to @alice server lookup a key owned by @alice that exists but is not public', () {});
-    test('unauthenticated client to @alice server lookup a key owned by @bob that exists but is not public', () {});
-    test('unauthenticated client to @alice server lookup a key owned by @alice that exists and is public', () {});
-    test('unauthenticated client to @alice server lookup a key owned by @bob that exists and is public', () {});
+    test('@bob, via pol connection to @alice server, lookup a key that @alice has shared', () async {
+      // some key sharedBy @alice
+      var keyName = 'some_key.some_namespace$alice';
+
+      AtData aliceData = test_utils.createRandomAtData(alice);
+      aliceData.metaData!.ttr = null;
+      aliceData.metaData!.ttb = null;
+      aliceData.metaData!.ttl = null;
+
+      await secondaryKeyStore.put('$bob:$keyName', aliceData);
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists('$bob:$keyName'), true);
+
+      inboundConnection.getMetaData().isPolAuthenticated = true; // connection from @bob atServer to @alice atServer, polAuthenticated
+      inboundConnection.metadata.fromSelf = false;
+      inboundConnection.metadata.fromOther = true;
+      inboundConnection.metadata.fromOtherAtSign = bob;
+
+      // The sharedWith atSign is always prepended, even if it's been supplied. So, when it is
+      // supplied, the search will be for e.g. @bob:@bob:foo.bar@alice
+      // So let's just assert that this will throw a KeyNotFoundException
+      await expectLater(lookupVerbHandler.process('lookup:all:$bob:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+
+      // But looking it up is fine when we don't provide sharedWith in the lookup command
+      await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
+
+      Map mapSentToClient;
+      // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
+      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['data'], aliceData.data);
+      expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(), aliceData.metaData!.toCommonsMetadata());
+      expect(mapSentToClient['key'], '$bob:$keyName');
+    });
+
+    test('@alice, via pol connection to @bob server, lookup a key that does not exist', () async {
+      // some key sharedBy @alice
+      var keyName = 'some_key.some_namespace$alice';
+
+      inboundConnection.metadata.isPolAuthenticated = true; // connection from @bob atServer to @alice atServer, polAuthenticated
+      inboundConnection.metadata.fromSelf = false;
+      inboundConnection.metadata.fromOther = true;
+      inboundConnection.metadata.fromOtherAtSign = bob;
+
+      await expectLater(lookupVerbHandler.process('lookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+    });
+
+    test('unauthenticated client to @alice server lookup a key owned by @alice that exists and is public', () async {
+      // some key sharedBy @alice
+      var keyName = 'firstname.wavi$alice';
+
+      AtData aliceData = test_utils.createRandomAtData(alice);
+      aliceData.data = 'Alice';
+      aliceData.metaData!.ttr = 0;
+      aliceData.metaData!.ttb = 0;
+      aliceData.metaData!.ttl = 0;
+
+      await secondaryKeyStore.put('public:$keyName', aliceData);
+      expect(secondaryKeyStore.isKeyExists(keyName), false);
+      expect(secondaryKeyStore.isKeyExists('public:$keyName'), true);
+
+      expect (inboundConnection.metadata.isAuthenticated, false);
+      expect (inboundConnection.metadata.isPolAuthenticated, false);
+      expect (inboundConnection.metadata.fromOtherAtSign, null);
+
+      // public: is always prepended, even if it's been supplied. So, when it is
+      // supplied, the search will be for e.g. public:public:foo.bar@alice
+      // So let's just assert that this will throw a KeyNotFoundException
+      await expectLater(lookupVerbHandler.process('lookup:all:public:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+
+      // But looking it up is fine when we don't provide sharedWith in the lookup command
+      await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
+
+      Map mapSentToClient;
+      // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
+      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['data'], aliceData.data);
+      expect(mapSentToClient['data'], 'Alice');
+      expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(), aliceData.metaData!.toCommonsMetadata());
+      expect(mapSentToClient['key'], 'public:$keyName');
+    });
+
+    test('unauthenticated client to @alice server lookup a key owned by @alice that exists and is not public', () async {
+      // some key owned by @alice
+      var keyName = 'some_key.some_namespace$alice';
+
+      AtData aliceData = test_utils.createRandomAtData(alice);
+      aliceData.metaData!.ttr = 0;
+      aliceData.metaData!.ttb = 0;
+      aliceData.metaData!.ttl = 0;
+
+      await secondaryKeyStore.put(keyName, aliceData);
+      expect(secondaryKeyStore.isKeyExists(keyName), true);
+
+      expect (inboundConnection.metadata.isAuthenticated, false);
+      expect (inboundConnection.metadata.isPolAuthenticated, false);
+      expect (inboundConnection.metadata.fromOtherAtSign, null);
+
+      await expectLater(lookupVerbHandler.process('lookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+    });
   });
 
   group('lookup syntax tests', () {
