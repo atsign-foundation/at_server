@@ -1,5 +1,6 @@
 
 import 'package:test/test.dart';
+import 'package:version/version.dart';
 import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
 
@@ -192,10 +193,17 @@ void main() {
 
       /// lookup with bypass_cache set to false
       /// should return the new value
+      /// except there was a bug lookup handler in all versions < 3.0.28
+      /// where it was not populating the cache having done a lookup
       await sh2.writeCommand('lookup:bypassCache:false:fav-city$atSign_1');
       response = await sh2.read();
       print('lookup verb response : $response');
-      expect(response, contains('data: $newValue'));
+      var serverResponse = Version.parse(await sh1.getVersion());
+      if (serverResponse > Version(3, 0, 27)) {
+        expect(response, contains('data: $newValue'));
+      } else {
+        expect(response, contains('data: $oldValue'));
+      }
     } finally {
       await sh1.writeCommand('config:reset:autoNotify');
       var response = await sh1.read();
