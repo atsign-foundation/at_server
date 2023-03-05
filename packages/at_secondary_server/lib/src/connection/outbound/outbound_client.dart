@@ -38,6 +38,9 @@ class OutboundClient {
 
   at_lookup.SecondaryAddressFinder? secondaryAddressFinder;
 
+  /// When unit testing, we don't need to do all the things necessary
+  /// to support server-to-server handshake - for example, actually signing
+  /// a pol challenge, nor creating a key which stores that signature.
   @visibleForTesting
   bool productionMode = true;
 
