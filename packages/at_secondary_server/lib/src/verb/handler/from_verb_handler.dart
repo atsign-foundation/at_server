@@ -88,10 +88,10 @@ class FromVerbHandler extends AbstractVerbHandler {
 
     logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
     if (fromAtSign == currentAtSign) {
-      atConnectionMetadata.fromSelf = true;
+      atConnectionMetadata.self = true;
     } else {
-      atConnectionMetadata.fromOther = true;
-      atConnectionMetadata.fromOtherAtSign = fromAtSign;
+      atConnectionMetadata.from = true;
+      atConnectionMetadata.fromAtSign = fromAtSign;
     }
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));

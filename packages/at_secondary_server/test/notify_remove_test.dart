@@ -47,7 +47,7 @@ void main() {
       // Dummy Inbound connection
       var atConnection = InboundConnectionImpl(null, '123')
         ..metaData = (InboundConnectionMetadata()
-          ..fromOtherAtSign = '@alice'
+          ..fromAtSign = '@alice'
           ..isAuthenticated = true);
       var response = Response();
       // Verify Notification is inserted into keystore

@@ -142,7 +142,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       if (atConnectionMetadata.isPolAuthenticated) {
         // TODO: Refactor along with atKey and Scan refactoring.
         keys.removeWhere((key) =>
-            key.toString().startsWith('${atConnectionMetadata.fromOtherAtSign}:') ==
+            key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ==
                 false ||
             key.toString().startsWith('public:_'));
         // Remove the atSigns from the inbound connection
@@ -150,7 +150,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         // @murali:phone@sitaram => phone@sitaram
         for (var key in keys) {
           var modifiedKey =
-              key.replaceAll('${atConnectionMetadata.fromOtherAtSign}:', '');
+              key.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
           keysList.add(modifiedKey);
         }
       } else {

@@ -128,7 +128,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)
         ..metaData = metadata;
@@ -215,7 +215,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '100';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)
         ..metaData = metadata;
@@ -292,7 +292,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
@@ -358,7 +358,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
       var response = Response();
@@ -402,7 +402,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:122');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)
         ..metaData = metadata;
@@ -429,7 +429,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromOtherAtSign = '@alice'
+        ..fromAtSign = '@alice'
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(null, inBoundSessionId)
         ..metaData = metadata;

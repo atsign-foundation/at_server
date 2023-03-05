@@ -114,7 +114,7 @@ void main() {
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.fromSelf, true);
+      expect(connectionMetadata.self, true);
     });
 
     test('test from verb handler from atsign does not contain @',
@@ -131,7 +131,7 @@ void main() {
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.fromSelf, true);
+      expect(connectionMetadata.self, true);
     });
 
     /*test(
@@ -171,7 +171,7 @@ void main() {
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.fromSelf, true);
+      expect(connectionMetadata.self, true);
     });
 
     test('test from verb handler to block fromAtSign ', () async {

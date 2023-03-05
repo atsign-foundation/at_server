@@ -529,9 +529,9 @@ void main() {
       expect(secondaryKeyStore.isKeyExists('$bob:$keyName'), true);
 
       inboundConnection.getMetaData().isPolAuthenticated = true; // connection from @bob atServer to @alice atServer, polAuthenticated
-      inboundConnection.metadata.fromSelf = false;
-      inboundConnection.metadata.fromOther = true;
-      inboundConnection.metadata.fromOtherAtSign = bob;
+      inboundConnection.metadata.self = false;
+      inboundConnection.metadata.from = true;
+      inboundConnection.metadata.fromAtSign = bob;
 
       // The sharedWith atSign is always prepended, even if it's been supplied. So, when it is
       // supplied, the search will be for e.g. @bob:@bob:foo.bar@alice
@@ -554,9 +554,9 @@ void main() {
       var keyName = 'some_key.some_namespace$alice';
 
       inboundConnection.metadata.isPolAuthenticated = true; // connection from @bob atServer to @alice atServer, polAuthenticated
-      inboundConnection.metadata.fromSelf = false;
-      inboundConnection.metadata.fromOther = true;
-      inboundConnection.metadata.fromOtherAtSign = bob;
+      inboundConnection.metadata.self = false;
+      inboundConnection.metadata.from = true;
+      inboundConnection.metadata.fromAtSign = bob;
 
       await expectLater(lookupVerbHandler.process('lookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
     });
@@ -577,7 +577,7 @@ void main() {
 
       expect (inboundConnection.metadata.isAuthenticated, false);
       expect (inboundConnection.metadata.isPolAuthenticated, false);
-      expect (inboundConnection.metadata.fromOtherAtSign, null);
+      expect (inboundConnection.metadata.fromAtSign, null);
 
       // public: is always prepended, even if it's been supplied. So, when it is
       // supplied, the search will be for e.g. public:public:foo.bar@alice
@@ -610,7 +610,7 @@ void main() {
 
       expect (inboundConnection.metadata.isAuthenticated, false);
       expect (inboundConnection.metadata.isPolAuthenticated, false);
-      expect (inboundConnection.metadata.fromOtherAtSign, null);
+      expect (inboundConnection.metadata.fromAtSign, null);
 
       await expectLater(lookupVerbHandler.process('lookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
     });

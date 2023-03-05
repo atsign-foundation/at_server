@@ -291,7 +291,7 @@ void main() {
       var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
-      connectionMetadata.fromOtherAtSign = '@test_user_1';
+      connectionMetadata.fromAtSign = '@test_user_1';
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
@@ -337,7 +337,7 @@ void main() {
       notifyVerbParams.putIfAbsent('operation', () => 'delete');
       notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
-      connectionMetadata.fromOtherAtSign = '@test_user_1';
+      connectionMetadata.fromAtSign = '@test_user_1';
       notifyVerbParams.putIfAbsent('atKey', () => 'phone');
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);

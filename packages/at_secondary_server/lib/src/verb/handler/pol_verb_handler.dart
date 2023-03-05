@@ -53,15 +53,15 @@ class PolVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var fromAtSign = atConnectionMetadata.fromOtherAtSign;
+    var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
 
-    logger.info('from : ${atConnectionMetadata.fromOther.toString()}');
+    logger.info('from : ${atConnectionMetadata.from.toString()}');
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
-    if (atConnectionMetadata.fromOther != true) {
+    if (atConnectionMetadata.from != true) {
       throw InvalidRequestException ('You must execute a ''from:'' command before you may run the pol command');
     }
 

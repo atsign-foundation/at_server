@@ -44,7 +44,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog =
         await AtAccessLogManagerImpl.getInstance().getAccessLog(thisServersAtSign);
-    var fromAtSign = atConnectionMetadata.fromOtherAtSign;
+    var fromAtSign = atConnectionMetadata.fromAtSign;
     String keyOwnersAtSign = verbParams[AT_SIGN]!;
     keyOwnersAtSign = AtUtils.formatAtSign(keyOwnersAtSign)!;
     var entity = verbParams[AT_KEY];

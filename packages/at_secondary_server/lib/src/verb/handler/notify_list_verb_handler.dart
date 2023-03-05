@@ -62,7 +62,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
-      String fromAtSign = atConnectionMetadata.fromOtherAtSign!;
+      String fromAtSign = atConnectionMetadata.fromAtSign!;
       responseList = await (_getSentNotifications(responseList, fromAtSign, atConnection));
     }
     responseList =
