@@ -497,14 +497,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
-    } on Exception catch (e) {
-      logger.severe(
-          'Exception occurred in executing the verb: $command ${e.toString()}');
+    } on Exception catch (e, st) {
+      logger.severe('Exception $e\nStack Trace:\n$st');
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection);
-    } on Error catch (e) {
-      logger.severe(
-          'Error occurred in executing the verb: $command ${e.toString()}');
+    } on Error catch (e, st) {
+      logger.severe('Exception $e\nStack Trace:\n$st');
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), atConnection: connection);
     }
