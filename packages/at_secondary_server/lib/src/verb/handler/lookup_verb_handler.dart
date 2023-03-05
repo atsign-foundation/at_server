@@ -87,7 +87,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
             byPassCacheStr == 'true') {
           AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
           if (atData != null) {
-            response.data = SecondaryUtil.prepareResponseData(operation, atData, keyToUseIfNotAlreadySetInAtData: '$thisServersAtSign:$keyAtAtSign');
+            response.data = SecondaryUtil.prepareResponseData(operation, atData, key: '$thisServersAtSign:$keyAtAtSign');
           }
         }
       }
