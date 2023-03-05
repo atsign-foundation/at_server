@@ -209,10 +209,6 @@ void main() {
 
     tearDownAll(() async {
       await AtAccessLogManagerImpl.getInstance().close();
-      var isExists = await Directory(storageDir).exists();
-      if (isExists) {
-        Directory(storageDir).deleteSync(recursive: true);
-      }
     });
 
     test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response', () async {
