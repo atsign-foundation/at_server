@@ -136,8 +136,9 @@ void main() {
   /// 2. lookup from atsign_2 returns the correct value
   /// 3.  Set the autoNotify to false using the config verb
   /// 4. Update the existing key to a new value
-  /// 4. lookup with bypass_cache set to true should return the updated value
-  /// 5. lookup with bypass_cache set to false should return the old value
+  /// 5. lookup with bypass_cache set to false should return the old value from the cache
+  /// 6. lookup with bypass_cache set to true should return the new value (and should cache it)
+  /// 7. lookup with bypass_cache set to false should return the new value from the cache
   test('update-lookup verb passing bypasscache ', () async {
     ///Update verb on atsign_1
     try {
@@ -175,6 +176,13 @@ void main() {
       print('lookup verb response : $response');
       expect(response, contains('data: $oldValue'));
 
+      /// lookup with bypass_cache set to false
+      /// should return the old value
+      await sh2.writeCommand('lookup:bypassCache:false:fav-city$atSign_1');
+      response = await sh2.read();
+      print('lookup verb response : $response');
+      expect(response, contains('data: $oldValue'));
+
       /// lookup with bypass_cache set to true
       /// should return the newly updated value
       await sh2.writeCommand('lookup:bypassCache:true:fav-city$atSign_1');
@@ -183,11 +191,11 @@ void main() {
       expect(response, contains('data: $newValue'));
 
       /// lookup with bypass_cache set to false
-      /// should return the old value
+      /// should return the new value
       await sh2.writeCommand('lookup:bypassCache:false:fav-city$atSign_1');
       response = await sh2.read();
       print('lookup verb response : $response');
-      expect(response, contains('data: $oldValue'));
+      expect(response, contains('data: $newValue'));
     } finally {
       await sh1.writeCommand('config:reset:autoNotify');
       var response = await sh1.read();
