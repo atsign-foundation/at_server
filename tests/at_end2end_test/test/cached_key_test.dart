@@ -1,3 +1,4 @@
+import 'dart:convert';
 
 import 'package:test/test.dart';
 import 'notify_verb_test.dart' as notification;
@@ -197,4 +198,37 @@ void main() {
 
     // reset the autoNotify to default
   }, timeout: Timeout(Duration(minutes: 3)));
+
+  test('test to verify update and delete of cached key via update-delete verb',
+      () async {
+    // Run update verb to cache key
+    var key = 'cachedkeytest-$lastValue';
+    var value = 'cached-value-$lastValue';
+
+    await sh1.writeCommand(
+        'update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1 $value');
+    var response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    expect(response, isNot('null'));
+
+    // verify if cached key is created on the receiver side
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    expect(response, value);
+
+    // Run delete verb
+    await sh1.writeCommand('delete:$atSign_2:$key$atSign_1');
+    response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    expect(response, isNot('null'));
+
+    //Check if cached key is deleted
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    var decodedJSON = jsonDecode(response);
+    expect(decodedJSON['errorCode'], 'AT0015');
+    expect(decodedJSON['errorDescription'], contains('key not found'));
+  });
 }
