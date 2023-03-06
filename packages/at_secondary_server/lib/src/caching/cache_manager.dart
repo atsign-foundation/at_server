@@ -139,7 +139,7 @@ class AtCacheManager {
           shouldCache = false;
           logger.severe('No metadata in remote response for $remoteKeyName - will not cache');
         } else if (atData.metaData!.ttr == 0 || atData.metaData!.ttr == null) {
-          // ttr of zero or null means do not cache
+          // ttr of zero or null means 'do not cache' according to the spec
           shouldCache = false;
           if (cachedKeyName.startsWith('cached:public:')) {
             // HOWEVER: publickey@atSign should be cached with ttr of -1 (cache indefinitely)
@@ -171,7 +171,7 @@ class AtCacheManager {
   /// * If [applyMetadataRules] is false, return whatever is found in the [keyStore]
   /// * If [applyMetadataRules] is true, then use [SecondaryUtil.isActiveKey] to check
   ///   * Is this record 'active' i.e. it is non-null, it's been 'born', and it is still 'alive'
-  ///   * Has this record been
+  ///   * Is it cacheable indefinitely (ttr == -1) or have we not yet reached its 'refreshAt' timestamp?
   Future<AtData?> get(String cachedKeyName, {required bool applyMetadataRules}) async {
     logger.info("get: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {

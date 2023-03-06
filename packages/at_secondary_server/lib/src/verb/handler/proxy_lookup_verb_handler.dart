@@ -59,14 +59,14 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     }
 
     // First, check if we've even got a cached value
-    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
     var result = SecondaryUtil.prepareResponseData(operation, atData);
 
     // If we don't have a cached value, or byPassCache parameter is set to 'true', then do a remote lookUp.
     if (result == null || byPassCacheStr == 'true') {
       AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
       if (atData != null) {
-        result = SecondaryUtil.prepareResponseData(operation, atData, key: keyName);
+        result = SecondaryUtil.prepareResponseData(operation, atData, key: 'public:$keyName');
       }
     }
     response.data = result;

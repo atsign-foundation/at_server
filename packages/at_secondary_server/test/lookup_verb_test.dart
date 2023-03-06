@@ -1,36 +1,18 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'utils.dart' as test_utils;
-
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-class MockAtCacheManager extends Mock implements AtCacheManager {}
-class MockSecondaryAddressFinder extends Mock implements at_lookup.SecondaryAddressFinder {}
-class MockOutboundConnectionFactory extends Mock implements OutboundConnectionFactory {}
-class MockOutboundConnection extends Mock implements OutboundConnection {}
-class MockSecureSocket extends Mock implements SecureSocket {}
-class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
+import 'test_utils.dart';
 
 /// From the atProtocol specification:
 /// The `lookup` verb should be used to fetch the value of the key shared by another @sign user. If there is a public and
@@ -45,166 +27,19 @@ void main() {
     /// We are using the concrete implementation of the SecondaryKeyStore in these tests as we
     /// don't need to mock its behaviour.
 
-    String alice = '@alice';
-    String bob = '@bob';
-    var bobHost = "domain.testing.bob.bob.bob";
-    var bobPort = 12345;
-    var bobServerSigningKeypair = RSAKeypair.fromRandom();
-    var bobPublicKeypair = RSAKeypair.fromRandom();
-    late AtData bobPublicKeyAtData;
-    late String bobPublicKeyAsJson;
-
-    late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
     late LookupVerbHandler lookupVerbHandler;
-    late AtCacheManager cacheManager;
-    late MockOutboundClientManager mockOutboundClientManager;
-    late OutboundClient outboundClientWithHandshake;
-    late OutboundClient outboundClientWithoutHandshake;
-    late MockOutboundConnectionFactory mockOutboundConnectionFactory;
-    late MockOutboundConnection mockOutboundConnection;
-    late MockSecondaryAddressFinder mockSecondaryAddressFinder;
-    late MockSecureSocket mockSecureSocket;
-    late DummyInboundConnection inboundConnection;
-    late Function(dynamic data) socketOnDataFn;
-    // ignore: unused_local_variable
-    late Function() socketOnDoneFn;
-    // ignore: unused_local_variable
-    late Function(Exception e) socketOnErrorFn;
-
-    String storageDir = '${Directory.current.path}/unit_test_storage';
-    SecondaryPersistenceStore? secondaryPersistenceStore;
-    AtCommitLog? atCommitLog;
 
     setUpAll(() async {
-      await AtAccessLogManagerImpl.getInstance()
-          .getAccessLog(alice, accessLogPath: storageDir);
+      await verbTestsSetUpAll();
     });
 
     setUp(() async {
-      // Initialize secondary persistent store
-      secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(alice);
-      // Initialize commit log
-      atCommitLog = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
-      secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
-      // Init the hive instances
-      await secondaryPersistenceStore!
-          .getHivePersistenceManager()!
-          .init(storageDir);
-
-      secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
-
-      mockSecondaryAddressFinder = MockSecondaryAddressFinder();
-      when(() => mockSecondaryAddressFinder.findSecondary(bob))
-          .thenAnswer((_) async {
-            return at_lookup.SecondaryAddress(bobHost, bobPort);
-      });
-
-      mockOutboundConnection = MockOutboundConnection();
-      mockOutboundConnectionFactory = MockOutboundConnectionFactory();
-      when(() => mockOutboundConnectionFactory.createOutboundConnection(bobHost, bobPort, bob))
-          .thenAnswer((invocation) async {
-            return mockOutboundConnection;
-      });
-
-      inboundConnection = DummyInboundConnection();
-      registerFallbackValue(inboundConnection);
-
-      outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-          secondaryAddressFinder: mockSecondaryAddressFinder, outboundConnectionFactory: mockOutboundConnectionFactory)
-        ..notifyTimeoutMillis = 100
-        ..lookupTimeoutMillis = 100
-        ..toHost = bobHost
-        ..toPort = bobPort.toString()
-        ..productionMode = false;
-      outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-          secondaryAddressFinder: mockSecondaryAddressFinder, outboundConnectionFactory: mockOutboundConnectionFactory)
-        ..notifyTimeoutMillis = 100
-        ..lookupTimeoutMillis = 100
-        ..toHost = bobHost
-        ..toPort = bobPort.toString()
-        ..productionMode = false;
-
-      mockOutboundClientManager = MockOutboundClientManager();
-      when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: true))
-          .thenAnswer((_) {
-            return outboundClientWithHandshake;
-      });
-      when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
-          .thenAnswer((_) {
-            return outboundClientWithoutHandshake;
-      });
-
-      AtConnectionMetaData outboundConnectionMetadata = OutboundConnectionMetadata();
-      outboundConnectionMetadata.sessionID = 'mock-session-id';
-      when(() => mockOutboundConnection.getMetaData())
-          .thenReturn(outboundConnectionMetadata);
-      when(() => mockOutboundConnection.metaData)
-          .thenReturn(outboundConnectionMetadata);
-
-      mockSecureSocket = MockSecureSocket();
-      when(() => mockOutboundConnection.getSocket())
-          .thenAnswer((_) => mockSecureSocket);
-      when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
-
-      when(() => mockSecureSocket.listen(any(),
-          onError: any(named: "onError"),
-          onDone: any(named: "onDone"))).thenAnswer((Invocation invocation) {
-        socketOnDataFn = invocation.positionalArguments[0];
-        socketOnDoneFn = invocation.namedArguments[#onDone];
-        socketOnErrorFn = invocation.namedArguments[#onError];
-
-        return MockStreamSubscription();
-      });
-
-      cacheManager = AtCacheManager(alice, secondaryKeyStore, mockOutboundClientManager);
-
-      AtSecondaryServerImpl.getInstance().cacheManager = cacheManager;
-      AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
-      AtSecondaryServerImpl.getInstance().outboundClientManager = mockOutboundClientManager;
-      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      AtSecondaryServerImpl.getInstance().signingKey = bobServerSigningKeypair.privateKey.toString();
-
+      await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(secondaryKeyStore, mockOutboundClientManager, cacheManager);
-
-      bobPublicKeyAtData = AtData();
-      DateTime now = DateTime.now().toUtc();
-      bobPublicKeyAtData.data = bobPublicKeypair.publicKey.toString();
-      bobPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=now..updatedAt=now;
-      bobPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobPublicKeyAtData, key: 'public:publickey$bob')!;
-      var roundTrip = AtData();
-      roundTrip.fromJson(jsonDecode(bobPublicKeyAsJson));
-
-      when(() => mockOutboundConnection.write(any()))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn(
-            'error:AT0001-Mock exception : '
-                'No mock response defined for request '
-                '[${invocation.positionalArguments[0]}]\n$alice@'
-                .codeUnits);
-      });
-      when(() => mockOutboundConnection.write('from:$alice\n'))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn("data:proof:mock-session-id$bob:server-challenge-text\n@".codeUnits); // actual challenge is different, of course, but not important for unit tests
-      });
-      when(() => mockOutboundConnection.write('pol\n'))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn("$alice@".codeUnits);
-      });
-      when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn("data:$bobPublicKeyAsJson\n$alice@".codeUnits);
-      });
     });
 
     tearDown(() async {
-      await SecondaryPersistenceStoreFactory.getInstance().close();
-      await AtCommitLogManagerImpl.getInstance().close();
-      var isExists = await Directory(storageDir).exists();
-      if (isExists) {
-        Directory(storageDir).deleteSync(recursive: true);
-      }
+      await verbTestsTearDown();
     });
 
     test('@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response', () async {
@@ -218,7 +53,7 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -248,7 +83,7 @@ void main() {
       expect(cachedAtData.key, cachedKeyName);
 
       // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. @alice:foo.bar@bob
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
           bobData.metaData!.toCommonsMetadata());
@@ -269,7 +104,7 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -285,8 +120,6 @@ void main() {
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
       });
-
-      Map mapSentToClient;
 
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
@@ -314,7 +147,7 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -350,7 +183,7 @@ void main() {
       // This time the 'key' in the response should have the 'cached:' prefix e.g. cached:@alice:foo.bar@bob
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
           bobData.metaData!.toCommonsMetadata());
@@ -373,7 +206,7 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -402,7 +235,7 @@ void main() {
       verifyNever(() => mockOutboundConnection.write('lookup:all:$keyName\n'));
       await lookupVerbHandler.process('lookup:bypassCache:true:all:$keyName', inboundConnection);
 
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
           bobData.metaData!.toCommonsMetadata());
@@ -422,7 +255,7 @@ void main() {
       await secondaryKeyStore.remove(cachedKeyName);
       await secondaryKeyStore.remove(cachedBobsPublicKeyName);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -458,12 +291,12 @@ void main() {
       await cacheManager.delete(cachedKeyName);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
       await lookupVerbHandler.process('lookup:meta:$keyName', inboundConnection);
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(AtMetaData.fromJson(mapSentToClient).toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
       // (b) and when it's been cached
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
       await lookupVerbHandler.process('lookup:meta:$keyName', inboundConnection);
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(AtMetaData.fromJson(mapSentToClient).toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
     });
 
@@ -476,7 +309,7 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(keyName), false);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
 
-      AtData bobData = test_utils.createRandomAtData(bob);
+      AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = null;
       bobData.metaData!.ttb = null;
       bobData.metaData!.ttl = null;
@@ -496,7 +329,7 @@ void main() {
 
       Map mapSentToClient;
       // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
       expect(mapSentToClient['key'], '$alice:$keyName');
@@ -519,7 +352,7 @@ void main() {
       // some key sharedBy @alice
       var keyName = 'some_key.some_namespace$alice';
 
-      AtData aliceData = test_utils.createRandomAtData(alice);
+      AtData aliceData = createRandomAtData(alice);
       aliceData.metaData!.ttr = null;
       aliceData.metaData!.ttb = null;
       aliceData.metaData!.ttl = null;
@@ -543,7 +376,7 @@ void main() {
 
       Map mapSentToClient;
       // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], aliceData.data);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(), aliceData.metaData!.toCommonsMetadata());
       expect(mapSentToClient['key'], '$bob:$keyName');
@@ -565,7 +398,7 @@ void main() {
       // some key sharedBy @alice
       var keyName = 'firstname.wavi$alice';
 
-      AtData aliceData = test_utils.createRandomAtData(alice);
+      AtData aliceData = createRandomAtData(alice);
       aliceData.data = 'Alice';
       aliceData.metaData!.ttr = 0;
       aliceData.metaData!.ttb = 0;
@@ -589,7 +422,7 @@ void main() {
 
       Map mapSentToClient;
       // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
-      mapSentToClient = test_utils.decodeResponse(inboundConnection.lastWrittenData!);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], aliceData.data);
       expect(mapSentToClient['data'], 'Alice');
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(), aliceData.metaData!.toCommonsMetadata());
@@ -600,7 +433,7 @@ void main() {
       // some key owned by @alice
       var keyName = 'some_key.some_namespace$alice';
 
-      AtData aliceData = test_utils.createRandomAtData(alice);
+      AtData aliceData = createRandomAtData(alice);
       aliceData.metaData!.ttr = 0;
       aliceData.metaData!.ttb = 0;
       aliceData.metaData!.ttl = 0;
