@@ -252,49 +252,70 @@ class AtCacheManager {
       throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName - we do not re-cache our own data');
     }
 
-    var otherAtSignWithoutTheAt = cachedKeyName.replaceFirst('public:publickey@', '');
-
-    if (! cachedKeyName.startsWith('public:publickey@')) {
+    // For everything other than 'cached:public:publickey@atSign' just put it into the key store
+    if (! cachedKeyName.startsWith('cached:public:publickey@')) {
       await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr, time_to_live: atData.metaData!.ttl);
-    } else {
-      try {
-        bool publicKeyChanged = false;
-        if (keyStore.isKeyExists(cachedKeyName)) {
-          // If existing value in cache
-          // ⁃	fetch it, and compare its value with the new value
-          late AtData existing;
-          try {
-            existing = (await keyStore.get(cachedKeyName))!;
-            if (existing.data != null && existing.data != 'null'
-                && atData.data != null && atData.data != 'null') {
-              // We previously had real data and we now have some new real data
-              // If different, set publicKeyChanged = true
-              if (existing.data != atData.data) {
-                publicKeyChanged = true;
-              }
-            }
-          } on KeyNotFoundException catch (unexpected) {
-            logger.severe(
-                'Unexpected KeyNotFoundException when retrieving $cachedKeyName after first checking that it existed : $unexpected');
-          }
-        }
-        if (publicKeyChanged) {
-          // Key has actually changed - let's cache it
-          await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+      return;
+    }
 
-          var now = DateTime.now().toUtc().millisecondsSinceEpoch;
-          // Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
-          // e.g. find shared_key.bob@alice and rename it to shared_key.bob.until.<epochMillis>@alice
-          var nameOfMyCopyOfSharedKey = 'shared_key.$otherAtSignWithoutTheAt$atSign';
-          if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
-            AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
-            await keyStore.remove(nameOfMyCopyOfSharedKey);
-            await keyStore.put('shared_key.$otherAtSignWithoutTheAt.until.$now$atSign', data);
-          }
-        }
-      } catch (e, st) {
-        logger.severe('Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
+    // For publickey@atSign, we need to do some more stuff
+    // We have two things to take care of
+    // 1) If it's not currently in the cache, then just update the cache and return
+    // 2) It is currently in the cache
+    // If the data (public encryption key of another atSign) has actually changed, then we need to update the cache
+    // If the data has not changed, then we don't need to do anything
+
+    var otherAtSignWithoutTheAt = cachedKeyName.replaceFirst('cached:public:publickey@', '');
+    try {
+      // 1) If it's not currently in the cache, then just update the cache and return
+      if (! keyStore.isKeyExists(cachedKeyName)) {
+        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        return;
       }
+
+      // 2) It is currently in the cache
+      // If the data (public encryption key of another atSign) has actually changed, then we need to update the cache
+      // If the data has not changed, then we don't need to do anything
+      bool publicKeyChanged = false;
+      if (keyStore.isKeyExists(cachedKeyName)) {
+        // If existing value in cache
+        // ⁃	fetch it, and compare its value with the new value
+        late AtData existing;
+        try {
+          existing = (await keyStore.get(cachedKeyName))!;
+          if (existing.data != null
+              && existing.data != 'null'
+              && atData.data != null
+              && atData.data != 'null'
+              && existing.data != atData.data) {
+            // We're only setting the 'publicKeyChanged' flag to true IFF
+            // 1) We previously had real data and we also have some new real data (not null, nor the literal value 'null')
+            // 2) The data is actually different
+            publicKeyChanged = true;
+          }
+        } on KeyNotFoundException catch (unexpected) {
+          logger.severe(
+              'Unexpected KeyNotFoundException when retrieving $cachedKeyName after first checking that it existed : $unexpected');
+        }
+      }
+      if (publicKeyChanged) {
+        // Key has actually changed
+
+        // Firstly - Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
+        // e.g. find shared_key.bob@alice and rename it to shared_key.bob.until.<epochMillis>@alice
+        var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+        var nameOfMyCopyOfSharedKey = 'shared_key.$otherAtSignWithoutTheAt$atSign';
+        if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+          AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
+          await keyStore.remove(nameOfMyCopyOfSharedKey);
+          await keyStore.put('shared_key.$otherAtSignWithoutTheAt.until.$now$atSign', data);
+        }
+
+        // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
+        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+      }
+    } catch (e, st) {
+      logger.severe('Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
     }
   }
 
