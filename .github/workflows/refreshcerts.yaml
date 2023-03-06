@@ -2,7 +2,7 @@ name: Refreshcerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: '39 7 15 * *' # At 0739 on the 15th day of every odd month
+    - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
 
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -21,7 +21,7 @@ jobs:
       # checkout at_server code
       - name: checkout repo content
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
-      # Pull ZeroSSL and Letsencrypt keys file from secret
+      # Pull ACME script
       - name: Pull ACME script
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
@@ -29,7 +29,7 @@ jobs:
           path: secondaries-scripts
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           ref: trunk
-      # Create required directory
+      # Create required directory, and copy keys files from secrets
       - name: Create required directory and pull secrets
         run: |-
           sudo mkdir -p /gluster/@/api/keys
@@ -44,7 +44,6 @@ jobs:
       # Run Python ACME script
       - name: Run ACME script
         run: |-
-          set +e
           chmod -R 777 secondaries-scripts
           cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
           cp cert.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
@@ -53,9 +52,6 @@ jobs:
           cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
           cd .. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
-          git config --global user.name 'Getcert Action'
-          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          set -e
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
@@ -80,4 +76,4 @@ jobs:
             operations
           assignees: cpswan
           reviewers: gkc
-          draft: false          
+          draft: false
