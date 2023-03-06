@@ -24,7 +24,14 @@ void main() async {
       final notification = builder.build();
       var notifExpiresAt = DateTime.now().toUtc().add(Duration(minutes: 15));
       //when ttl is not passed, 15-mins is used as the default ttl
-      assert(notification.expiresAt!.isAtSameMomentAs(notifExpiresAt));
+      //notification.expiresAt and notifExpiresAt have the difference of a
+      // couple of milli seconds and they cannot asserted to be equal
+      expect(notification.expiresAt?.year, notifExpiresAt.year);
+      expect(notification.expiresAt?.month, notifExpiresAt.month);
+      expect(notification.expiresAt?.day, notifExpiresAt.day);
+      expect(notification.expiresAt?.hour, notifExpiresAt.hour);
+      expect(notification.expiresAt?.minute, notifExpiresAt.minute);
+      expect(notification.expiresAt?.second, notifExpiresAt.second);
     });
   });
 }

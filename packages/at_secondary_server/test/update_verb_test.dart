@@ -711,20 +711,27 @@ void main() {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(keyStore);
       UpdateVerbHandler.setAutoNotify(true);
       AtMetaData metaData = AtMetaData()..ttl = 1000;
-      AtNotification? notification;
+      AtNotification? autoNotification;
 
-        notification = await updateHandler.notify('@from', '@to', 'na',
+        autoNotification = await updateHandler.notify('@from', '@to', 'na',
             'na-value', NotificationPriority.high, metaData);
       int ttlInMillis =
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds;
-      DateTime expectedExpiry = notification!.notificationDateTime!
+      DateTime notifExpiresAt = autoNotification!.notificationDateTime!
           .toUtc()
           .add(Duration(milliseconds: ttlInMillis));
 
-      expect(notification.id, isNotNull);
-      expect(notification.ttl, ttlInMillis);
-      assert(notification.expiresAt!.isAtSameMomentAs(expectedExpiry));
+      expect(autoNotification.id, isNotNull);
+      expect(autoNotification.ttl, ttlInMillis);
+      //autoNotification.expiresAt and notifExpiresAt have the difference of a
+      // couple of milli seconds and they cannot asserted to be equal
+      expect(autoNotification.expiresAt?.year, notifExpiresAt.year);
+      expect(autoNotification.expiresAt?.month, notifExpiresAt.month);
+      expect(autoNotification.expiresAt?.day, notifExpiresAt.day);
+      expect(autoNotification.expiresAt?.hour, notifExpiresAt.hour);
+      expect(autoNotification.expiresAt?.minute, notifExpiresAt.minute);
+      expect(autoNotification.expiresAt?.second, notifExpiresAt.second);
     });
   });
 
