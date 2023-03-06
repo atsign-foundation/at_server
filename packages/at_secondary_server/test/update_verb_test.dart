@@ -712,12 +712,9 @@ void main() {
       UpdateVerbHandler.setAutoNotify(true);
       AtMetaData metaData = AtMetaData()..ttl = 1000;
       AtNotification? notification;
-      try {
+
         notification = await updateHandler.notify('@from', '@to', 'na',
             'na-value', NotificationPriority.high, metaData);
-      } on Exception {
-        //do nothing //exception is expected
-      }
       int ttlInMillis =
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds;
@@ -727,7 +724,7 @@ void main() {
 
       expect(notification.id, isNotNull);
       expect(notification.ttl, ttlInMillis);
-      expect(notification.expiresAt, expectedExpiry);
+      assert(notification.expiresAt!.isAtSameMomentAs(expectedExpiry));
     });
   });
 
@@ -796,6 +793,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   keyStoreManager.keyStore = hiveKeyStore;
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(atsign ?? '@alice', accessLogPath: storageDir);
+  var atNotficationKeysore = AtNotificationKeystore.getInstance();
+  atNotficationKeysore.currentAtSign = '@alice';
+  await atNotficationKeysore.initialize();
   return keyStoreManager;
 }
 

@@ -22,10 +22,9 @@ void main() async {
     test('test notificationExpiry time', () {
       final builder = AtNotificationBuilder();
       final notification = builder.build();
-      sleep(Duration(milliseconds: 200));
+      var notifExpiresAt = DateTime.now().toUtc().add(Duration(minutes: 15));
       //when ttl is not passed, 15-mins is used as the default ttl
-      assert(notification.expiresAt!
-          .isBefore(DateTime.now().toUtc().add(Duration(minutes: 15))));
+      assert(notification.expiresAt!.isAtSameMomentAs(notifExpiresAt));
     });
   });
 }
