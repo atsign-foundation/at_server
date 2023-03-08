@@ -15,9 +15,11 @@ import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
+class MockByteBuffer extends Mock implements ByteBuffer {}
+
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-
+  ByteBuffer mockByteBuffer = MockByteBuffer();
   group('A group of sync verb regex test', () {
     test('test sync correct syntax', () {
       var verb = Sync();
@@ -131,18 +133,62 @@ void main() {
       expect(syncResponseMap['metadata']['encoding'], 'base64');
     });
 
+    when(() => mockKeyStore.isKeyExists(any())).thenReturn(true);
+    when(() => mockKeyStore.get(any()))
+        .thenAnswer((invocation) => Future(() => AtData()));
+    when(() => mockByteBuffer.isOverFlow(any())).thenReturn(true);
+
     test('test to ensure atleast one entry is synced always', () async {
-      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
-      var syncBuffer = ByteBuffer(capacity: 2);
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
       var syncResponse = [];
       var atCommitLog =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
       await verbHandler.populateSyncBuffer(
-          syncBuffer, syncResponse, atCommitLog?.getEntries(1));
+          mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
 
       expect(syncResponse, isNotEmpty);
     });
+
+    test(
+        'overflowing entry not added to syncResponse when syncResponse not empty',
+        () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      var syncResponse = [];
+      var atCommitLog =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      var entry = KeyStoreEntry()
+        ..key = 'dummy'
+        ..commitId = 11
+        ..operation = CommitOp.UPDATE_ALL
+        ..value = 'whatever';
+      syncResponse.add(entry);
+
+      //since syncResponse already has an entry, the next overflowing entry
+      //should not be added to the syncResponse
+      await verbHandler.populateSyncBuffer(
+          mockByteBuffer, syncResponse, atCommitLog!.getEntries(1));
+
+      expect(syncResponse, [entry]);
+    });
+
+    when(() => mockByteBuffer.isOverFlow(any())).thenReturn(false);
+    test('test to ensure all entries are synced if buffer does not overflow',
+        () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      var syncResponse = [];
+      var atCommitLog =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      mockByteBuffer.capacity = 1000000;
+
+      await verbHandler.populateSyncBuffer(
+          mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
+
+      //expecting that all the entries in the commitLog have been added to syncResponse
+      expect(syncResponse.length, atCommitLog.entriesCount());
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 }

@@ -37,7 +37,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var syncResponse = [];
     var syncBuffer = ByteBuffer(capacity: capacity);
-    logger.shout('Inside sync prog verb handler');
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
@@ -52,9 +51,10 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
 
     response.data = jsonEncode(syncResponse);
   }
-  
+
   @visibleForTesting
-  Future<void> populateSyncBuffer(ByteBuffer syncBuffer, var syncResponse, var commitEntries) async {
+  Future<void> populateSyncBuffer(ByteBuffer syncBuffer,
+      List<dynamic> syncResponse, Iterator<dynamic> commitEntries) async {
     while (commitEntries.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
@@ -80,8 +80,10 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       // If syncBuffer reaches the limit, break the loop.
       //[syncBuffer.length() > 0]  s to ensure that atleast one entry
       // will be synced even though data is overflowing the buffer
-      if (syncBuffer.length() > 0 && syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
-        logger.finer('Sync progressive verb buffer overflow. BufferSize:$capacity');
+      if (syncResponse.isNotEmpty &&
+          syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
+        logger.finer(
+            'Sync progressive verb buffer overflow. BufferSize:$capacity');
         break;
       }
       syncBuffer.append(utf8.encode(jsonEncode(keyStoreEntry)));
