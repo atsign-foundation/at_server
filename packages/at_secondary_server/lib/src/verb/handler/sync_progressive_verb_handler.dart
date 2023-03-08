@@ -41,37 +41,37 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var commitEntries = atCommitLog!.getEntries(
+    var commitEntryIterator = atCommitLog!.getEntries(
         int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
         regex: verbParams['regex']);
     // Iterates on all the elements in iterator
     // Loop breaks when the [syncBuffer] reaches the limit.
     // and when syncResponse length equals the [AtSecondaryConfig.syncPageLimit]
-    await populateSyncBuffer(syncBuffer, syncResponse, commitEntries);
+    await populateSyncBuffer(syncBuffer, syncResponse, commitEntryIterator);
 
     response.data = jsonEncode(syncResponse);
   }
 
   @visibleForTesting
   Future<void> populateSyncBuffer(ByteBuffer syncBuffer,
-      List<dynamic> syncResponse, Iterator<dynamic> commitEntries) async {
-    while (commitEntries.moveNext() &&
+      List<dynamic> syncResponse, Iterator<dynamic> commitEntryInterator) async {
+    while (commitEntryInterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = commitEntries.current.key;
-      keyStoreEntry.commitId = commitEntries.current.value.commitId;
-      keyStoreEntry.operation = commitEntries.current.value.operation;
-      if (commitEntries.current.value.operation != CommitOp.DELETE) {
+      keyStoreEntry.key = commitEntryInterator.current.key;
+      keyStoreEntry.commitId = commitEntryInterator.current.value.commitId;
+      keyStoreEntry.operation = commitEntryInterator.current.value.operation;
+      if (commitEntryInterator.current.value.operation != CommitOp.DELETE) {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue.
-        if (!keyStore.isKeyExists(commitEntries.current.key)) {
+        if (!keyStore.isKeyExists(commitEntryInterator.current.key)) {
           logger.finer(
-              '${commitEntries.current.key} does not exist in the keystore. skipping the key to sync');
+              '${commitEntryInterator.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
-        var atData = await keyStore.get(commitEntries.current.key);
+        var atData = await keyStore.get(commitEntryInterator.current.key);
         if (atData == null) {
-          logger.info('atData is null for ${commitEntries.current.key}');
+          logger.info('atData is null for ${commitEntryInterator.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;

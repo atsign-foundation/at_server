@@ -143,6 +143,8 @@ void main() {
       var syncResponse = [];
       var atCommitLog =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      //creating a dummy CommitEntry
+      await atCommitLog?.commit('abcd', CommitOp.UPDATE_ALL);
 
       await verbHandler.populateSyncBuffer(
           mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
