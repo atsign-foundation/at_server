@@ -85,9 +85,10 @@ void main() {
     });
   });
 
-  group('A group of hive related tests for sync', () {
+  group('storage based sync tests', () {
     var storageDir = '${Directory.current.path}/test/hive';
     late SecondaryKeyStoreManager keyStoreManager;
+    SyncProgressiveVerbHandler verbHandler;
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
     test('A test to verify sync metadata is populated correctly', () async {
@@ -109,8 +110,7 @@ void main() {
               ..isBinary = false
               ..encoding = 'base64'));
 
-      var verbHandler =
-          SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '0');
@@ -129,6 +129,19 @@ void main() {
       expect(syncResponseMap['metadata']['ttr'], '100');
       expect(syncResponseMap['metadata']['isBinary'], 'false');
       expect(syncResponseMap['metadata']['encoding'], 'base64');
+    });
+
+    test('test to ensure atleast one entry is synced always', () async {
+      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      var syncBuffer = ByteBuffer(capacity: 2);
+      var syncResponse = [];
+      var atCommitLog =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+
+      await verbHandler.populateSyncBuffer(
+          syncBuffer, syncResponse, atCommitLog?.getEntries(1));
+
+      expect(syncResponse, isNotEmpty);
     });
     tearDown(() async => await tearDownFunc());
   });
