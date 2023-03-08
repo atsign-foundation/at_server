@@ -37,40 +37,51 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var syncResponse = [];
     var syncBuffer = ByteBuffer(capacity: capacity);
+    logger.shout('Inside sync prog verb handler');
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var itr = atCommitLog!.getEntries(
+    var commitEntries = atCommitLog!.getEntries(
         int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
         regex: verbParams['regex']);
     // Iterates on all the elements in iterator
     // Loop breaks when the [syncBuffer] reaches the limit.
     // and when syncResponse length equals the [AtSecondaryConfig.syncPageLimit]
-    while (itr.moveNext() &&
+    await populateSyncBuffer(syncBuffer, syncResponse, commitEntries);
+
+    response.data = jsonEncode(syncResponse);
+  }
+  
+  @visibleForTesting
+  Future<void> populateSyncBuffer(ByteBuffer syncBuffer, var syncResponse, var commitEntries) async {
+    while (commitEntries.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = itr.current.key;
-      keyStoreEntry.commitId = itr.current.value.commitId;
-      keyStoreEntry.operation = itr.current.value.operation;
-      if (itr.current.value.operation != CommitOp.DELETE) {
+      keyStoreEntry.key = commitEntries.current.key;
+      keyStoreEntry.commitId = commitEntries.current.value.commitId;
+      keyStoreEntry.operation = commitEntries.current.value.operation;
+      if (commitEntries.current.value.operation != CommitOp.DELETE) {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue.
-        if (!keyStore.isKeyExists(itr.current.key)) {
+        if (!keyStore.isKeyExists(commitEntries.current.key)) {
           logger.finer(
-              '${itr.current.key} does not exist in the keystore. skipping the key to sync');
+              '${commitEntries.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
-        var atData = await keyStore.get(itr.current.key);
+        var atData = await keyStore.get(commitEntries.current.key);
         if (atData == null) {
-          logger.info('atData is null for ${itr.current.key}');
+          logger.info('atData is null for ${commitEntries.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;
         keyStoreEntry.atMetaData = _populateMetadata(atData);
       }
       // If syncBuffer reaches the limit, break the loop.
-      if (syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
+      //[syncBuffer.length() > 0]  s to ensure that atleast one entry
+      // will be synced even though data is overflowing the buffer
+      if (syncBuffer.length() > 0 && syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
+        logger.finer('Sync progressive verb buffer overflow. BufferSize:$capacity');
         break;
       }
       syncBuffer.append(utf8.encode(jsonEncode(keyStoreEntry)));
@@ -78,7 +89,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
     //Clearing the buffer data
     syncBuffer.clear();
-    response.data = jsonEncode(syncResponse);
   }
 
   Map _populateMetadata(value) {
