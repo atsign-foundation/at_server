@@ -371,7 +371,7 @@ void main() {
       expect(mapSentToClient['key'], '$bob:$keyName');
     });
 
-    test('@alice, via pol connection to @bob server, lookup a key that does not exist', () async {
+    test('@bob, via pol connection to @alice server, lookup a key that does not exist', () async {
       // some key sharedBy @alice
       var keyName = 'some_key.some_namespace$alice';
 

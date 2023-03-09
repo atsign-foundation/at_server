@@ -12,7 +12,7 @@ import 'package:mocktail/mocktail.dart';
 import 'test_utils.dart';
 
 void main() {
-  AtSignLogger.root_level = 'FINER';
+  AtSignLogger.root_level = 'WARNING';
   group('Cache refresh job', () {
     setUpAll(() async {
       await verbTestsSetUpAll();
@@ -33,6 +33,7 @@ void main() {
       expect(job.running, true);
       await expectLater(job.refreshNow(), throwsA(isA<StateError>()));
     });
+
     test('Ensure scheduled only once', () async {
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       expect(job.running, false);
@@ -72,7 +73,7 @@ void main() {
       await createRandomKeyStoreEntry('@bob', 'cached:@alice:3.key.app@bob', secondaryKeyStore, commonsMetadata: Metadata()..ttr=3);
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      expect(result['keysChecked'], 0);
+      expect(result['keysChecked'], 0); // ttr non-zero and we haven't waited (via await Future.delayed(Duration) e.g.) for refreshAt to be reached
       expect(result['valueUnchanged'], 0);
       expect(result['valueChanged'], 0);
       expect(result['deletedByRemote'], 0);

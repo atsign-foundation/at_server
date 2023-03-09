@@ -10,7 +10,7 @@ class OutboundMessageListener {
   OutboundClient outboundClient;
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
-  Queue _queue = Queue();
+  final Queue _queue = Queue();
 
   OutboundMessageListener(this.outboundClient);
 

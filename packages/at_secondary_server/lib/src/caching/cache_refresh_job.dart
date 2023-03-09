@@ -46,6 +46,7 @@ class AtCacheRefreshJob {
         try {
           newValue = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: false);
         } on KeyNotFoundException {
+          await cacheManager.delete(cachedKeyName);
           deletedByRemote++;
           continue;
         } catch (e) {

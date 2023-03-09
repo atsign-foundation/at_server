@@ -176,15 +176,12 @@ void main() {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
       });
 
-      print ('orig ${bobOriginalPublicKeyAtData.metaData!.createdAt} new ${bobNewPublicKeyAtData.metaData!.createdAt}');
-
-      //   * shared_key.bob@alice no longer exists
-      //   * but there is a copy of it called shared_key.bob.until.<millis>@alice
-
       expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), true);
 
       await lookupVerbHandler.process('lookup:all:$existsKeyName', inboundConnection);
+
       AtData newCachedBobPublicKeyData = (await cacheManager.get(cachedBobsPublicKeyName, applyMetadataRules: true))!;
+
       expect(originalCachedBobPublicKeyData.data == bobOriginalPublicKeyAtData.data, true);
       expect(newCachedBobPublicKeyData.data != bobOriginalPublicKeyAtData.data, true);
       expect(newCachedBobPublicKeyData.data == bobNewPublicKeyAtData.data, true);
@@ -192,6 +189,7 @@ void main() {
       expect(newCachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch > bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch, true);
 
       expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), false);
+
       List<String> matches = secondaryKeyStore.getKeys(regex: r'shared_key\.bob');
       expect(matches.contains(sharedEncryptionKeyName), false);
       bool found = false;

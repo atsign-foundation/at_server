@@ -301,9 +301,7 @@ class AtCacheManager {
         late AtData existing;
         try {
           existing = (await keyStore.get(cachedKeyName))!;
-          if (existing.data != null
-              && existing.data != 'null'
-              && atData.data != null
+          if (atData.data != null
               && atData.data != 'null'
               && existing.data != atData.data) {
             // We're only setting the 'publicKeyChanged' flag to true IFF
@@ -317,6 +315,7 @@ class AtCacheManager {
         }
       }
       if (publicKeyChanged) {
+        logger.warning('Public key $cachedKeyName has changed');
         // Key has actually changed
 
         // Firstly - Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
@@ -324,9 +323,15 @@ class AtCacheManager {
         var now = DateTime.now().toUtc().millisecondsSinceEpoch;
         var nameOfMyCopyOfSharedKey = 'shared_key.$otherAtSignWithoutTheAt$atSign';
         if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+
           AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
+
+          logger.warning('Removing $nameOfMyCopyOfSharedKey');
           await keyStore.remove(nameOfMyCopyOfSharedKey);
-          await keyStore.put('shared_key.$otherAtSignWithoutTheAt.until.$now$atSign', data);
+
+          var copyOfSharedKeyKeyName = 'shared_key.$otherAtSignWithoutTheAt.until.$now$atSign';
+          logger.warning('Creating $copyOfSharedKeyKeyName');
+          await keyStore.put(copyOfSharedKeyKeyName, data);
         }
 
         // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
