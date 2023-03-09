@@ -18,13 +18,16 @@ class AtCacheManager {
 
   /// Returns a List of keyNames of all cached records due to refresh
   Future<List<String>> getKeyNamesToRefresh() async {
-    List<String> keysList = keyStore.getKeys(regex: CACHED);
+    List<String> keysList = keyStore.getKeys(regex: r'cached\:');
     var cachedKeys = <String>[];
+
     var now = DateTime.now().toUtc();
     var nowInEpoch = now.millisecondsSinceEpoch;
     var itr = keysList.iterator;
     while (itr.moveNext()) {
       var key = itr.current;
+      logger.finer ("getKeyNamesToRefresh : Checking $key");
+
       AtMetaData? metadata = await keyStore.getMeta(key);
 
       if (metadata == null) {
@@ -37,11 +40,14 @@ class AtCacheManager {
         // ttr of null or 0 means "do not cache"
         // Technically, we should NEVER have this situation
         // However, we do, because of history
+        // Log a warning, but continue
+        logger.warning('getKeyNamesToRefresh: for $key the ttr is null or zero - should not be in cache');
       }
 
       // If metadata.availableAt is in the future, key's TTB is not met, we should not refresh
       if (metadata.availableAt != null &&
           metadata.availableAt!.millisecondsSinceEpoch >= nowInEpoch) {
+        logger.finer ("getKeyNamesToRefresh : $key not yet available");
         continue;
       }
 
@@ -49,19 +55,29 @@ class AtCacheManager {
       // TODO Should we actually remove it at this point?
       if (metadata.expiresAt != null &&
           nowInEpoch >= metadata.expiresAt!.millisecondsSinceEpoch) {
+        logger.finer ("getKeyNamesToRefresh : $key has expired");
         continue;
       }
 
       // Is this cached key supposed to auto-refresh? -1 means no, you can cache indefinitely.
       if (metadata.ttr == -1) {
+        logger.finer ("getKeyNamesToRefresh : $key ttr is -1");
         continue;
       }
 
       // Is it time to refresh yet?
       if (metadata.refreshAt != null && metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
+        logger.finer ("getKeyNamesToRefresh : $key refreshAt (${metadata.refreshAt}) not yet reached");
         continue;
       }
 
+      if (metadata.refreshAt == null && metadata.ttr != null && metadata.ttr! > 0) {
+        // We've got a real ttr but no refreshAt - this is technically an illegal state
+        // Log a warning, as the cache refresh job can deal with it
+        logger.warning('getKeyNamesToRefresh: for $key the ttr is ${metadata.ttr} - but refreshAt is null');
+      }
+
+      logger.finer ("adding $key to list of key names to refresh");
       cachedKeys.add(key);
     }
     return cachedKeys;
@@ -260,11 +276,13 @@ class AtCacheManager {
 
     // For publickey@atSign, we need to do some more stuff
     // We have two things to take care of
-    // 1) If it's not currently in the cache, then just update the cache and return
-    // 2) It is currently in the cache
+    // a) If it's not currently in the cache, then just update the cache and return
+    // b) It is currently in the cache
+    //
     // If the data (public encryption key of another atSign) has actually changed, then we need to update the cache
+    //   ==> in fact we're going to remove the current key from the keystore, and create the new one,
+    //       so that we get the correct 'createdAt' value
     // If the data has not changed, then we don't need to do anything
-
     var otherAtSignWithoutTheAt = cachedKeyName.replaceFirst('cached:public:publickey@', '');
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
@@ -312,6 +330,7 @@ class AtCacheManager {
         }
 
         // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
+        await keyStore.remove(cachedKeyName);
         await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
       }
     } catch (e, st) {

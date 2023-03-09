@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
@@ -12,7 +13,6 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
@@ -33,9 +33,12 @@ String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
 var bobServerSigningKeypair = RSAKeypair.fromRandom();
-var bobPublicKeypair = RSAKeypair.fromRandom();
-late AtData bobPublicKeyAtData;
-late String bobPublicKeyAsJson;
+
+var bobOriginalPublicKeypair = RSAKeypair.fromRandom();
+late AtData bobOriginalPublicKeyAtData;
+late String bobOriginalPublicKeyAsJson;
+
+var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
 late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
 late AtCacheManager cacheManager;
@@ -148,13 +151,13 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey = bobServerSigningKeypair.privateKey.toString();
 
-  bobPublicKeyAtData = AtData();
-  DateTime now = DateTime.now().toUtc();
-  bobPublicKeyAtData.data = bobPublicKeypair.publicKey.toString();
-  bobPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=now..updatedAt=now;
-  bobPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobPublicKeyAtData, key: 'public:publickey$bob')!;
-  var roundTrip = AtData();
-  roundTrip.fromJson(jsonDecode(bobPublicKeyAsJson));
+  DateTime now = DateTime.fromMillisecondsSinceEpoch(DateTime.now().toUtc().millisecondsSinceEpoch);
+
+  bobOriginalPublicKeyAtData = AtData();
+  bobOriginalPublicKeyAtData.data = bobOriginalPublicKeypair.publicKey.toString();
+  bobOriginalPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=now..updatedAt=now;
+  bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobOriginalPublicKeyAtData, key: 'public:publickey$bob')!;
+  bobOriginalPublicKeyAtData = AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
 
   when(() => mockOutboundConnection.write(any()))
       .thenAnswer((Invocation invocation) async {
@@ -174,7 +177,7 @@ verbTestsSetUp() async {
   });
   when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn("data:$bobPublicKeyAsJson\n$alice@".codeUnits);
+    socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
 }
 
@@ -193,36 +196,50 @@ Map decodeResponse(String sentToClient) {
   return jsonDecode(sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
 }
 
-Future<AtData> createRandomKeyStoreEntry(String atSign, String keyName, SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore) async {
-  AtData entry = createRandomAtData(atSign);
+Future<AtData> createRandomKeyStoreEntry(String owner, String keyName, SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
+    {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
+  AtData entry = createRandomAtData(owner, data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
   await secondaryKeyStore.put(keyName, entry);
   return (await secondaryKeyStore.get(keyName))!;
 }
 
-AtData createRandomAtData(String atSign) {
+AtData createRandomAtData(String owner, {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) {
   AtData atData = AtData();
-  atData.data = createRandomString(100);
-  atData.metaData = createRandomAtMetaData(atSign);
+  atData.data = data;
+  atData.data ??= createRandomString(100);
+  atData.metaData = createRandomAtMetaData(owner, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
   return atData;
 }
 
-AtMetaData createRandomAtMetaData(String atSign) {
-  AtMetaData md = AtMetaData();
+AtMetaData createRandomAtMetaData(String owner, {Metadata? commonsMetadata, DateTime? refreshAt}) {
+  late AtMetaData md;
+
+  if (commonsMetadata != null) {
+    md = AtMetaData.fromCommonsMetadata(commonsMetadata);
+  } else {
+    md = AtMetaData();
+    md.isEncrypted = createRandomNullableBoolean();
+    md.isBinary = createRandomNullableBoolean();
+    md.encoding = createRandomString(5);
+    md.pubKeyCS = createRandomString(5);
+    md.sharedKeyEnc = createRandomString(10);
+    md.dataSignature = createRandomString(7);
+    md.isCascade = createRandomNullableBoolean();
+    md.ttl = createRandomNullablePositiveInt();
+    md.ttb = createRandomNullablePositiveInt();
+    md.ttr = createRandomNullablePositiveInt();
+  }
+
+  if (refreshAt != null) {
+    md.refreshAt = refreshAt;
+  }
+
+  md.createdBy = owner;
+  md.updatedBy = owner;
   DateTime now = DateTime.now().toUtc();
-  md.createdBy = atSign;
-  md.updatedBy = atSign;
   md.createdAt = now;
   md.updatedAt = now;
-  md.isEncrypted = createRandomNullableBoolean();
-  md.isBinary = createRandomNullableBoolean();
-  md.encoding = createRandomString(5);
-  md.pubKeyCS = createRandomString(5);
-  md.sharedKeyEnc = createRandomString(10);
-  md.dataSignature = createRandomString(7);
-  md.isCascade = createRandomNullableBoolean();
-  md.ttl = createRandomNullablePositiveInt();
-  md.ttb = createRandomNullablePositiveInt();
-  md.ttr = createRandomNullablePositiveInt();
+
   return md;
 }
 

@@ -123,7 +123,7 @@ class SecondaryUtil {
         result = atData.data;
         break;
     }
-    logger.finer('result : $result');
+    logger.finer('prepareResponseData result : $result');
     return result;
   }
 

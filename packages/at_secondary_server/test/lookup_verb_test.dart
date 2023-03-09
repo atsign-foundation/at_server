@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -47,23 +45,18 @@ void main() {
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
-      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
-
-      await secondaryKeyStore.remove(keyName);
-      await secondaryKeyStore.remove(cachedKeyName);
-      await secondaryKeyStore.remove(cachedBobsPublicKeyName);
-
-      AtData bobData = createRandomAtData(bob);
-      bobData.metaData!.ttr = 10;
-      bobData.metaData!.ttb = null;
-      bobData.metaData!.ttl = null;
-      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
 
       expect(secondaryKeyStore.isKeyExists(keyName), false);
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), false);
       expect(secondaryKeyStore.isKeyExists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+
+      AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: '$alice:$keyName')!;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -98,7 +91,6 @@ void main() {
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
-      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
       await secondaryKeyStore.remove(keyName);
       await secondaryKeyStore.remove(cachedKeyName);
@@ -141,7 +133,6 @@ void main() {
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
-      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
       await secondaryKeyStore.remove(keyName);
       await secondaryKeyStore.remove(cachedKeyName);
@@ -200,7 +191,6 @@ void main() {
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
-      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
       await secondaryKeyStore.remove(keyName);
       await secondaryKeyStore.remove(cachedKeyName);
@@ -249,7 +239,6 @@ void main() {
       var keyName = 'some_key.some_namespace$bob';
       // when @alice caches, the key will be prefixed with 'cached:@alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
-      var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
       await secondaryKeyStore.remove(keyName);
       await secondaryKeyStore.remove(cachedKeyName);
@@ -415,7 +404,9 @@ void main() {
       // public: is always prepended, even if it's been supplied. So, when it is
       // supplied, the search will be for e.g. public:public:foo.bar@alice
       // So let's just assert that this will throw a KeyNotFoundException
-      await expectLater(lookupVerbHandler.process('lookup:all:public:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+      await expectLater(
+          lookupVerbHandler.process('lookup:all:public:$keyName', inboundConnection),
+          throwsA(isA<KeyNotFoundException>()));
 
       // But looking it up is fine when we don't provide sharedWith in the lookup command
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);

@@ -3,23 +3,29 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
+import 'package:meta/meta.dart';
 
 class AtCacheRefreshJob {
   final String atSign;
-  late Cron _cron;
   final AtCacheManager cacheManager;
 
   AtCacheRefreshJob(this.atSign, this.cacheManager);
 
   final logger = AtSignLogger('AtCacheRefreshJob');
 
+  @visibleForTesting
   bool running = false;
+
+  @visibleForTesting
+  Cron? cron;
 
   /// The method which actually does the refresh.
   /// Gets everything that is currently cached,
-  Future<String> refreshCache() async {
+  Future<Map> refreshNow({Duration? pauseAfterFinishing}) async {
     if (running) {
-      throw StateError('The cache refresh job is already running');
+      var message = 'refreshNow() called but the cache refresh job is already running';
+      logger.severe(message);
+      throw StateError(message);
     }
     running = true;
     int keysChecked = 0;
@@ -69,6 +75,9 @@ class AtCacheRefreshJob {
         logger.finer('Updated $cachedKeyName with $newValue');
       }
     } finally {
+      if (pauseAfterFinishing != null) {
+        await Future.delayed(pauseAfterFinishing);
+      }
       running = false;
     }
     return {
@@ -77,17 +86,22 @@ class AtCacheRefreshJob {
       "valueChanged":valueChanged,
       "deletedByRemote":deletedByRemote,
       "exceptionFromRemote":exceptionFromRemote
-    }.toString();
+    };
   }
 
-  /// Schedule an execution of [refreshCache] at [runJobHour]:00
+  /// Schedule an execution of [refreshNow] at [runJobHour]:00
   void scheduleRefreshJob(int runJobHour) {
+    if (cron != null) {
+      var message = 'scheduleRefreshJob() called but refresh job has already been scheduled';
+      logger.severe(message);
+      throw StateError(message);
+    }
     logger.info('scheduleKeyRefreshTask runs at $runJobHour:00');
-    _cron = Cron();
-    _cron.schedule(Schedule.parse('0 $runJobHour * * *'), () async {
+    cron = Cron();
+    cron!.schedule(Schedule.parse('0 $runJobHour * * *'), () async {
       logger.info('Scheduled Cache Refresh Job started');
       try {
-        var summary = await refreshCache();
+        var summary = await refreshNow();
         logger.info('Scheduled Cache Refresh Job completed successfully: $summary');
       } catch (e, st) {
         logger.severe('Scheduled Cache Refresh Job failed with exception $e and stackTrace $st');
@@ -95,7 +109,10 @@ class AtCacheRefreshJob {
     });
   }
 
-  void close() {
-    _cron.close();
+  Cron? close() {
+    Cron? cronBeforeClose = cron;
+    cron?.close();
+    cron = null;
+    return cronBeforeClose;
   }
 }

@@ -205,7 +205,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         ?.listen((newValue) async {
       //parse bool from string
       if (newValue.toString() == 'true') {
-        unawaited(atRefreshJob.refreshCache());
+        unawaited(atRefreshJob.refreshNow());
       }
     });
 
