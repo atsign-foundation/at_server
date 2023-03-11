@@ -460,6 +460,7 @@ class CommitLogKeyStore
       CommitEntry? commitEntry = allEntries[seqNum];
       if (commitEntry == null) {
         _logger.warning('CommitLog seqNum $seqNum has a null commitEntry - removing');
+
         remove(seqNum);
         return;
       }
@@ -472,6 +473,8 @@ class CommitLogKeyStore
       if (keyType == KeyType.invalidKey) {
         _logger.warning('CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
+
+        remove(seqNum);
         return;
       } else {
         _logger.finer('CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
