@@ -6,6 +6,8 @@
 - feat: Handle resets of other atSigns by detecting changes to their public encryption keys
 - test: Added unit tests covering behaviour when public encryption keys changes detected
 - test: Added unit tests covering behaviour of the CacheRefreshJob
+- fix: Cleaned up exception handling in a few places
+- fix: Ensure no commit entries are left behind un-synced
 ## 3.0.27
 - Upgrade at_persistence_secondary_server version to 3.0.46 for at_compaction
 ## 3.0.26

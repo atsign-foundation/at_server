@@ -85,9 +85,10 @@ void main() {
     });
   });
 
-  group('A group of hive related tests for sync', () {
+  group('storage based sync tests', () {
     var storageDir = '${Directory.current.path}/test/hive';
     late SecondaryKeyStoreManager keyStoreManager;
+    SyncProgressiveVerbHandler verbHandler;
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
     test('A test to verify sync metadata is populated correctly', () async {
@@ -109,8 +110,7 @@ void main() {
               ..isBinary = false
               ..encoding = 'base64'));
 
-      var verbHandler =
-          SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '0');
@@ -130,6 +130,124 @@ void main() {
       expect(syncResponseMap['metadata']['isBinary'], 'false');
       expect(syncResponseMap['metadata']['encoding'], 'base64');
     });
+
+    when(() => mockKeyStore.isKeyExists(any())).thenReturn(true);
+    when(() => mockKeyStore.get(any()))
+        .thenAnswer((invocation) => Future(() => AtData()));
+
+    test('test to ensure at least one entry is synced always', () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
+
+      // Creating dummy commit entries
+      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
+      // ensure commitLog is not empty
+      assert(atCommitLog.entriesCount() > 0);
+
+      List<KeyStoreEntry> syncResponse = [];
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
+      expect(syncResponse.length, 1);
+      expect(syncResponse[0].key, 'test_key_alpha');
+    });
+
+    test('overflowing entry not added to syncResponse when syncResponse not empty', () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
+
+      List<KeyStoreEntry> syncResponse = [];
+
+      // Creating dummy commit entries
+      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
+      // Ensure commitLog is not empty
+      expect(atCommitLog.entriesCount(), greaterThan(0));
+
+      var entry = KeyStoreEntry()
+        ..key = 'dummy'
+        ..commitId = 11
+        ..operation = CommitOp.UPDATE_ALL
+        ..value = 'whatever';
+      // Inserting an element into syncResponse, so that now it isn't empty
+      syncResponse.add(entry);
+
+      // Since syncResponse already has an entry, and the 'capacity' is 0, then the next entry
+      // should not be added to the syncResponse
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
+      expect(syncResponse, [entry]);
+
+      syncResponse.clear();
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
+      expect(syncResponse.length, 1);
+      expect(syncResponse[0].key, 'test_key_alpha');
+
+      syncResponse.clear();
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(1));
+      expect(syncResponse.length, 1);
+      expect(syncResponse[0].key, 'test_key2_beta');
+    });
+
+    test('test to ensure all entries are synced if buffer does not overflow', () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
+
+      // Creating dummy commit entries
+      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
+      await atCommitLog.commit('abcd', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('another_random_key', CommitOp.UPDATE_META);
+
+      // ensure commitLog is not empty
+      var commitLogLength = atCommitLog.entriesCount();
+      expect(commitLogLength, 4);
+
+      List<KeyStoreEntry> syncResponse = [];
+      var entry = KeyStoreEntry()
+        ..key = 'dummy'
+        ..commitId = 11
+        ..operation = CommitOp.UPDATE_ALL
+        ..value = 'whatever';
+      // Inserting an element into syncResponse, so that now it isn't empty
+      syncResponse.add(entry);
+
+      await verbHandler.prepareResponse(10 * 1024 * 1024, syncResponse, atCommitLog.getEntries(0));
+
+      // Expecting that all the entries in the commitLog have been
+      // added to syncResponse
+      expect(syncResponse.length, commitLogLength + 1);
+      expect(syncResponse[0], entry);
+      expect(syncResponse[1].key, 'test_key_alpha');
+      expect(syncResponse[2].key, 'test_key2_beta');
+      expect(syncResponse[3].key, 'abcd');
+      expect(syncResponse[4].key, 'another_random_key');
+    });
+
+    test('ensure only one overflowing entry is added to syncResponse when commitLog has two large entries', () async {
+      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
+
+      // Creating dummy commit entries
+      await atCommitLog.commit('test_key1', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2', CommitOp.UPDATE);
+      // ensure commitLog is not empty
+      assert(atCommitLog.entriesCount() == 2);
+
+      List<KeyStoreEntry> syncResponse = [];
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
+      expect(syncResponse.length, 1);
+      expect(syncResponse[0].key, 'test_key1');
+
+      syncResponse.clear();
+      await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(1));
+      expect(syncResponse.length, 1);
+      expect(syncResponse[0].key, 'test_key2');
+
+      // test with empty iterator
+      syncResponse.clear();
+      await verbHandler.prepareResponse(10 * 1024 * 1024, syncResponse, atCommitLog.getEntries(2));
+      expect(syncResponse.length, 0);
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 }
