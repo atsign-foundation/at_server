@@ -1,3 +1,5 @@
+## 3.0.28
+- fix: Refactor notify_verb_handler.dart to increase readability of code
 ## 3.0.27
 - Upgrade at_persistence_secondary_server version to 3.0.46 for at_compaction
 ## 3.0.26

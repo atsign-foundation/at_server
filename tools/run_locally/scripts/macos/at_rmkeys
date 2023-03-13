@@ -1,0 +1,12 @@
+#!/bin/bash
+
+scriptName=$(basename -- "$0")
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $scriptName <atSign>"
+    exit 1
+fi
+
+keysFile="$HOME/.atsign/keys/${1}_key.atKeys"
+echo "Removing client keys (if any) at $keysFile"
+rm -f "$keysFile"
