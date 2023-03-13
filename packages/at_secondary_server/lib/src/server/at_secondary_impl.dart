@@ -498,13 +498,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e, st) {
-      logger.severe('Exception $e\nStack Trace:\n$st');
       await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection);
+          .handle(e, stackTrace: st, atConnection: connection);
     } on Error catch (e, st) {
-      logger.severe('Exception $e\nStack Trace:\n$st');
       await GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(e.toString()), atConnection: connection);
+          .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
     }
   }
 

@@ -29,7 +29,7 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   Socket getSocket() {
-    throw ('not implemented');
+    throw UnimplementedError("DummyInboundConnection.getSocket is not implemented");
   }
 
   @override
