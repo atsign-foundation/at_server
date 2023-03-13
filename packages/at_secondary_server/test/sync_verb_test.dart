@@ -144,8 +144,12 @@ void main() {
       var syncResponse = [];
       var atCommitLog =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-      //creating a dummy CommitEntry
-      await atCommitLog?.commit('abcd', CommitOp.UPDATE_ALL);
+
+      // Creating dummy commit entries
+      await atCommitLog?.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog?.commit('test_key2_beta', CommitOp.UPDATE);
+      // ensure commitLog is not empty
+      assert(atCommitLog!.entriesCount() > 0);
 
       await verbHandler.populateSyncBuffer(
           mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
@@ -168,10 +172,17 @@ void main() {
         ..commitId = 11
         ..operation = CommitOp.UPDATE_ALL
         ..value = 'whatever';
+      // Inserting an element into syncResponse, so that now it isn't empty
       syncResponse.add(entry);
 
-      //since syncResponse already has an entry, the next overflowing entry
-      //should not be added to the syncResponse
+      // Creating dummy commit entries
+      await atCommitLog?.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog?.commit('test_key2_beta', CommitOp.UPDATE);
+      // Ensure commitLog is not empty
+      assert(atCommitLog!.entriesCount() > 0);
+
+      // Since syncResponse already has an entry, the next overflowing entry
+      // should not be added to the syncResponse
       await verbHandler.populateSyncBuffer(
           mockByteBuffer, syncResponse, atCommitLog!.getEntries(1));
 
@@ -188,12 +199,19 @@ void main() {
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       mockByteBuffer.capacity = 1000000;
 
+      // Creating dummy commit entries
+      await atCommitLog?.commit('test_key_alpha', CommitOp.UPDATE_ALL);
+      await atCommitLog?.commit('test_key2_beta', CommitOp.UPDATE);
+      await atCommitLog?.commit('abcd', CommitOp.UPDATE_ALL);
+      await atCommitLog?.commit('another_random_key', CommitOp.UPDATE_META);
+      // ensure commitLog is not empty
+      assert(atCommitLog!.entriesCount() > 0);
+
       await verbHandler.populateSyncBuffer(
           mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
 
-      // to ensure commitLog is not empty
-      assert(atCommitLog.entriesCount() > 0);
-      //expecting that all the entries in the commitLog have been added to syncResponse
+      // Expecting that all the entries in the commitLog have been
+      // added to syncResponse
       expect(syncResponse.length, atCommitLog.entriesCount());
     });
 
@@ -208,10 +226,17 @@ void main() {
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
           mockByteBuffer.capacity = 1000000;
 
+          // Creating dummy commit entries
+          await atCommitLog?.commit('test_key1', CommitOp.UPDATE_ALL);
+          await atCommitLog?.commit('test_key2', CommitOp.UPDATE);
+          // ensure commitLog is not empty
+          assert(atCommitLog!.entriesCount() > 0);
+
           await verbHandler.populateSyncBuffer(
               mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
 
-          //expecting that all the entries in the commitLog have been added to syncResponse
+          // Expecting that all the entries in the commitLog have been
+          // added to syncResponse
           expect(syncResponse.length, 1);
         });
 
