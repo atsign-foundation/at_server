@@ -9,6 +9,8 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
+import 'dummy_inbound_connection.dart';
+
 class InboundConnectionImpl extends BaseConnection implements InboundConnection {
   @override
   bool? isMonitor = false;
@@ -49,12 +51,20 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
   @override
   bool equals(InboundConnection connection) {
-    var result = false;
+    // An InboundConnectionImpl can never be equal to a DummyInboundConnection.
+    if (connection is DummyInboundConnection) {
+      return false;
+    }
+
+    // Without the above check, we were getting runtime errors on the next check
+    // since DummyInboundConnection.getSocket throws a "not implemented" error
+
     if (getSocket().remoteAddress.address == connection.getSocket().remoteAddress.address &&
         getSocket().remotePort == connection.getSocket().remotePort) {
-      result = true;
+      return true;
     }
-    return result;
+
+    return false;
   }
 
   /// Returning true indicates to the caller that this connection **can** be closed if needed

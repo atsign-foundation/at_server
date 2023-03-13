@@ -33,10 +33,10 @@ abstract class BaseResponseHandler implements ResponseHandler {
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
       var responseMessage = getResponseMessage(result, prompt)!;
       connection.write(responseMessage);
-    } on Exception catch (e) {
+    } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
       await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection);
+          .handle(e, stackTrace: st, atConnection: connection);
     }
   }
 

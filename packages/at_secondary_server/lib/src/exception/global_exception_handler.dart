@@ -24,7 +24,10 @@ class GlobalExceptionHandler {
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
-      {AtConnection? atConnection, Socket? clientSocket}) async {
+      {AtConnection? atConnection,
+        Socket? clientSocket,
+        StackTrace? stackTrace
+      }) async {
     if (exception is InvalidAtSignException ||
         exception is BufferOverFlowException ||
         exception is ConnectionInvalidException) {
@@ -75,11 +78,11 @@ class GlobalExceptionHandler {
       await _sendResponseForException(exception, atConnection);
 
     } else if (exception is InternalServerError) {
-      logger.severe(exception.toString());
+      logger.severe('$exception - stack trace $stackTrace');
       await _handleInternalException(exception, atConnection);
 
     } else {
-      logger.shout("Unexpected exception '${exception.toString()}'");
+      logger.shout("Unexpected exception '${exception.toString()}' - stack trace $stackTrace");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);
