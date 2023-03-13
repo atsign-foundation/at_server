@@ -43,11 +43,11 @@ echo "Running $scriptName in working directory $(pwd)"
 storageDir="storage_$atSign"
 
 if [ "$reset" == "true" ] ; then
-  echo "Removing server storage at $storageDir"
+  echo "Removing server storage at $storageDir in 5 seconds ..."
+  sleep 5
   mkdir -p trash
   mv "$storageDir" trash
   rm -rf trash
-  sleep 10
 fi
 
 # Export various environment variables which the atServer recognizes

@@ -3,24 +3,16 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:meta/meta.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
-  static final NotifyConnectionsPool _singleton =
-      NotifyConnectionsPool._internal();
-
-  var logger = AtSignLogger('NotifyConnectionPool');
-
-  late OutboundClientPool _pool;
-  OutboundClientPool get pool => _pool;
+  static final NotifyConnectionsPool _singleton = NotifyConnectionsPool._internal();
+  static final logger = AtSignLogger('NotifyConnectionPool');
 
   static const int defaultPoolSize = 50;
 
-  bool isInitialised = false;
-
-  int _size = defaultPoolSize;
-  int get size => _size;
+  final OutboundClientPool _outboundClientPool = OutboundClientPool(size: defaultPoolSize);
+  OutboundClientPool get pool => _outboundClientPool;
 
   NotifyConnectionsPool._internal();
 
@@ -28,56 +20,36 @@ class NotifyConnectionsPool {
     return _singleton;
   }
 
-  void init(int size) {
-    if (isInitialised) {
-      return;
-    } else {
-      privateInit(size);
-    }
-  }
-
-  @visibleForTesting
-  void privateInit(int size) {
-    _size = size;
-    isInitialised = true;
-    _pool = OutboundClientPool();
-    _pool.init(_size);
-  }
+  int get size => _outboundClientPool.size;
+  set size (int s) => _outboundClientPool.size = s;
 
   int getCapacity() {
-    if (!isInitialised) {
-      init(defaultPoolSize);
-    }
-    _pool.clearInvalidClients();
-    return _pool.getCapacity()! - _pool.getCurrentSize();
+    _outboundClientPool.clearInvalidClients();
+    return _outboundClientPool.getCapacity()! - _outboundClientPool.getCurrentSize();
   }
 
-  OutboundClient get(String? toAtSign) {
-    // Initialize the pool if not already done
-    if (!isInitialised) {
-      init(defaultPoolSize);
-    }
-    _pool.clearInvalidClients();
+  OutboundClient get(String toAtSign) {
+    _outboundClientPool.clearInvalidClients();
     var inboundConnection = DummyInboundConnection();
-    var client = _pool.get(toAtSign, inboundConnection);
+    var client = _outboundClientPool.get(toAtSign, inboundConnection);
 
     if (client != null) {
       logger.finer('retrieved outbound client from pool to $toAtSign');
       return client;
     }
 
-    if (!_pool.hasCapacity()) {
-      OutboundClient? evictedClient = _pool.removeLeastRecentlyUsed();
+    if (!_outboundClientPool.hasCapacity()) {
+      OutboundClient? evictedClient = _outboundClientPool.removeLeastRecentlyUsed();
       logger.info("Evicted LRU client from pool : $evictedClient");
-      if (!_pool.hasCapacity()) {
-        throw OutboundConnectionLimitException('max limit $_size reached on outbound pool');
+      if (!_outboundClientPool.hasCapacity()) {
+        throw OutboundConnectionLimitException('max limit ${_outboundClientPool.size} reached on outbound pool');
       }
     }
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
     var newClient = OutboundClient(inboundConnection, toAtSign);
-    _pool.add(newClient);
+    _outboundClientPool.add(newClient);
     return newClient;
   }
 }

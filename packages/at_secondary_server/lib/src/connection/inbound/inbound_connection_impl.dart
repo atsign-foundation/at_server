@@ -156,10 +156,7 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     try {
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
-      var socket = getSocket();
-      if (socket != null) {
-        socket.destroy();
-      }
+      getSocket().destroy();
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {
