@@ -20,8 +20,8 @@ void main() {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
-      clientManager.init(5);
-      var outBoundClient = clientManager.getClient('bob', inboundConnection)!;
+      clientManager.poolSize = 5;
+      var outBoundClient = clientManager.getClient('bob', inboundConnection);
       expect(outBoundClient.toAtSign, 'bob');
       expect(clientManager.getActiveConnectionSize(), 1);
     });
@@ -81,8 +81,8 @@ void main() {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
-      clientManager.init(5);
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection)!;
+      clientManager.poolSize = 5;
+      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       inboundConnection.close();
       expect(outBoundClient_1.isInValid(), true);
     });
@@ -93,8 +93,8 @@ void main() {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
-      clientManager.init(5);
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection)!;
+      clientManager.poolSize = 5;
+      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(dummySocket_2, 'bob');
       outBoundClient_1.close();
@@ -107,8 +107,8 @@ void main() {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
       var clientManager = OutboundClientManager.getInstance();
-      clientManager.init(5);
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection)!;
+      clientManager.poolSize = 5;
+      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(dummySocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);

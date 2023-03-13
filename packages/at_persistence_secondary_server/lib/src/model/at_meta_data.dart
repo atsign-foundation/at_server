@@ -130,7 +130,7 @@ class AtMetaData extends HiveObject {
   }
 
   AtMetaData fromJson(Map json) {
-    try {
+
       createdBy = json['createdBy'];
       updatedBy = json['updatedBy'];
       createdAt = DateTime.parse(json['createdAt']);
@@ -173,9 +173,7 @@ class AtMetaData extends HiveObject {
       sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
       pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       encoding = json[ENCODING];
-    } catch (error) {
-      print('AtMetaData.fromJson error: $error');
-    }
+
     return this;
   }
 

@@ -24,13 +24,12 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   AtConnectionMetaData getMetaData() {
-    metadata.fromAtSign = null;
     return metadata;
   }
 
   @override
   Socket getSocket() {
-    throw ('not implemented');
+    throw UnimplementedError("DummyInboundConnection.getSocket is not implemented");
   }
 
   @override
@@ -38,8 +37,11 @@ class DummyInboundConnection implements InboundConnection {
     return metadata.isClosed;
   }
 
+  String? lastWrittenData;
   @override
-  void write(String data) {}
+  void write(String data) {
+    lastWrittenData = data;
+  }
 
   @override
   bool? isMonitor;
