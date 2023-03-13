@@ -54,40 +54,48 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
 
   @visibleForTesting
   Future<void> populateSyncBuffer(ByteBuffer syncBuffer,
-      List<dynamic> syncResponse, Iterator<dynamic> commitEntryInterator) async {
-    while (commitEntryInterator.moveNext() &&
+      List<dynamic> syncResponse, Iterator<dynamic> commitEntryIterator) async {
+    while (commitEntryIterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = commitEntryInterator.current.key;
-      keyStoreEntry.commitId = commitEntryInterator.current.value.commitId;
-      keyStoreEntry.operation = commitEntryInterator.current.value.operation;
-      if (commitEntryInterator.current.value.operation != CommitOp.DELETE) {
+      keyStoreEntry.key = commitEntryIterator.current.key;
+      keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
+      keyStoreEntry.operation = commitEntryIterator.current.value.operation;
+      if (commitEntryIterator.current.value.operation != CommitOp.DELETE) {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue.
-        if (!keyStore.isKeyExists(commitEntryInterator.current.key)) {
+        if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
           logger.finer(
-              '${commitEntryInterator.current.key} does not exist in the keystore. skipping the key to sync');
+              '${commitEntryIterator.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
-        var atData = await keyStore.get(commitEntryInterator.current.key);
+        var atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
-          logger.info('atData is null for ${commitEntryInterator.current.key}');
+          logger.info('atData is null for ${commitEntryIterator.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;
         keyStoreEntry.atMetaData = _populateMetadata(atData);
       }
-      // If syncBuffer reaches the limit, break the loop.
-      //[syncBuffer.length() > 0]  s to ensure that atleast one entry
-      // will be synced even though data is overflowing the buffer
+
+      var utfJsonEncodedEntry = utf8.encode(jsonEncode(keyStoreEntry));
+      // If syncBuffer reaches the limit, break the loop
       if (syncResponse.isNotEmpty &&
-          syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
+          syncBuffer.isOverFlow(utfJsonEncodedEntry)) {
         logger.finer(
             'Sync progressive verb buffer overflow. BufferSize:$capacity');
         break;
       }
-      syncBuffer.append(utf8.encode(jsonEncode(keyStoreEntry)));
+      // one entry will be added to syncResponse irrespective of SyncBuffer overflow
       syncResponse.add(keyStoreEntry);
+      // if this one entry overflows the buffer, break the flow.
+      // Additional if-condition as the syncBuffer limit is disregarded when
+      // the syncResponse is empty
+      if (syncBuffer.isOverFlow(utfJsonEncodedEntry)) {
+        break;
+      } else {
+        syncBuffer.append(utfJsonEncodedEntry);
+      }
     }
     //Clearing the buffer data
     syncBuffer.clear();
