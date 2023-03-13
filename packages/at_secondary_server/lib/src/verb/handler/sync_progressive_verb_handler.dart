@@ -89,11 +89,14 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       }
       // If syncResponse is empty and an entry overflows syncBuffer
       // that entry is added to the syncResponse
+      // This is to ensure that there are no entries that are left behind
       syncResponse.add(keyStoreEntry);
       // When one overflowing entry has been added to the syncResponse, break()
       // Additional if-condition needed as the syncBuffer limit is disregarded
       // when the syncResponse is empty
       if (syncBuffer.isOverFlow(utfJsonEncodedEntry)) {
+        logger.finer(
+            'Sync progressive verb buffer overflow. BufferSize:$capacity');
         break;
       } else {
         syncBuffer.append(utfJsonEncodedEntry);

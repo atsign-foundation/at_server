@@ -1,3 +1,5 @@
+## 3.0.29
+- fix: Ensure no commit entries are left behind un-synced
 ## 3.0.28
 - fix: Refactor notify_verb_handler.dart to increase readability of code
 ## 3.0.27
