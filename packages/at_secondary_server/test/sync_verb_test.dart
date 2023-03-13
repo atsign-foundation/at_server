@@ -136,9 +136,10 @@ void main() {
     when(() => mockKeyStore.isKeyExists(any())).thenReturn(true);
     when(() => mockKeyStore.get(any()))
         .thenAnswer((invocation) => Future(() => AtData()));
-    when(() => mockByteBuffer.isOverFlow(any())).thenReturn(true);
 
-    test('test to ensure atleast one entry is synced always', () async {
+    test('test to ensure at least one entry is synced always', () async {
+      when(() => mockByteBuffer.isOverFlow(any())).thenReturn(true);
+
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
       var syncResponse = [];
       var atCommitLog =
@@ -155,6 +156,8 @@ void main() {
     test(
         'overflowing entry not added to syncResponse when syncResponse not empty',
         () async {
+      when(() => mockByteBuffer.isOverFlow(any())).thenReturn(true);
+
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
       var syncResponse = [];
       var atCommitLog =
@@ -175,9 +178,10 @@ void main() {
       expect(syncResponse, [entry]);
     });
 
-    when(() => mockByteBuffer.isOverFlow(any())).thenReturn(false);
     test('test to ensure all entries are synced if buffer does not overflow',
         () async {
+      when(() => mockByteBuffer.isOverFlow(any())).thenReturn(false);
+
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
       var syncResponse = [];
       var atCommitLog =
@@ -187,9 +191,29 @@ void main() {
       await verbHandler.populateSyncBuffer(
           mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
 
+      // to ensure commitLog is not empty
+      assert(atCommitLog.entriesCount() > 0);
       //expecting that all the entries in the commitLog have been added to syncResponse
       expect(syncResponse.length, atCommitLog.entriesCount());
     });
+
+    test('ensure only one overflowing entry is added to syncResponse'
+        ' when commitLog has two large entries',
+            () async {
+          when(() => mockByteBuffer.isOverFlow(any())).thenReturn(true);
+
+          verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
+          var syncResponse = [];
+          var atCommitLog =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+          mockByteBuffer.capacity = 1000000;
+
+          await verbHandler.populateSyncBuffer(
+              mockByteBuffer, syncResponse, atCommitLog!.getEntries(0));
+
+          //expecting that all the entries in the commitLog have been added to syncResponse
+          expect(syncResponse.length, 1);
+        });
 
     tearDown(() async => await tearDownFunc());
   });
