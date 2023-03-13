@@ -8,7 +8,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
-import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
@@ -92,6 +91,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
   late OutboundClientManager outboundClientManager;
+  late ResourceManager notificationResourceManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
@@ -190,10 +190,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Moved this to here so we can inject it into the AtCacheManger and the
     // DefaultVerbHandlerManager if we create one
     outboundClientManager = OutboundClientManager.getInstance();
-    outboundClientManager.init(serverContext!.outboundConnectionLimit);
+    outboundClientManager.poolSize = serverContext!.outboundConnectionLimit;
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, secondaryKeyStore, outboundClientManager);
+
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
     atRefreshJob = AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
@@ -204,7 +205,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         ?.listen((newValue) async {
       //parse bool from string
       if (newValue.toString() == 'true') {
-        unawaited(atRefreshJob.refreshCache());
+        unawaited(atRefreshJob.refreshNow());
       }
     });
 
@@ -260,7 +261,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
 
     // Notification job
-    ResourceManager.getInstance().init(serverContext!.outboundConnectionLimit);
+    notificationResourceManager = ResourceManager.getInstance();
+    notificationResourceManager.outboundConnectionLimit = serverContext!.outboundConnectionLimit;
+    notificationResourceManager.start();
 
     // Starts StatsNotificationService to keep monitor connections alive
     await StatsNotificationService.getInstance().schedule(currentAtSign);
@@ -397,7 +400,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           ?.listen((newCount) {
         logger.finest(
             'Received new value for config \'maxNotificationRetries\': $newCount');
-        ResourceManager.getInstance().setMaxRetries(newCount);
+        notificationResourceManager.setMaxRetries(newCount);
         QueueManager.getInstance().setMaxRetries(newCount);
       });
     }
@@ -494,16 +497,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       command = SecondaryUtil.convertCommand(command);
       logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
-    } on Exception catch (e) {
-      logger.severe(
-          'Exception occurred in executing the verb: $command ${e.toString()}');
+    } on Exception catch (e, st) {
       await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection);
-    } on Error catch (e) {
-      logger.severe(
-          'Error occurred in executing the verb: $command ${e.toString()}');
+          .handle(e, stackTrace: st, atConnection: connection);
+    } on Error catch (e, st) {
       await GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(e.toString()), atConnection: connection);
+          .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
     }
   }
 
@@ -539,6 +538,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Terminating all inbound connections");
       inboundConnectionFactory.removeAllConnections();
 
+      logger.info("Terminating all outbound connections");
+      outboundClientManager.close();
+
+      logger.info("Stopping Notification Resource Manager");
+      notificationResourceManager.stop();
+
       logger.info("Closing CommitLog");
       await AtCommitLogManagerImpl.getInstance().close();
       logger.info("Closing AccessLog");
@@ -563,7 +568,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// @return: Returns [ConnectionMetrics]
   @override
   ConnectionMetrics getMetrics() {
-    return ConnectionMetricsImpl();
+    throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
   /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
