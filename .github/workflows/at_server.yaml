@@ -185,6 +185,10 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_docker_readiness.dart
 
+      - name: Check root server readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_root_server_readiness.dart
+
       # Set PKAM keys to the atsign's
       - name: Load PKAM Keys
         working-directory: ${{ env.install-pkam-working-directory }}
