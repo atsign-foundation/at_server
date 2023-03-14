@@ -23,6 +23,7 @@ void main() {
         var response = await readResponse();
         if (response == '@') {
           print('Root Server is up and running');
+          await _secureSocket.close();
           break;
         }
       } on SocketException {
@@ -35,7 +36,7 @@ void main() {
         retryCount = retryCount + 1;
       }
     }
-  });
+  }, timeout: Timeout(Duration(minutes: 1)));
 }
 
 void socketListener(SecureSocket secureSocket) {
