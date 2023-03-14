@@ -35,50 +35,74 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var syncResponse = [];
-    var syncBuffer = ByteBuffer(capacity: capacity);
+
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var itr = atCommitLog!.getEntries(
+    var commitEntryIterator = atCommitLog!.getEntries(
         int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
         regex: verbParams['regex']);
-    // Iterates on all the elements in iterator
-    // Loop breaks when the [syncBuffer] reaches the limit.
-    // and when syncResponse length equals the [AtSecondaryConfig.syncPageLimit]
-    while (itr.moveNext() &&
+
+    List<KeyStoreEntry> syncResponse = [];
+    await prepareResponse(capacity, syncResponse, commitEntryIterator);
+
+    response.data = jsonEncode(syncResponse);
+  }
+
+  /// Adds items from the [commitEntryIterator] to the [syncResponse] until either
+  /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
+  /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
+  @visibleForTesting
+  Future<void> prepareResponse(int desiredMaxSyncResponseLength, List<KeyStoreEntry> syncResponse, Iterator<dynamic> commitEntryIterator) async {
+    int currentResponseLength = 0;
+
+    while (commitEntryIterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = itr.current.key;
-      keyStoreEntry.commitId = itr.current.value.commitId;
-      keyStoreEntry.operation = itr.current.value.operation;
-      if (itr.current.value.operation != CommitOp.DELETE) {
+      keyStoreEntry.key = commitEntryIterator.current.key;
+      keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
+      keyStoreEntry.operation = commitEntryIterator.current.value.operation;
+      if (commitEntryIterator.current.value.operation != CommitOp.DELETE) {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
-        // exist in keystore, skip the key to sync and continue.
-        if (!keyStore.isKeyExists(itr.current.key)) {
+        // exist in keystore, skip the key to sync and continue
+        if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
           logger.finer(
-              '${itr.current.key} does not exist in the keystore. skipping the key to sync');
+              '${commitEntryIterator.current.key} does not exist in the keystore. skipping the key to sync');
           continue;
         }
-        var atData = await keyStore.get(itr.current.key);
+        var atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
-          logger.info('atData is null for ${itr.current.key}');
+          logger.info('atData is null for ${commitEntryIterator.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;
         keyStoreEntry.atMetaData = _populateMetadata(atData);
       }
-      // If syncBuffer reaches the limit, break the loop.
-      if (syncBuffer.isOverFlow(utf8.encode(jsonEncode(keyStoreEntry)))) {
+
+      var utfJsonEncodedEntry = utf8.encode(jsonEncode(keyStoreEntry));
+
+      bool isOverflow = currentResponseLength + utfJsonEncodedEntry.length > desiredMaxSyncResponseLength;
+
+      // If we've already got an item in the response, and this item would overflow our syncBufferSize
+      if (syncResponse.isNotEmpty && isOverflow) {
+        logger.finer(
+            'Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
         break;
       }
-      syncBuffer.append(utf8.encode(jsonEncode(keyStoreEntry)));
+
+      // We ensure that if entries are available then at least one is always returned.
+      // If we don't do that, then the client will keep on requesting a sync from the
+      // same point, and the server will keep on returning empty lists, ad infinitum.
       syncResponse.add(keyStoreEntry);
+
+      if (isOverflow) {
+        logger.finer('Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
+        break;
+      } else {
+        currentResponseLength += utfJsonEncodedEntry.length;
+      }
     }
-    //Clearing the buffer data
-    syncBuffer.clear();
-    response.data = jsonEncode(syncResponse);
   }
 
   Map _populateMetadata(value) {

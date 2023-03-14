@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -24,6 +25,7 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
@@ -143,11 +145,18 @@ void main() {
     });
 
     test('test notify verb - invalid ttl value', () {
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -155,11 +164,17 @@ void main() {
     });
 
     test('test notify verb - invalid ttb value', () {
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -167,11 +182,17 @@ void main() {
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(null, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -288,9 +309,11 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
+      connectionMetadata.fromAtSign = '@test_user_1';
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
@@ -336,11 +359,13 @@ void main() {
       notifyVerbParams.putIfAbsent('operation', () => 'delete');
       notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
       notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      connectionMetadata.fromAtSign = '@test_user_1';
       notifyVerbParams.putIfAbsent('atKey', () => 'phone');
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStore, mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -751,11 +776,11 @@ void main() {
       notificationMap.add(atNotification3);
       var atsignIterator = notificationMap.getAtSignToNotify(1);
       var atNotificationList = [];
-      String? atsign;
+      String? atSign;
       while (atsignIterator.moveNext()) {
-        atsign = atsignIterator.current;
+        atSign = atsignIterator.current;
       }
-      var itr = QueueManager.getInstance().dequeue(atsign);
+      var itr = QueueManager.getInstance().dequeue(atSign);
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
@@ -768,8 +793,7 @@ void main() {
   group(
       'A group of tests to verify public key checksum and shared key on metadata',
       () {
-    test('notify command accept test for pubKeyCS and sharedKeyEnc',
-        () {
+    test('notify command accept test for pubKeyCS and sharedKeyEnc', () {
       var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
       var handler = NotifyVerbHandler(mockKeyStore);
       var result = handler.accept(command);
@@ -840,6 +864,8 @@ void main() {
       firstNotificationVerbParams.putIfAbsent('operation', () => 'update');
       firstNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
       firstNotificationVerbParams.putIfAbsent('atKey', () => 'phone');
+      firstNotificationVerbParams.putIfAbsent(
+          FOR_AT_SIGN, () => '@test_user_2');
 
       // second notification
       secondNotificationVerbParams.putIfAbsent('id', () => 'xyz-123');
@@ -879,6 +905,8 @@ void main() {
 
     test('test to verify notification date time on receiver side', () async {
       atConnection.metaData.isPolAuthenticated = true;
+      (atConnection.metaData as InboundConnectionMetadata).fromAtSign =
+          '@test_user1';
       // process first notification
       await notifyVerbHandler.processVerb(
           notifyResponse, firstNotificationVerbParams, atConnection);
@@ -886,6 +914,8 @@ void main() {
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
+      secondNotificationVerbParams.putIfAbsent(
+          'forAtSign', () => '@test_user_1');
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);
       // fetch second notification
@@ -900,6 +930,96 @@ void main() {
           DateTime.parse(secondNotificationDateTime).millisecondsSinceEpoch >
               currentDateTime,
           true);
+    });
+
+    group('A group of test to validate notification verb params', () {
+      late NotifyVerbHandler notifyVerbHandler;
+      setUp(() async {
+        keyStoreManager = await setUpFunc(storageDir);
+        SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+        notifyVerbHandler = NotifyVerbHandler(keyStore);
+      });
+      // tests to validate message type
+      test(
+          'A test to validate messageType.key is returned when key string is passed',
+          () {
+        expect(notifyVerbHandler.getMessageType('key'), MessageType.key);
+        expect(notifyVerbHandler.getMessageType('KEY'), MessageType.key);
+      });
+
+      test(
+          'A test to validate messageType.text is returned when text string is passed',
+          () {
+        expect(notifyVerbHandler.getMessageType('text'), MessageType.text);
+        expect(notifyVerbHandler.getMessageType('TEXT'), MessageType.text);
+      });
+
+      test(
+          'A test to validate default messageType is returned when null is passed',
+          () {
+        expect(notifyVerbHandler.getMessageType(null), MessageType.key);
+        expect(notifyVerbHandler.getMessageType(''), MessageType.key);
+      });
+
+      // tests to validate operation type
+      test(
+          'A test to validate operationType.update is returned when update string is passed',
+          () {
+        expect(
+            notifyVerbHandler.getOperationType('update'), OperationType.update);
+        expect(
+            notifyVerbHandler.getOperationType('UPDATE'), OperationType.update);
+      });
+
+      test(
+          'A test to validate operationType.delete is returned when delete string is passed',
+          () {
+        expect(
+            notifyVerbHandler.getOperationType('delete'), OperationType.delete);
+        expect(
+            notifyVerbHandler.getOperationType('DELETE'), OperationType.delete);
+      });
+
+      test(
+          'A test to validate default operationType is returned when null or empty string is passed',
+          () {
+        expect(notifyVerbHandler.getOperationType(null), OperationType.update);
+        expect(notifyVerbHandler.getOperationType(''), OperationType.update);
+      });
+
+      // test to validate notification expiry duration
+      test(
+          'A test to validate default notification expiry duration is returned when null or 0 is passed',
+          () {
+        expect(
+            notifyVerbHandler.getNotificationExpiryInMillis(null),
+            Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+                .inMilliseconds);
+        expect(
+            notifyVerbHandler.getNotificationExpiryInMillis('0'),
+            Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+                .inMilliseconds);
+      });
+
+      test(
+          'A test to validate notification expiry duration positive integer is passed',
+          () {
+        expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
+      });
+
+      test(
+          'A test to assert exception when negative integer is passed to notification expiry duration ',
+          () {
+        expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
+            throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      });
+
+      test(
+          'A test to assert exception when character is passed to notification expiry duration ',
+          () {
+        expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
+            throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+      });
     });
     tearDown(() async => await tearDownFunc());
   });
