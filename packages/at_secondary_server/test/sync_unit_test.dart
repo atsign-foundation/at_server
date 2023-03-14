@@ -15,7 +15,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
-// How the server processes updates from the client (including the responses it generates) and what the expectations are - i.e. can we reject? what happens when we reject? and more
+// How the server processes updates from the client (including the responses it generates) and what the expectations
+// are - i.e. can we reject? what happens when we reject? and more
 // How items are added to the commit log on the server such that they are available for sync to the clients
 // How the server processes that log (when sending updates to client) - e.g. again ordering, de-duping, etc
 String storageDir = '${Directory.current.path}/test/hive';

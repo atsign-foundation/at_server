@@ -1,3 +1,5 @@
+## 3.0.51
+- feat: Extend sanity-checking of server-side commitLog upon startup
 ## 3.0.50
 - fix: AtMetaData.fromJson now preserves null values for ttl, ttb and ttr
 - test: Add '==' & hashCode to AtMetaData in order to be able to test equality

@@ -1,23 +1,35 @@
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:meta/meta.dart';
 
 /// Pool to hold [OutboundClient]
 class OutboundClientPool {
-  late int _size;
-
+  int size;
   final List<OutboundClient> _clients = [];
 
-  void init(int size) {
-    _size = size;
-  }
+  OutboundClientPool({this.size = 10});
+
+  @visibleForTesting
+  bool closed = false;
 
   bool hasCapacity() {
-    return _clients.length < _size;
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
+    return _clients.length < size;
+  }
+
+  close() {
+    closed = true;
+    clearAllClients();
   }
 
   /// Removes the least recently used OutboundClient from the pool. Returns the removed client,
   /// or returns null if there are fewer than 2 items currently in the pool.
   OutboundClient? removeLeastRecentlyUsed() {
+    if (closed) {
+      throw StateError('removeLeastRecentlyUsed() called, but we are in closed state');
+    }
     if (_clients.length < 2) {
       return null;
     } else {
@@ -28,17 +40,25 @@ class OutboundClientPool {
 
   // Returns a copy of the list of clients in this pool, sorted by lastUsed, ascending
   List<OutboundClient> clients() {
+    if (closed) {
+      throw StateError('clients() called, but we are in closed state');
+    }
     _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
     return [..._clients];
   }
 
-  void add(OutboundClient outBoundClient) => _clients.add(outBoundClient);
+  void add(OutboundClient outBoundClient) {
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
+    _clients.add(outBoundClient);
+  }
 
   OutboundClient? get(String? toAtSign, InboundConnection inboundConnection,
       {bool isHandShake = true}) {
-    //TODO should clearInvalid moved to a cron ?
-    // e.g. 10 outbound clients are created. There are no calls to get(..) for a long time. these
-    // clients will remain in the pool
+    if (closed) {
+      throw StateError('get() called, but we are in closed state');
+    }
     for (var client in _clients) {
       if (client.toAtSign == toAtSign &&
           client.isHandShakeDone == isHandShake &&
@@ -50,6 +70,9 @@ class OutboundClientPool {
   }
 
   void clearInvalidClients() {
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
     var invalidClients = [];
     for (var client in _clients) {
       if (client.isInValid()) {
@@ -61,10 +84,16 @@ class OutboundClientPool {
   }
 
   int getCurrentSize() {
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
     return _clients.length;
   }
 
   int getActiveConnectionSize() {
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
     var count = 0;
     for (var client in _clients) {
       if (!client.isInValid()) {
@@ -75,7 +104,10 @@ class OutboundClientPool {
   }
 
   int? getCapacity() {
-    return _size;
+    if (closed) {
+      throw StateError('add() called, but we are in closed state');
+    }
+    return size;
   }
 
   bool clearAllClients() {
