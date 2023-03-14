@@ -40,18 +40,7 @@ class CommitLogKeyStore
     var lastCommittedSequenceNum = lastCommittedSequenceNumber();
     _logger.finer('last committed sequence: $lastCommittedSequenceNum');
 
-    // Ensures the below code runs only when initialized from secondary server.
-    // enableCommitId is set to true in secondary server and to false in client SDK.
-    if (enableCommitId) {
-      // Repairs the commit log.
-      // If null commit id's exist in commitEntry, replaces the commitId with
-      // respective hive internal key
-      await repairCommitLog(await toMap());
-      // Cache the latest commitId of each key.
-      // Add entries to commitLogCacheMap when initialized from at_secondary_server
-      // and refrain for at_client_sdk.
-      _commitLogCacheMap.addAll(await _getCommitIdMap());
-    }
+    await repairCommitLogAndCreateCachedMap();
   }
 
   @override
@@ -436,9 +425,68 @@ class CommitLogKeyStore
     return _lastSyncedEntryCacheMap.values.toList();
   }
 
-  /// Replaces the null commit id's with hive internal key's
+  /// Removes entries with malformed keys
+  /// Repairs entries with null commit IDs
+  /// Clears and repopulates the [_commitLogCacheMap]
   @visibleForTesting
-  Future<void> repairCommitLog(Map<int, CommitEntry> commitLogMap) async {
+  Future<bool> repairCommitLogAndCreateCachedMap() async {
+    // Ensures the below code runs only when initialized from secondary server.
+    // enableCommitId is set to true in secondary server and to false in client SDK.
+    if (! enableCommitId) {
+      return false;
+    }
+
+    Map<int, CommitEntry> allEntries = await toMap();
+
+    await removeEntriesWithMalformedAtKeys(allEntries);
+
+    await repairNullCommitIDs(allEntries);
+
+    // Cache the latest commitId of each key.
+    // Add entries to commitLogCacheMap when initialized from at_secondary_server
+    // and refrain for at_client_sdk.
+    _commitLogCacheMap.clear();
+    _commitLogCacheMap.addAll(await _getCommitIdMap());
+
+    return true;
+  }
+
+  /// Removes all entries which have a malformed [CommitEntry.atKey]
+  /// Returns the list of [CommitEntry.atKey]s which were removed
+  @visibleForTesting
+  Future<List<String>> removeEntriesWithMalformedAtKeys(Map<int, CommitEntry> allEntries) async {
+    List<String> removed = [];
+    await Future.forEach(allEntries.keys, (int seqNum) async {
+      CommitEntry? commitEntry = allEntries[seqNum];
+      if (commitEntry == null) {
+        _logger.warning('CommitLog seqNum $seqNum has a null commitEntry - removing');
+
+        remove(seqNum);
+        return;
+      }
+      String? atKey = commitEntry.atKey;
+      if (atKey == null) {
+        _logger.warning('CommitLog seqNum $seqNum has an entry with a null atKey - removed');
+        return;
+      }
+      KeyType keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
+      if (keyType == KeyType.invalidKey) {
+        _logger.warning('CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
+        removed.add(atKey);
+
+        remove(seqNum);
+        return;
+      } else {
+        _logger.finer('CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
+      }
+    });
+    return removed;
+  }
+
+  /// For each commitEntry with a null commitId, replace the commitId with
+  /// the hive internal key
+  @visibleForTesting
+  Future<void> repairNullCommitIDs(Map<int, CommitEntry> commitLogMap) async {
     await Future.forEach(commitLogMap.keys, (key) async {
       CommitEntry? commitEntry = commitLogMap[key];
       if (commitEntry?.commitId == null) {

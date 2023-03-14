@@ -8,7 +8,7 @@ import 'package:at_utils/at_logger.dart';
 abstract class BaseConnection extends AtConnection {
   late final Socket? _socket;
   late AtConnectionMetaData metaData;
-  late var logger;
+  late AtSignLogger logger;
 
   BaseConnection(Socket? socket) {
     logger = AtSignLogger(runtimeType.toString());

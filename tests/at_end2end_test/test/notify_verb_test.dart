@@ -454,7 +454,48 @@ void main() {
     expect(response, contains('Invalid syntax'));
     // Invalid syntax results in a closed connection so let's do some housekeeping
     sh2.close();
-    sh2 = await e2e.getSocketHandler(atSign_1);
+    sh2 = await e2e.getSocketHandler(atSign_2);
+  });
+
+  test('Test to verify the update and delete caching of key', () async {
+    var key = 'testcachedkey-$lastValue';
+    // Sending the update notification from the sender side
+    await sh1.writeCommand(
+        'notify:update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1:cachedvalue-$lastValue');
+    var response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    // assert the notification-id is not null.
+    assert(response.isNotEmpty);
+    // fetch the notification for status
+    await sh1.writeCommand('notify:fetch:$response');
+    response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    var decodedJSON = jsonDecode(response);
+    expect(decodedJSON['fromAtSign'], atSign_1);
+    expect(decodedJSON['toAtSign'], atSign_2);
+    expect(decodedJSON['notification'], '$atSign_2:$key$atSign_1');
+    expect(decodedJSON['type'], 'NotificationType.sent');
+    expect(decodedJSON['opType'], 'OperationType.update');
+    expect(decodedJSON['messageType'], 'MessageType.key');
+    expect(decodedJSON['notificationStatus'], 'NotificationStatus.delivered');
+
+    // Look for the value of the cached key on  the receiver atSign
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    expect(response, 'data:cachedvalue-$lastValue');
+
+    // Send the delete notification from the sender side
+    await sh1.writeCommand('notify:delete:$atSign_2:$key$atSign_1');
+    response = await sh1.read();
+    assert(response.isNotEmpty);
+
+    // Look for the delete of the cached key
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    decodedJSON = jsonDecode(response);
+    expect(decodedJSON['errorCode'], 'AT0015');
+    expect(decodedJSON['errorDescription'], contains('key not found'));
   });
 
   test('notify verb with notification expiry without value for ttln', () async {
@@ -466,7 +507,7 @@ void main() {
     expect(response, contains('Invalid syntax'));
     // Invalid syntax results in a closed connection so let's do some housekeeping
     sh2.close();
-    sh2 = await e2e.getSocketHandler(atSign_1);
+    sh2 = await e2e.getSocketHandler(atSign_2);
   });
 
   test('notify verb with notification expiry in an incorrect order', () async {
@@ -477,8 +518,8 @@ void main() {
     print('notify verb response : $response');
     expect(response, contains('Invalid syntax'));
     // Invalid syntax results in a closed connection so let's do some housekeeping
-    sh1.close();
-    sh1 = await e2e.getSocketHandler(atSign_1);
+    sh2.close();
+    sh2 = await e2e.getSocketHandler(atSign_2);
   });
 
   test(
@@ -514,7 +555,15 @@ void main() {
     // Sending first notification
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
     var response = await sh1.read();
-    var currentDateTime = DateTime.now();
+    response = response.replaceAll('data:', '');
+    await sh2.writeCommand('notify:fetch:$response');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var atNotificationMap = jsonDecode(response);
+    var firstNotificationDateInEpoch =
+        DateTime.parse(atNotificationMap['notificationDateTime'])
+            .microsecondsSinceEpoch;
+
     // Sending second notification
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
     response = await sh1.read();
@@ -522,42 +571,42 @@ void main() {
     await sh2.writeCommand('notify:fetch:$response');
     response = await sh2.read();
     response = response.replaceAll('data:', '');
-    var atNotificationMap = jsonDecode(response);
-    expect(
+    atNotificationMap = jsonDecode(response);
+    var secondNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
-                .microsecondsSinceEpoch >
-            currentDateTime.microsecondsSinceEpoch,
-        true);
-  },
-      skip:
-          'skipping the end-2-end tests untill changes are merged to trunk branch');
-// commenting till server code is released to prod
-//  test('notify verb for notifying a key update with shared key metadata',
-//      () async {
-//    /// NOTIFY VERB
-//    await sh1.writeCommand(
-//        'notify:update:messageType:key:notifier:SYSTEM:ttln:86400000:ttr:60000:ccd:false:sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae:$atSign_2:phone.wavi$atSign_1:E5skXtdiGbEJ9nY6Kvl+UA==');
-//    String response = await sh1.read();
-//    print('notify verb response : $response');
-//    assert(
-//        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-//    String notificationId = response.replaceAll('data:', '');
-//
-//    // notify status
-//    response = await getNotifyStatus(sh1, notificationId,
-//        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-//    print('notify status response : $response');
-//    expect(response, contains('data:delivered'));
-//
-//    ///notify:list verb
-//    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
-//    response = await sh2.read();
-//    print('llookup verb response : $response');
-//    expect(
-//        response,
-//        contains(
-//            '"key":"cached:$atSign_2:phone.wavi@$atSign_1","value":"E5skXtdiGbEJ9nY6Kvl+UA==","sharedKeyEnc":"abc", "pubKeyCS":"3c55db695d94b304827367a4f5cab8ae"'));
-//  });
+            .microsecondsSinceEpoch;
+
+    expect(secondNotificationDateInEpoch > firstNotificationDateInEpoch, true);
+  });
+
+  test('notify verb for notifying a key update with shared key metadata',
+      () async {
+    /// NOTIFY VERB
+    await sh1.writeCommand(
+        'notify:update:messageType:key:notifier:SYSTEM:ttln:86400000:ttr:60000:ccd:false:sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae:$atSign_2:phone.wavi$atSign_1:E5skXtdiGbEJ9nY6Kvl+UA==');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+
+    // notify status
+    response = await getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+
+    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
+    expect(decodedResponse['data'], 'E5skXtdiGbEJ9nY6Kvl+UA==');
+    expect(decodedResponse['metaData']['sharedKeyEnc'], 'abc');
+    expect(decodedResponse['metaData']['pubKeyCS'],
+        '3c55db695d94b304827367a4f5cab8ae');
+    expect(decodedResponse['metaData']['ttr'], 60000);
+  });
 }
 
 // get notify status

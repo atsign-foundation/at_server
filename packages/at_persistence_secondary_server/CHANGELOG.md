@@ -1,3 +1,10 @@
+## 3.0.51
+- feat: Extend sanity-checking of server-side commitLog upon startup
+## 3.0.50
+- fix: AtMetaData.fromJson now preserves null values for ttl, ttb and ttr
+- test: Add '==' & hashCode to AtMetaData in order to be able to test equality
+- test: Added tests which verify JSON round-tripping of AtMetaData objects
+- refactor: Deprecate at_metadata_adapter; extract the 'to' and 'from' commons Metadata methods from there into the AtMetaData class itself
 ## 3.0.49
 - fix: AtData.toJson() now works when the key is null
 ## 3.0.48

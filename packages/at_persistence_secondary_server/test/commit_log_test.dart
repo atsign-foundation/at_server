@@ -265,7 +265,7 @@ void main() async {
       commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
       expect(commitLogMap?.values.first.commitId, null);
-      await commitLogInstance?.commitLogKeyStore.repairCommitLog(commitLogMap!);
+      await commitLogInstance?.commitLogKeyStore.repairNullCommitIDs(commitLogMap!);
       commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
       expect(commitLogMap?.values.first.commitId, 0);
     });
@@ -293,7 +293,7 @@ void main() async {
           .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
       var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
-      await commitLogInstance.commitLogKeyStore.repairCommitLog(commitLogMap);
+      await commitLogInstance.commitLogKeyStore.repairNullCommitIDs(commitLogMap);
       commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
       commitLogMap.forEach((key, value) {
         assert(value.commitId != null);

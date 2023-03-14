@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:collection/collection.dart';
 import 'package:test/test.dart';
 
 void main() async {
@@ -142,12 +144,69 @@ void main() async {
         ..pubKeyCS = 'xyz'
         ..sharedKeyEnc = 'abc'
         ..isBinary = false;
-      final atMetaData = AtMetadataAdapter(metaData)!;
+      final atMetaData = AtMetaData.fromCommonsMetadata(metaData);
       expect(atMetaData.ttl, 1000);
       expect(atMetaData.isCascade, true);
       expect(atMetaData.pubKeyCS, 'xyz');
       expect(atMetaData.sharedKeyEnc, 'abc');
       expect(atMetaData.isBinary, false);
+    });
+  });
+
+  group('Test json round-tripping', () {
+    test('Test without null values', () {
+      final Metadata startMetaData = Metadata()
+          ..ttl=100..ttb=200..ttr=3600
+          ..ccd=true..isBinary=false..isEncrypted=true
+          ..dataSignature='dataSignature'
+          ..pubKeyCS='pubKeyChecksum'
+          ..sharedKeyEnc='sharedKeyEncrypted'
+          ..encoding='someEncoding';
+      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+      final Map startMap = startAtMetaData.toJson();
+      final String startJson = jsonEncode(startMap);
+      final Map endMap = jsonDecode(startJson);
+      expect(DeepCollectionEquality().equals(endMap, startMap), true);
+      AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
+      expect(endAtMetaData, startAtMetaData);
+      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      expect(endMetaData, startMetaData);
+    });
+    test ('Test with null values', () {
+      final Metadata startMetaData = Metadata()
+        ..ttl=null..ttb=null..ttr=null
+        ..ccd=false..isBinary=true..isEncrypted=false
+        ..dataSignature=null
+        ..pubKeyCS=null
+        ..sharedKeyEnc=null
+        ..encoding=null;
+      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+      final Map startMap = startAtMetaData.toJson();
+      final String startJson = jsonEncode(startMap);
+      final Map endMap = jsonDecode(startJson);
+      expect(DeepCollectionEquality().equals(endMap, startMap), true);
+      AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
+      expect(endAtMetaData, startAtMetaData);
+      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      expect(endMetaData, startMetaData);
+    });
+    test ('Test with some null, some non-null values', () {
+      final Metadata startMetaData = Metadata()
+        ..ttl=0..ttb=0..ttr=0
+        ..ccd=false..isBinary=true..isEncrypted=false
+        ..dataSignature='foo'
+        ..pubKeyCS=null
+        ..sharedKeyEnc=null
+        ..encoding='base64';
+      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+      final Map startMap = startAtMetaData.toJson();
+      final String startJson = jsonEncode(startMap);
+      final Map endMap = jsonDecode(startJson);
+      expect(DeepCollectionEquality().equals(endMap, startMap), true);
+      AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
+      expect(endAtMetaData, startAtMetaData);
+      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      expect(endMetaData, startMetaData);
     });
   });
 }
