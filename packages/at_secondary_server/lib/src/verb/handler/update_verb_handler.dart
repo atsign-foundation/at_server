@@ -19,7 +19,7 @@ import 'package:meta/meta.dart';
 // update can be used to update the public/private keys
 // Ex: update:public:email@alice alice@atsign.com \n
 class UpdateVerbHandler extends ChangeVerbHandler {
-  static bool? _autoNotify = AtSecondaryConfig.autoNotify;
+  static bool _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
   UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
@@ -134,7 +134,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         ..pubKeyCS = publicKeyChecksum
         ..encoding = encoding;
 
-      if (_autoNotify!) {
+      if (_autoNotify) {
         notify(
             sharedBy,
             sharedWith,
@@ -171,10 +171,10 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   @visibleForTesting
   dynamic notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) {
+
     if (forAtSign == null) {
       return;
     }
-
     int ttlInMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
         .inMilliseconds;
 
