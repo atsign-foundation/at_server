@@ -21,6 +21,7 @@ env:
   secondary-working-directory: ./packages/at_secondary_server
   ftest-working-directory: ./tests/at_functional_test
   e2etest-working-directory: ./tests/at_end2end_test
+  install-pkam-working-directory: ./tools/build_virtual_environment/install_PKAM_Keys
 
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -184,9 +185,12 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_docker_readiness.dart
 
-        # Set PKAM keys to the atsign's
+      # Set PKAM keys to the atsign's
       - name: Load PKAM Keys
-        run: docker exec at_virtual_env_cont supervisorctl start pkamLoad
+        working-directory: ${{ env.install-pkam-working-directory }}
+        run: |
+          dart pub get
+          dart bin/install_PKAM_Keys.dart
 
 
       # could save around 4s here using a compiled binary
