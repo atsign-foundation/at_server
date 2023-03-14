@@ -138,7 +138,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
         notify(
             sharedBy,
             sharedWith,
-            verbParams[AT_KEY],
+            key,
             value,
             SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
             atMetadata);
