@@ -1,5 +1,5 @@
-import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-import 'package:collection/src/priority_queue.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:collection/collection.dart';
 
 /// Class implementing the priority queue.
 class AtNotificationPriorityQueue {

@@ -16,7 +16,7 @@ class AtNotificationMap {
   }
 
   final Map<String?, Map<String, NotificationStrategy>> _notificationMap = <String?, Map<String, NotificationStrategy>>{};
-  final Map<String?, NotificationWaitTime> _waitTimeMap = <String?, NotificationWaitTime>{};
+  final Map<String, NotificationWaitTime> _waitTimeMap = <String, NotificationWaitTime>{};
   final Map<String?, DateTime> _quarantineMap = <String?, DateTime>{};
 
   Map<String?, DateTime> get quarantineMap => _quarantineMap;
@@ -74,7 +74,7 @@ class AtNotificationMap {
   }
 
   /// Returns an Iterator of atsign on priority order.
-  Iterator<String?> getAtSignToNotify(int N) {
+  Iterator<String> getAtSignToNotify(int N) {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var list = _sortWaitTimeMap(N);
     list.removeWhere((atsign) =>
@@ -86,7 +86,7 @@ class AtNotificationMap {
   }
 
   /// Sorts the keys in [_waitTimeMap] in descending order according to the wait time.
-  List<String?> _sortWaitTimeMap(int N) {
+  List<String> _sortWaitTimeMap(int N) {
     var list = _waitTimeMap.keys.toList()
       ..sort((k1, k2) =>
           _waitTimeMap[k2]!.waitTime.compareTo(_waitTimeMap[k1]!.waitTime));
@@ -95,8 +95,13 @@ class AtNotificationMap {
 
   /// Computes the wait for the notification.
   void _computeWaitTime(AtNotification atNotification) {
-    _waitTimeMap.putIfAbsent(
-        atNotification.toAtSign, () => NotificationWaitTime());
+    if (atNotification.toAtSign == null) {
+      logger.severe('_computeWaitTime found a notification with a null atSign: $atNotification');
+      return;
+    }
+
+    _waitTimeMap.putIfAbsent(atNotification.toAtSign!, () => NotificationWaitTime());
+
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
     notificationWaitTime.prioritiesSum = atNotification.priority!.index;
     notificationWaitTime.totalPriorities += 1;
