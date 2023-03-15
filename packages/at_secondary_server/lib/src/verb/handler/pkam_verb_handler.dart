@@ -60,6 +60,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // if no signature algorithm is passed, default to RSA verification. This preserves
     // backward compatibility for old pkam messages without signing algo.
     logger.finer('signingAlgo: $signingAlgo');
+    logger.finer('in process verb of branch issue#1229');
     if (signingAlgo == null || signingAlgo.isEmpty) {
       signingAlgoEnum = SigningAlgoType.rsa2048;
       inputSignature = base64Decode(signature);

@@ -64,19 +64,12 @@ Future<void> prepare(Socket socket, String atsign) async {
   print('From verb response $response');
   response = response.replaceAll('data:', '');
   var pkamDigest = generatePKAMDigest(atsign, response);
-  // var cram = getDigest(atsign, response);
 
   // PKAM VERB
   await socket_writer(socket, 'pkam:$pkamDigest');
   response = await read();
   print('pkam verb response $response');
   expect(response, 'data:success\n');
-
-  //CRAM VERB
-  // await socket_writer(socket, 'cram:$cram');
-  // response = await read();
-  // print('cram verb response $response');
-  // expect(response, 'data:success\n');
 }
 
 void _messageHandler(data) {
