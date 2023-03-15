@@ -9,6 +9,7 @@ var retryCount = 1;
 Queue rootServerResponseQueue = Queue();
 
 void main() {
+  var atSign = 'sitaram🛠';
   var rootServerPort = 64;
   var rootServer = 'vip.ve.atsign.zone';
 
@@ -22,8 +23,12 @@ void main() {
         socketListener(_secureSocket);
         var response = await readResponse();
         if (response == '@') {
-          print('Root Server is up and running');
-          await _secureSocket.close();
+          print('Secure Socket is open for Root Server');
+        }
+        var isRootServerStarted =
+        await _lookupForSecondaryAddress(_secureSocket, atSign, rootServer);
+        if (isRootServerStarted) {
+          _secureSocket.close();
           break;
         }
       } on SocketException {
@@ -39,6 +44,17 @@ void main() {
   }, timeout: Timeout(Duration(minutes: 1)));
 }
 
+Future<bool> _lookupForSecondaryAddress(
+    SecureSocket _secureSocket, String atSign, String rootServer) async {
+  _secureSocket.write('$atSign\n');
+  var response = await readResponse();
+  if (response.toString().startsWith(rootServer)) {
+    print('Root Server is up and running');
+    return true;
+  }
+  return false;
+}
+
 void socketListener(SecureSocket secureSocket) {
   var response = '';
   secureSocket.listen((event) {
@@ -50,8 +66,12 @@ void socketListener(SecureSocket secureSocket) {
 }
 
 dynamic readResponse() async {
-  while (rootServerResponseQueue.isEmpty) {
-    await Future.delayed(Duration(milliseconds: 10));
+  var retryCount = 0;
+  while (rootServerResponseQueue.isEmpty || retryCount < maxRetryCount) {
+    await Future.delayed(Duration(milliseconds: 5));
+    retryCount = retryCount + 1;
   }
-  return rootServerResponseQueue.removeFirst();
+  if (rootServerResponseQueue.isNotEmpty) {
+    return rootServerResponseQueue.removeFirst();
+  }
 }
