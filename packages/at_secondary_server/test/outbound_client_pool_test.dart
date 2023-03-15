@@ -19,7 +19,7 @@ void main() async {
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
 
-    NotifyConnectionsPool.getInstance().init(2);
+    NotifyConnectionsPool.getInstance().size = 2;
   });
 
   tearDown(() {
@@ -29,7 +29,7 @@ void main() async {
 
   group('A group of outbound client pool test', () {
     test('test outbound client pool init', () {
-      outboundClientPool.init((5));
+      outboundClientPool.size = 5;
       expect(outboundClientPool.getCapacity(), 5);
       expect(outboundClientPool.getCurrentSize(), 0);
     });
@@ -45,7 +45,7 @@ void main() async {
 
     test('test connection pool add clients', () {
       var poolInstance = outboundClientPool;
-      poolInstance.init(5);
+      poolInstance.size = 5;
 
       var client_1 = newOutboundClient('alice');
       poolInstance.add(client_1);
@@ -58,7 +58,7 @@ void main() async {
 
     test('test client pool - invalid clients', () async {
       var poolInstance = outboundClientPool;
-      poolInstance.init(5);
+      poolInstance.size = 5;
 
       var client_1 = newOutboundClient('alice');
       poolInstance.add(client_1);
@@ -79,7 +79,7 @@ void main() async {
 
     test('test connection pool remove all clients', () {
       var poolInstance = outboundClientPool;
-      poolInstance.init(5);
+      poolInstance.size = 5;
 
       var client_1 = newOutboundClient('alice');
       poolInstance.add(client_1);
@@ -95,7 +95,7 @@ void main() async {
 
     test('test connection pool remove least recently used when pool size >= 2', () async {
       var poolInstance = outboundClientPool;
-      poolInstance.init(5);
+      poolInstance.size = 5;
 
       var client_1 = newOutboundClient('alice');
       poolInstance.add(client_1);
@@ -120,7 +120,7 @@ void main() async {
 
     test('test connection pool remove least recently used when pool size <= 1', () async {
       var poolInstance = outboundClientPool;
-      poolInstance.init(5);
+      poolInstance.size = 5;
 
       expect(poolInstance.getCurrentSize(), 0);
       expect(poolInstance.removeLeastRecentlyUsed(), null);
@@ -147,7 +147,7 @@ void main() async {
     test('test notify connections pool removes least recently used when at capacity, with lastUsed as per order of OutboundClient creation', () async {
       NotifyConnectionsPool notifyConnectionPool = NotifyConnectionsPool.getInstance();
 
-      notifyConnectionPool.init(2);
+      notifyConnectionPool.size = 2;
       expect (notifyConnectionPool.getCapacity(), 2);
 
       var alice = notifyConnectionPool.get('alice');
@@ -169,7 +169,7 @@ void main() async {
     test('test notify connections pool removes least recently used when at capacity, with lastUsed CHANGED compared with order of object creation', () async {
       NotifyConnectionsPool notifyConnectionPool = NotifyConnectionsPool.getInstance();
 
-      notifyConnectionPool.init(2);
+      notifyConnectionPool.size = 2;
       expect (notifyConnectionPool.getCapacity(), 2);
 
       var alice = notifyConnectionPool.get('alice');

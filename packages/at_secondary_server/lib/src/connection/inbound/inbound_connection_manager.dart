@@ -37,7 +37,7 @@ class InboundConnectionManager implements AtConnectionFactory {
       throw InboundConnectionLimitException(
           'max limit reached on inbound pool');
     }
-    sessionId ??= '_' + Uuid().v4();
+    sessionId ??= '_${Uuid().v4()}';
     var atConnection =
         InboundConnectionImpl(socket, sessionId, owningPool: _pool);
     _pool.add(atConnection);

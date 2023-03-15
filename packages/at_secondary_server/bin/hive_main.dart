@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+// ignore: depend_on_referenced_packages
 import 'package:hive/hive.dart';
 
 Future<void> main(List<String> arguments) async {
