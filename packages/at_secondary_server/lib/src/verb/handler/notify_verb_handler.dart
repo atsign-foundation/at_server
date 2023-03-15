@@ -71,7 +71,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       verbParams[FOR_AT_SIGN] = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-      verbParams[AT_SIGN] = AtUtils.formatAtSign(verbParams[AT_SIGN]);
+      verbParams[AT_SIGN] =
+          AtUtils.formatAtSign(verbParams[AT_SIGN]) ?? currentAtSign;
       logger.finer(
           'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AT_SIGN]} \n key : ${verbParams[AT_KEY]}');
       // When connection is authenticated, it indicates the sender side of the
@@ -175,7 +176,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, Response response) async {
     // Check if the sharedBy atSign is currentAtSign. If yes allow to send notifications
     // else throw UnAuthorizedException
-    if (!_isAuthorizedToSendNotification(verbParams[AT_SIGN]!, currentAtSign)) {
+    if (!_isAuthorizedToSendNotification(verbParams[AT_SIGN], currentAtSign)) {
       throw UnAuthorizedException(
           '${verbParams[AT_SIGN]} is not authorized to send notification as $currentAtSign');
     }
@@ -267,7 +268,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       {String fromAtSign = ''}) {
     atNotificationBuilder = atNotificationBuilder
       ..toAtSign = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])
-      ..fromAtSign = AtUtils.formatAtSign(verbParams[AT_SIGN]) ?? fromAtSign
+      ..fromAtSign = fromAtSign
       ..notificationDateTime = DateTime.now().toUtc()
       ..notification = _getFullFormedAtKey(
           getMessageType(verbParams[MESSAGE_TYPE]), verbParams)
@@ -446,7 +447,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
   }
 
-  bool _isAuthorizedToSendNotification(String sharedBy, String currentAtSign) {
+  bool _isAuthorizedToSendNotification(String? sharedBy, String currentAtSign) {
     return sharedBy == currentAtSign;
   }
 }
