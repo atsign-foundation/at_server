@@ -92,6 +92,26 @@ void main() {
       var result = handler.accept(command);
       expect(result, true);
     });
+
+    test(
+        'test to verify unauthorized exception is thrown when sharedBy atSign is not currentAtSign',
+        () {
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var notifyVerb = NotifyVerbHandler(mockKeyStore);
+      var inboundConnection = InboundConnectionImpl(null, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
+      var notifyResponse = Response();
+      var notifyVerbParams = HashMap<String, String>();
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@colin');
+
+      expect(
+          () => notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
+    });
   });
 
   group('A group of notify verb regex - invalid syntax', () {
