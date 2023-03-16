@@ -21,6 +21,7 @@ env:
   secondary-working-directory: ./packages/at_secondary_server
   ftest-working-directory: ./tests/at_functional_test
   e2etest-working-directory: ./tests/at_end2end_test
+  install-pkam-working-directory: ./tools/build_virtual_environment/install_PKAM_Keys
 
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
@@ -180,14 +181,30 @@ jobs:
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
         run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
 
-        # could save around 4s here using a compiled binary
+      - name: Check docker readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_docker_readiness.dart
+
+      - name: Check root server readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_root_server_readiness.dart
+
+      # Set PKAM keys to the atsign's
+      - name: Load PKAM Keys
+        working-directory: ${{ env.install-pkam-working-directory }}
+        run: |
+          dart pub get
+          dart bin/install_PKAM_Keys.dart
+
+
+      # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test/check_test_env.dart
 
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
-        run: dart run test
+        run: dart run test --concurrency=1
 
       # On push event, upload secondary server binary
       - name: upload secondary server

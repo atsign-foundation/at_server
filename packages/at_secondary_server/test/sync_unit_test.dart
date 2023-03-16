@@ -540,10 +540,10 @@ void main() {
                 ttb: 2000,
                 ttr: 3000,
                 ccd: true,
-                publicKeyChecksum: 'dummy_checksum',
+                dataSignature: 'dummy_datasignature',
                 sharedKeyEncrypted: 'dummy_shared_key',
-                encoding: 'base64',
-                dataSignature: 'dummy_datasignature')
+                publicKeyChecksum: 'dummy_checksum',
+                encoding: 'base64')
             .build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
