@@ -2,8 +2,11 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
-  AtMetaData? atMetaData;
-  var currentUtcTime = DateTime.now().toUtc();
+  late AtMetaData atMetaData;
+  /// We will constrain to millisecond precision because Hive only stores
+  /// [DateTime]s to millisecond precision - see https://github.com/hivedb/hive/issues/474
+  /// for details.
+  var currentUtcTimeToMillisecondPrecision = DateTime.now().toUtcMillisecondsPrecision();
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
   /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
@@ -23,14 +26,34 @@ class AtMetadataBuilder {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding}) {
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo,
+      }) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
-    atMetaData!.createdAt ??= currentUtcTime;
-    atMetaData!.createdBy ??= atSign;
-    atMetaData!.updatedBy = atSign;
-    atMetaData!.updatedAt = currentUtcTime;
-    atMetaData!.status = 'active';
+    // createdAt indicates the date and time of the key created.
+    // For a new key, the currentDateTime is set and remains unchanged
+    // on an update event.
+    (existingMetaData?.createdAt == null)
+        ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
+        : atMetaData.createdAt = existingMetaData?.createdAt;
+    atMetaData.createdBy ??= atSign;
+    atMetaData.updatedBy = atSign;
+    // updatedAt indicates the date and time of the key updated.
+    // For a new key, the updatedAt is same as createdAt and on key
+    // update, set the updatedAt to the currentDateTime.
+    atMetaData.updatedAt = currentUtcTimeToMillisecondPrecision;
+    atMetaData.status = 'active';
+    // The version indicates the number of updates a key has received.
+    // Version is set to 0 for a new key and for each update the key receives,
+    // the version increases by 1
+    (existingMetaData?.version == null)
+        ? atMetaData.version = 0
+        : atMetaData.version = (existingMetaData!.version! + 1);
 
     //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
     ttl ??= newAtMetaData.ttl;
@@ -52,6 +75,11 @@ class AtMetadataBuilder {
     sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
     publicKeyChecksum ??= newAtMetaData.pubKeyCS;
     encoding ??= newAtMetaData.encoding;
+    encKeyName ??= newAtMetaData.encKeyName;
+    encAlgo ??= newAtMetaData.encAlgo;
+    ivNonce ??= newAtMetaData.ivNonce;
+    skeEncKeyName ??= newAtMetaData.skeEncKeyName;
+    skeEncAlgo ??= newAtMetaData.skeEncAlgo;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -66,75 +94,44 @@ class AtMetadataBuilder {
     if (ccd != null) {
       setCCD(ccd);
     }
-    setIsBinary(isBinary);
-    setIsEncrypted(isEncrypted);
-    setDataSignature(dataSignature);
-    setSharedKeyEncrypted(sharedKeyEncrypted);
-    setPublicKeyChecksum(publicKeyChecksum);
-    setEncoding(encoding);
+    atMetaData.isBinary = isBinary;
+    atMetaData.isEncrypted = isEncrypted;
+    atMetaData.dataSignature = dataSignature;
+    atMetaData.sharedKeyEnc = sharedKeyEncrypted;
+    atMetaData.pubKeyCS = publicKeyChecksum;
+    atMetaData.encoding = encoding;
+    atMetaData.encKeyName = encKeyName;
+    atMetaData.encAlgo = encAlgo;
+    atMetaData.ivNonce = ivNonce;
+    atMetaData.skeEncKeyName = skeEncKeyName;
+    atMetaData.skeEncAlgo = skeEncAlgo;
   }
 
   void setTTL(int? ttl, {int? ttb}) {
     if (ttl != null) {
-      atMetaData!.ttl = ttl;
-      atMetaData!.expiresAt =
-          _getExpiresAt(currentUtcTime.millisecondsSinceEpoch, ttl, ttb: ttb);
+      atMetaData.ttl = ttl;
+      atMetaData.expiresAt =
+          _getExpiresAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttl, ttb: ttb);
     }
   }
 
   void setTTB(int? ttb) {
     if (ttb != null) {
-      atMetaData!.ttb = ttb;
-      atMetaData!.availableAt =
-          _getAvailableAt(currentUtcTime.millisecondsSinceEpoch, ttb);
+      atMetaData.ttb = ttb;
+      atMetaData.availableAt =
+          _getAvailableAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
     }
   }
 
   void setTTR(int? ttr) {
     if (ttr != null) {
-      atMetaData!.ttr = ttr;
-      atMetaData!.refreshAt = _getRefreshAt(currentUtcTime, ttr);
+      atMetaData.ttr = ttr;
+      atMetaData.refreshAt = _getRefreshAt(currentUtcTimeToMillisecondPrecision, ttr);
     }
   }
 
   void setCCD(bool ccd) {
-    atMetaData!.isCascade = ccd;
-  }
-
-  void setIsBinary(bool? isBinary) {
-    if (isBinary != null) {
-      atMetaData!.isBinary = isBinary;
-    }
-  }
-
-  void setIsEncrypted(bool? isEncrypted) {
-    if (isEncrypted != null) {
-      atMetaData!.isEncrypted = isEncrypted;
-    }
-  }
-
-  void setDataSignature(String? dataSignature) {
-    if (dataSignature != null) {
-      atMetaData!.dataSignature = dataSignature;
-    }
-  }
-
-  void setSharedKeyEncrypted(String? sharedKeyEncrypted) {
-    if (sharedKeyEncrypted != null) {
-      atMetaData!.sharedKeyEnc = sharedKeyEncrypted;
-    }
-  }
-
-  void setPublicKeyChecksum(String? publicKeyChecksum) {
-    if (publicKeyChecksum != null) {
-      atMetaData!.pubKeyCS = publicKeyChecksum;
-    }
-  }
-
-  void setEncoding(String? encoding) {
-    if (encoding != null && encoding.isNotEmpty) {
-      atMetaData!.encoding = encoding;
-    }
+    atMetaData.isCascade = ccd;
   }
 
   DateTime? _getAvailableAt(int epochNow, int ttb) {
@@ -163,6 +160,6 @@ class AtMetadataBuilder {
   }
 
   AtMetaData build() {
-    return atMetaData!;
+    return atMetaData;
   }
 }

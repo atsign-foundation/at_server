@@ -15,7 +15,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
   String? regex;
 
-  MonitorVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  MonitorVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   Notification notification = Notification.empty();
 

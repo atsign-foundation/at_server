@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -20,8 +21,10 @@ class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
+  final OutboundClientManager outboundClientManager;
+  final AtCacheManager cacheManager;
 
-  PolVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  PolVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -52,65 +55,62 @@ class PolVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
-    var _from = atConnectionMetadata.from;
-    logger.info('from : ${_from.toString()}');
+
+    logger.info('from : ${atConnectionMetadata.from.toString()}');
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
-    if (_from == true) {
-      // Getting secondary server URL
-      var secondary_url = await AtLookupImpl.findSecondary(
-          fromAtSign!, _rootDomain, _rootPort!);
-      logger.finer('secondary url : $secondary_url');
-      if (secondary_url != null && secondary_url.contains(':')) {
-        var lookUpKey = '$sessionID$fromAtSign';
-        // Connect to the other secondary server and get the secret
-        var outBoundClient = OutboundClientManager.getInstance()
-            .getClient(fromAtSign, atConnection);
-        if (outBoundClient == null) {
-          logger.severe('max outbound limit reached');
-          throw AtConnectException('max outbound limit reached');
-        }
-        if (!outBoundClient.isConnectionCreated) {
-          logger.finer('creating outbound connection $fromAtSign');
-          await outBoundClient.connect(handshake: false);
-        }
-        var signedChallenge =
-            await (outBoundClient.lookUp(lookUpKey, handshake: false));
-        signedChallenge = signedChallenge?.replaceFirst('data:', '');
-        var plookupCommand = 'signing_publickey$fromAtSign';
-        var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
-        fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
-        // Getting stored secret from this secondary server
-        var secret = await keyStore!.get('public:' + sessionID! + fromAtSign);
-        var message = secret?.data;
-        if (fromPublicKey != null && signedChallenge != null) {
-          // Comparing secretLookup form other secondary and stored secret are same or not
-          var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
-              .verifySHA256Signature(utf8.encode(message) as Uint8List,
-                  base64Decode(signedChallenge));
-          logger.finer('isValidChallenge:$isValidChallenge');
-          if (isValidChallenge) {
-            atConnectionMetadata.isPolAuthenticated = true;
-            response.data = 'pol:$fromAtSign@';
-            await atAccessLog!.insert(fromAtSign, pol.name());
-            logger.info('response : $fromAtSign@');
-          } else {
-            throw UnAuthenticatedException('Pol Authentication Failed');
-          }
-        }
-        outBoundClient.close();
-        return;
-      } else {
-        throw SecondaryNotFoundException(
-            'secondary server not found for $fromAtSign');
+    if (atConnectionMetadata.from != true) {
+      throw InvalidRequestException ('You must execute a ''from:'' command before you may run the pol command');
+    }
+
+    // Getting secondary server URL
+    // ignore: deprecated_member_use
+    var secondaryUrl = await AtLookupImpl.findSecondary(
+        fromAtSign!, _rootDomain, _rootPort!);
+    logger.finer('secondary url : $secondaryUrl');
+    if (secondaryUrl != null && secondaryUrl.contains(':')) {
+      var lookUpKey = '$sessionID$fromAtSign';
+      // Connect to the other secondary server and get the secret
+      var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection);
+      if (outBoundClient == null) {
+        logger.severe('max outbound limit reached');
+        throw AtConnectException('max outbound limit reached');
       }
-    } else {
-      response.isError = true;
-      response.errorMessage =
-          'pol command run without using the from: verb first.';
+      if (!outBoundClient.isConnectionCreated) {
+        logger.finer('creating outbound connection $fromAtSign');
+        await outBoundClient.connect(handshake: false);
+      }
+      var signedChallenge =
+          await (outBoundClient.lookUp(lookUpKey, handshake: false));
+      signedChallenge = signedChallenge?.replaceFirst('data:', '');
+      var plookupCommand = 'signing_publickey$fromAtSign';
+      var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
+      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
+      // Getting stored secret from this secondary server
+      var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
+      var message = secret?.data;
+      if (fromPublicKey != null && signedChallenge != null) {
+        // Comparing secretLookup form other secondary and stored secret are same or not
+        var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+            .verifySHA256Signature(utf8.encode(message) as Uint8List,
+                base64Decode(signedChallenge));
+        logger.finer('isValidChallenge:$isValidChallenge');
+        if (isValidChallenge) {
+          atConnectionMetadata.isPolAuthenticated = true;
+          response.data = 'pol:$fromAtSign@';
+          await atAccessLog!.insert(fromAtSign, pol.name());
+          logger.info('response : $fromAtSign@');
+        } else {
+          throw UnAuthenticatedException('Pol Authentication Failed');
+        }
+      }
+      outBoundClient.close();
       return;
+    } else {
+      throw SecondaryNotFoundException(
+          'secondary server not found for $fromAtSign');
     }
   }
 }

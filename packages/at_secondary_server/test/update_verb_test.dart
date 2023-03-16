@@ -17,23 +17,27 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
-  var storageDir = Directory.current.path + '/test/hive';
-  late var keyStoreManager;
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  var storageDir = '${Directory.current.path}/test/hive';
+  late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
   group('A group of update accept tests', () {
     test('test update command accept test', () {
-      var command = 'update:public:location@alice newyork';
-      var handler = UpdateVerbHandler(null);
+      var command = 'update:public:location@alice new york';
+      var handler = UpdateVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test update command accept negative test', () {
-      var command = 'updated:public:location@alice newyork';
-      var handler = UpdateVerbHandler(null);
+      var command = 'updated:public:location@alice new york';
+      var handler = UpdateVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, false);
     });
@@ -74,13 +78,13 @@ void main() {
 
     test('test update local key-value with public', () {
       var verb = Update();
-      var command = 'update:public:location@alice newyork';
+      var command = 'update:public:location@alice new york';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AT_KEY], 'location');
       expect(paramsMap[FOR_AT_SIGN], isNull);
       expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'newyork');
+      expect(paramsMap[AT_VALUE], 'new york');
     });
 
     test('test update local key-value with private key', () {
@@ -114,14 +118,12 @@ void main() {
       expect(paramsMap[AT_VALUE], 'emoji');
     });
 
-    test('test update with multiple : in key', () {
+    test('test update with multiple : in key - should fail', () {
       var verb = Update();
-      var command = 'update:ttl:1:public:location:city@alice Hyderbad:TG';
+      var command = 'update:ttl:1:public:location:city@alice Hyderabad:TG';
       var regex = verb.syntax();
-      var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:city');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderbad:TG');
+      expect(() => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
 
     test('test update key- no atsign', () {
@@ -132,19 +134,19 @@ void main() {
       expect(paramsMap[AT_KEY], 'location');
     });
 
-    test('test update key- key with colon', () {
+    test('test update key- key with colon - should fail', () {
       var verb = Update();
       var command = 'update:location:local us';
       var regex = verb.syntax();
-      var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:local');
+      expect(() => getVerbParam(regex, command),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException && e.message == 'Syntax Exception')));
     });
   });
 
   group('A group of update verb handler test', () {
     test('test update verb handler- update', () {
       var command = 'update:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       var verbParameters = handler.parse(command);
       var verb = handler.getVerb();
       expect(verb is Update, true);
@@ -157,7 +159,7 @@ void main() {
 
     test('test update verb handler- public update', () {
       var command = 'update:public:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       var verb = handler.getVerb();
       var verbParameters = handler.parse(command);
 
@@ -198,7 +200,7 @@ void main() {
   group('A group of update verb regex - invalid syntax', () {
     test('test update with ttl with no value', () {
       var verb = Update();
-      var command = 'update:ttl::public:location:city@alice Hyderbad:TG';
+      var command = 'update:ttl::public:location:city@alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -208,7 +210,7 @@ void main() {
 
     test('test update with ttb with no value', () {
       var verb = Update();
-      var command = 'update:ttb::public:location:city@alice Hyderbad:TG';
+      var command = 'update:ttb::public:location:city@alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -218,7 +220,7 @@ void main() {
 
     test('test update with two colons beside - invalid syntax', () {
       var verb = Update();
-      var command = 'update::location:city@alice Hyderbad:TG';
+      var command = 'update::location:city@alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -228,7 +230,7 @@ void main() {
 
     test('test update with @ suffixed in atsign - invalid syntax', () {
       var verb = Update();
-      var command = 'update:location:city@alice@ Hyderbad:TG';
+      var command = 'update:location:city@alice@ Hyderabad:TG';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -248,7 +250,7 @@ void main() {
 
     test('test update key- invalid keyword', () {
       var verb = Update();
-      var command = 'updation:location@alice us';
+      var command = 'updatee:location@alice us';
       var regex = verb.syntax();
       expect(
               () => getVerbParam(regex, command),
@@ -278,13 +280,12 @@ void main() {
 
     test('test update key no value - invalid command', () {
       var command = 'update:location@alice';
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
           e is InvalidSyntaxException &&
-              e.message ==
-                  'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+              e.message == 'Invalid syntax. ${handler.getVerb().usage()}')));
     });
   });
 
@@ -292,14 +293,14 @@ void main() {
     test('test update with ttl and ttb with values', () {
       var verb = Update();
       var command =
-          'update:ttl:20000:ttb:20000:public:location:city@alice Hyderbad:TG';
+          'update:ttl:20000:ttb:20000:public:location.city@alice Hyderabad:TG';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location:city');
+      expect(paramsMap[AT_KEY], 'location.city');
       expect(paramsMap[AT_TTL], '20000');
       expect(paramsMap[AT_TTB], '20000');
       expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderbad:TG');
+      expect(paramsMap[AT_VALUE], 'Hyderabad:TG');
     });
 
     test('adding ttl to the update verb', () {
@@ -373,15 +374,15 @@ void main() {
     test('ttl starting with -1', () {
       var command = 'UpDaTe:ttl:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
       SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      handler.keyStore = secondaryPersistenceStore
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
       Map parsed = handler.parse(command);
       expect(parsed['ttl'], '-1');
     });
@@ -389,15 +390,15 @@ void main() {
     test('ttb starting with -1', () {
       var command = 'UpDaTe:ttb:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
       SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      handler.keyStore = secondaryPersistenceStore
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
       Map parsed = handler.parse(command);
       expect(parsed['ttb'], '-1');
     });
@@ -405,7 +406,7 @@ void main() {
     test('ttl and ttb starting with negative value -1', () {
       var command = 'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       Map parsed = handler.parse(command);
       expect (parsed['ttl'], '-1');
       expect (parsed['ttb'], '-1');
@@ -414,37 +415,37 @@ void main() {
     test('ttl with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
           e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+                  'Invalid syntax. ${handler.getVerb().usage()}')));
     });
 
     test('ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
           e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+                  'Invalid syntax. ${handler.getVerb().usage()}')));
     });
 
     test('ttl and ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
           e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+                  'Invalid syntax. ${handler.getVerb().usage()}')));
     });
   });
 
@@ -482,15 +483,15 @@ void main() {
     test('ttr starting with -2', () {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
       SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      handler.keyStore = secondaryPersistenceStore
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -505,13 +506,13 @@ void main() {
     test('ccd with invalid value', () {
       var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
           e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid syntax. e.g update:@alice:location@bob sanfrancisco')));
+                  'Invalid syntax. ${handler.getVerb().usage()}')));
     });
   });
 
@@ -707,19 +708,19 @@ void main() {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
       SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      handler.keyStore = secondaryPersistenceStore
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
-      expectLater(
+      await expectLater(
               () async =>
           await handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
@@ -730,15 +731,15 @@ void main() {
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(null);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var secondaryPersistenceStore =
       SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      handler.keyStore = secondaryPersistenceStore
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);

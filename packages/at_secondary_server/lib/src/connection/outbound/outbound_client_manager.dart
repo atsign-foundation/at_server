@@ -3,6 +3,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// Class to retrieve and manage [OutboundClient] from [OutboundClientPool]
 class OutboundClientManager {
@@ -11,41 +12,34 @@ class OutboundClientManager {
 
   var logger = AtSignLogger('OutboundClientManager');
 
-  late OutboundClientPool _pool;
-
   static const int defaultPoolSize = 10;
 
-  bool isInitialised = false;
+  final OutboundClientPool _pool = OutboundClientPool(size: defaultPoolSize);
 
   OutboundClientManager._internal();
 
   factory OutboundClientManager.getInstance() {
     return _singleton;
   }
+  @visibleForTesting
+  bool closed = false;
 
-  /// Initialises outbound client pool with a given size.
-  /// @param - size - Maximum clients the pool can hold
-  void init(int size) {
-    _pool = OutboundClientPool();
-    _pool.init(size);
-    isInitialised = true;
-  }
+  set poolSize (int s) => _pool.size = s;
+  int get poolSize => _pool.size;
 
   /// If the pool is already initialized, checks and returns an outbound client if it is already in pool.
   /// Otherwise clears idle clients and creates a new outbound client if the pool has capacity. Returns null if pool does not have capacity.
   ///  If the pool is not initialized, initializes the pool with [defaultPoolSize] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
-  OutboundClient? getClient(
-      String? toAtSign, InboundConnection inboundConnection,
+  OutboundClient getClient(
+      String toAtSign, InboundConnection inboundConnection,
       {bool isHandShake = true}) {
-    // Initialize the pool if not already done
-    if (!isInitialised) {
-      init(defaultPoolSize);
+    if (closed) {
+      throw StateError('getClient called but we are in closed state');
     }
     _pool.clearInvalidClients();
     // Get OutboundClient for a given atSign and InboundConnection
-    var client =
-        _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
+    OutboundClient? client = _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
 
     if (client != null) {
       logger.finer('retrieved outbound client from pool to $toAtSign');
@@ -60,18 +54,18 @@ class OutboundClientManager {
       }
     }
 
-    // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
-    // and return it back
-    if (client == null && _pool.hasCapacity()) {
-      var newClient = OutboundClient(inboundConnection, toAtSign);
-      _pool.add(newClient);
-      return newClient;
-    }
+    // No existing client found, and Pool has capacity - create a new client
+    var newClient = OutboundClient(inboundConnection, toAtSign);
+    _pool.add(newClient);
+    return newClient;
+  }
 
-    return null;
+  close() {
+    closed = true;
+    _pool.close();
   }
 
   int getActiveConnectionSize() {
-    return isInitialised ? _pool.getActiveConnectionSize() : 0;
+    return _pool.getActiveConnectionSize();
   }
 }

@@ -76,7 +76,12 @@ class AtNotificationKeystore
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding}) async {
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -92,7 +97,12 @@ class AtNotificationKeystore
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding}) async {
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo}) async {
     throw UnimplementedError();
   }
 
@@ -263,4 +273,7 @@ class AtNotificationKeystore
   String toString() {
     return runtimeType.toString();
   }
+
+  @override
+  AtLogType? commitLog;
 }

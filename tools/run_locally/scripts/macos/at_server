@@ -1,0 +1,78 @@
+#!/bin/bash
+
+function usage {
+  echo "Usage: $scriptName -a <@sign> -p <port> -s <secret> [-r]"
+  echo "       When '-r' (for 'reset') is provided, we remove existing storage files before starting the atServer"
+  exit 1
+}
+
+scriptName=$(basename -- "$0")
+cd "$(dirname -- "$0")"
+scriptDir=$(pwd)
+
+unset atSign
+unset port
+unset secret
+unset reset
+
+while getopts a:p:s:r opt; do
+  case $opt in
+    a) atSign=$OPTARG ;;
+    p) port=$OPTARG ;;
+    s) secret=$OPTARG ;;
+    r) reset="true" ;;
+    *) usage ;;
+  esac
+done
+
+shift "$(( OPTIND - 1 ))"
+
+if [ -z "$atSign" ] || [ -z "$port" ] || [ -z "$secret" ] ; then
+  usage
+fi
+
+# Script dir is <repo_root>/tools/run_locally/scripts/<platform>
+# We will create logs etc in <repo_root>/tools/run_locally/runtime which
+# is in .gitignore
+cd "$scriptDir"/../../runtime
+
+mkdir -p atServers
+cd atServers
+echo "Running $scriptName in working directory $(pwd)"
+
+storageDir="storage_$atSign"
+
+if [ "$reset" == "true" ] ; then
+  echo "Removing server storage at $storageDir in 5 seconds ..."
+  sleep 5
+  mkdir -p trash
+  mv "$storageDir" trash
+  rm -rf trash
+fi
+
+# Export various environment variables which the atServer recognizes
+export rootServerUrl="vip.ve.atsign.zone"
+export rootServerPort=64
+
+export secondaryStoragePath="$storageDir/hive"
+export commitLogPath="$storageDir/commitLog"
+export accessLogPath="$storageDir/accessLog"
+export notificationStoragePath="$storageDir/notificationLog.v1"
+
+export logLevel="INFO"
+
+export testingMode="true"
+
+# Set up on the local root server
+redis-cli << EOF
+auth foobared
+set ${atSign:1} vip.ve.atsign.zone:$port
+exit
+EOF
+
+if [ ! -L certs ]; then
+  echo "Linking secondary certs"
+  ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs .
+fi
+
+dart "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

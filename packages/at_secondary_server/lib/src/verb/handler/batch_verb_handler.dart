@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -12,14 +11,15 @@ import 'package:at_server_spec/at_server_spec.dart';
 // BatchVerbHandler is used to process batch of commands
 class BatchVerbHandler extends AbstractVerbHandler {
   static Batch batch = Batch();
+  final VerbHandlerManager verbHandlerManager;
 
-  BatchVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  BatchVerbHandler(SecondaryKeyStore keyStore, this.verbHandlerManager) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.batch) + ':');
+      command.startsWith('${getName(VerbEnum.batch)}:');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override
@@ -48,9 +48,9 @@ class BatchVerbHandler extends AbstractVerbHandler {
     for (var value in batchJson) {
       var batchId = value['id'];
       var command = value['command'];
-      var handlerManager =
-          DefaultVerbHandlerManager(); //gets instance of singleton
-      var verbHandler = handlerManager.getVerbHandler(command);
+
+      var verbHandler = verbHandlerManager.getVerbHandler(command);
+
       if (verbHandler is AbstractVerbHandler) {
         try {
           var response =

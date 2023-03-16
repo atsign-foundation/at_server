@@ -21,7 +21,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   static bool? _autoNotify = AtSecondaryConfig.autoNotify;
   static Update update = Update();
 
-  UpdateVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -75,8 +75,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
     }
     try {
       // Get the key and update the value
-      var forAtSign = updateParams.sharedWith;
-      var atSign = updateParams.sharedBy;
+      var sharedWith = updateParams.sharedWith;
+      var sharedBy = updateParams.sharedBy;
       var key = updateParams.atKey;
       var value = updateParams.value;
       var atData = AtData();
@@ -84,7 +84,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       atData.metaData = AtMetaData();
       var ttlMillis = updateParams.metadata!.ttl;
       var ttbMillis = updateParams.metadata!.ttb;
-      var ttrMillis = updateParams.metadata!.ttr;
+      var ttrSeconds = updateParams.metadata!.ttr;
       var isBinary = updateParams.metadata!.isBinary;
       var isEncrypted = updateParams.metadata!.isEncrypted;
       var dataSignature = updateParams.metadata!.dataSignature;
@@ -94,37 +94,37 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       String? encoding = updateParams.metadata!.encoding;
 
       // Get the key using verbParams (forAtSign, key, atSign)
-      if (forAtSign != null) {
-        forAtSign = AtUtils.formatAtSign(forAtSign);
-        key = '$forAtSign:$key';
+      if (sharedWith != null) {
+        sharedWith = AtUtils.formatAtSign(sharedWith);
+        key = '$sharedWith:$key';
       }
-      if (atSign != null) {
-        atSign = AtUtils.formatAtSign(atSign);
-        key = '$key$atSign';
+      if (sharedBy != null) {
+        sharedBy = AtUtils.formatAtSign(sharedBy);
+        key = '$key$sharedBy';
       }
       // Append public: as prefix if key is public
       if (updateParams.metadata!.isPublic != null &&
           updateParams.metadata!.isPublic!) {
         key = 'public:$key';
       }
-      var metadata = await keyStore!.getMeta(key);
-      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
-      ttrMillis = cacheRefreshMetaMap[AT_TTR];
+      var metadata = await keyStore.getMeta(key);
+      var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrSeconds, ccd);
+      ttrSeconds = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
 
       //If ttr is set and atsign is not equal to currentAtSign, the key is
       //cached key.
-      if (ttrMillis != null &&
-          ttrMillis > 0 &&
-          atSign != null &&
-          atSign != AtSecondaryServerImpl.getInstance().currentAtSign) {
+      if (ttrSeconds != null &&
+          ttrSeconds > 0 &&
+          sharedBy != null &&
+          sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
         key = 'cached:$key';
       }
 
       var atMetadata = AtMetaData()
         ..ttl = ttlMillis
         ..ttb = ttbMillis
-        ..ttr = ttrMillis
+        ..ttr = ttrSeconds
         ..isCascade = ccd
         ..isBinary = isBinary
         ..isEncrypted = isEncrypted
@@ -135,8 +135,8 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
       if (_autoNotify!) {
         _notify(
-            atSign,
-            forAtSign,
+            sharedBy,
+            sharedWith,
             verbParams[AT_KEY],
             value,
             SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
@@ -144,10 +144,10 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       }
 
       // update the key in data store
-      var result = await keyStore!.put(key, atData,
+      var result = await keyStore.put(key, atData,
           time_to_live: ttlMillis,
           time_to_born: ttbMillis,
-          time_to_refresh: ttrMillis,
+          time_to_refresh: ttrSeconds,
           isCascade: ccd,
           isBinary: isBinary,
           isEncrypted: isEncrypted,

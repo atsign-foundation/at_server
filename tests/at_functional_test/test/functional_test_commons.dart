@@ -52,7 +52,6 @@ void socket_listener(Socket socket) {
 /// Socket write
 Future<void> socket_writer(Socket socket, String msg) async {
   msg = msg + '\n';
-  print('command sent: $msg');
   socket.write(msg);
 }
 
@@ -64,19 +63,12 @@ Future<void> prepare(Socket socket, String atsign) async {
   var response = await read();
   print('From verb response $response');
   response = response.replaceAll('data:', '');
-  // var pkam_digest = generatePKAMDigest(atsign, response);
-  var cram = getDigest(atsign, response);
+  var pkamDigest = generatePKAMDigest(atsign, response);
 
   // PKAM VERB
-  // await socket_writer(socket, 'pkam:$pkam_digest');
-  // response = await read();
-  // print('pkam verb response $response');
-  // expect(response, 'data:success\n');
-
-  //CRAM VERB
-  await socket_writer(socket, 'cram:$cram');
+  await socket_writer(socket, 'pkam:$pkamDigest');
   response = await read();
-  print('cram verb response $response');
+  print('pkam verb response $response');
   expect(response, 'data:success\n');
 }
 
@@ -95,11 +87,12 @@ void _messageHandler(data) {
 }
 
 Future<String> read({int maxWaitMilliSeconds = 5000}) async {
-  var result;
+  String result = 'error:read timed out after $maxWaitMilliSeconds milliseconds';
+  var loopDelay = 10;
   //wait maxWaitMilliSeconds seconds for response from remote socket
-  var loopCount = (maxWaitMilliSeconds / 50).round();
+  var loopCount = (maxWaitMilliSeconds / loopDelay).round();
   for (var i = 0; i < loopCount; i++) {
-    await Future.delayed(Duration(milliseconds: 1000));
+    await Future.delayed(Duration(milliseconds: loopDelay));
     var queueLength = _queue.length;
     if (queueLength > 0) {
       result = _queue.removeFirst();

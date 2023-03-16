@@ -1,10 +1,9 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.27
+version: 3.0.29
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
-
 
 environment:
   sdk: '>=2.12.0 <3.0.0'
@@ -13,18 +12,23 @@ dependencies:
   args: 2.3.1
   uuid: 3.0.7
   convert: 3.1.1
+  cron: ^0.5.1
   crypto: 3.0.2
   crypton: 2.1.0
   collection: 1.17.0
   basic_utils: 5.4.2
-  at_persistence_spec: 2.0.10
-  at_persistence_secondary_server: 3.0.44
-  at_lookup: 3.0.33
+  ecdsa: ^0.0.4
+  at_persistence_spec: 2.0.12
+  at_persistence_secondary_server: 3.0.52
+  at_lookup: 3.0.35
   at_server_spec: 3.0.11
   at_utils: 3.0.11
-  at_commons: 3.0.33
+  at_chops: 1.0.1
+  at_commons: 3.0.42
   version: 3.0.2
   meta: 1.8.0
+  mutex: ^3.0.1
+  yaml: ^3.1.1
 
 #dependency_overrides:
 #  at_server_spec:
@@ -32,11 +36,7 @@ dependencies:
 #      url: https://github.com/atsign-foundation/at_server.git
 #      path: at_server_spec
 #      ref: trunk
-#  at_persistence_secondary_server:
-#    git:
-#      url: https://github.com/atsign-foundation/at_server.git
-#      path: packages/at_persistence_secondary_server
-#      ref: rollback_delete_keynotfound
+
 #  at_persistence_spec:
 #    git:
 #      url: https://github.com/atsign-foundation/at_server.git
@@ -50,8 +50,13 @@ dependencies:
 #  at_commons:
 #    git:
 #      url: https://github.com/atsign-foundation/at_tools.git
-#      path: at_commons
-#      ref: atkey_types
+#      path: packages/at_commons
+#      ref: trunk
+#  at_chops:
+#    git:
+#      url: https://github.com/atsign-foundation/at_libraries.git
+#      path: packages/at_chops
+#      ref: trunk
 #   at_persistence_spec:
 #     git:
 #       url: https://github.com/atsign-foundation/at_server.git
@@ -62,8 +67,6 @@ dependencies:
 #      url: https://github.com/atsign-foundation/at_tools.git
 #      path: at_utils
 #      ref: trunk
-
-
 
 dev_dependencies:
   test: ^1.22.1

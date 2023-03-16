@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -61,9 +62,66 @@ class AtMetaData extends HiveObject {
   @HiveField(18)
   String? encoding;
 
+  @HiveField(19)
+  String? encKeyName;
+
+  @HiveField(20)
+  String? encAlgo;
+
+  @HiveField(21)
+  String? ivNonce;
+
+  @HiveField(22)
+  String? skeEncKeyName;
+
+  @HiveField(23)
+  String? skeEncAlgo;
+
   @override
   String toString() {
     return toJson().toString();
+  }
+
+  AtMetaData();
+
+  Metadata toCommonsMetadata() {
+    return Metadata()
+      ..ttl = ttl
+      ..ttb = ttb
+      ..ttr = ttr
+      ..ccd = isCascade
+      ..isBinary = isBinary
+      ..isEncrypted = isEncrypted
+      ..dataSignature = dataSignature
+      ..sharedKeyEnc = sharedKeyEnc
+      ..pubKeyCS = pubKeyCS
+      ..encoding = encoding
+      ..encKeyName=encKeyName
+      ..encAlgo=encAlgo
+      ..ivNonce=ivNonce
+      ..skeEncKeyName=skeEncKeyName
+      ..skeEncAlgo=skeEncAlgo;
+  }
+
+  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+    var atMetadata = AtMetaData();
+    atMetadata
+      ..ttl = metadata.ttl
+      ..ttb = metadata.ttb
+      ..ttr = metadata.ttr
+      ..isCascade = metadata.ccd
+      ..isBinary = metadata.isBinary
+      ..isEncrypted = metadata.isEncrypted
+      ..dataSignature = metadata.dataSignature
+      ..sharedKeyEnc = metadata.sharedKeyEnc
+      ..pubKeyCS = metadata.pubKeyCS
+      ..encoding = metadata.encoding
+      ..encKeyName=metadata.encKeyName
+      ..encAlgo=metadata.encAlgo
+      ..ivNonce=metadata.ivNonce
+      ..skeEncKeyName=metadata.skeEncKeyName
+      ..skeEncAlgo=metadata.skeEncAlgo;
+    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
   }
 
   Map toJson() {
@@ -88,11 +146,20 @@ class AtMetaData extends HiveObject {
     map[SHARED_KEY_ENCRYPTED] = sharedKeyEnc;
     map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
     map[ENCODING] = encoding;
+    map[ENCRYPTING_KEY_NAME] = encKeyName;
+    map[ENCRYPTING_ALGO] = encAlgo;
+    map[IV_OR_NONCE] = ivNonce;
+    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] = skeEncKeyName;
+    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] = skeEncAlgo;
     return map;
   }
 
+  factory AtMetaData.fromJson(Map json) {
+    return AtMetaData().fromJson(json);
+  }
+
   AtMetaData fromJson(Map json) {
-    try {
+
       createdBy = json['createdBy'];
       updatedBy = json['updatedBy'];
       createdAt = DateTime.parse(json['createdAt']);
@@ -116,17 +183,17 @@ class AtMetaData extends HiveObject {
       ttl = (json[AT_TTL] is String)
           ? int.parse(json[AT_TTL])
           : (json[AT_TTL] == null)
-              ? 0
+              ? null
               : json[AT_TTL];
       ttb = (json[AT_TTB] is String)
           ? int.parse(json[AT_TTB])
           : (json[AT_TTB] == null)
-              ? 0
+              ? null
               : json[AT_TTB];
       ttr = (json[AT_TTR] is String)
           ? int.parse(json[AT_TTR])
           : (json[AT_TTR] == null)
-              ? 0
+              ? null
               : json[AT_TTR];
       isCascade = json[CCD];
       isBinary = json[IS_BINARY];
@@ -135,11 +202,71 @@ class AtMetaData extends HiveObject {
       sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
       pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       encoding = json[ENCODING];
-    } catch (error) {
-      print('AtMetaData.fromJson error: $error');
-    }
+      encKeyName = json[ENCRYPTING_KEY_NAME];
+      encAlgo = json[ENCRYPTING_ALGO];
+      ivNonce = json[IV_OR_NONCE];
+      skeEncKeyName = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+      skeEncAlgo = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+
     return this;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AtMetaData &&
+          runtimeType == other.runtimeType &&
+          createdBy == other.createdBy &&
+          updatedBy == other.updatedBy &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt &&
+          expiresAt == other.expiresAt &&
+          status == other.status &&
+          version == other.version &&
+          availableAt == other.availableAt &&
+          ttb == other.ttb &&
+          ttl == other.ttl &&
+          ttr == other.ttr &&
+          refreshAt == other.refreshAt &&
+          isCascade == other.isCascade &&
+          isBinary == other.isBinary &&
+          isEncrypted == other.isEncrypted &&
+          dataSignature == other.dataSignature &&
+          sharedKeyEnc == other.sharedKeyEnc &&
+          pubKeyCS == other.pubKeyCS &&
+          encoding == other.encoding &&
+          encKeyName == other.encKeyName &&
+          encAlgo == other.encAlgo &&
+          ivNonce == other.ivNonce &&
+          skeEncKeyName == other.skeEncKeyName &&
+          skeEncAlgo == other.skeEncAlgo;
+
+  @override
+  int get hashCode =>
+      createdBy.hashCode ^
+      updatedBy.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode ^
+      expiresAt.hashCode ^
+      status.hashCode ^
+      version.hashCode ^
+      availableAt.hashCode ^
+      ttb.hashCode ^
+      ttl.hashCode ^
+      ttr.hashCode ^
+      refreshAt.hashCode ^
+      isCascade.hashCode ^
+      isBinary.hashCode ^
+      isEncrypted.hashCode ^
+      dataSignature.hashCode ^
+      sharedKeyEnc.hashCode ^
+      pubKeyCS.hashCode ^
+      encoding.hashCode ^
+      encKeyName.hashCode ^
+      encAlgo.hashCode ^
+      ivNonce.hashCode ^
+      skeEncKeyName.hashCode ^
+      skeEncAlgo.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
@@ -171,13 +298,18 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..dataSignature = fields[15]
       ..sharedKeyEnc = fields[16]
       ..pubKeyCS = fields[17]
-      ..encoding = fields[18];
+      ..encoding = fields[18]
+      ..encKeyName = fields[19]
+      ..encAlgo = fields[20]
+      ..ivNonce = fields[21]
+      ..skeEncKeyName = fields[22]
+      ..skeEncAlgo = fields[23];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -215,6 +347,16 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(17)
       ..write(obj.pubKeyCS)
       ..writeByte(18)
-      ..write(obj.encoding);
+      ..write(obj.encoding)
+      ..writeByte(19)
+      ..write(obj.encKeyName)
+      ..writeByte(20)
+      ..write(obj.encAlgo)
+      ..writeByte(21)
+      ..write(obj.ivNonce)
+      ..writeByte(22)
+      ..write(obj.skeEncKeyName)
+      ..writeByte(23)
+      ..write(obj.skeEncAlgo);
   }
 }

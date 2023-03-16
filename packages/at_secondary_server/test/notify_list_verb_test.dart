@@ -5,26 +5,34 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
-      var handler = NotifyListVerbHandler(null);
+      var handler = NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var verb = handler.getVerb();
       expect(verb is NotifyList, true);
     });
 
     test('test notify command accept test', () {
       var command = 'notify:list .me:2021-01-01:2021-01-12';
-      var handler = NotifyListVerbHandler(null);
+      var handler = NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -74,7 +82,7 @@ void main() {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('A test to verify from date', () async {
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -138,7 +146,7 @@ void main() {
 
     test('A test to verify from and to date', () async {
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -233,7 +241,7 @@ void main() {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('A test to verify notify list does not return expired entries - 1 expired entry', () async {
       var ttl = 100;
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -298,7 +306,7 @@ void main() {
     });
 
     test('A test to verify notify list expired entries - No expired entry', () async {
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore());
+      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'

@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -14,20 +16,28 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
-
 import 'notify_verb_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
+  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  AtCacheManager mockAtCacheManager = MockAtCacheManager();
+
   group('A group of stats verb tests', () {
     test('test stats getVerb', () {
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var verb = handler.getVerb();
       expect(verb is Stats, true);
     });
 
     test('test stats command accept test', () {
       var command = 'stats:1';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -43,7 +53,7 @@ void main() {
 
     test('test stats command accept test with comma separated values', () {
       var command = 'stats:1,2,3';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -71,7 +81,7 @@ void main() {
     test('test stats verb - upper case', () {
       var command = 'STATS';
       command = SecondaryUtil.convertCommand(command);
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -91,8 +101,8 @@ void main() {
       var command = 'statsn';
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
-      var defaultVerbHandlerManager = DefaultVerbHandlerManager();
-      defaultVerbHandlerManager.init();
+      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+
       expect(
           () => defaultVerbExecutor.execute(
               command, inbound, defaultVerbHandlerManager),
@@ -104,17 +114,17 @@ void main() {
     setUp(() async => keyStoreManager = await setUpFunc(
         '${Directory.current.path}/test/hive',
         atsign: '@alice'));
-    // test for notificationstats
-    test('notificationstats command accept test', () {
+    // test for Notification Stats
+    test('notification stats command accept test', () {
       var command = 'stats:11';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('the name of the notificationStats', () async {
-      var notficationImpl = NotificationsMetricImpl.getInstance();
-      String name = notficationImpl.getName();
+      var metric = NotificationsMetricImpl.getInstance();
+      String name = metric.getName();
       expect(name, 'NotificationCount');
     });
 
@@ -141,7 +151,7 @@ void main() {
         'createdOn': 0,
       };
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager!.getKeyStore());
+          NotifyListVerbHandler(keyStoreManager!.getKeyStore(), mockOutboundClientManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
@@ -271,7 +281,7 @@ void main() {
 
     test('commitLogCompactionStats command accept test', () {
       var command = 'stats:12';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -324,7 +334,7 @@ void main() {
 
     test('accessLogCompactionStats command acceptance test', () {
       var command = 'stats:13';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -370,7 +380,7 @@ void main() {
 
     test('notificationCompactionStats command accept test', () {
       var command = 'stats:14';
-      var handler = StatsVerbHandler(null);
+      var handler = StatsVerbHandler(mockKeyStore);
       var result = handler.accept(command);
       expect(result, true);
     });

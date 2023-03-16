@@ -12,7 +12,6 @@ import 'package:at_utils/at_logger.dart';
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
 class InboundMessageListener {
   InboundConnection connection;
-  var isStream;
   var logger = AtSignLogger('InboundListener');
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
@@ -83,9 +82,9 @@ class InboundMessageListener {
         _buffer.clear();
         await onBufferEndCallBack(command, connection);
       }
-    } on Exception catch (e) {
+    } catch (e, st) {
       _buffer.clear();
-      logger.severe('exception in message handler:${e.toString()}');
+      logger.severe('exception in message handler:$e - stack trace: $st');
     }
   }
 

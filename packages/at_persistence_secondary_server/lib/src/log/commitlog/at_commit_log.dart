@@ -5,7 +5,7 @@ import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
-/// Class to main commit logs on the secondary server for create, update and remove operations on keys
+/// Class to maintain commit logs on the secondary server for create, update and remove operations on keys
 class AtCommitLog implements AtLogType<int, CommitEntry> {
   var logger = AtSignLogger('AtCommitLog');
 
@@ -39,7 +39,7 @@ class AtCommitLog implements AtLogType<int, CommitEntry> {
     }
     int result;
     key = Utf7.decode(key);
-    var entry = CommitEntry(key, operation, DateTime.now().toUtc());
+    var entry = CommitEntry(key, operation, DateTime.now().toUtcMillisecondsPrecision());
     try {
       result = await _commitLogKeyStore.add(entry);
       await _publishChangeEvent(entry);

@@ -15,7 +15,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   static UpdateMeta updateMeta = UpdateMeta();
 
-  UpdateMetaVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  UpdateMetaVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -27,7 +27,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
 
   @override
   bool accept(String command) =>
-      command.startsWith(getName(VerbEnum.update) + ':') &&
+      command.startsWith('${getName(VerbEnum.update)}:') &&
       command.startsWith('update:meta:');
 
   @override
@@ -78,7 +78,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       sharedWithPublicKeyChecksum =
           verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
-      metadata = await keyStore!.getMeta(key);
+      metadata = await keyStore.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
       ttrMillis = cacheRefreshMetaMap[AT_TTR];
       ccd = cacheRefreshMetaMap[CCD];
@@ -96,7 +96,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             sharedKeyEncrypted: sharedKeyEncrypted,
             publicKeyChecksum: sharedWithPublicKeyChecksum)
         .build();
-    var result = await keyStore!.putMeta(key, atMetaData);
+    var result = await keyStore.putMeta(key, atMetaData);
     response.data = result?.toString();
     // If forAtSign is null, do not auto notify
     if (forAtSign == null || forAtSign.isEmpty) {

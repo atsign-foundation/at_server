@@ -1,3 +1,22 @@
+## 3.0.52
+- feat: Add new encryption metadata fields to core persistence classes
+## 3.0.51
+- feat: Extend sanity-checking of server-side commitLog upon startup
+## 3.0.50
+- fix: AtMetaData.fromJson now preserves null values for ttl, ttb and ttr
+- test: Add '==' & hashCode to AtMetaData in order to be able to test equality
+- test: Added tests which verify JSON round-tripping of AtMetaData objects
+- refactor: Deprecate at_metadata_adapter; extract the 'to' and 'from' commons Metadata methods from there into the AtMetaData class itself
+## 3.0.49
+- fix: AtData.toJson() now works when the key is null
+## 3.0.48
+- fix: Ensure HiveKeystore's metaDataCache's keys are in lower case
+## 3.0.47
+- feat: conform to at_persistence_spec 2.0.11
+## 3.0.46
+- fix: AtMetadata.version does not update on the update of a key
+## 3.0.45
+- fix: Introduce "isScheduled" method in "AtCompactionService" to know if the compaction job is running
 ## 3.0.44
 - fix: Refactor AtCompaction job
 ## 3.0.43

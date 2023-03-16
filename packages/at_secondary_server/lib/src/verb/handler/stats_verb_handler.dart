@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+
 import 'dart:collection';
 import 'dart:convert';
 
@@ -67,7 +69,7 @@ extension MetricClasses on MetricNames? {
   }
 }
 
-final Map stats_map = {
+final Map statsMap = {
   '1': MetricNames.INBOUND,
   '2': MetricNames.OUTBOUND,
   '3': MetricNames.LASTCOMMIT,
@@ -87,9 +89,9 @@ final Map stats_map = {
 class StatsVerbHandler extends AbstractVerbHandler {
   static Stats stats = Stats();
 
-  var _regex;
+  dynamic _regex;
 
-  StatsVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -106,7 +108,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     logger.info('addStatToResult for id : $id, regex: $_regex');
     var metric = _getMetrics(id);
     var name = metric.name!.getName();
-    var value;
+    dynamic value;
     if (id == '3' && _regex != null) {
       value = await metric.name!.getMetrics(regex: _regex);
     } else {
@@ -128,21 +130,21 @@ class StatsVerbHandler extends AbstractVerbHandler {
       var statID = verbParams[AT_STAT_ID];
       _regex = verbParams[AT_REGEX];
       logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
-      Set stats_list;
+      Set statsList;
       if (statID != null) {
         //If user provides stats ID's create set out of it
-        stats_list = getStatsIDSet(statID);
+        statsList = getStatsIDSet(statID);
       } else {
         // if user send only stats verb get list of all the stat ID's
-        stats_list = stats_map.keys.toSet();
+        statsList = statsMap.keys.toSet();
       }
       var result = [];
       //Iterate through stats_id_list
       await Future.forEach(
-          stats_list, (dynamic element) => addStatToResult(element, result));
+          statsList, (dynamic element) => addStatToResult(element, result));
       // Create response json
-      var response_json = result.toString();
-      response.data = response_json;
+      var responseJson = result.toString();
+      response.data = responseJson;
     } catch (exception) {
       response.isError = true;
       response.errorMessage = exception.toString();
@@ -153,8 +155,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
   // get Metric based on ID
   MetricNames? _getMetrics(String key) {
     //use map and get name based on ID
-    if (stats_map.containsKey(key)) {
-      return stats_map[key];
+    if (statsMap.containsKey(key)) {
+      return statsMap[key];
     } else {
       throw InvalidSyntaxException;
     }
@@ -173,9 +175,9 @@ class StatsVerbHandler extends AbstractVerbHandler {
 
 // Stat class is for individual metric
 class Stat {
-  var id;
-  var name;
-  var value;
+  dynamic id;
+  dynamic name;
+  dynamic value;
 
   Stat(this.id, this.name, this.value);
 

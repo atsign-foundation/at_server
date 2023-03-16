@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:args/args.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -25,57 +24,65 @@ class GlobalExceptionHandler {
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
-      {AtConnection? atConnection, Socket? clientSocket}) async {
+      {AtConnection? atConnection,
+        Socket? clientSocket,
+        StackTrace? stackTrace
+      }) async {
     if (exception is InvalidAtSignException ||
-        exception is UnAuthenticatedException ||
         exception is BufferOverFlowException ||
-        exception is IllegalArgumentException ||
         exception is ConnectionInvalidException) {
-      // All of these are SEVERE
-      logger.severe(exception.toString());
+      logger.shout(exception.toString());
       await _sendResponseForException(exception, atConnection);
-      // TODO but do they necessarily need the connection to be closed?
       _closeConnection(atConnection);
-    } else if (exception is BlockedConnectionException ||
-        exception is InvalidSyntaxException ||
-        exception is InvalidAtKeyException) {
+
+    } else if (exception is BlockedConnectionException) {
+      // log as INFO and close the connection
+      logger.info(exception.toString());
+      await _sendResponseForException(exception, atConnection);
+      _closeConnection(atConnection);
+
+    } else if (exception is InvalidSyntaxException ||
+        exception is InvalidAtKeyException ||
+        exception is IllegalArgumentException) {
       // This is normal behaviour, log as INFO
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
 
-      // We're closing the connection because
-      //   BlockedConnectionException thrown when the "from" atsign is on the "do not allow" list
-      //   InvalidSyntaxException is thrown because invalid syntax is rude, so we're rude in return
-      _closeConnection(atConnection);
     } else if (exception is DataStoreException) {
-      logger.severe(exception.toString());
-      // TODO should we keep the connection open rather than closing it?
+      logger.shout(exception.toString());
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
+
     } else if (exception is InboundConnectionLimitException) {
-      // This is SEVERE and requires different handling so we use _handleInboundLimit
-      logger.severe(exception.toString());
+      // This requires different handling which is in _handleInboundLimit
+      logger.info(exception.toString());
       await _handleInboundLimit(exception, clientSocket!);
+
+    } else if (exception is ServerIsPausedException) {
+      // This is thrown when a new verb request comes in and the server is paused (likely
+      // pending restart)
+      await _sendResponseForException(exception, atConnection);
+      _closeConnection(atConnection);
 
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
         exception is HandShakeException ||
+        exception is UnAuthenticatedException ||
         exception is UnAuthorizedException ||
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||
         exception is AtConnectException ||
-        exception is AtTimeoutException ||
-        exception is InvalidAtSignException ||
-        exception is UnAuthenticatedException) {
-      // TODO Not sure some of these are really worthy of WARNINGS, but let's leave as is for now
-      logger.warning(exception.toString());
+        exception is AtTimeoutException) {
+      logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
+
     } else if (exception is InternalServerError) {
-      logger.severe(exception.toString());
+      logger.severe('$exception - stack trace $stackTrace');
       await _handleInternalException(exception, atConnection);
+
     } else {
-      logger.shout("Unexpected exception '${exception.toString()}'");
+      logger.shout("Unexpected exception '${exception.toString()}' - stack trace $stackTrace");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);

@@ -7,7 +7,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
-import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_utils/at_utils.dart';
 
 /// The bootstrapper class for initializing the secondary server configuration parameters from [config.yaml]
@@ -50,19 +49,20 @@ class SecondaryServerBootStrapper {
       // Start the secondary server
       secondaryServerInstance.setServerContext(secondaryContext);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
-      secondaryServerInstance
-          .setVerbHandlerManager(DefaultVerbHandlerManager());
 
       //starting secondary in a zone
       //prevents secondary from terminating due to uncaught non-fatal errors
-      runZonedGuarded(() async {
+      unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, stackTrace) {
         logger.severe('Uncaught error: $error \n Stacktrace: $stackTrace');
-      });
+        handleTerminateSignal(ProcessSignal.sigstop);
+      }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
       ProcessSignal.sigint.watch().listen(handleTerminateSignal);
     } on Exception {
+      rethrow;
+    } on Error {
       rethrow;
     }
   }
@@ -81,8 +81,13 @@ class SecondaryServerBootStrapper {
         exit(0);
       }
     } on Exception catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence");
+      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
+      exit(1);
+    } on Error catch (e, stacktrace) {
+      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(stacktrace.toString());
+      exit(1);
     } finally {
       logger
           .info("Somehow made it to the finally block - exiting with status 1");

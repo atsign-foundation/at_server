@@ -24,7 +24,7 @@ class AtSecondaryConfig {
   static final int _expiringRunFreqMins = 10;
 
   //Commit Log
-  static final int _commitLogCompactionFrequencyMins = 30;
+  static final int _commitLogCompactionFrequencyMins = 18;
   static final int _commitLogCompactionPercentage = 20;
   static final int _commitLogExpiryInDays = 15;
   static final int _commitLogSizeInKB = 2;
@@ -724,6 +724,12 @@ class AtSecondaryConfig {
         return autoNotify;
       case ModifiableConfigs.maxNotificationRetries:
         return maxNotificationRetries;
+      case ModifiableConfigs.checkCertificateReload:
+        return false;
+      case ModifiableConfigs.shouldReloadCertificates:
+        return false;
+      case ModifiableConfigs.doCacheRefreshNow:
+        return false;
     }
   }
 
@@ -801,7 +807,10 @@ enum ModifiableConfigs {
   accessLogCompactionFrequencyMins,
   notificationKeyStoreCompactionFrequencyMins,
   autoNotify,
-  maxNotificationRetries
+  maxNotificationRetries,
+  checkCertificateReload,
+  shouldReloadCertificates,
+  doCacheRefreshNow
 }
 
 class ModifiableConfigurationEntry {

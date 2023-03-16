@@ -1,5 +1,7 @@
+import 'dart:convert';
 
 import 'package:test/test.dart';
+import 'package:version/version.dart';
 import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
 
@@ -136,9 +138,9 @@ void main() {
   /// 2. lookup from atsign_2 returns the correct value
   /// 3.  Set the autoNotify to false using the config verb
   /// 4. Update the existing key to a new value
-  /// 4. lookup with bypass_cache set to true should return the updated value
-  /// 5. lookup with bypass_cache set to false should return the old value
-  test('update-lookup verb passing bypasscache ', () async {
+  /// 5. lookup with bypass_cache set to false should return the old value from the cache
+  /// 6. lookup with bypass_cache set to true should return the new value
+  test('update-lookup verb passing bypassCache ', () async {
     ///Update verb on atsign_1
     try {
       var oldValue = 'Hyderabad';
@@ -169,7 +171,7 @@ void main() {
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
 
-      ///lookup should return the old value
+      ///lookup with bypassCache:false (the default) should return the old value
       await sh2.writeCommand('lookup:fav-city$atSign_1');
       response = await sh2.read();
       print('lookup verb response : $response');
@@ -181,13 +183,6 @@ void main() {
       response = await sh2.read();
       print('lookup verb response : $response');
       expect(response, contains('data: $newValue'));
-
-      /// lookup with bypass_cache set to false
-      /// should return the old value
-      await sh2.writeCommand('lookup:bypassCache:false:fav-city$atSign_1');
-      response = await sh2.read();
-      print('lookup verb response : $response');
-      expect(response, contains('data: $oldValue'));
     } finally {
       await sh1.writeCommand('config:reset:autoNotify');
       var response = await sh1.read();
@@ -197,4 +192,43 @@ void main() {
 
     // reset the autoNotify to default
   }, timeout: Timeout(Duration(minutes: 3)));
+
+  test('test to verify update and delete of cached key via update-delete verb',
+      () async {
+    // Run update verb to cache key
+    var key = 'cachedkeytest-$lastValue';
+    var value = 'cached-value-$lastValue';
+
+    await sh1.writeCommand(
+        'update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1 $value');
+    var response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    expect(response, isNot('null'));
+
+    // Give it a second to propagate to the other atServer
+    await Future.delayed(Duration(seconds: 1));
+
+    // verify if cached key is created on the receiver side
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    expect(response, value);
+
+    // Run delete verb
+    await sh1.writeCommand('delete:$atSign_2:$key$atSign_1');
+    response = await sh1.read();
+    response = response.replaceAll('data:', '');
+    expect(response, isNot('null'));
+
+    // Give it a second to propagate to the other atServer
+    await Future.delayed(Duration(seconds: 1));
+
+    //Check if cached key is deleted
+    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    var decodedJSON = jsonDecode(response);
+    expect(decodedJSON['errorCode'], 'AT0015');
+    expect(decodedJSON['errorDescription'], contains('key not found'));
+  });
 }

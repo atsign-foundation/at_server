@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -16,8 +17,10 @@ import 'package:at_server_spec/at_verb_spec.dart';
 ///Ex: scan\n
 class ScanVerbHandler extends AbstractVerbHandler {
   static Scan scan = Scan();
+  final OutboundClientManager outboundClientManager;
+  final AtCacheManager cacheManager;
 
-  ScanVerbHandler(SecondaryKeyStore? keyStore) : super(keyStore);
+  ScanVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager) : super(keyStore);
 
   /// Verifies whether command is accepted or not
   ///
@@ -56,8 +59,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // Throw UnAuthenticatedException.
     // When looking up keys of another atsign and connection is not authenticated,
     if (forAtSign != null && !atConnectionMetadata.isAuthenticated) {
-      throw UnAuthenticatedException(
-          'Scan to another atsign cannot be performed without auth');
+      throw UnAuthenticatedException('Scan to another atsign cannot be performed without auth');
     }
     try {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
@@ -69,7 +71,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        List<String> keys = keyStore!.getKeys(regex: scanRegex) as List<String>;
+        List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         // Apply regex on keyString to remove unnecessary characters and spaces.
@@ -99,8 +101,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atsign
-    var outBoundClient =
-        OutboundClientManager.getInstance().getClient(forAtSign, atConnection)!;
+    var outBoundClient = outboundClientManager.getClient(forAtSign, atConnection);
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {
