@@ -112,7 +112,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     CommitOp commitOp = CommitOp.UPDATE;
 
     // Set CommitOp to UPDATE_META if any of the metadata args are not null
-    var hasNonNullMetadata = ObjectsUtil.anyNotNull({time_to_live,time_to_born,time_to_refresh,
+    var hasNonNullMetadata = ObjectsUtil.anyNotNull({
+      time_to_live,time_to_born,time_to_refresh,
       isCascade,isBinary,isEncrypted,
       dataSignature, sharedKeyEncrypted, publicKeyChecksum, encoding,
       encKeyName, encAlgo, ivNonce, skeEncKeyName, skeEncAlgo});
@@ -384,10 +385,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   Future<AtMetaData?> getMeta(String key) async {
     key = key.toLowerCase();
-    if (_metaDataCache.containsKey(key)) {
-      return _metaDataCache[key];
-    }
-    return null;
+    return _metaDataCache[key];
   }
 
   @override

@@ -24,7 +24,7 @@ void main() async {
     ///              For a new key version is set to 0
     test('A test to default field in metadata is set on a new key creation',
         () async {
-      var keyCreationDateTime = DateTime.now().toUtc();
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)!
           .getSecondaryKeyStore();
@@ -56,7 +56,7 @@ void main() async {
     test(
         'A test to verify version field in metadata is set to 1 on updating the existing key',
         () async {
-      var keyCreationDateTime = DateTime.now().toUtc();
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)!
           .getSecondaryKeyStore();
@@ -64,7 +64,7 @@ void main() async {
       var value = '9878123321';
       await hiveKeyStore?.put(key, AtData()..data = value);
       // Update the same key
-      var updateKeyDateTime = DateTime.now().toUtc();
+      var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
       await hiveKeyStore?.put(key, AtData()..data = '9878123322');
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
@@ -83,7 +83,7 @@ void main() async {
     test(
         'A test to verify version field in metadata is set to 1 when updating metadata using putMeta method',
         () async {
-      var keyCreationDateTime = DateTime.now().toUtc();
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)!
           .getSecondaryKeyStore();
@@ -91,7 +91,7 @@ void main() async {
       var value = '9878123321';
       await hiveKeyStore?.put(key, AtData()..data = value);
       // Update the same key
-      var updateKeyDateTime = DateTime.now().toUtc();
+      var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
       await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, value);
@@ -110,7 +110,7 @@ void main() async {
     test(
         'A test to verify version field in metadata is set to 1 when using putAll method',
         () async {
-      var keyCreationDateTime = DateTime.now().toUtc();
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)!
           .getSecondaryKeyStore();
@@ -118,7 +118,7 @@ void main() async {
       await hiveKeyStore?.putAll(
           key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
-      var updateKeyDateTime = DateTime.now().toUtc();
+      var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
       await hiveKeyStore?.putAll(key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
@@ -161,7 +161,12 @@ void main() async {
           ..dataSignature='dataSignature'
           ..pubKeyCS='pubKeyChecksum'
           ..sharedKeyEnc='sharedKeyEncrypted'
-          ..encoding='someEncoding';
+          ..encoding='someEncoding'
+          ..encKeyName='someEncKeyName'
+          ..encAlgo='AES/CTR/PKCS7Padding'
+          ..ivNonce='someIvNonce'
+          ..skeEncKeyName='someSkeEncKeyName'
+          ..skeEncAlgo='someSkeEncAlgo';
       final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
@@ -179,7 +184,12 @@ void main() async {
         ..dataSignature=null
         ..pubKeyCS=null
         ..sharedKeyEnc=null
-        ..encoding=null;
+        ..encoding=null
+        ..encKeyName=null
+        ..encAlgo=null
+        ..ivNonce=null
+        ..skeEncKeyName=null
+        ..skeEncAlgo=null;
       final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
@@ -197,7 +207,12 @@ void main() async {
         ..dataSignature='foo'
         ..pubKeyCS=null
         ..sharedKeyEnc=null
-        ..encoding='base64';
+        ..encoding='base64'
+        ..encKeyName='someEncKeyName'
+        ..encAlgo='AES/CTR/PKCS7Padding'
+        ..ivNonce='someIvOrNonce'
+        ..skeEncKeyName=null
+        ..skeEncAlgo=null;
       final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
