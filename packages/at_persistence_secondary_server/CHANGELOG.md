@@ -1,3 +1,5 @@
+## 3.0.52
+- feat: Add new encryption metadata fields to core persistence classes
 ## 3.0.51
 - feat: Extend sanity-checking of server-side commitLog upon startup
 ## 3.0.50

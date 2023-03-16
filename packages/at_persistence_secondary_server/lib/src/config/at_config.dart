@@ -121,17 +121,15 @@ class AtConfig {
     }
   }
 
-  ///Returns 'success' after successfully persisiting data into secondary.
+  ///Returns 'success' after successfully persisting data into secondary.
   Future<String> prepareAndStoreData(config, [existingData]) async {
     String result;
     configKey = keyStoreHelper.prepareKey(configKey);
     var newData = AtData();
     newData.data = jsonEncode(config);
-    if (existingData == null) {
-      newData = keyStoreHelper.prepareDataForCreate(newData);
-    } else {
-      newData = keyStoreHelper.prepareDataForUpdate(existingData, newData);
-    }
+
+    newData = keyStoreHelper.prepareDataForKeystoreOperation(newData, existingAtData: existingData);
+
     logger.finest('hive key:$configKey');
     logger.finest('hive value:$newData');
     await persistenceManager.getBox().put(configKey, newData);
