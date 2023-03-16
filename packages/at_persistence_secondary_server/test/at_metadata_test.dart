@@ -46,7 +46,7 @@ void main() async {
     });
 
     /// The below test is to verify the default fields in the metadata are populated
-    /// on updation of an existing key
+    /// on update of an existing key
     /// The default fields are:
     /// a) CreatedAt - DateTime when the key is created
     /// b) UpdatedAt - DateTime when the key is updated

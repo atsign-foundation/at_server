@@ -62,6 +62,21 @@ class AtMetaData extends HiveObject {
   @HiveField(18)
   String? encoding;
 
+  @HiveField(19)
+  String? encKeyName;
+
+  @HiveField(20)
+  String? encAlgo;
+
+  @HiveField(21)
+  String? ivNonce;
+
+  @HiveField(22)
+  String? skeEncKeyName;
+
+  @HiveField(23)
+  String? skeEncAlgo;
+
   @override
   String toString() {
     return toJson().toString();
@@ -122,6 +137,11 @@ class AtMetaData extends HiveObject {
     map[SHARED_KEY_ENCRYPTED] = sharedKeyEnc;
     map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
     map[ENCODING] = encoding;
+    map[ENCRYPTING_KEY_NAME] = encKeyName;
+    map[ENCRYPTING_ALGO] = encAlgo;
+    map[IV_OR_NONCE] = ivNonce;
+    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] = skeEncKeyName;
+    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] = skeEncAlgo;
     return map;
   }
 
@@ -173,6 +193,11 @@ class AtMetaData extends HiveObject {
       sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
       pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       encoding = json[ENCODING];
+      encKeyName = json[ENCRYPTING_KEY_NAME];
+      encAlgo = json[ENCRYPTING_ALGO];
+      ivNonce = json[IV_OR_NONCE];
+      skeEncKeyName = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+      skeEncAlgo = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
 
     return this;
   }
@@ -254,13 +279,18 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..dataSignature = fields[15]
       ..sharedKeyEnc = fields[16]
       ..pubKeyCS = fields[17]
-      ..encoding = fields[18];
+      ..encoding = fields[18]
+      ..encKeyName = fields[19]
+      ..encAlgo = fields[20]
+      ..ivNonce = fields[21]
+      ..skeEncKeyName = fields[22]
+      ..skeEncAlgo = fields[23];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -298,6 +328,16 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(17)
       ..write(obj.pubKeyCS)
       ..writeByte(18)
-      ..write(obj.encoding);
+      ..write(obj.encoding)
+      ..writeByte(19)
+      ..write(obj.encKeyName)
+      ..writeByte(20)
+      ..write(obj.encAlgo)
+      ..writeByte(21)
+      ..write(obj.ivNonce)
+      ..writeByte(22)
+      ..write(obj.skeEncKeyName)
+      ..writeByte(23)
+      ..write(obj.skeEncAlgo);
   }
 }
