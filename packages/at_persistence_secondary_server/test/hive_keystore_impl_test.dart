@@ -38,14 +38,76 @@ void main() async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+
+      var key = 'location.wavi@test_user_1';
+
       var atData = AtData();
       atData.data = 'india';
-      await keyStore.create('location.wavi@test_user_1', atData);
+      await keyStore.create(key, atData);
+
+      var dataFromHive = await (keyStore.get(key));
+      expect(dataFromHive?.data, 'india');
+
       var updateData = AtData();
       updateData.data = 'united states';
-      await keyStore.put('location.wavi@test_user_1', updateData);
-      var dataFromHive = await (keyStore.get('location.wavi@test_user_1'));
+      await keyStore.put(key, updateData);
+
+      dataFromHive = await (keyStore.get(key));
       expect(dataFromHive?.data, 'united states');
+    });
+
+    test('test create, update and get with metadata', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+
+      var key = 'location.wavi@test_user_1';
+
+      for (int i = 0; i < 50; i++) {
+        var atData = AtData();
+        atData.data = 'india';
+        var commonsMetadata = Metadata()
+          ..ttl = 100
+          ..ttb = 200
+          ..ttr = 3600
+          ..ccd = true
+          ..isBinary = false
+          ..isEncrypted = true
+          ..dataSignature = 'dataSignature'
+          ..pubKeyCS = 'pubKeyChecksum'
+          ..sharedKeyEnc = 'sharedKeyEncrypted'
+          ..encoding = 'someEncoding'
+          ..encKeyName = 'someEncKeyName'
+          ..encAlgo = 'AES/CTR/PKCS7Padding'
+          ..ivNonce = 'someIvNonce'
+          ..skeEncKeyName = 'someSkeEncKeyName'
+          ..skeEncAlgo = 'someSkeEncAlgo';
+        var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
+        atData.metaData = atMetaData;
+        await keyStore.create(key, atData);
+
+        var dataFromHive = await (keyStore.get(key));
+        expect(dataFromHive?.data, 'india');
+        expect(dataFromHive?.metaData, atMetaData);
+
+        var updateData = AtData();
+        var updateMetaData = AtMetaData.fromJson(atMetaData.toJson()); // clone it
+        updateData.data = 'united states';
+        updateData.metaData = updateMetaData;
+        await keyStore.put(key, updateData);
+
+        dataFromHive = await (keyStore.get(key));
+        expect(dataFromHive?.data, 'united states');
+        expect(dataFromHive?.metaData, updateMetaData);
+
+        updateMetaData.skeEncKeyName = 'someOtherEncKeyName';
+        updateMetaData.skeEncAlgo = 'someOtherEncAlgo';
+        await keyStore.put(key, updateData);
+
+        dataFromHive = await (keyStore.get(key));
+        expect(dataFromHive?.data, 'united states');
+        expect(dataFromHive?.metaData, updateMetaData);
+      }
     });
 
     test('test update and get', () async {
@@ -571,15 +633,10 @@ void main() async {
     AtMetaData? metaData;
     //inserting sample keys
     for (int i = 0; i < 30; i++) {
-      if (i % 2 == 0) {
-        //inserting random metaData to induce variance in data
-        metaData = AtMetaData();
-        metaData.ttl = 12000 + i.toInt();
-        metaData.ttb = i;
-        metaData.createdBy = '$i';
-        metaData.updatedBy = '$i';
-        metaData.isBinary = true;
-      }
+      //inserting random metaData to induce variance in data
+      metaData = AtMetadataBuilder(ttl: 12000 + i.toInt(), ttb: i, atSign: '@atsign_$i', isBinary: true)
+          .build();
+
       atData.data = 'value_test_$i';
       atData.metaData = metaData;
       await keystore?.put('key_test_$i.wavi@test_user_1', atData);
@@ -590,24 +647,6 @@ void main() async {
     keys?.forEach((String key) async {
       atData = await keystore?.get(key);
       metaData = atData?.metaData;
-      AtMetaData? getMeta = await keystore?.getMeta(key);
-      //parsing timestamps to remove microseconds as they differ precision
-      getMeta?.updatedAt =
-          DateTime.parse(getMeta.updatedAt.toString().substring(0, 19));
-      metaData?.updatedAt =
-          DateTime.parse(metaData!.updatedAt.toString().substring(0, 19));
-      getMeta?.createdAt =
-          DateTime.parse(getMeta.createdAt.toString().substring(0, 19));
-      metaData?.createdAt =
-          DateTime.parse(metaData!.createdAt.toString().substring(0, 19));
-      getMeta?.availableAt =
-          DateTime.parse(getMeta.availableAt.toString().substring(0, 19));
-      metaData?.availableAt =
-          DateTime.parse(metaData!.availableAt.toString().substring(0, 19));
-      getMeta?.expiresAt =
-          DateTime.parse(getMeta.expiresAt.toString().substring(0, 19));
-      metaData?.expiresAt =
-          DateTime.parse(metaData!.expiresAt.toString().substring(0, 19));
 
       expect((await keystore?.getMeta(key)).toString(), metaData.toString());
     });
