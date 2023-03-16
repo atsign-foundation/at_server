@@ -1,3 +1,5 @@
+## 3.0.29
+- feat: support new pkam verb syntax allowing for authentication using multiple signing and hashing algorithms
 ## 3.0.28
 - fix: Refactor notify_verb_handler.dart to increase readability of code
 - refactor: Add AtCacheManager so that we can handle all caching operations in one place
