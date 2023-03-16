@@ -34,7 +34,12 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding});
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -54,7 +59,12 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       String? dataSignature,
       String? sharedKeyEncrypted,
       String? publicKeyChecksum,
-      String? encoding});
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo});
 
   /// Removes the mapping for a key from this key store if it is present
   ///

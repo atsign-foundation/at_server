@@ -25,7 +25,7 @@ Future<void> main(List<String> arguments) async {
   var atNotification = (AtNotificationBuilder()
         ..id = '123'
         ..fromAtSign = '@alice'
-        ..notificationDateTime = DateTime.now().toUtc()
+        ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
         ..toAtSign = '@alice'
         ..notification = 'self_received_notification'
         ..type = NotificationType.received
