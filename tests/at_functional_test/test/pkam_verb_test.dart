@@ -66,40 +66,48 @@ void main() {
   });
 
   test('pkam authentication using ecc ', () async {
-    try {
-      final eccAlgo = EccSigningAlgo();
-      var ec = getSecp256r1();
-      final eccPrivateKey = ec.generatePrivateKey();
-      eccAlgo.privateKey = eccPrivateKey;
-      // authenticating to the server to update the public key
-      await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketFirstAtsign!, 'pkam:$pkamDigest');
-      var pkamResponse = await read();
-      expect(pkamResponse, 'data:success\n');
-      // updating the public key to ecc public key
-      await socket_writer(socketFirstAtsign!,
-          'update:privatekey:at_pkam_publickey ${eccPrivateKey.publicKey.toString()}');
-      var response = await read();
-      expect(response, 'data:-1\n');
-      await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
+    final eccAlgo = EccSigningAlgo();
+    var ec = getSecp256r1();
+    final eccPrivateKey = ec.generatePrivateKey();
+    eccAlgo.privateKey = eccPrivateKey;
+    // authenticating to the server to update the public key
+    await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
+    var fromResponse = await read();
+    fromResponse = fromResponse.replaceAll('data:', '');
+    var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+    await socket_writer(socketFirstAtsign!, 'pkam:$pkamDigest');
+    var pkamResponse = await read();
+    expect(pkamResponse, 'data:success\n');
+    // updating the public key to ecc public key
+    await socket_writer(socketFirstAtsign!,
+        'update:privatekey:at_pkam_publickey ${eccPrivateKey.publicKey.toString()}');
+    var response = await read();
+    expect(response, 'data:-1\n');
+    await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
+    fromResponse = await read();
+    fromResponse = fromResponse.replaceAll('data:', '');
 
-      final dataToSign = fromResponse.trim();
-      final dataInBytes = Uint8List.fromList(utf8.encode(dataToSign));
-      final signature = eccAlgo.sign(dataInBytes);
-      String encodedSignature = base64Encode(signature);
-      // var decodedSignature = base64Decode(encodedSignature);
-      // var verifyResult = eccAlgo.verify(dataInBytes, decodedSignature,
-      //     publicKey: eccPrivateKey.publicKey.toString());
+    final dataToSign = fromResponse.trim();
+    final dataInBytes = Uint8List.fromList(utf8.encode(dataToSign));
+    final signature = eccAlgo.sign(dataInBytes);
+    String encodedSignature = base64Encode(signature);
+    // var decodedSignature = base64Decode(encodedSignature);
+    // var verifyResult = eccAlgo.verify(dataInBytes, decodedSignature,
+    //     publicKey: eccPrivateKey.publicKey.toString());
+    try {
       await socket_writer(socketFirstAtsign!,
           'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
       var pkamResult = await read();
       expect(pkamResult, 'data:success\n');
     } finally {
+      // authenticating to the server to update the public key
+      await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
+      fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketFirstAtsign!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
       // updating the public key back to the original one
       var publicKey = pkamPublicKeyMap[firstAtsign];
       await socket_writer(
