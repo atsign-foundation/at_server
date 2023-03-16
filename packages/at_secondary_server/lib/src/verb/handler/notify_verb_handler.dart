@@ -262,7 +262,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     atNotificationBuilder = atNotificationBuilder
       ..toAtSign = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])
       ..fromAtSign = AtUtils.formatAtSign(verbParams[AT_SIGN]) ?? fromAtSign
-      ..notificationDateTime = DateTime.now().toUtc()
+      ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
       ..notification = _getFullFormedAtKey(
           getMessageType(verbParams[MESSAGE_TYPE]), verbParams)
       ..opType = getOperationType(verbParams[AT_OPERATION])

@@ -9,7 +9,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
@@ -35,8 +34,7 @@ class UpdateVerbHandler extends ChangeVerbHandler {
   // Input: command
   @override
   bool accept(String command) =>
-      command.startsWith('${getName(VerbEnum.update)}:') &&
-      !command.startsWith('update:meta');
+      command.startsWith('update:') && !command.startsWith('update:meta');
 
   // Method to return Instance of verb belongs to this VerbHandler
   @override
@@ -82,16 +80,6 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       var atData = AtData();
       atData.data = value;
       atData.metaData = AtMetaData();
-      var ttlMillis = updateParams.metadata!.ttl;
-      var ttbMillis = updateParams.metadata!.ttb;
-      var ttrSeconds = updateParams.metadata!.ttr;
-      var isBinary = updateParams.metadata!.isBinary;
-      var isEncrypted = updateParams.metadata!.isEncrypted;
-      var dataSignature = updateParams.metadata!.dataSignature;
-      var ccd = updateParams.metadata!.ccd;
-      String? sharedKeyEncrypted = updateParams.metadata!.sharedKeyEnc;
-      String? publicKeyChecksum = updateParams.metadata!.pubKeyCS;
-      String? encoding = updateParams.metadata!.encoding;
 
       // Get the key using verbParams (forAtSign, key, atSign)
       if (sharedWith != null) {
@@ -107,6 +95,9 @@ class UpdateVerbHandler extends ChangeVerbHandler {
           updateParams.metadata!.isPublic!) {
         key = 'public:$key';
       }
+
+      var ttrSeconds = updateParams.metadata!.ttr;
+      var ccd = updateParams.metadata!.ccd;
       var metadata = await keyStore.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrSeconds, ccd);
       ttrSeconds = cacheRefreshMetaMap[AT_TTR];
@@ -122,16 +113,21 @@ class UpdateVerbHandler extends ChangeVerbHandler {
       }
 
       var atMetadata = AtMetaData()
-        ..ttl = ttlMillis
-        ..ttb = ttbMillis
+        ..ttl = updateParams.metadata!.ttl
+        ..ttb = updateParams.metadata!.ttb
         ..ttr = ttrSeconds
         ..isCascade = ccd
-        ..isBinary = isBinary
-        ..isEncrypted = isEncrypted
-        ..dataSignature = dataSignature
-        ..sharedKeyEnc = sharedKeyEncrypted
-        ..pubKeyCS = publicKeyChecksum
-        ..encoding = encoding;
+        ..isBinary = updateParams.metadata!.isBinary
+        ..isEncrypted = updateParams.metadata!.isEncrypted
+        ..dataSignature = updateParams.metadata!.dataSignature
+        ..sharedKeyEnc = updateParams.metadata!.sharedKeyEnc
+        ..pubKeyCS = updateParams.metadata!.pubKeyCS
+        ..encoding = updateParams.metadata!.encoding
+        ..encKeyName = updateParams.metadata!.encKeyName
+        ..encAlgo = updateParams.metadata!.encAlgo
+        ..ivNonce = updateParams.metadata!.ivNonce
+        ..skeEncKeyName = updateParams.metadata!.skeEncKeyName
+        ..skeEncAlgo = updateParams.metadata!.skeEncAlgo;
 
       if (_autoNotify!) {
         _notify(
@@ -145,16 +141,22 @@ class UpdateVerbHandler extends ChangeVerbHandler {
 
       // update the key in data store
       var result = await keyStore.put(key, atData,
-          time_to_live: ttlMillis,
-          time_to_born: ttbMillis,
+          time_to_live: updateParams.metadata!.ttl,
+          time_to_born: updateParams.metadata!.ttb,
           time_to_refresh: ttrSeconds,
           isCascade: ccd,
-          isBinary: isBinary,
-          isEncrypted: isEncrypted,
-          dataSignature: dataSignature,
-          sharedKeyEncrypted: sharedKeyEncrypted,
-          publicKeyChecksum: publicKeyChecksum,
-          encoding: encoding);
+          isBinary: updateParams.metadata!.isBinary,
+          isEncrypted: updateParams.metadata!.isEncrypted,
+          dataSignature: updateParams.metadata!.dataSignature,
+          sharedKeyEncrypted: updateParams.metadata!.sharedKeyEnc,
+          publicKeyChecksum: updateParams.metadata!.pubKeyCS,
+          encoding: updateParams.metadata!.encoding,
+          encKeyName: updateParams.metadata!.encKeyName,
+          encAlgo: updateParams.metadata!.encAlgo,
+          ivNonce: updateParams.metadata!.ivNonce,
+          skeEncKeyName: updateParams.metadata!.skeEncKeyName,
+          skeEncAlgo: updateParams.metadata!.skeEncAlgo
+      );
       response.data = result?.toString();
     } on InvalidSyntaxException {
       rethrow;

@@ -495,7 +495,7 @@ void main() {
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         // Setting buffer size to 250 Bytes
-        syncProgressiveVerbHandler.capacity = 250;
+        syncProgressiveVerbHandler.capacity = 275;
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -535,16 +535,21 @@ void main() {
         ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 0,
         ///    "operation": "*"
-        AtMetaData atMetadata = (AtMetadataBuilder()
-              ..setTTL(1000)
-              ..setTTB(2000)
-              ..setTTR(3000)
-              ..setCCD(true)
-              ..setPublicKeyChecksum('dummy_checksum')
-              ..setSharedKeyEncrypted('dummy_shared_key')
-              ..setEncoding('base64')
-              ..setDataSignature('dummy_datasignature'))
-            .build();
+        AtMetaData atMetadata = AtMetadataBuilder(
+          ttl: 1000,
+          ttb: 2000,
+          ttr: 3000,
+          ccd: true,
+          dataSignature: 'dummy_data_signature',
+          sharedKeyEncrypted: 'dummy_shared_key',
+          publicKeyChecksum: 'dummy_checksum',
+          encoding: 'base64',
+          encKeyName: 'an_encrypting_key_name',
+          encAlgo: 'an_encrypting_algorithm_name',
+          ivNonce: 'an_iv_or_nonce',
+          skeEncKeyName: 'an_encrypting_key_name_for_the_inlined_encrypted_shared_key',
+          skeEncAlgo: 'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key',
+        ).build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
             AtData()
@@ -566,17 +571,22 @@ void main() {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['commitId'], 0);
         expect(syncResponseList[0]['operation'], '*');
-        expect(syncResponseList[0]['metadata']['version'], '0');
-        expect(syncResponseList[0]['metadata']['ttl'], '1000');
+        expect(syncResponseList[0]['metadata'][VERSION], '0');
+        expect(syncResponseList[0]['metadata'][AT_TTL], '1000');
         expect(syncResponseList[0]['metadata']['ttb'], '2000');
         expect(syncResponseList[0]['metadata']['ttr'], '3000');
         expect(syncResponseList[0]['metadata']['ccd'], 'true');
         expect(syncResponseList[0]['metadata']['dataSignature'],
-            'dummy_datasignature');
+            'dummy_data_signature');
         expect(syncResponseList[0]['metadata']['sharedKeyEnc'],
             'dummy_shared_key');
         expect(syncResponseList[0]['metadata']['pubKeyCS'], 'dummy_checksum');
         expect(syncResponseList[0]['metadata']['encoding'], 'base64');
+        expect(syncResponseList[0]['metadata']['encKeyName'], 'an_encrypting_key_name');
+        expect(syncResponseList[0]['metadata']['encAlgo'], 'an_encrypting_algorithm_name');
+        expect(syncResponseList[0]['metadata']['ivNonce'], 'an_iv_or_nonce');
+        expect(syncResponseList[0]['metadata']['skeEncKeyName'], 'an_encrypting_key_name_for_the_inlined_encrypted_shared_key');
+        expect(syncResponseList[0]['metadata']['skeEncAlgo'], 'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key');
       });
 
       test(
@@ -596,6 +606,7 @@ void main() {
         ///    "metadata": <AtMetadata of the key>
         ///    "commitId": 2,
         ///    "operation": "#"
+        ///    "version": 1
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');

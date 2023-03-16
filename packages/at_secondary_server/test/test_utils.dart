@@ -151,11 +151,13 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey = bobServerSigningKeypair.privateKey.toString();
 
-  DateTime now = DateTime.fromMillisecondsSinceEpoch(DateTime.now().toUtc().millisecondsSinceEpoch);
-
+  DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
   bobOriginalPublicKeyAtData.data = bobOriginalPublicKeypair.publicKey.toString();
-  bobOriginalPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=now..updatedAt=now;
+  bobOriginalPublicKeyAtData.metaData = AtMetaData()
+    ..ttr=-1
+    ..createdAt=now
+    ..updatedAt=now;
   bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobOriginalPublicKeyAtData, key: 'public:publickey$bob')!;
   bobOriginalPublicKeyAtData = AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
 
@@ -236,7 +238,7 @@ AtMetaData createRandomAtMetaData(String owner, {Metadata? commonsMetadata, Date
 
   md.createdBy = owner;
   md.updatedBy = owner;
-  DateTime now = DateTime.now().toUtc();
+  DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   md.createdAt = now;
   md.updatedAt = now;
 

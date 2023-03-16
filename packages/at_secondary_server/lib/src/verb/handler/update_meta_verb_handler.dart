@@ -7,7 +7,6 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
@@ -26,9 +25,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  bool accept(String command) =>
-      command.startsWith('${getName(VerbEnum.update)}:') &&
-      command.startsWith('update:meta:');
+  bool accept(String command) => command.startsWith('update:meta:');
 
   @override
   Verb getVerb() => updateMeta;
@@ -75,8 +72,7 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
       isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
       isEncrypted = AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
       sharedKeyEncrypted = verbParams[SHARED_KEY_ENCRYPTED];
-      sharedWithPublicKeyChecksum =
-          verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+      sharedWithPublicKeyChecksum = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
       ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
       metadata = await keyStore.getMeta(key);
       var cacheRefreshMetaMap = validateCacheMetadata(metadata, ttrMillis, ccd);
@@ -94,7 +90,9 @@ class UpdateMetaVerbHandler extends AbstractVerbHandler {
             isBinary: isBinary,
             isEncrypted: isEncrypted,
             sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: sharedWithPublicKeyChecksum)
+            publicKeyChecksum: sharedWithPublicKeyChecksum,
+
+    )
         .build();
     var result = await keyStore.putMeta(key, atMetaData);
     response.data = result?.toString();
