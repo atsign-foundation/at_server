@@ -1,3 +1,5 @@
+## 3.0.29
+- fix: Check if connected atSign is authorized to send notifications
 ## 3.0.28
 - fix: Refactor notify_verb_handler.dart to increase readability of code
 - refactor: Add AtCacheManager so that we can handle all caching operations in one place
