@@ -205,6 +205,9 @@ void main() {
     response = response.replaceAll('data:', '');
     expect(response, isNot('null'));
 
+    // Give it a second to propagate to the other atServer
+    await Future.delayed(Duration(seconds: 1));
+
     // verify if cached key is created on the receiver side
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
     response = await sh2.read();
@@ -216,6 +219,9 @@ void main() {
     response = await sh1.read();
     response = response.replaceAll('data:', '');
     expect(response, isNot('null'));
+
+    // Give it a second to propagate to the other atServer
+    await Future.delayed(Duration(seconds: 1));
 
     //Check if cached key is deleted
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
