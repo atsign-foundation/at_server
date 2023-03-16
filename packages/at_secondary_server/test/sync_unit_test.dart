@@ -535,15 +535,15 @@ void main() {
         ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 0,
         ///    "operation": "*"
-        AtMetaData atMetadata = (AtMetadataBuilder()
-              ..setTTL(1000)
-              ..setTTB(2000)
-              ..setTTR(3000)
-              ..setCCD(true)
-              ..setPublicKeyChecksum('dummy_checksum')
-              ..setSharedKeyEncrypted('dummy_shared_key')
-              ..setEncoding('base64')
-              ..setDataSignature('dummy_datasignature'))
+        AtMetaData atMetadata = AtMetadataBuilder(
+                ttl: 1000,
+                ttb: 2000,
+                ttr: 3000,
+                ccd: true,
+                dataSignature: 'dummy_datasignature',
+                sharedKeyEncrypted: 'dummy_shared_key',
+                publicKeyChecksum: 'dummy_checksum',
+                encoding: 'base64')
             .build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
