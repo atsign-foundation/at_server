@@ -3,7 +3,10 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
   late AtMetaData atMetaData;
-  var currentUtcTime = DateTime.now().toUtc();
+  /// We will constrain to millisecond precision because Hive only stores
+  /// [DateTime]s to millisecond precision - see https://github.com/hivedb/hive/issues/474
+  /// for details.
+  var currentUtcTimeToMillisecondPrecision = DateTime.now().toUtcMillisecondsPrecision();
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
   /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
@@ -36,14 +39,14 @@ class AtMetadataBuilder {
     // For a new key, the currentDateTime is set and remains unchanged
     // on an update event.
     (existingMetaData?.createdAt == null)
-        ? atMetaData.createdAt = currentUtcTime
+        ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
         : atMetaData.createdAt = existingMetaData?.createdAt;
     atMetaData.createdBy ??= atSign;
     atMetaData.updatedBy = atSign;
     // updatedAt indicates the date and time of the key updated.
     // For a new key, the updatedAt is same as createdAt and on key
     // update, set the updatedAt to the currentDateTime.
-    atMetaData.updatedAt = currentUtcTime;
+    atMetaData.updatedAt = currentUtcTimeToMillisecondPrecision;
     atMetaData.status = 'active';
     // The version indicates the number of updates a key has received.
     // Version is set to 0 for a new key and for each update the key receives,
@@ -108,7 +111,7 @@ class AtMetadataBuilder {
     if (ttl != null) {
       atMetaData.ttl = ttl;
       atMetaData.expiresAt =
-          _getExpiresAt(currentUtcTime.millisecondsSinceEpoch, ttl, ttb: ttb);
+          _getExpiresAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttl, ttb: ttb);
     }
   }
 
@@ -116,14 +119,14 @@ class AtMetadataBuilder {
     if (ttb != null) {
       atMetaData.ttb = ttb;
       atMetaData.availableAt =
-          _getAvailableAt(currentUtcTime.millisecondsSinceEpoch, ttb);
+          _getAvailableAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
     }
   }
 
   void setTTR(int? ttr) {
     if (ttr != null) {
       atMetaData.ttr = ttr;
-      atMetaData.refreshAt = _getRefreshAt(currentUtcTime, ttr);
+      atMetaData.refreshAt = _getRefreshAt(currentUtcTimeToMillisecondPrecision, ttr);
     }
   }
 

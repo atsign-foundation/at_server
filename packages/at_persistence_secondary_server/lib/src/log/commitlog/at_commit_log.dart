@@ -39,7 +39,7 @@ class AtCommitLog implements AtLogType<int, CommitEntry> {
     }
     int result;
     key = Utf7.decode(key);
-    var entry = CommitEntry(key, operation, DateTime.now().toUtc());
+    var entry = CommitEntry(key, operation, DateTime.now().toUtcMillisecondsPrecision());
     try {
       result = await _commitLogKeyStore.add(entry);
       await _publishChangeEvent(entry);
