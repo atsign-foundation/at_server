@@ -572,8 +572,8 @@ void main() {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['commitId'], 0);
         expect(syncResponseList[0]['operation'], '*');
-        expect(syncResponseList[0]['metadata'][VERSION], '0');
-        expect(syncResponseList[0]['metadata'][AT_TTL], '1000');
+        expect(syncResponseList[0]['metadata']['version'], '0');
+        expect(syncResponseList[0]['metadata']['ttl'], '1000');
         expect(syncResponseList[0]['metadata']['ttb'], '2000');
         expect(syncResponseList[0]['metadata']['ttr'], '3000');
         expect(syncResponseList[0]['metadata']['ccd'], 'true');

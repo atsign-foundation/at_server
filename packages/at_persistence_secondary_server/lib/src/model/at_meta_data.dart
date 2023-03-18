@@ -95,7 +95,12 @@ class AtMetaData extends HiveObject {
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
-      ..encoding = encoding;
+      ..encoding = encoding
+      ..encKeyName=encKeyName
+      ..encAlgo=encAlgo
+      ..ivNonce=ivNonce
+      ..skeEncKeyName=skeEncKeyName
+      ..skeEncAlgo=skeEncAlgo;
   }
 
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
@@ -110,8 +115,12 @@ class AtMetaData extends HiveObject {
       ..dataSignature = metadata.dataSignature
       ..sharedKeyEnc = metadata.sharedKeyEnc
       ..pubKeyCS = metadata.pubKeyCS
-      ..encoding = metadata.encoding;
-
+      ..encoding = metadata.encoding
+      ..encKeyName=metadata.encKeyName
+      ..encAlgo=metadata.encAlgo
+      ..ivNonce=metadata.ivNonce
+      ..skeEncKeyName=metadata.skeEncKeyName
+      ..skeEncAlgo=metadata.skeEncAlgo;
     return AtMetadataBuilder(newAtMetaData: atMetadata).build();
   }
 
@@ -225,7 +234,12 @@ class AtMetaData extends HiveObject {
           dataSignature == other.dataSignature &&
           sharedKeyEnc == other.sharedKeyEnc &&
           pubKeyCS == other.pubKeyCS &&
-          encoding == other.encoding;
+          encoding == other.encoding &&
+          encKeyName == other.encKeyName &&
+          encAlgo == other.encAlgo &&
+          ivNonce == other.ivNonce &&
+          skeEncKeyName == other.skeEncKeyName &&
+          skeEncAlgo == other.skeEncAlgo;
 
   @override
   int get hashCode =>
@@ -247,7 +261,12 @@ class AtMetaData extends HiveObject {
       dataSignature.hashCode ^
       sharedKeyEnc.hashCode ^
       pubKeyCS.hashCode ^
-      encoding.hashCode;
+      encoding.hashCode ^
+      encKeyName.hashCode ^
+      encAlgo.hashCode ^
+      ivNonce.hashCode ^
+      skeEncKeyName.hashCode ^
+      skeEncAlgo.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {

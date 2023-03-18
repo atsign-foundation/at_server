@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -9,15 +10,35 @@ void main() async {
   group('A group of notification keystore impl tests', () {
     test('test put and get', () async {
       var keyStore = AtNotificationKeystore.getInstance();
+      var commonsMetadata = Metadata()
+            ..ttl = 100
+            ..ttb = 200
+            ..ttr = 3600
+            ..ccd = true
+            ..isBinary = false
+            ..isEncrypted = true
+            ..dataSignature = 'dataSignature'
+            ..pubKeyCS = 'pubKeyChecksum'
+            ..sharedKeyEnc = 'sharedKeyEncrypted'
+            ..encoding = 'someEncoding'
+            ..encKeyName = 'someEncKeyName'
+            ..encAlgo = 'AES/CTR/PKCS7Padding'
+            ..ivNonce = 'someIvNonce'
+            ..skeEncKeyName = 'someSkeEncKeyName'
+            ..skeEncAlgo = 'someSkeEncAlgo';
+      var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
       var atNotification = (AtNotificationBuilder()
-            ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
-            ..id = '123')
+        ..toAtSign = '@bob'
+        ..fromAtSign = '@alice'
+        ..id = '123'
+        ..atMetaData = atMetaData)
           .build();
       await keyStore.put(atNotification.id, atNotification);
       final value = await keyStore.get(atNotification.id);
       expect(value, isNotNull);
       expect(value!.id, '123');
+      expect(value.atMetadata?.skeEncKeyName, commonsMetadata.skeEncKeyName);
+      expect(value.atMetadata?.toCommonsMetadata(), commonsMetadata);
     });
     test('test remove', () async {
       var keyStore = AtNotificationKeystore.getInstance();
