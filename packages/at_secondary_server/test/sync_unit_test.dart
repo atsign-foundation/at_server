@@ -7,6 +7,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
@@ -270,7 +271,7 @@ void main() {
         /// 2. The commit-id's should be incremented sequentially
         /// 3. Assert the data and metadata updated to keystore
         VerbHandlerManager verbHandlerManager =
-            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager);
+            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager, NotificationManager.getInstance());
         var batchRequestCommand = jsonEncode([
           BatchRequest(100, 'update:city@alice copenhagen'),
           BatchRequest(456, 'delete:phone@alice'),
@@ -336,7 +337,7 @@ void main() {
         /// 1. The valid commands should be processed and commit-id should be added to batch response
         /// 2. For the invalid batch request command, the error code and error message should be updated in the batch response
         VerbHandlerManager verbHandlerManager =
-            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager);
+            DefaultVerbHandlerManager(secondaryPersistenceStore!.getSecondaryKeyStore()!, mockOutboundClientManager, mockAtCacheManager, NotificationManager.getInstance());
         var batchRequestCommand = jsonEncode([
           BatchRequest(1, 'delete:phone@alice'),
           BatchRequest(2, 'update:city@alice'),

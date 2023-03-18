@@ -11,6 +11,7 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -21,6 +22,7 @@ import 'package:at_lookup/at_lookup.dart' as at_lookup;
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+class MockNotificationManager extends Mock implements NotificationManager {}
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 class MockSecondaryAddressFinder extends Mock implements at_lookup.SecondaryAddressFinder {}
 class MockOutboundConnectionFactory extends Mock implements OutboundConnectionFactory {}
@@ -50,6 +52,7 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
+late MockNotificationManager notificationManager;
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
@@ -181,6 +184,11 @@ verbTestsSetUp() async {
       .thenAnswer((Invocation invocation) async {
     socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
+
+  notificationManager = MockNotificationManager();
+  registerFallbackValue(AtNotificationBuilder().build());
+  when(() => notificationManager.notify(any()))
+      .thenAnswer((invocation) async => 'some-notification-id');
 }
 
 verbTestsTearDown() async {

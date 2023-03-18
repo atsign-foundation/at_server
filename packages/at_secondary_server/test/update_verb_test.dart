@@ -1,11 +1,12 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -19,25 +20,36 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'test_utils.dart';
+
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-  var storageDir = '${Directory.current.path}/test/hive';
-  late SecondaryKeyStoreManager keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+
+  setUpAll(() async {
+    await verbTestsSetUpAll();
+  });
+
+  setUp(() async {
+    await verbTestsSetUp();
+  });
+
+  tearDown(() async {
+    await verbTestsTearDown();
+  });
 
   group('A group of update accept tests', () {
     test('test update command accept test', () {
       var command = 'update:public:location@alice new york';
-      var handler = UpdateVerbHandler(mockKeyStore);
+      var handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test update command accept negative test', () {
       var command = 'updated:public:location@alice new york';
-      var handler = UpdateVerbHandler(mockKeyStore);
+      var handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       var result = handler.accept(command);
       expect(result, false);
     });
@@ -146,7 +158,7 @@ void main() {
   group('A group of update verb handler test', () {
     test('test update verb handler- update', () {
       var command = 'update:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       var verbParameters = handler.parse(command);
       var verb = handler.getVerb();
       expect(verb is Update, true);
@@ -159,7 +171,7 @@ void main() {
 
     test('test update verb handler- public update', () {
       var command = 'update:public:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       var verb = handler.getVerb();
       var verbParameters = handler.parse(command);
 
@@ -280,7 +292,7 @@ void main() {
 
     test('test update key no value - invalid command', () {
       var command = 'update:location@alice';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -382,7 +394,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
       Map parsed = handler.parse(command);
       expect(parsed['ttl'], '-1');
     });
@@ -398,7 +410,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
       Map parsed = handler.parse(command);
       expect(parsed['ttb'], '-1');
     });
@@ -406,7 +418,7 @@ void main() {
     test('ttl and ttb starting with negative value -1', () {
       var command = 'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       Map parsed = handler.parse(command);
       expect (parsed['ttl'], '-1');
       expect (parsed['ttb'], '-1');
@@ -415,7 +427,7 @@ void main() {
     test('ttl with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -427,7 +439,7 @@ void main() {
     test('ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -439,7 +451,7 @@ void main() {
     test('ttl and ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -491,7 +503,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -506,7 +518,7 @@ void main() {
     test('ccd with invalid value', () {
       var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -518,12 +530,11 @@ void main() {
 
   group('A group of test cases with hive', () {
     test('test update processVerb with local key', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
       'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      await secondaryKeyStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -537,7 +548,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -546,7 +557,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => '@alice');
@@ -555,7 +566,7 @@ void main() {
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
+      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => '@alice');
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
@@ -565,12 +576,11 @@ void main() {
     });
 
     test('test update processVerb with ttl and ttb', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
       'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      await secondaryKeyStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -584,7 +594,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -593,7 +603,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
 
@@ -611,7 +621,7 @@ void main() {
 
       //LLOOKUP Verb - Before TTB
       var localLookUpResponseBeforeTtb = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
+      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
@@ -642,12 +652,11 @@ void main() {
     });
 
     test('Test to verify reset of TTB', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
       'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      await secondaryKeyStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -661,7 +670,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -670,7 +679,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
@@ -681,7 +690,7 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - TTB
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
+      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
       localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
@@ -704,6 +713,61 @@ void main() {
       expect(localLookUpResponse.data, 'hyderabad');
     });
   });
+
+  group('update verb tests with metadata', () {
+    test('update with all metadata', () async {
+      var pubKeyCS =
+          'the_checksum_of_the_public_key_used_to_encrypted_the_AES_key';
+      var ske =
+          'the_AES_key__encrypted_with_some_public_key__encoded_as_base64';
+      var skeEncKeyName = 'key_45678.__public_keys.__global';
+      var skeEncAlgo = 'ECC/SomeCurveName/blah';
+      var atKey = 'email.wavi';
+      var atValue = 'alice@atsign.com';
+      var updateBuilder = UpdateVerbBuilder()
+        ..value = atValue
+        ..atKey = atKey
+        ..sharedBy = alice
+        ..sharedWith = bob
+        ..pubKeyChecksum = pubKeyCS
+        ..sharedKeyEncrypted = ske
+        ..skeEncKeyName = skeEncKeyName
+        ..skeEncAlgo = skeEncAlgo;
+      var updateCommand = updateBuilder.buildCommand().trim();
+      expect(
+          updateCommand,
+          'update'
+              ':sharedKeyEnc:$ske'
+              ':pubKeyCS:$pubKeyCS'
+              ':skeEncKeyName:$skeEncKeyName'
+              ':skeEncAlgo:$skeEncAlgo'
+              ':$bob:$atKey$alice $atValue');
+
+      // We're going to
+      // * do an update
+      // * verify via llookup
+      // * update just the value
+      // * verify via llookup
+      // * update just some of the metadata
+      // * verify via llookup
+      // * update the value and some of the metadata
+      // * verify via llookup
+      inboundConnection.metadata.isAuthenticated = true;
+      // inboundConnection.metadata.self = true;
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
+      await updateHandler.process(updateCommand, inboundConnection);
+
+      LocalLookupVerbHandler llookupHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      await llookupHandler.process('llookup:all:$bob:$atKey$alice', inboundConnection);
+      Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['data']['value'], atValue);
+      expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+          updateBuilder.metadata);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+
+    });
+  });
+
   group('A group of tests to validate sharedBy atsign', () {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
@@ -716,7 +780,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -739,7 +803,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore);
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -747,33 +811,4 @@ void main() {
       expect(response.isError, false);
     });
   });
-  tearDown(() async => await tearDownFunc());
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@alice';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-      AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atsign ?? '@alice', commitLogPath: storageDir);
-  var persistenceManager =
-  secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-  secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(atsign ?? '@alice', accessLogPath: storageDir);
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }

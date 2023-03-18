@@ -6,6 +6,7 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -101,7 +102,7 @@ void main() {
       var command = 'statsn';
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
-      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager, mockAtCacheManager, NotificationManager.getInstance());
 
       expect(
           () => defaultVerbExecutor.execute(

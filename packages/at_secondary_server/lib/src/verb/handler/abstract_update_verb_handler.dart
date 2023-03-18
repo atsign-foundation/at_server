@@ -15,8 +15,11 @@ import 'package:at_utils/at_utils.dart';
 
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
+  late final NotificationManager notificationManager;
 
-  AbstractUpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  AbstractUpdateVerbHandler(
+      SecondaryKeyStore keyStore, this.notificationManager)
+      : super(keyStore);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -26,7 +29,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  Future<UpdatePreProcessResult> preProcessAndNotify (
+  Future<UpdatePreProcessResult> preProcessAndNotify(
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
@@ -50,57 +53,58 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       throw InvalidAtKeyException(message);
     }
 
-      // Get the key and update the value
-      final sharedWith = updateParams.sharedWith;
-      final sharedBy = updateParams.sharedBy;
-      var atKey = updateParams.atKey!;
-      final value = updateParams.value;
-      final atData = AtData();
-      atData.data = value;
+    // Get the key and update the value
+    final sharedWith = updateParams.sharedWith;
+    final sharedBy = updateParams.sharedBy;
+    var atKey = updateParams.atKey!;
+    final value = updateParams.value;
+    final atData = AtData();
+    atData.data = value;
 
-      // Get the key using verbParams (forAtSign, key, atSign)
-      if (sharedWith != null && sharedWith.isNotEmpty) {
-        atKey = '$sharedWith:$atKey';
-      }
-      if (sharedBy != null && sharedBy.isNotEmpty) {
-        atKey = '$atKey$sharedBy';
-      }
-      // Append public: as prefix if key is public
-      if (updateParams.metadata!.isPublic != null &&
-          updateParams.metadata!.isPublic!) {
-        atKey = 'public:$atKey';
-      }
+    // Get the key using verbParams (forAtSign, key, atSign)
+    if (sharedWith != null && sharedWith.isNotEmpty) {
+      atKey = '$sharedWith:$atKey';
+    }
+    if (sharedBy != null && sharedBy.isNotEmpty) {
+      atKey = '$atKey$sharedBy';
+    }
+    // Append public: as prefix if key is public
+    if (updateParams.metadata!.isPublic != null &&
+        updateParams.metadata!.isPublic!) {
+      atKey = 'public:$atKey';
+    }
 
-      var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
-      switch (keyType) {
-        case KeyType.selfKey:
-        case KeyType.sharedKey:
-        case KeyType.publicKey:
-        case KeyType.reservedKey:
-          break;
-        case KeyType.privateKey:
-        case KeyType.cachedPublicKey:
-        case KeyType.cachedSharedKey:
-        case KeyType.localKey:
-        case KeyType.invalidKey:
-          throw InvalidAtKeyException('You may not update keys of type $keyType');
-      }
+    var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
+    switch (keyType) {
+      case KeyType.selfKey:
+      case KeyType.sharedKey:
+      case KeyType.publicKey:
+      case KeyType.reservedKey:
+        break;
+      case KeyType.privateKey:
+      case KeyType.cachedPublicKey:
+      case KeyType.cachedSharedKey:
+      case KeyType.localKey:
+      case KeyType.invalidKey:
+        throw InvalidAtKeyException('You may not update keys of type $keyType');
+    }
 
-      var existingAtMetaData = await keyStore.getMeta(atKey);
-      var cacheRefreshMetaMap = validateCacheMetadata(existingAtMetaData, updateParams.metadata!.ttr, updateParams.metadata!.ccd);
-      updateParams.metadata!.ttr = cacheRefreshMetaMap[AT_TTR];
-      updateParams.metadata!.ccd = cacheRefreshMetaMap[CCD];
+    var existingAtMetaData = await keyStore.getMeta(atKey);
+    var cacheRefreshMetaMap = validateCacheMetadata(existingAtMetaData,
+        updateParams.metadata!.ttr, updateParams.metadata!.ccd);
+    updateParams.metadata!.ttr = cacheRefreshMetaMap[AT_TTR];
+    updateParams.metadata!.ccd = cacheRefreshMetaMap[CCD];
 
-      //If ttr is set and atsign is not equal to currentAtSign, the key is
-      //cached key.
-      if (updateParams.metadata!.ttr != null &&
-          updateParams.metadata!.ttr! > 0 &&
-          sharedBy != null &&
-          sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
-        atKey = 'cached:$atKey';
-      }
+    //If ttr is set and atsign is not equal to currentAtSign, the key is
+    //cached key.
+    if (updateParams.metadata!.ttr != null &&
+        updateParams.metadata!.ttr! > 0 &&
+        sharedBy != null &&
+        sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
+      atKey = 'cached:$atKey';
+    }
 
-      atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
+    atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
     notify(
         sharedBy,
@@ -110,7 +114,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
         atData.metaData!);
 
-      return UpdatePreProcessResult(atKey, atData, updateParams);
+    return UpdatePreProcessResult(atKey, atData, updateParams);
   }
 
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
@@ -143,7 +147,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     metadata.encKeyName = verbParams[ENCRYPTING_KEY_NAME];
     metadata.encAlgo = verbParams[ENCRYPTING_ALGO];
     metadata.ivNonce = verbParams[IV_OR_NONCE];
-    metadata.skeEncKeyName = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+    metadata.skeEncKeyName =
+        verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
     metadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
 
     updateParams.metadata = metadata;
@@ -152,7 +157,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   void notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) async {
-    if (! _autoNotify) {
+    if (!_autoNotify) {
       return;
     }
     if (forAtSign == null || forAtSign.isEmpty) {
@@ -165,18 +170,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
 
     var atNotification = (AtNotificationBuilder()
-      ..fromAtSign = atSign
-      ..toAtSign = forAtSign
-      ..notification = key
-      ..type = NotificationType.sent
-      ..priority = priority
-      ..opType = OperationType.update
-      ..expiresAt = expiresAt
-      ..atValue = value
-      ..atMetaData = atMetaData)
+          ..fromAtSign = atSign
+          ..toAtSign = forAtSign
+          ..notification = key
+          ..type = NotificationType.sent
+          ..priority = priority
+          ..opType = OperationType.update
+          ..expiresAt = expiresAt
+          ..atValue = value
+          ..atMetaData = atMetaData)
         .build();
 
-    unawaited(NotificationManager.getInstance().notify(atNotification));
+    unawaited(notificationManager.notify(atNotification));
   }
 }
 

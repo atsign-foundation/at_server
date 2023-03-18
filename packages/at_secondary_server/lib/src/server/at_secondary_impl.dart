@@ -12,6 +12,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.d
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -212,14 +213,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
-      verbHandlerManager = DefaultVerbHandlerManager(secondaryKeyStore, outboundClientManager, cacheManager);
+      verbHandlerManager = DefaultVerbHandlerManager(secondaryKeyStore, outboundClientManager, cacheManager, NotificationManager.getInstance());
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
       // We have to make sure that if we used a DefaultVerbHandlerManager then we
       // create a new one here so that it has the correct instances of the SecondaryKeyStore,
       // OutboundClientManager and AtCacheManager
       if (verbHandlerManager is DefaultVerbHandlerManager) {
-        verbHandlerManager = DefaultVerbHandlerManager(secondaryKeyStore, outboundClientManager, cacheManager);
+        verbHandlerManager = DefaultVerbHandlerManager(secondaryKeyStore, outboundClientManager, cacheManager, NotificationManager.getInstance());
       }
     }
 

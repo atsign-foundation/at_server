@@ -1,9 +1,12 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
   late AtMetaData atMetaData;
   var currentUtcTime = DateTime.now().toUtc();
+
+  static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
   /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
@@ -117,6 +120,7 @@ class AtMetadataBuilder {
       atMetaData.ttb = ttb;
       atMetaData.availableAt =
           _getAvailableAt(currentUtcTime.millisecondsSinceEpoch, ttb);
+      logger.finer('setTTB($ttb) - set availableAt to ${atMetaData.availableAt}');
     }
   }
 

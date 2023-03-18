@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -12,7 +13,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   static Update update = Update();
 
-  UpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  UpdateVerbHandler(
+      SecondaryKeyStore keyStore, NotificationManager notificationManager)
+      : super(keyStore, notificationManager);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -34,13 +37,17 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-
-    var updatePreProcessResult = await super.preProcessAndNotify(response, verbParams, atConnection);
+    var updatePreProcessResult =
+        await super.preProcessAndNotify(response, verbParams, atConnection);
 
     var updateParams = updatePreProcessResult.updateParams;
 
+    logger.finer(
+        'calling keyStore.put(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData}');
+
     // update the key in data store
-    var result = await keyStore.put(updatePreProcessResult.atKey, updatePreProcessResult.atData,
+    var result = await keyStore.put(
+        updatePreProcessResult.atKey, updatePreProcessResult.atData,
         time_to_live: updateParams.metadata!.ttl,
         time_to_born: updateParams.metadata!.ttb,
         time_to_refresh: updateParams.metadata!.ttr,
@@ -55,8 +62,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         encAlgo: updateParams.metadata!.encAlgo,
         ivNonce: updateParams.metadata!.ivNonce,
         skeEncKeyName: updateParams.metadata!.skeEncKeyName,
-        skeEncAlgo: updateParams.metadata!.skeEncAlgo
-    );
+        skeEncAlgo: updateParams.metadata!.skeEncAlgo);
     response.data = result?.toString();
   }
 }
