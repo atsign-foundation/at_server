@@ -7,6 +7,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -170,7 +171,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'phone');
@@ -218,7 +219,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');

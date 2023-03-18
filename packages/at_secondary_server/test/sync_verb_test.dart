@@ -118,7 +118,7 @@ void main() {
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       await verbHandler.processVerb(response, verbParams, atConnection);
-      print(response.data);
+
       Map syncResponseMap = (jsonDecode(response.data!)).first;
       expect(syncResponseMap['atKey'], 'phone.wavi@alice');
       expect(syncResponseMap['value'], '+9189877783232');

@@ -45,24 +45,21 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (getVerb().requiresAuth() && !atConnectionMetadata.isAuthenticated) {
       throw UnAuthenticatedException('Command cannot be executed without auth');
     }
-    try {
-      // Parse the command
-      var verbParams = parse(command);
-      // TODO This is not ideal. Would be better to make it so that processVerb takes command as an argument also.
-      verbParams[paramFullCommandAsReceived] = command;
-      // Syntax is valid. Process the verb now.
-      await processVerb(response, verbParams, atConnection);
-      if (this is SyncProgressiveVerbHandler) {
-        final verbHandler = this as SyncProgressiveVerbHandler;
-        verbHandler.logResponse(response.data!);
-      } else {
-        logger.finer(
-            'Verb : ${getVerb().name()}  Response: ${response.toString()}');
-      }
-      return response;
-    } on Exception {
-      rethrow;
+
+    // Parse the command
+    var verbParams = parse(command);
+    // TODO This is not ideal. Would be better to make it so that processVerb takes command as an argument also.
+    verbParams[paramFullCommandAsReceived] = command;
+    // Syntax is valid. Process the verb now.
+    await processVerb(response, verbParams, atConnection);
+    if (this is SyncProgressiveVerbHandler) {
+      final verbHandler = this as SyncProgressiveVerbHandler;
+      verbHandler.logResponse(response.data!);
+    } else {
+      logger.finer(
+          'Verb : ${getVerb().name()}  Response: ${response.toString()}');
     }
+    return response;
   }
 
   /// Return the instance of the current verb

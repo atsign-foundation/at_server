@@ -6,12 +6,12 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -42,14 +42,14 @@ void main() {
   group('A group of update accept tests', () {
     test('test update command accept test', () {
       var command = 'update:public:location@alice new york';
-      var handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      var handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test update command accept negative test', () {
       var command = 'updated:public:location@alice new york';
-      var handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      var handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       var result = handler.accept(command);
       expect(result, false);
     });
@@ -158,7 +158,7 @@ void main() {
   group('A group of update verb handler test', () {
     test('test update verb handler- update', () {
       var command = 'update:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       var verbParameters = handler.parse(command);
       var verb = handler.getVerb();
       expect(verb is Update, true);
@@ -171,7 +171,7 @@ void main() {
 
     test('test update verb handler- public update', () {
       var command = 'update:public:location@alice us';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       var verb = handler.getVerb();
       var verbParameters = handler.parse(command);
 
@@ -292,7 +292,7 @@ void main() {
 
     test('test update key no value - invalid command', () {
       var command = 'update:location@alice';
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -394,7 +394,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
       Map parsed = handler.parse(command);
       expect(parsed['ttl'], '-1');
     });
@@ -410,7 +410,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
       Map parsed = handler.parse(command);
       expect(parsed['ttb'], '-1');
     });
@@ -418,7 +418,7 @@ void main() {
     test('ttl and ttb starting with negative value -1', () {
       var command = 'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       Map parsed = handler.parse(command);
       expect (parsed['ttl'], '-1');
       expect (parsed['ttb'], '-1');
@@ -427,7 +427,7 @@ void main() {
     test('ttl with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -439,7 +439,7 @@ void main() {
     test('ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -451,7 +451,7 @@ void main() {
     test('ttl and ttb with no value - invalid syntax', () {
       var command = 'UpDaTe:ttl::ttb::@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -503,7 +503,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -518,7 +518,7 @@ void main() {
     test('ccd with invalid value', () {
       var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(mockKeyStore, statsNotificationService, notificationManager);
       expect(
               () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -557,7 +557,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => '@alice');
@@ -603,7 +603,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
 
@@ -679,7 +679,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
@@ -715,7 +715,7 @@ void main() {
   });
 
   group('update verb tests with metadata', () {
-    test('update with all metadata', () async {
+    doit() async {
       var pubKeyCS =
           'the_checksum_of_the_public_key_used_to_encrypted_the_AES_key';
       var ske =
@@ -723,14 +723,17 @@ void main() {
       var skeEncKeyName = 'key_45678.__public_keys.__global';
       var skeEncAlgo = 'ECC/SomeCurveName/blah';
       var atKey = 'email.wavi';
-      var atValue = 'alice@atsign.com';
+      var value = 'alice@atsign.com';
       var updateBuilder = UpdateVerbBuilder()
-        ..value = atValue
+        ..value = value
         ..atKey = atKey
         ..sharedBy = alice
         ..sharedWith = bob
         ..pubKeyChecksum = pubKeyCS
         ..sharedKeyEncrypted = ske
+        ..encKeyName = 'some_key'
+        ..encAlgo = 'some_algo'
+        ..ivNonce = 'some_iv'
         ..skeEncKeyName = skeEncKeyName
         ..skeEncAlgo = skeEncAlgo;
       var updateCommand = updateBuilder.buildCommand().trim();
@@ -739,32 +742,74 @@ void main() {
           'update'
               ':sharedKeyEnc:$ske'
               ':pubKeyCS:$pubKeyCS'
+              ':encKeyName:some_key'
+              ':encAlgo:some_algo'
+              ':ivNonce:some_iv'
               ':skeEncKeyName:$skeEncKeyName'
               ':skeEncAlgo:$skeEncAlgo'
-              ':$bob:$atKey$alice $atValue');
+              ':$bob:$atKey$alice $value');
 
-      // We're going to
-      // * do an update
-      // * verify via llookup
-      // * update just the value
-      // * verify via llookup
-      // * update just some of the metadata
-      // * verify via llookup
-      // * update the value and some of the metadata
-      // * verify via llookup
       inboundConnection.metadata.isAuthenticated = true;
-      // inboundConnection.metadata.self = true;
-      UpdateVerbHandler updateHandler = UpdateVerbHandler(secondaryKeyStore, NotificationManager.getInstance());
+
+      // 1. do an update and verify via llookup
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
       await updateHandler.process(updateCommand, inboundConnection);
 
       LocalLookupVerbHandler llookupHandler = LocalLookupVerbHandler(secondaryKeyStore);
       await llookupHandler.process('llookup:all:$bob:$atKey$alice', inboundConnection);
       Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
-      expect(mapSentToClient['data']['value'], atValue);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
       expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
           updateBuilder.metadata);
-      expect(mapSentToClient['key'], '$bob:$atKey$alice');
 
+      // 2. update just the value and verify
+      updateBuilder.value = value = 'alice@wowzer.net';
+      await updateHandler.process(updateBuilder.buildCommand().trim(), inboundConnection);
+      await llookupHandler.process('llookup:all:$bob:$atKey$alice', inboundConnection);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
+      expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+          updateBuilder.metadata);
+
+      // 3. update just some of the metadata and verify
+      updateBuilder.skeEncKeyName = null;
+      updateBuilder.skeEncAlgo = null;
+      updateBuilder.sharedKeyEncrypted = null;
+      updateBuilder.encAlgo = 'WOW/MUCH/ENCRYPTION';
+      updateBuilder.encKeyName = 'such_secret_key';
+      await updateHandler.process(updateBuilder.buildCommand().trim(), inboundConnection);
+      await llookupHandler.process('llookup:all:$bob:$atKey$alice', inboundConnection);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
+      var receivedMetadata = AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata();
+      expect(receivedMetadata.encAlgo, 'WOW/MUCH/ENCRYPTION');
+      expect(receivedMetadata.encKeyName, 'such_secret_key');
+      expect(receivedMetadata, updateBuilder.metadata);
+
+      // 4. let's update the value and a load of random metadata, and verify
+      updateBuilder.atKeyObj.metadata = createRandomCommonsMetadata();
+      updateBuilder.ttb = null;
+      updateBuilder.ttr = 10;
+      updateBuilder.value = value = 'alice@wonder.land';
+      await updateHandler.process(updateBuilder.buildCommand().trim(), inboundConnection);
+      await llookupHandler.process('llookup:all:$bob:$atKey$alice', inboundConnection);
+      var sentToClient = inboundConnection.lastWrittenData!;
+
+      mapSentToClient = decodeResponse(sentToClient);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
+      expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+          updateBuilder.metadata);
+
+      await secondaryKeyStore.remove('$bob:$atKey$alice');
+    }
+    test('update with all metadata', () async {
+      for (int i = 0; i < 100; i++) {
+        await doit();
+      }
     });
   });
 
@@ -780,7 +825,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);
@@ -803,7 +848,7 @@ void main() {
       SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
-      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, NotificationManager.getInstance());
+      AbstractVerbHandler handler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(null, null);

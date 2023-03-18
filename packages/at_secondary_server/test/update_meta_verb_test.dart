@@ -2,13 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
-import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -20,8 +14,6 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() {
-  AtSignLogger.root_level = 'FINEST';
-
   setUpAll(() async {
     await verbTestsSetUpAll();
   });
@@ -73,7 +65,7 @@ void main() {
     test('test update meta handler processVerb with ttb', () async {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => alice);
@@ -87,16 +79,16 @@ void main() {
 
       int ttb = 100; // ttb, in milliseconds
       //Update Meta
-      var updateMetaVerbHandler = UpdateMetaVerbHandler(
-          secondaryKeyStore, notificationManager);
-      var updateMetaResponse = Response();
-      var updateMetaVerbParam = HashMap<String, String>();
-      updateMetaVerbParam.putIfAbsent('atSign', () => alice);
-      updateVerbParams.putIfAbsent('forAtSign', () => bob);
-      updateMetaVerbParam.putIfAbsent('atKey', () => 'phone');
-      updateMetaVerbParam.putIfAbsent('ttb', () => ttb.toString());
-      await updateMetaVerbHandler.processVerb(
-          updateMetaResponse, updateMetaVerbParam, inboundConnection);
+      var upMetaHandler = UpdateMetaVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      var upMetaR = Response();
+      var upMetaParams = HashMap<String, String>();
+      upMetaParams.putIfAbsent('atSign', () => alice);
+      upMetaParams.putIfAbsent('forAtSign', () => bob);
+      upMetaParams.putIfAbsent('atKey', () => 'phone');
+      upMetaParams.putIfAbsent('ttb', () => ttb.toString());
+      await upMetaHandler.processVerb(
+          upMetaR, upMetaParams, inboundConnection);
 
       // Look Up verb
       var localLookUpResponse = Response();
@@ -117,73 +109,50 @@ void main() {
     });
 
     test('test update meta handler processVerb with ttl', () async {
-      SecondaryKeyStore keyStore = secondaryKeyStore;
-      var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@kevin';
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
-      var fromVerbParams = HashMap<String, String>();
-      fromVerbParams.putIfAbsent('atSign', () => 'kevin');
-      var response = Response();
-      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
-      var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}$fromResponse';
-      var bytes = utf8.encode(combo);
-      var digest = sha512.convert(bytes);
-      cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
-      var cramResponse = Response();
-      await cramVerbHandler.processVerb(
-          cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.isAuthenticated, true);
-      expect(cramResponse.data, 'success');
-
       //Update Verb
       var updateVerbHandler =
-          UpdateVerbHandler(keyStore, notificationManager);
+          UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent('atSign', () => '@kevin');
+      updateVerbParams.putIfAbsent('atSign', () => alice);
+      updateVerbParams.putIfAbsent('forAtSign', () => bob);
       updateVerbParams.putIfAbsent('atKey', () => 'location');
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
+      inboundConnection.metadata.isAuthenticated = true;
       await updateVerbHandler.processVerb(
-          updateResponse, updateVerbParams, atConnection);
+          updateResponse, updateVerbParams, inboundConnection);
 
       int ttl = 100; // in milliseconds
 
       //Update Meta
       var updateMetaVerbHandler = UpdateMetaVerbHandler(
-          secondaryKeyStore, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var updateMetaResponse = Response();
-      var updateMetaVerbParam = HashMap<String, String>();
-      updateMetaVerbParam.putIfAbsent('atSign', () => '@kevin');
-      updateMetaVerbParam.putIfAbsent('atKey', () => 'location');
-      updateMetaVerbParam.putIfAbsent('ttl', () => ttl.toString());
+      var upMetaParams = HashMap<String, String>();
+      upMetaParams.putIfAbsent('atSign', () => alice);
+      upMetaParams.putIfAbsent('forAtSign', () => bob);
+      upMetaParams.putIfAbsent('atKey', () => 'location');
+      upMetaParams.putIfAbsent('ttl', () => ttl.toString());
+      inboundConnection.metadata.isAuthenticated = true;
       await updateMetaVerbHandler.processVerb(
-          updateMetaResponse, updateMetaVerbParam, atConnection);
+          updateMetaResponse, upMetaParams, inboundConnection);
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
+      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent('atSign', () => '@kevin');
+      localLookVerbParam.putIfAbsent('atSign', () => alice);
+      localLookVerbParam.putIfAbsent('forAtSign', () => bob);
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse, localLookVerbParam, atConnection);
+          localLookUpResponse, localLookVerbParam, inboundConnection);
       expect(localLookUpResponse.data,
           'hyderabad'); // ttl not yet reached, value will be live
 
       await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponse1 = Response();
       await localLookupVerbHandler.processVerb(
-          localLookUpResponse1, localLookVerbParam, atConnection);
+          localLookUpResponse1, localLookVerbParam, inboundConnection);
       expect(localLookUpResponse1.data,
           null); // ttl has passed, value should no longer be live
     });

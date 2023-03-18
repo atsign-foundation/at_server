@@ -2,6 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -37,7 +38,14 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final NotificationManager notificationManager;
-  DefaultVerbHandlerManager(this.keyStore, this.outboundClientManager, this.cacheManager, this.notificationManager) {
+  final StatsNotificationService statsNotificationService;
+
+  DefaultVerbHandlerManager(
+      this.keyStore,
+      this.outboundClientManager,
+      this.cacheManager,
+      this.statsNotificationService,
+      this.notificationManager) {
     _loadVerbHandlers();
   }
 
@@ -66,14 +74,14 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
     _verbHandlers.add(PkamVerbHandler(keyStore));
-    _verbHandlers.add(UpdateVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(UpdateMetaVerbHandler(keyStore, notificationManager));
+    _verbHandlers.add(UpdateVerbHandler(keyStore, statsNotificationService, notificationManager));
+    _verbHandlers.add(UpdateMetaVerbHandler(keyStore, statsNotificationService, notificationManager));
     _verbHandlers.add(LocalLookupVerbHandler(keyStore));
     _verbHandlers.add(ProxyLookupVerbHandler(keyStore, outboundClientManager, cacheManager));
     _verbHandlers.add(LookupVerbHandler(keyStore, outboundClientManager, cacheManager));
     _verbHandlers.add(ScanVerbHandler(keyStore, outboundClientManager, cacheManager));
     _verbHandlers.add(PolVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers.add(DeleteVerbHandler(keyStore));
+    _verbHandlers.add(DeleteVerbHandler(keyStore, statsNotificationService));
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));
     _verbHandlers.add(MonitorVerbHandler(keyStore));

@@ -7,6 +7,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
@@ -113,7 +114,12 @@ void main() {
       var command = 'scann';
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
-      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager, mockAtCacheManager, NotificationManager.getInstance());
+      var defaultVerbHandlerManager = DefaultVerbHandlerManager(
+          mockKeyStore,
+          mockOutboundClientManager,
+          mockAtCacheManager,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance());
 
       expect(
           () => defaultVerbExecutor.execute(

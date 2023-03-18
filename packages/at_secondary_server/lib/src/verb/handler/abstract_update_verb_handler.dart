@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -18,8 +19,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   late final NotificationManager notificationManager;
 
   AbstractUpdateVerbHandler(
-      SecondaryKeyStore keyStore, this.notificationManager)
-      : super(keyStore);
+      SecondaryKeyStore keyStore,
+      StatsNotificationService statsNotificationService,
+      this.notificationManager)
+      : super(keyStore, statsNotificationService);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -130,16 +133,28 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     updateParams.value = verbParams[AT_VALUE];
 
     var metadata = Metadata();
-    metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-    metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+    metadata.isBinary = null;
+    if (verbParams[AT_TTL] != null) {
+      metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+    }
+    if (verbParams[AT_TTB] != null) {
+      metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+    }
     if (verbParams[AT_TTR] != null) {
       metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
     }
-    metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
+    if (verbParams[CCD] != null) {
+      metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
+    }
     metadata.dataSignature = verbParams[PUBLIC_DATA_SIGNATURE];
-    metadata.isBinary = AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
-    metadata.isEncrypted =
-        AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+    if (verbParams[IS_BINARY] != null) {
+      metadata.isBinary =
+          AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
+    }
+    if (verbParams[IS_ENCRYPTED] != null) {
+      metadata.isEncrypted =
+          AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+    }
     metadata.isPublic = verbParams[PUBLIC_SCOPE_PARAM] == 'public';
     metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
     metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
