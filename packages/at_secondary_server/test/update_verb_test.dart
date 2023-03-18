@@ -165,7 +165,7 @@ void main() {
 
       expect(verb is Update, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters['isPublic'], 'true');
+      expect(verbParameters[PUBLIC_SCOPE_PARAM], 'public');
       expect(verbParameters[FOR_AT_SIGN], null);
       expect(verbParameters[AT_KEY], 'location');
       expect(verbParameters[AT_SIGN], 'alice');
@@ -726,7 +726,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
           e is InvalidAtKeyException &&
               e.message ==
-                  'Invalid update command sharedBy atsign @bob should be same as current atsign @alice')));
+                  'Invalid update command - sharedBy atsign @bob should be same as current atsign @alice')));
     });
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';

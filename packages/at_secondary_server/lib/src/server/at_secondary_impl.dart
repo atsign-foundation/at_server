@@ -20,9 +20,8 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -389,9 +388,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
         logger.finest(
             'Received new value for config \'autoNotify\': $autoNotifyState');
-        UpdateVerbHandler.setAutoNotify(autoNotifyState);
+        AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
         DeleteVerbHandler.setAutoNotify(autoNotifyState);
-        UpdateMetaVerbHandler.setAutoNotify(autoNotifyState);
       });
 
       //subscriber for maxNotificationRetries count change

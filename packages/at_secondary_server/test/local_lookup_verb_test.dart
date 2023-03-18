@@ -223,7 +223,7 @@ void main() {
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
       updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'India');
-      updateVerbParams.putIfAbsent('isPublic', () => 'true');
+      updateVerbParams.putIfAbsent(PUBLIC_SCOPE_PARAM, () => 'public');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
