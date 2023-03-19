@@ -592,8 +592,10 @@ void main() {
   test('notify verb for notifying a key update with shared key metadata',
       () async {
     /// NOTIFY VERB
-    await sh1.writeCommand(
-        'notify:update:messageType:key:notifier:SYSTEM:ttln:86400000:ttr:60000:ccd:false:sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae:$atSign_2:phone.wavi$atSign_1:E5skXtdiGbEJ9nY6Kvl+UA==');
+    await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
+        ':ttln:86400000:ttr:60000:ccd:false'
+        ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
+        ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
@@ -611,7 +613,7 @@ void main() {
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
-    expect(decodedResponse['data'], 'E5skXtdiGbEJ9nY6Kvl+UA==');
+    expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], 'abc');
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
@@ -644,7 +646,7 @@ void main() {
             ':skeEncKeyName:$skeEncKeyName'
             ':skeEncAlgo:$skeEncAlgo'
             ':$atSign_2:phone.wavi$atSign_1'
-            ':E5skXtdiGbEJ9nY6Kvl+UA==');
+            ':Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
@@ -662,7 +664,7 @@ void main() {
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
-    expect(decodedResponse['data'], 'E5skXtdiGbEJ9nY6Kvl+UA==');
+    expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], sharedKeyEnc);
     expect(decodedResponse['metaData']['pubKeyCS'], pubKeyCS);
     expect(decodedResponse['metaData']['encKeyName'], encKeyName);

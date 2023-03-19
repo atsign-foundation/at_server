@@ -190,9 +190,8 @@ class ResourceManager {
     }
   }
 
-  /// Prepares the notification key.
+  /// Prepares the notification command
   /// Accepts [AtNotification]
-  /// Returns the key of notification key.
   @visibleForTesting
   String prepareNotifyCommandBody(AtNotification atNotification) {
     // [gkc] I really don't like that the command string is being built from
