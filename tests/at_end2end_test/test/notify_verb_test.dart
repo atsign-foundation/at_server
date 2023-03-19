@@ -15,12 +15,19 @@ void main() {
 
   var lastValue = Random().nextInt(30);
 
+  late Version atSign1ServerVersion;
+  late Version atSign2ServerVersion;
+
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
+
     atSign_1 = atSigns[0];
     sh1 = await e2e.getSocketHandler(atSign_1);
+    atSign1ServerVersion = Version.parse(await sh1.getVersion());
+
     atSign_2 = atSigns[1];
     sh2 = await e2e.getSocketHandler(atSign_2);
+    atSign2ServerVersion = Version.parse(await sh2.getVersion());
   });
 
   tearDownAll(() {
@@ -80,8 +87,7 @@ void main() {
     expect(response, contains('data:delivered'));
 
     // Fetch notification
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 23)) {
+    if (atSign1ServerVersion > Version(3, 0, 23)) {
       await sh1.writeCommand('notify:fetch:$notificationId');
       response = await sh1.read();
       response = response.replaceFirst('data:', '');
@@ -631,6 +637,13 @@ void main() {
     var skeEncKeyName = 'someSkeEncKeyName';
     var skeEncAlgo = 'RSA-2048';
     var ttln = 60 * 1000; // 60 seconds
+
+    if (atSign1ServerVersion < Version(3, 0, 29)) {
+      // Server version 3.0.28 or earlier will not process new metadata
+      // No point in trying to send anything
+      return;
+    }
+
     await sh1.writeCommand(
         'notify:update'
             ':messageType:key'
@@ -667,12 +680,21 @@ void main() {
     expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], sharedKeyEnc);
     expect(decodedResponse['metaData']['pubKeyCS'], pubKeyCS);
-    expect(decodedResponse['metaData']['encKeyName'], encKeyName);
-    expect(decodedResponse['metaData']['encAlgo'], encAlgo);
-    expect(decodedResponse['metaData']['ivNonce'], iv);
-    expect(decodedResponse['metaData']['skeEncKeyName'], skeEncKeyName);
-    expect(decodedResponse['metaData']['skeEncAlgo'], skeEncAlgo);
     expect(decodedResponse['metaData']['ttr'], 10);
+
+    if (atSign2ServerVersion > Version(3, 0, 28)) {
+      expect(decodedResponse['metaData']['encKeyName'], encKeyName);
+      expect(decodedResponse['metaData']['encAlgo'], encAlgo);
+      expect(decodedResponse['metaData']['ivNonce'], iv);
+      expect(decodedResponse['metaData']['skeEncKeyName'], skeEncKeyName);
+      expect(decodedResponse['metaData']['skeEncAlgo'], skeEncAlgo);
+    } else {
+      expect(decodedResponse['metaData']['encKeyName'], null);
+      expect(decodedResponse['metaData']['encAlgo'], null);
+      expect(decodedResponse['metaData']['ivNonce'], null);
+      expect(decodedResponse['metaData']['skeEncKeyName'], null);
+      expect(decodedResponse['metaData']['skeEncAlgo'], null);
+    }
   });
 }
 

@@ -512,6 +512,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } on Error catch (e, st) {
       await GlobalExceptionHandler.getInstance()
           .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
+    } catch (e, st) {
+      await GlobalExceptionHandler.getInstance()
+          .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
     }
   }
 
