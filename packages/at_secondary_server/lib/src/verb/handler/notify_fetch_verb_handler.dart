@@ -43,7 +43,10 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
 
   String _getJsonEncodedString(AtNotification atNotification) {
     var atNotificationJson = atNotification.toJson();
-    atNotificationJson['atMetadata'] = SecondaryUtil.removeNulls(atNotificationJson['atMetadata']);
+    if (atNotificationJson['atMetadata'] != null) {
+      atNotificationJson['atMetadata'] =
+          SecondaryUtil.removeNulls(atNotification.atMetadata!.toJson());
+    }
     for (MapEntry entry in atNotificationJson.entries) {
       if (entry.value is! String) {
         atNotificationJson[entry.key] = entry.value.toString();
