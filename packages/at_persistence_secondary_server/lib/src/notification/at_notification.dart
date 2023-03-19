@@ -127,7 +127,7 @@ class AtNotification {
         'notifier': _notifier,
         'expiresAt': _expiresAt,
         'atValue': _atValue,
-        'atMetadata': _atMetadata,
+        'atMetadata': _atMetadata?.toJson(),
         'ttl': _ttl
       };
 

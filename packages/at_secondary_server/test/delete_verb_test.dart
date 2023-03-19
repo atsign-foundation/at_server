@@ -1,5 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -24,14 +25,14 @@ void main() {
     });
 
     test('test delete getVerb', () {
-      var handler = DeleteVerbHandler(mockKeyStore);
+      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
       var verb = handler.getVerb();
       expect(verb is Delete, true);
     });
 
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
-      var handler = DeleteVerbHandler(mockKeyStore);
+      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -40,7 +41,7 @@ void main() {
     test('test delete command command with upper case and spaces', () {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
-      var handler = DeleteVerbHandler(mockKeyStore);
+      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);

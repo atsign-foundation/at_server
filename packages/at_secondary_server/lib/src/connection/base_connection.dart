@@ -49,8 +49,10 @@ abstract class BaseConnection extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
+      logger.finest('SENDING: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
       getSocket().write(data);
+      logger.info('SENT: [${getMetaData().sessionID}] ${BaseConnection.truncateForLogging(data)}');
+      getSocket().flush();
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
       getMetaData().isStale = true;

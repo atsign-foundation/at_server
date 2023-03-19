@@ -6,6 +6,8 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -169,7 +171,7 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'phone');
@@ -217,13 +219,13 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore);
+      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
       updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
       updateVerbParams.putIfAbsent(AT_VALUE, () => 'India');
-      updateVerbParams.putIfAbsent('isPublic', () => 'true');
+      updateVerbParams.putIfAbsent(PUBLIC_SCOPE_PARAM, () => 'public');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb

@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
@@ -15,7 +16,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
 
-  DeleteVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  DeleteVerbHandler(SecondaryKeyStore keyStore,
+      StatsNotificationService statsNotificationService)
+      : super(keyStore, statsNotificationService);
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
