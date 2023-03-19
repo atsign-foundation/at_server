@@ -556,8 +556,12 @@ void main() {
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
     var notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
 
-    // Wait a couple of seconds to for the notification to reach atSign_2
-    await Future.delayed(Duration(seconds:2));
+    // Wait for delivered status
+    var deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response, first notification : $deliveryStatus');
+    expect(deliveryStatus, contains('data:delivered'));
+
     await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
     var notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
     var atNotificationMap = jsonDecode(notificationIdFromAtSign2);
@@ -569,8 +573,12 @@ void main() {
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
     notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
 
-    // Wait a couple of seconds to for the notification to reach atSign_2
-    await Future.delayed(Duration(seconds:2));
+    // Wait for delivered status
+    deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response, second notification : $deliveryStatus');
+    expect(deliveryStatus, contains('data:delivered'));
+
     await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
     notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
     atNotificationMap = jsonDecode(notificationIdFromAtSign2);
@@ -608,6 +616,61 @@ void main() {
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
+  });
+
+  test('notify verb for notifying a key update with new encryption metadata',
+      () async {
+    /// NOTIFY VERB
+    var sharedKeyEnc = 'abc';
+    var pubKeyCS = '3c55db695d94b304827367a4f5cab8ae';
+    var encKeyName = 'someEncKeyName';
+    var encAlgo = 'AES/CTR/PKCS7Padding';
+    var iv = 'anInitializationVector';
+    var skeEncKeyName = 'someSkeEncKeyName';
+    var skeEncAlgo = 'RSA-2048';
+    var ttln = 60 * 1000; // 60 seconds
+    await sh1.writeCommand(
+        'notify:update'
+            ':messageType:key'
+            ':notifier:SYSTEM'
+            ':ttln:$ttln'
+            ':ttr:10'
+            ':ccd:false'
+            ':sharedKeyEnc:$sharedKeyEnc'
+            ':pubKeyCS:$pubKeyCS'
+            ':encKeyName:$encKeyName'
+            ':encAlgo:$encAlgo'
+            ':ivNonce:$iv'
+            ':skeEncKeyName:$skeEncKeyName'
+            ':skeEncAlgo:$skeEncAlgo'
+            ':$atSign_2:phone.wavi$atSign_1'
+            ':E5skXtdiGbEJ9nY6Kvl+UA==');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+
+    // notify status
+    response = await getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+
+    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
+    expect(decodedResponse['data'], 'E5skXtdiGbEJ9nY6Kvl+UA==');
+    expect(decodedResponse['metaData']['sharedKeyEnc'], sharedKeyEnc);
+    expect(decodedResponse['metaData']['pubKeyCS'], pubKeyCS);
+    expect(decodedResponse['metaData']['encKeyName'], encKeyName);
+    expect(decodedResponse['metaData']['encAlgo'], encAlgo);
+    expect(decodedResponse['metaData']['ivNonce'], iv);
+    expect(decodedResponse['metaData']['skeEncKeyName'], skeEncKeyName);
+    expect(decodedResponse['metaData']['skeEncAlgo'], skeEncAlgo);
+    expect(decodedResponse['metaData']['ttr'], 10);
   });
 }
 
