@@ -3,7 +3,7 @@ root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
-  url: 'vip.ve.atsign.zone'
+  url: 'root.atsign.wtf'
 
 # cicd atsign details
 first_atsign_server:
