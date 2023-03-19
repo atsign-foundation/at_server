@@ -162,7 +162,7 @@ class ResourceManager {
         // All notifications for this atSign have been cleared; we can remove the waitTimeEntry for this atSign
         AtNotificationMap.getInstance().removeWaitTimeEntry(atSign);
       }
-    } on Exception catch (e) {
+    } catch (e) {
       logger.severe(
           'Exception in processing the notification ${atNotification.id} : ${e.toString()}');
       errorList.add(atNotification);

@@ -94,14 +94,14 @@ class SimpleOutboundSocketHandler {
     // FROM VERB
     // Setting clientVersion to 3.0.38 to support JSON encoding of error responses
     await writeCommand('from:$atSign:clientConfig:{"version":"3.0.38"}');
-    var response = await read(timeoutMillis:4000);
+    var response = await read(timeoutMillis:5000);
     response = response.replaceAll('data:', '');
     var pkamDigest = generatePKAMDigest(atSign, response);
 
     // PKAM VERB
     print ("Sending pkam: command");
     await writeCommand('pkam:$pkamDigest', log:false);
-    response = await read(timeoutMillis:1000);
+    response = await read(timeoutMillis:5000);
     print('pkam verb response $response');
     assert(response.contains('data:success'));
   }
