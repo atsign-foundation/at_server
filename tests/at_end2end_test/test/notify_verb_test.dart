@@ -554,24 +554,26 @@ void main() {
   test('A test to verify subsequent notifications has correct date', () async {
     // Sending first notification
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
-    var response = await sh1.read();
-    response = response.replaceAll('data:', '');
-    await sh2.writeCommand('notify:fetch:$response');
-    response = await sh2.read();
-    response = response.replaceAll('data:', '');
-    var atNotificationMap = jsonDecode(response);
+    var notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
+
+    // Wait a couple of seconds to for the notification to reach atSign_2
+    await Future.delayed(Duration(seconds:2));
+    await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
+    var notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
+    var atNotificationMap = jsonDecode(notificationIdFromAtSign2);
     var firstNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
             .microsecondsSinceEpoch;
 
     // Sending second notification
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
-    response = await sh1.read();
-    response = response.replaceAll('data:', '');
-    await sh2.writeCommand('notify:fetch:$response');
-    response = await sh2.read();
-    response = response.replaceAll('data:', '');
-    atNotificationMap = jsonDecode(response);
+    notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
+
+    // Wait a couple of seconds to for the notification to reach atSign_2
+    await Future.delayed(Duration(seconds:2));
+    await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
+    notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
+    atNotificationMap = jsonDecode(notificationIdFromAtSign2);
     var secondNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
             .microsecondsSinceEpoch;
