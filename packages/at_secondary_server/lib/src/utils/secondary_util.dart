@@ -128,7 +128,11 @@ class SecondaryUtil {
     return result;
   }
 
-  static Map removeNulls(Map map) {
+  static Map? removeNulls(Map? map) {
+    if (map == null) {
+      return null;
+    }
+
     Map out = {};
     for (var key in map.keys) {
       var val = map[key];

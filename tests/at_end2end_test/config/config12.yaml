@@ -3,19 +3,19 @@ root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
-  url: 'root.atsign.wtf'
+  url: 'vip.ve.atsign.zone'
 
 # cicd atsign details
 first_atsign_server:
-  first_atsign_name: '@cicd1'
+  first_atsign_name: '@alice'
   # # The port to connect to first atsign server
-  first_atsign_port: 6464
+  first_atsign_port: 10000
   # # The url to connect to first atsign server
-  first_atsign_url: cicd1.atsign.wtf
+  first_atsign_url: vip.ve.atsign.zone
 
 second_atsign_server:
-  second_atsign_name: '@cicd2'
+  second_atsign_name: '@bob'
   # # The port to connect to second atsign server
-  second_atsign_port: 6464
+  second_atsign_port: 10001
   # # The url to connect to second atsign server
-  second_atsign_url: cicd2.atsign.wtf
+  second_atsign_url: vip.ve.atsign.zone

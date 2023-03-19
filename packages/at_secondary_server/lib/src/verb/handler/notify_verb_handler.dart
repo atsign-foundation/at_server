@@ -313,6 +313,21 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] != null) {
       atMetadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
     }
+    if (verbParams[ENCRYPTING_KEY_NAME] != null) {
+      atMetadata.encKeyName = verbParams[ENCRYPTING_KEY_NAME];
+    }
+    if (verbParams[ENCRYPTING_ALGO] != null) {
+      atMetadata.encAlgo = verbParams[ENCRYPTING_ALGO];
+    }
+    if (verbParams[IV_OR_NONCE] != null) {
+      atMetadata.ivNonce = verbParams[IV_OR_NONCE];
+    }
+    if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] != null) {
+      atMetadata.skeEncKeyName = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+    }
+    if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] != null) {
+      atMetadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+    }
     atMetadata.isEncrypted = _getIsEncrypted(
         getMessageType(verbParams[MESSAGE_TYPE]),
         verbParams[AT_KEY]!,
