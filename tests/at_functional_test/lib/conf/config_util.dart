@@ -3,7 +3,7 @@ import 'package:yaml/yaml.dart';
 
 class ConfigUtil {
   static final ApplicationConfiguration appConfig =
-      ApplicationConfiguration('config/local_config.yaml');
+      ApplicationConfiguration('config/config.yaml');
 
   static YamlMap? getYaml() {
     return appConfig.getYaml();

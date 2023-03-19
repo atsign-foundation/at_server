@@ -73,6 +73,7 @@ class GlobalExceptionHandler {
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||
         exception is AtConnectException ||
+        exception is SocketException ||
         exception is AtTimeoutException) {
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
