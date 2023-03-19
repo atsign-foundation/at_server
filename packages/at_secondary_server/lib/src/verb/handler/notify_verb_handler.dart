@@ -87,6 +87,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       else if (atConnectionMetadata.isPolAuthenticated) {
         await _handlePolAuthenticatedConnection(
             verbParams, atConnectionMetadata, response);
+      } else {
+        throw UnAuthenticatedException(
+            'Notify command cannot be executed without authentication');
       }
     } finally {
       processNotificationMutex.release();

@@ -232,6 +232,30 @@ void main() {
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
+
+    test(
+        'A test to verify unauthenticated exception is thrown when connection is unauthenticated',
+        () async {
+      var verb = Notify();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+
+      var command = 'notify:update:messagetype:text:@bob:hello';
+      var regex = verb.syntax();
+
+      var notifyVerbHandler = NotifyVerbHandler(mockKeyStore);
+      var notifyResponse = Response();
+      var notifyVerbParams = getVerbParam(regex, command);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              notifyResponse, notifyVerbParams, atConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthenticatedException &&
+              e.message ==
+                  'Notify command cannot be executed without authentication')));
+    });
   });
 
   group('A group of notify verb handler test', () {
