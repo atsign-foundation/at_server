@@ -397,6 +397,34 @@ void main() {
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'delete');
     });
+
+    test(
+        'A test to verify notify verb params are populated when message type is text',
+        () async {
+      var verb = Notify();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+
+      var command = 'notify:update:messagetype:text:@bob:hello';
+      var regex = verb.syntax();
+
+      var notifyVerbHandler = NotifyVerbHandler(keyStore);
+      var notifyResponse = Response();
+      var notifyVerbParams = getVerbParam(regex, command);
+      await notifyVerbHandler.processVerb(
+          notifyResponse, notifyVerbParams, atConnection);
+
+      AtNotification? atNotification =
+          await AtNotificationKeystore.getInstance().get(notifyResponse.data);
+      expect(atNotification?.toAtSign, '@bob');
+      expect(atNotification?.fromAtSign, '@alice');
+      expect(atNotification?.notification, '@bob:hello');
+      expect(atNotification?.type, NotificationType.sent);
+    });
     tearDown(() async => await tearDownFunc());
   });
 

@@ -71,8 +71,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       verbParams[FOR_AT_SIGN] = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-      verbParams[AT_SIGN] =
-          AtUtils.formatAtSign(verbParams[AT_SIGN]) ?? currentAtSign;
+      verbParams[AT_SIGN] = AtUtils.formatAtSign(verbParams[AT_SIGN]);
       logger.finer(
           'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AT_SIGN]} \n key : ${verbParams[AT_KEY]}');
       // When connection is authenticated, it indicates the sender side of the
@@ -174,6 +173,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   Future<void> _handleAuthenticatedConnection(currentAtSign,
       HashMap<String, String?> verbParams, Response response) async {
+    // When messageType is 'text', by syntax sharedBy is not populated, so set it to currentAtSign.
+    verbParams[AT_SIGN] ??= currentAtSign;
     // Check if the sharedBy atSign is currentAtSign. If yes allow to send notifications
     // else throw UnAuthorizedException
     if (!_isAuthorizedToSendNotification(verbParams[AT_SIGN], currentAtSign)) {
