@@ -737,7 +737,7 @@ void main() {
       //autoNotification.expiresAt and notifExpiresAt have the difference of a
       // couple of milli seconds and they cannot asserted to be equal
       // the statement below asserts that the actual expiresAt time is within
-      // a range of 1000 milliseconds of the expected expiresAt
+      // a range of 3000 milliseconds of the expected expiresAt
       expect(autoNotification.expiresAt!.millisecondsSinceEpoch,
           closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
     });
