@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
@@ -7,6 +8,8 @@ class AtMetadataBuilder {
   /// [DateTime]s to millisecond precision - see https://github.com/hivedb/hive/issues/474
   /// for details.
   var currentUtcTimeToMillisecondPrecision = DateTime.now().toUtcMillisecondsPrecision();
+
+  static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
   /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
   /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
@@ -120,6 +123,7 @@ class AtMetadataBuilder {
       atMetaData.ttb = ttb;
       atMetaData.availableAt =
           _getAvailableAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
+      logger.finer('setTTB($ttb) - set availableAt to ${atMetaData.availableAt}');
     }
   }
 

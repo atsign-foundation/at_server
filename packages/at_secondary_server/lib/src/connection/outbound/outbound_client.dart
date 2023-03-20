@@ -126,22 +126,27 @@ class OutboundClient {
     // TODO into this object at construction time.
     AtCacheManager cacheManager = AtSecondaryServerImpl.getInstance().cacheManager;
 
+    String doing = 'checkRemotePublicKey looking up $remotePublicKeyName';
     try {
       remoteResponse = (await lookUp('all:$remotePublicKeyName', handshake: false))!;
     } on KeyNotFoundException {
       // Do nothing
       return;
+    } catch (e, st) {
+      logger.severe('Caught $e while $doing');
+      logger.severe(st);
+      return;
     }
 
-    String doing = 'removing "data:" from the response';
+    doing = 'checkRemotePublicKey removing "data:" from the response';
     try {
       if (remoteResponse.startsWith('data:')) {
         remoteResponse = remoteResponse.replaceFirst('data:', '');
       }
-      doing = 'parsing response from looking up $remotePublicKeyName';
+      doing = 'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
       atData = AtData().fromJson(jsonDecode(remoteResponse));
 
-      doing = 'updating $cachedPublicKeyName in cache';
+      doing = 'checkRemotePublicKey updating $cachedPublicKeyName in cache';
       // Note: Potentially the put here may be doing a lot more than just the put.
       // See AtCacheManager.put for detailed explanation.
       await cacheManager.put(cachedPublicKeyName, atData);
