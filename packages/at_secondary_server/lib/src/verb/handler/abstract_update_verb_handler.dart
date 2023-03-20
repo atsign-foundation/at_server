@@ -170,7 +170,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return updateParams;
   }
 
-  void notify(String? atSign, String? forAtSign, String? key, String? value,
+  dynamic notify(String? atSign, String? forAtSign, String? key, String? value,
       NotificationPriority priority, AtMetaData atMetaData) async {
     if (!_autoNotify) {
       return;
@@ -179,10 +179,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       return;
     }
     key = '$forAtSign:$key$atSign';
-    DateTime? expiresAt;
-    if (atMetaData.ttl != null) {
-      expiresAt = DateTime.now().add(Duration(seconds: atMetaData.ttl!));
-    }
+    int ttlInMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+        .inMilliseconds;
 
     var atNotification = (AtNotificationBuilder()
           ..fromAtSign = atSign
@@ -191,12 +189,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
           ..type = NotificationType.sent
           ..priority = priority
           ..opType = OperationType.update
-          ..expiresAt = expiresAt
+          ..ttl = ttlInMillis
           ..atValue = value
           ..atMetaData = atMetaData)
         .build();
 
     unawaited(notificationManager.notify(atNotification));
+    return atNotification;
   }
 }
 
