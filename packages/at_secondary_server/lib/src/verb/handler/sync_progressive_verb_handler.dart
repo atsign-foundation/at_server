@@ -35,7 +35,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
@@ -54,11 +53,21 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
   /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
   @visibleForTesting
-  Future<void> prepareResponse(int desiredMaxSyncResponseLength, List<KeyStoreEntry> syncResponse, Iterator<dynamic> commitEntryIterator) async {
+  Future<void> prepareResponse(
+      int desiredMaxSyncResponseLength,
+      List<KeyStoreEntry> syncResponse,
+      Iterator<dynamic> commitEntryIterator) async {
     int currentResponseLength = 0;
 
     while (commitEntryIterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
+      var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
+          enforceNameSpace: false);
+      if (atKeyType == KeyType.invalidKey) {
+        logger.warning(
+            '${commitEntryIterator.current.key} is an invalid key. Skipping from adding it to sync response');
+        continue;
+      }
       var keyStoreEntry = KeyStoreEntry();
       keyStoreEntry.key = commitEntryIterator.current.key;
       keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
@@ -82,7 +91,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
 
       var utfJsonEncodedEntry = utf8.encode(jsonEncode(keyStoreEntry));
 
-      bool isOverflow = currentResponseLength + utfJsonEncodedEntry.length > desiredMaxSyncResponseLength;
+      bool isOverflow = currentResponseLength + utfJsonEncodedEntry.length >
+          desiredMaxSyncResponseLength;
 
       // If we've already got an item in the response, and this item would overflow our syncBufferSize
       if (syncResponse.isNotEmpty && isOverflow) {
@@ -97,7 +107,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       syncResponse.add(keyStoreEntry);
 
       if (isOverflow) {
-        logger.finer('Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
+        logger.finer(
+            'Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
         break;
       } else {
         currentResponseLength += utfJsonEncodedEntry.length;

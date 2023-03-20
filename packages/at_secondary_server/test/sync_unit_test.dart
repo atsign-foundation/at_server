@@ -43,7 +43,9 @@ Future<void> setUpMethod() async {
 }
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -287,7 +289,8 @@ void main() {
         ]);
         // Process Batch request
         var batchVerbHandler = BatchVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!, verbHandlerManager);
+            secondaryPersistenceStore!.getSecondaryKeyStore()!,
+            verbHandlerManager);
 
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
@@ -353,7 +356,8 @@ void main() {
           BatchRequest(3, 'update:public:country@alice denmark')
         ]);
         var batchVerbHandler = BatchVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!, verbHandlerManager);
+            secondaryPersistenceStore!.getSecondaryKeyStore()!,
+            verbHandlerManager);
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -526,6 +530,56 @@ void main() {
         syncResponse = jsonDecode(response.data!);
         expect(syncResponse.length, 4);
       });
+
+      test('A test to verify invalid key is not added to the sync response',
+          () async {
+        // Inserting invalid key into the keystore. Since HiveKeyStore.put method as validation to
+        // throw exception for invalid key, calling put method on the hive box.
+        // and inserting the entry into the commit log
+        // The "**" in the key - @invalidkey**.buzz@alice is added to set key as invalid key
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.persistenceManager
+            ?.getBox()
+            .put('@invalidkey**.buzz@alice', AtData()..data = '@alice');
+        AtCommitLog atCommitLog = (secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.commitLog) as AtCommitLog;
+        await atCommitLog.commit('@invalidkey**.buzz@alice', CommitOp.UPDATE);
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+
+        List syncResponse = jsonDecode(response.data!);
+        expect(syncResponse.length, 4);
+
+        expect(syncResponse[0]['atKey'], "@alice:phone.wavi@alice");
+        expect(syncResponse[0]['commitId'], 0);
+        expect(syncResponse[0]['operation'], '+');
+        expect(syncResponse[0]['metadata']['version'], '0');
+
+        expect(syncResponse[1]['atKey'], 'public:country.wavi@alice');
+        expect(syncResponse[1]['commitId'], 1);
+        expect(syncResponse[1]['operation'], '+');
+        expect(syncResponse[1]['metadata']['version'], '0');
+
+        expect(syncResponse[2]['atKey'], '@bob:file-transfer.mosphere@alice');
+        expect(syncResponse[2]['commitId'], 2);
+        expect(syncResponse[2]['operation'], '+');
+        expect(syncResponse[2]['metadata']['version'], '0');
+
+        expect(syncResponse[3]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[3]['commitId'], 3);
+        expect(syncResponse[3]['operation'], '+');
+      });
       tearDown(() async => await tearDownMethod());
     });
     group('A group of test to validate the commit entry data', () {
@@ -557,8 +611,10 @@ void main() {
           encKeyName: 'an_encrypting_key_name',
           encAlgo: 'an_encrypting_algorithm_name',
           ivNonce: 'an_iv_or_nonce',
-          skeEncKeyName: 'an_encrypting_key_name_for_the_inlined_encrypted_shared_key',
-          skeEncAlgo: 'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key',
+          skeEncKeyName:
+              'an_encrypting_key_name_for_the_inlined_encrypted_shared_key',
+          skeEncAlgo:
+              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key',
         ).build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
@@ -592,11 +648,15 @@ void main() {
             'dummy_shared_key');
         expect(syncResponseList[0]['metadata']['pubKeyCS'], 'dummy_checksum');
         expect(syncResponseList[0]['metadata']['encoding'], 'base64');
-        expect(syncResponseList[0]['metadata']['encKeyName'], 'an_encrypting_key_name');
-        expect(syncResponseList[0]['metadata']['encAlgo'], 'an_encrypting_algorithm_name');
+        expect(syncResponseList[0]['metadata']['encKeyName'],
+            'an_encrypting_key_name');
+        expect(syncResponseList[0]['metadata']['encAlgo'],
+            'an_encrypting_algorithm_name');
         expect(syncResponseList[0]['metadata']['ivNonce'], 'an_iv_or_nonce');
-        expect(syncResponseList[0]['metadata']['skeEncKeyName'], 'an_encrypting_key_name_for_the_inlined_encrypted_shared_key');
-        expect(syncResponseList[0]['metadata']['skeEncAlgo'], 'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key');
+        expect(syncResponseList[0]['metadata']['skeEncKeyName'],
+            'an_encrypting_key_name_for_the_inlined_encrypted_shared_key');
+        expect(syncResponseList[0]['metadata']['skeEncAlgo'],
+            'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key');
       });
 
       test(
