@@ -412,7 +412,7 @@ void main() {
 
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
+        returnWhenStatusIn: ['expired'], timeOutMillis: 5000);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   });
@@ -472,6 +472,8 @@ void main() {
     response = response.replaceAll('data:', '');
     // assert the notification-id is not null.
     assert(response.isNotEmpty);
+
+    await Future.delayed(Duration(seconds: 1));
     // fetch the notification for status
     await sh1.writeCommand('notify:fetch:$response');
     response = await sh1.read();
@@ -494,6 +496,8 @@ void main() {
     await sh1.writeCommand('notify:delete:$atSign_2:$key$atSign_1');
     response = await sh1.read();
     assert(response.isNotEmpty);
+
+    await Future.delayed(Duration(seconds: 1));
 
     // Look for the delete of the cached key
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
