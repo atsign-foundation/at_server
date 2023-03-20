@@ -6,12 +6,13 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -711,6 +712,34 @@ void main() {
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'hyderabad');
+    });
+
+    test('test auto_notify notification expiry', () async {
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
+          !.getSecondaryKeyStoreManager()!
+          .getKeyStore();
+      AbstractUpdateVerbHandler.setAutoNotify(true);
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(keyStore, statsNotificationService, notificationManager);
+      AtMetaData metaData = AtMetaData()..ttl = 1000;
+      AtNotification? autoNotification;
+
+      autoNotification = await updateHandler.notify('@from', '@to', 'na',
+          'na-value', NotificationPriority.high, metaData);
+      int ttlInMillis =
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds;
+      DateTime notifExpiresAt = autoNotification!.notificationDateTime!
+          .toUtc()
+          .add(Duration(milliseconds: ttlInMillis));
+
+      expect(autoNotification.id, isNotNull);
+      expect(autoNotification.ttl, ttlInMillis);
+      //autoNotification.expiresAt and notifExpiresAt have the difference of a
+      // couple of milli seconds and they cannot asserted to be equal
+      // the statement below asserts that the actual expiresAt time is within
+      // a range of 3000 milliseconds of the expected expiresAt
+      expect(autoNotification.expiresAt!.millisecondsSinceEpoch,
+          closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
     });
   });
 
