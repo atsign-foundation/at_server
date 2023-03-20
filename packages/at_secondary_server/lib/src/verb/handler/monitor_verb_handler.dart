@@ -116,7 +116,14 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         ..isTextMessageEncrypted =
             atNotification.atMetadata?.isEncrypted != null
                 ? atNotification.atMetadata!.isEncrypted!
-                : false;
+                : false
+        ..metadata = {
+          "encKeyName": atNotification.atMetadata?.encKeyName,
+          "encAlgo": atNotification.atMetadata?.encAlgo,
+          "ivNonce": atNotification.atMetadata?.ivNonce,
+          "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
+          "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
+        };
       processReceivedNotification(notification);
     }
   }
@@ -168,6 +175,7 @@ class Notification {
   String? value;
   late String messageType;
   late bool isTextMessageEncrypted = false;
+  Map? metadata;
 
   Notification.empty();
 
@@ -184,6 +192,13 @@ class Notification {
     isTextMessageEncrypted = atNotification.atMetadata?.isEncrypted != null
         ? atNotification.atMetadata!.isEncrypted!
         : false;
+    metadata = {
+      "encKeyName" : atNotification.atMetadata?.encKeyName,
+      "encAlgo" : atNotification.atMetadata?.encAlgo,
+      "ivNonce" : atNotification.atMetadata?.ivNonce,
+      "skeEncKeyName" : atNotification.atMetadata?.skeEncKeyName,
+      "skeEncAlgo" : atNotification.atMetadata?.skeEncAlgo,
+    };
   }
 
   Map toJson() => {
@@ -195,6 +210,12 @@ class Notification {
         OPERATION: operation,
         EPOCH_MILLIS: dateTime,
         MESSAGE_TYPE: messageType,
-        IS_ENCRYPTED: isTextMessageEncrypted
+        IS_ENCRYPTED: isTextMessageEncrypted,
+        "metadata": metadata
       };
+
+  @override
+  String toString() {
+    return toJson().toString();
+  }
 }

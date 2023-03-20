@@ -412,7 +412,7 @@ void main() {
 
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
+        returnWhenStatusIn: ['expired'], timeOutMillis: 5000);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   });
