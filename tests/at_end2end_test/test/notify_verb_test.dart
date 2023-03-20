@@ -15,12 +15,19 @@ void main() {
 
   var lastValue = Random().nextInt(30);
 
+  late Version atSign1ServerVersion;
+  late Version atSign2ServerVersion;
+
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
+
     atSign_1 = atSigns[0];
     sh1 = await e2e.getSocketHandler(atSign_1);
+    atSign1ServerVersion = Version.parse(await sh1.getVersion());
+
     atSign_2 = atSigns[1];
     sh2 = await e2e.getSocketHandler(atSign_2);
+    atSign2ServerVersion = Version.parse(await sh2.getVersion());
   });
 
   tearDownAll(() {
@@ -80,8 +87,7 @@ void main() {
     expect(response, contains('data:delivered'));
 
     // Fetch notification
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 23)) {
+    if (atSign1ServerVersion > Version(3, 0, 23)) {
       await sh1.writeCommand('notify:fetch:$notificationId');
       response = await sh1.read();
       response = response.replaceFirst('data:', '');
@@ -406,7 +412,7 @@ void main() {
 
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
+        returnWhenStatusIn: ['expired'], timeOutMillis: 5000);
     print('notify status response : $response');
     expect(response, contains('data:expired'));
   });
@@ -466,6 +472,8 @@ void main() {
     response = response.replaceAll('data:', '');
     // assert the notification-id is not null.
     assert(response.isNotEmpty);
+
+    await Future.delayed(Duration(seconds: 1));
     // fetch the notification for status
     await sh1.writeCommand('notify:fetch:$response');
     response = await sh1.read();
@@ -488,6 +496,8 @@ void main() {
     await sh1.writeCommand('notify:delete:$atSign_2:$key$atSign_1');
     response = await sh1.read();
     assert(response.isNotEmpty);
+
+    await Future.delayed(Duration(seconds: 1));
 
     // Look for the delete of the cached key
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
@@ -554,24 +564,34 @@ void main() {
   test('A test to verify subsequent notifications has correct date', () async {
     // Sending first notification
     await sh1.writeCommand('notify:$atSign_2:firstNotification$atSign_1');
-    var response = await sh1.read();
-    response = response.replaceAll('data:', '');
-    await sh2.writeCommand('notify:fetch:$response');
-    response = await sh2.read();
-    response = response.replaceAll('data:', '');
-    var atNotificationMap = jsonDecode(response);
+    var notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
+
+    // Wait for delivered status
+    var deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response, first notification : $deliveryStatus');
+    expect(deliveryStatus, contains('data:delivered'));
+
+    await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
+    var notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
+    var atNotificationMap = jsonDecode(notificationIdFromAtSign2);
     var firstNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
             .microsecondsSinceEpoch;
 
     // Sending second notification
     await sh1.writeCommand('notify:$atSign_2:secondNotification$atSign_1');
-    response = await sh1.read();
-    response = response.replaceAll('data:', '');
-    await sh2.writeCommand('notify:fetch:$response');
-    response = await sh2.read();
-    response = response.replaceAll('data:', '');
-    atNotificationMap = jsonDecode(response);
+    notificationIdFromAtSign1 = (await sh1.read()).replaceAll('data:', '');
+
+    // Wait for delivered status
+    deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response, second notification : $deliveryStatus');
+    expect(deliveryStatus, contains('data:delivered'));
+
+    await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
+    notificationIdFromAtSign2 = (await sh2.read()).replaceAll('data:', '');
+    atNotificationMap = jsonDecode(notificationIdFromAtSign2);
     var secondNotificationDateInEpoch =
         DateTime.parse(atNotificationMap['notificationDateTime'])
             .microsecondsSinceEpoch;
@@ -582,8 +602,10 @@ void main() {
   test('notify verb for notifying a key update with shared key metadata',
       () async {
     /// NOTIFY VERB
-    await sh1.writeCommand(
-        'notify:update:messageType:key:notifier:SYSTEM:ttln:86400000:ttr:60000:ccd:false:sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae:$atSign_2:phone.wavi$atSign_1:E5skXtdiGbEJ9nY6Kvl+UA==');
+    await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
+        ':ttln:86400000:ttr:60000:ccd:false'
+        ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
+        ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
@@ -601,11 +623,82 @@ void main() {
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
     expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
-    expect(decodedResponse['data'], 'E5skXtdiGbEJ9nY6Kvl+UA==');
+    expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], 'abc');
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
+  });
+
+  test('notify verb for notifying a key update with new encryption metadata',
+      () async {
+    /// NOTIFY VERB
+    var sharedKeyEnc = 'abc';
+    var pubKeyCS = '3c55db695d94b304827367a4f5cab8ae';
+    var encKeyName = 'someEncKeyName';
+    var encAlgo = 'AES/CTR/PKCS7Padding';
+    var iv = 'anInitializationVector';
+    var skeEncKeyName = 'someSkeEncKeyName';
+    var skeEncAlgo = 'RSA-2048';
+    var ttln = 60 * 1000; // 60 seconds
+
+    if (atSign1ServerVersion < Version(3, 0, 29)) {
+      // Server version 3.0.28 or earlier will not process new metadata
+      // No point in trying to send anything
+      return;
+    }
+
+    await sh1.writeCommand(
+        'notify:update'
+            ':messageType:key'
+            ':notifier:SYSTEM'
+            ':ttln:$ttln'
+            ':ttr:10'
+            ':ccd:false'
+            ':sharedKeyEnc:$sharedKeyEnc'
+            ':pubKeyCS:$pubKeyCS'
+            ':encKeyName:$encKeyName'
+            ':encAlgo:$encAlgo'
+            ':ivNonce:$iv'
+            ':skeEncKeyName:$skeEncKeyName'
+            ':skeEncAlgo:$skeEncAlgo'
+            ':$atSign_2:phone.wavi$atSign_1'
+            ':Some ciphertext');
+    String response = await sh1.read();
+    print('notify verb response : $response');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+
+    // notify status
+    response = await getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+    print('notify status response : $response');
+    expect(response, contains('data:delivered'));
+
+    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
+    response = await sh2.read();
+    response = response.replaceAll('data:', '');
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
+    expect(decodedResponse['data'], 'Some ciphertext');
+    expect(decodedResponse['metaData']['sharedKeyEnc'], sharedKeyEnc);
+    expect(decodedResponse['metaData']['pubKeyCS'], pubKeyCS);
+    expect(decodedResponse['metaData']['ttr'], 10);
+
+    if (atSign2ServerVersion > Version(3, 0, 28)) {
+      expect(decodedResponse['metaData']['encKeyName'], encKeyName);
+      expect(decodedResponse['metaData']['encAlgo'], encAlgo);
+      expect(decodedResponse['metaData']['ivNonce'], iv);
+      expect(decodedResponse['metaData']['skeEncKeyName'], skeEncKeyName);
+      expect(decodedResponse['metaData']['skeEncAlgo'], skeEncAlgo);
+    } else {
+      expect(decodedResponse['metaData']['encKeyName'], null);
+      expect(decodedResponse['metaData']['encAlgo'], null);
+      expect(decodedResponse['metaData']['ivNonce'], null);
+      expect(decodedResponse['metaData']['skeEncKeyName'], null);
+      expect(decodedResponse['metaData']['skeEncAlgo'], null);
+    }
   });
 }
 

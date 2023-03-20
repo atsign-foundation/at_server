@@ -111,9 +111,13 @@ void main() {
       var bobNewPublicKeypair = RSAKeypair.fromRandom();
       late AtData bobNewPublicKeyAtData;
       late String bobNewPublicKeyAsJson;
+      DateTime now = DateTime.now().toUtcMillisecondsPrecision();
       bobNewPublicKeyAtData = AtData();
       bobNewPublicKeyAtData.data = bobNewPublicKeypair.publicKey.toString();
-      bobNewPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=DateTime.now().toUtc()..updatedAt=DateTime.now().toUtc();
+      bobNewPublicKeyAtData.metaData = AtMetaData()
+        ..ttr=-1
+        ..createdAt=now
+        ..updatedAt=now;
       bobNewPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobNewPublicKeyAtData, key: 'public:publickey$bob')!;
       bobNewPublicKeyAtData = AtData().fromJson(jsonDecode(bobNewPublicKeyAsJson));
       when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
@@ -128,8 +132,14 @@ void main() {
       expect(originalCachedBobPublicKeyData.data == bobOriginalPublicKeyAtData.data, true);
       expect(newCachedBobPublicKeyData.data != bobOriginalPublicKeyAtData.data, true);
       expect(newCachedBobPublicKeyData.data == bobNewPublicKeyAtData.data, true);
-      expect(originalCachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch < bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch, true);
-      expect(newCachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch > bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch, true);
+      expect(
+          originalCachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch <
+              bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
+          true);
+      expect(
+          newCachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch >
+              bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
+          true);
     });
 
     test('bob public encryption key changed, shared_key.bob@alice removed but preserved', () async {
@@ -166,9 +176,13 @@ void main() {
       var bobNewPublicKeypair = RSAKeypair.fromRandom();
       late AtData bobNewPublicKeyAtData;
       late String bobNewPublicKeyAsJson;
+      DateTime now = DateTime.now().toUtcMillisecondsPrecision();
       bobNewPublicKeyAtData = AtData();
       bobNewPublicKeyAtData.data = bobNewPublicKeypair.publicKey.toString();
-      bobNewPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=DateTime.now().toUtc()..updatedAt=DateTime.now().toUtc();
+      bobNewPublicKeyAtData.metaData = AtMetaData()
+        ..ttr=-1
+        ..createdAt=now
+        ..updatedAt=now;
       bobNewPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobNewPublicKeyAtData, key: 'public:publickey$bob')!;
       bobNewPublicKeyAtData = AtData().fromJson(jsonDecode(bobNewPublicKeyAsJson));
       when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))

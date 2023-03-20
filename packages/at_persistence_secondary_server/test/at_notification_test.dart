@@ -18,5 +18,18 @@ void main() async {
       sleep(Duration(milliseconds: 50));
       expect(atNotification.isExpired(), false);
     });
+
+    test('test notificationExpiry time', () {
+      final builder = AtNotificationBuilder();
+      final notification = builder.build();
+      var notifExpiresAt = DateTime.now().toUtc().add(Duration(minutes: 15));
+      //when ttl is not passed, 15-mins is used as the default ttl
+      //notification.expiresAt and notifExpiresAt have the difference of a
+      // couple of milli seconds and cannot asserted to be equal
+      // the statement below asserts that the actual expiresAt time is within
+      // a range of 3000 milliseconds of the expected expiresAt
+      expect(notification.expiresAt!.millisecondsSinceEpoch,
+          closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
+    });
   });
 }

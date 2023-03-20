@@ -75,4 +75,7 @@ if [ ! -L certs ]; then
   ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs .
 fi
 
+# Finally, we need to copy the pubspec.yaml file to the working directory, for the version
+cp "$scriptDir"/../../../../packages/at_secondary_server/pubspec.yaml .
+
 dart "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

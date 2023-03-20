@@ -11,6 +11,8 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -21,6 +23,8 @@ import 'package:at_lookup/at_lookup.dart' as at_lookup;
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+class MockNotificationManager extends Mock implements NotificationManager {}
+class MockStatsNotificationService extends Mock implements StatsNotificationService {}
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 class MockSecondaryAddressFinder extends Mock implements at_lookup.SecondaryAddressFinder {}
 class MockOutboundConnectionFactory extends Mock implements OutboundConnectionFactory {}
@@ -50,6 +54,8 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
+late MockNotificationManager notificationManager;
+late MockStatsNotificationService statsNotificationService;
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
@@ -151,11 +157,13 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey = bobServerSigningKeypair.privateKey.toString();
 
-  DateTime now = DateTime.fromMillisecondsSinceEpoch(DateTime.now().toUtc().millisecondsSinceEpoch);
-
+  DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
   bobOriginalPublicKeyAtData.data = bobOriginalPublicKeypair.publicKey.toString();
-  bobOriginalPublicKeyAtData.metaData = AtMetaData()..ttr=-1..createdAt=now..updatedAt=now;
+  bobOriginalPublicKeyAtData.metaData = AtMetaData()
+    ..ttr=-1
+    ..createdAt=now
+    ..updatedAt=now;
   bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobOriginalPublicKeyAtData, key: 'public:publickey$bob')!;
   bobOriginalPublicKeyAtData = AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
 
@@ -179,6 +187,14 @@ verbTestsSetUp() async {
       .thenAnswer((Invocation invocation) async {
     socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
+
+  notificationManager = MockNotificationManager();
+  registerFallbackValue(AtNotificationBuilder().build());
+  when(() => notificationManager.notify(any()))
+      .thenAnswer((invocation) async => 'some-notification-id');
+
+  statsNotificationService = MockStatsNotificationService();
+  when(() => statsNotificationService.writeStatsToMonitor()).thenAnswer((invocation) {});
 }
 
 verbTestsTearDown() async {
@@ -211,6 +227,28 @@ AtData createRandomAtData(String owner, {String? data, Metadata? commonsMetadata
   return atData;
 }
 
+Metadata createRandomCommonsMetadata({bool noNullsPlease = false}) {
+  Metadata md = Metadata();
+
+  md.isEncrypted = createRandomBoolean();
+  md.isBinary = createRandomBoolean();
+  md.encoding = createRandomString(5);
+  md.pubKeyCS = createRandomString(5);
+  md.sharedKeyEnc = createRandomString(10);
+  md.dataSignature = createRandomString(7);
+  md.ccd = createRandomBoolean();
+  md.ttl = createRandomPositiveInt();
+  md.ttb = createRandomPositiveInt();
+  md.ttr = createRandomPositiveInt();
+  md.encKeyName = createRandomString(6);
+  md.encAlgo = createRandomString(3);
+  md.ivNonce = createRandomString(5);
+  md.skeEncKeyName = createRandomString(6);
+  md.skeEncAlgo = createRandomString(3);
+
+  return md;
+}
+
 AtMetaData createRandomAtMetaData(String owner, {Metadata? commonsMetadata, DateTime? refreshAt}) {
   late AtMetaData md;
 
@@ -236,14 +274,22 @@ AtMetaData createRandomAtMetaData(String owner, {Metadata? commonsMetadata, Date
 
   md.createdBy = owner;
   md.updatedBy = owner;
-  DateTime now = DateTime.now().toUtc();
+  DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   md.createdAt = now;
   md.updatedAt = now;
 
   return md;
 }
 
-int? createRandomNullablePositiveInt({int maxInclusive = 100000}) {
+int createRandomPositiveInt({int maxInclusive = 100000}) {
+  // We'll make it zero 20% of the time
+  if (testUtilsRandom.nextInt(5) == 0) {
+    return 0;
+  }
+  return testUtilsRandom.nextInt(maxInclusive) + 1;
+}
+
+int? createRandomNullablePositiveInt({int minInclusive = 100, int maxInclusive = 100000}) {
   // We'll make it null 50% of the time
   if (testUtilsRandom.nextInt(2) == 0) {
     return null;
@@ -252,7 +298,7 @@ int? createRandomNullablePositiveInt({int maxInclusive = 100000}) {
   if (testUtilsRandom.nextInt(5) == 0) {
     return 0;
   }
-  return testUtilsRandom.nextInt(maxInclusive) + 1;
+  return testUtilsRandom.nextInt(maxInclusive-minInclusive) + minInclusive;
 }
 
 bool? createRandomNullableBoolean() {
@@ -260,6 +306,11 @@ bool? createRandomNullableBoolean() {
   if (i == 0) return null;
   if (i == 1) return false;
   return true;
+}
+
+bool createRandomBoolean() {
+  int i = testUtilsRandom.nextInt(2);
+  return (i == 1);
 }
 
 const String characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';

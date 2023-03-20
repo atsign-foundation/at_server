@@ -162,7 +162,7 @@ class ResourceManager {
         // All notifications for this atSign have been cleared; we can remove the waitTimeEntry for this atSign
         AtNotificationMap.getInstance().removeWaitTimeEntry(atSign);
       }
-    } on Exception catch (e) {
+    } catch (e) {
       logger.severe(
           'Exception in processing the notification ${atNotification.id} : ${e.toString()}');
       errorList.add(atNotification);
@@ -190,15 +190,37 @@ class ResourceManager {
     }
   }
 
-  /// Prepares the notification key.
+  /// Prepares the notification command
   /// Accepts [AtNotification]
-  /// Returns the key of notification key.
   @visibleForTesting
   String prepareNotifyCommandBody(AtNotification atNotification) {
+    // [gkc] I really don't like that the command string is being built from
+    // the end backwards to the start; it has confused me every time I've
+    // looked at this code.
     String commandBody;
     commandBody = '${atNotification.notification}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      if (atNotification.atMetadata!.skeEncAlgo != null) {
+        commandBody =
+            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';
+      }
+      if (atNotification.atMetadata!.skeEncKeyName != null) {
+        commandBody =
+            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.skeEncKeyName}:$commandBody';
+      }
+      if (atNotification.atMetadata!.ivNonce != null) {
+        commandBody =
+            '$IV_OR_NONCE:${atNotification.atMetadata!.ivNonce}:$commandBody';
+      }
+      if (atNotification.atMetadata!.encAlgo != null) {
+        commandBody =
+            '$ENCRYPTING_ALGO:${atNotification.atMetadata!.encAlgo}:$commandBody';
+      }
+      if (atNotification.atMetadata!.encKeyName != null) {
+        commandBody =
+            '$ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.encKeyName}:$commandBody';
+      }
       if (atNotification.atMetadata!.pubKeyCS != null) {
         commandBody =
             '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
@@ -233,7 +255,7 @@ class ResourceManager {
       commandBody =
           '${atNotification.opType.toString().split('.').last}:$commandBody';
     }
-    // appending id to the notify command.
+    // prepending id to the notify command.
     commandBody = 'id:${atNotification.id}:$commandBody';
     return commandBody;
   }

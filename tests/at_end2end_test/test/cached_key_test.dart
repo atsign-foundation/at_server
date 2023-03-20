@@ -152,6 +152,9 @@ void main() {
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
 
+      // Wait a few seconds to make sure the message has got to atSign_2
+      await Future.delayed(Duration(seconds: 3));
+
       ///lookup verb alice  atsign_2
       await sh2.writeCommand('lookup:fav-city$atSign_1');
       response = await sh2.read();

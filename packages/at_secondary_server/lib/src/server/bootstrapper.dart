@@ -55,7 +55,7 @@ class SecondaryServerBootStrapper {
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, stackTrace) {
-        logger.severe('Uncaught error: $error \n Stacktrace: $stackTrace');
+        logger.severe('Uncaught error: $error \n StackTrace: $stackTrace');
         handleTerminateSignal(ProcessSignal.sigstop);
       }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);

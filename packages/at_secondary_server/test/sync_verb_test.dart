@@ -118,7 +118,7 @@ void main() {
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       await verbHandler.processVerb(response, verbParams, atConnection);
-      print(response.data);
+
       Map syncResponseMap = (jsonDecode(response.data!)).first;
       expect(syncResponseMap['atKey'], 'phone.wavi@alice');
       expect(syncResponseMap['value'], '+9189877783232');
@@ -140,15 +140,15 @@ void main() {
       AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
 
       // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
+      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() > 0);
 
       List<KeyStoreEntry> syncResponse = [];
       await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha');
+      expect(syncResponse[0].key, 'test_key_alpha@alice');
     });
 
     test('overflowing entry not added to syncResponse when syncResponse not empty', () async {
@@ -158,8 +158,8 @@ void main() {
       List<KeyStoreEntry> syncResponse = [];
 
       // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
+      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -179,12 +179,12 @@ void main() {
       syncResponse.clear();
       await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha');
+      expect(syncResponse[0].key, 'test_key_alpha@alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(1));
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key2_beta');
+      expect(syncResponse[0].key, 'test_key2_beta@alice');
     });
 
     test('test to ensure all entries are synced if buffer does not overflow', () async {
@@ -192,10 +192,10 @@ void main() {
       AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
 
       // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta', CommitOp.UPDATE);
-      await atCommitLog.commit('abcd', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('another_random_key', CommitOp.UPDATE_META);
+      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('abcd@alice', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('another_random_key@alice', CommitOp.UPDATE_META);
 
       // ensure commitLog is not empty
       var commitLogLength = atCommitLog.entriesCount();
@@ -216,10 +216,10 @@ void main() {
       // added to syncResponse
       expect(syncResponse.length, commitLogLength + 1);
       expect(syncResponse[0], entry);
-      expect(syncResponse[1].key, 'test_key_alpha');
-      expect(syncResponse[2].key, 'test_key2_beta');
-      expect(syncResponse[3].key, 'abcd');
-      expect(syncResponse[4].key, 'another_random_key');
+      expect(syncResponse[1].key, 'test_key_alpha@alice');
+      expect(syncResponse[2].key, 'test_key2_beta@alice');
+      expect(syncResponse[3].key, 'abcd@alice');
+      expect(syncResponse[4].key, 'another_random_key@alice');
     });
 
     test('ensure only one overflowing entry is added to syncResponse when commitLog has two large entries', () async {
@@ -227,20 +227,20 @@ void main() {
       AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice')))!;
 
       // Creating dummy commit entries
-      await atCommitLog.commit('test_key1', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2', CommitOp.UPDATE);
+      await atCommitLog.commit('test_key1@alice', CommitOp.UPDATE_ALL);
+      await atCommitLog.commit('test_key2@alice', CommitOp.UPDATE);
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() == 2);
 
       List<KeyStoreEntry> syncResponse = [];
       await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key1');
+      expect(syncResponse[0].key, 'test_key1@alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(0, syncResponse, atCommitLog.getEntries(1));
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key2');
+      expect(syncResponse[0].key, 'test_key2@alice');
 
       // test with empty iterator
       syncResponse.clear();
