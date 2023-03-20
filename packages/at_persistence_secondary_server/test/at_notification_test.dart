@@ -29,7 +29,7 @@ void main() async {
       // the statement below asserts that the actual expiresAt time is within
       // a range of 100 milliseconds of the expected expiresAt
       expect(notification.expiresAt!.millisecondsSinceEpoch,
-          closeTo(notifExpiresAt.millisecondsSinceEpoch, 5000));
+          closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
     });
   });
 }
