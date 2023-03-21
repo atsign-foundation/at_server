@@ -58,8 +58,9 @@ export secondaryStoragePath="$storageDir/hive"
 export commitLogPath="$storageDir/commitLog"
 export accessLogPath="$storageDir/accessLog"
 export notificationStoragePath="$storageDir/notificationLog.v1"
+export inbound_max_limit=200
 
-export logLevel="INFO"
+export logLevel="WARNING"
 
 export testingMode="true"
 
