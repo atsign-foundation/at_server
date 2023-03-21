@@ -550,9 +550,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Terminating all inbound connections");
       inboundConnectionFactory.removeAllConnections();
 
-      logger.info("Terminating all outbound connections");
-      outboundClientManager.close();
-
       logger.info("Stopping Notification Resource Manager");
       notificationResourceManager.stop();
 
