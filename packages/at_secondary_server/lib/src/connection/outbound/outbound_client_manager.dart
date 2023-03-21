@@ -60,11 +60,6 @@ class OutboundClientManager {
     return newClient;
   }
 
-  close() {
-    closed = true;
-    _pool.close();
-  }
-
   int getActiveConnectionSize() {
     return _pool.getActiveConnectionSize();
   }
