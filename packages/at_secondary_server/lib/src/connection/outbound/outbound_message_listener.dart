@@ -50,7 +50,7 @@ class OutboundMessageListener {
       }
     } else {
       _buffer.clear();
-      throw BufferOverFlowException('OutboundBuffer overflow: server received'
+      throw BufferOverFlowException('OutboundBuffer overflow: server sent'
           ' request which was longer than the maximum of bytes.'
           ' Terminating the connection.');
     }
