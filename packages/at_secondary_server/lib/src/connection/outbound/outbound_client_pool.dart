@@ -19,11 +19,6 @@ class OutboundClientPool {
     return _clients.length < size;
   }
 
-  close() {
-    closed = true;
-    clearAllClients();
-  }
-
   /// Removes the least recently used OutboundClient from the pool. Returns the removed client,
   /// or returns null if there are fewer than 2 items currently in the pool.
   OutboundClient? removeLeastRecentlyUsed() {
