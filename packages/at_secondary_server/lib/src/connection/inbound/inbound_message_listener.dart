@@ -63,7 +63,7 @@ class InboundMessageListener {
     } else {
       _buffer.clear();
       await GlobalExceptionHandler.getInstance().handle(
-          BufferOverFlowException('OutboundBuffer overflow: server received'
+          BufferOverFlowException('InboundBuffer overflow: server received'
               ' request which exceeded the buffer size limit.'
               ' Terminating the connection.'),
           atConnection: connection);
