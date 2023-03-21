@@ -229,7 +229,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///key Key to delete.
   Future<int?> _removeCachedKey(String cachedKey) async {
     var metadata = await keyStore.getMeta(cachedKey);
-    print(metadata);
     if (metadata != null && metadata.isCascade) {
       logger.info('Removed cached key $cachedKey');
       return await keyStore.remove(cachedKey);
