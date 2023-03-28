@@ -1,0 +1,178 @@
+name: end2end_test
+on:
+   push:
+env:
+  proot-working-directory: ./packages/at_persistence_root_server
+  root-working-directory: ./packages/at_root_server
+  psecondary-working-directory: ./packages/at_persistence_secondary_server
+  secondary-working-directory: ./packages/at_secondary_server
+  ftest-working-directory: ./tests/at_functional_test
+  e2etest-working-directory: ./tests/at_end2end_test
+
+jobs:
+  end2end_test_prep:
+    # Don't run on PRs from a fork or Dependabot as the secrets aren't available
+    if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+
+      - name: Place run number into version within pubspec.yaml
+        working-directory: ${{ env.secondary-working-directory }}
+        run: |
+          sed -i "0,/version/ s/version\:.*/&+gha${{ github.run_number }}/" pubspec.yaml
+          grep version pubspec.yaml | head -1
+
+  end2end_test:
+    needs: [ end2end_test_prep ]
+    concurrency: cicdtest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: dart-lang/setup-dart@a57a6c04cf7d4840e88432aad6281d1e125f0d46 # v 1.4
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: ${{ env.e2etest-working-directory }}
+        run: dart pub get
+
+      - name: Fetch Atsign Name
+        id: atsign_names
+        run: |
+          sleep 20
+          atsign1_response=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_PASS}}' --header 'Content-Type: application/json' -w '%{http_code}' -o atsign1_response.json)
+          atsign2_response=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_PASS}}' --header 'Content-Type: application/json' -w '%{http_code}' -o atsign2_response.json)
+          if [ $atsign1_response -eq 200 ] && [ $atsign2_response -eq 200 ]; then
+            ATISGN1=$(cat atsign1_response.json |  jq -r '.value.atSign')
+            ATISGN1_KEY=$(cat atsign1_response.json |  jq -r '.value.ActivationKey')
+            ATISGN2=$(cat atsign2_response.json |  jq -r '.value.atSign')
+            ATISGN2_KEY=$(cat atsign2_response.json |  jq -r '.value.ActivationKey')    
+            echo "atsign1: $ATISGN1"
+            echo "atsign2: $ATISGN2" 
+            echo "ATSIGN_1_NAME=$(echo $ATISGN1)" >> $GITHUB_OUTPUT
+            echo "ATSIGN_2_NAME=$(echo $ATISGN2)" >> $GITHUB_OUTPUT  
+            echo "ATISGN1_KEY=$(echo $ATISGN1_KEY)" >> $GITHUB_OUTPUT
+            echo "ATISGN2_KEY=$(echo $ATISGN2_KEY)" >> $GITHUB_OUTPUT                  
+          else
+            echo "Error fetching atsign name"
+            exit 1
+          fi                  
+      
+      - name: Fetch Cram Key
+        id: cram_keys
+        run: |     
+          sleep 20
+          cram_key1_response=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_PASS}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$ATSIGN_1_NAME\",\"ActivationKey\":\"$ATISGN1_KEY\"}"  -w '%{http_code}' -o cram_key1_response.json)
+          cram_key2_response=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_PASS}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$ATSIGN_2_NAME\",\"ActivationKey\":\"$ATISGN2_KEY\"}"  -w '%{http_code}' -o cram_key2_response.json)    
+          if [ $cram_key1_response -eq 200 ] && [ $cram_key2_response -eq 200 ]; then
+            CRAM_KEY1=$(cat cram_key1_response.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)    
+            echo "cram_key1: $CRAM_KEY1"
+            CRAM_KEY2=$(cat cram_key2_response.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)    
+            echo "cram_key2: $CRAM_KEY2"
+            echo "CRAM_KEY1=$(echo $CRAM_KEY1)" >> $GITHUB_OUTPUT
+            echo "CRAM_KEY2=$(echo $CRAM_KEY2)" >> $GITHUB_OUTPUT       
+          else
+            echo "Error fetching Cram Key"
+            exit 1
+          fi  
+        env:
+          ATSIGN_1_NAME: ${{ steps.atsign_names.outputs.ATSIGN_1_NAME }}   
+          ATSIGN_2_NAME: ${{ steps.atsign_names.outputs.ATSIGN_2_NAME }} 
+          ATISGN1_KEY: ${{ steps.atsign_names.outputs.ATISGN1_KEY }} 
+          ATISGN2_KEY: ${{ steps.atsign_names.outputs.ATISGN2_KEY }}         
+
+
+      - name: Fetch Atsign Hostname
+        id: atsign_hosts
+        run: |  
+          sleep 20
+          atsign1_hostname=$((echo $ATSIGN_1_NAME; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
+          atsign2_hostname=$((echo $ATSIGN_2_NAME; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
+          if [ ! -z "$atsign1_hostname" ] && [ ! -z "$atsign2_hostname" ]; then
+            ATSIGN1_PORT=$(echo $atsign1_hostname | cut -d':' -f2 | sed 's/\s*$//')
+            echo $ATSIGN1_PORT
+            ATSIGN2_PORT=$(echo $atsign2_hostname | cut -d':' -f2 | sed 's/\s*$//')
+            echo $ATSIGN2_PORT
+            ATSIGN1_HOST=$(echo $atsign1_hostname | cut -d':' -f1)
+            echo $ATSIGN1_HOST
+            ATSIGN2_HOST=$(echo $atsign2_hostname | cut -d':' -f1)      
+            echo $ATSIGN2_HOST   
+            echo "ATSIGN1_HOST=$(echo $ATSIGN1_HOST)" >> $GITHUB_OUTPUT
+            echo "ATSIGN2_HOST=$(echo $ATSIGN2_HOST)" >> $GITHUB_OUTPUT   
+            echo "ATSIGN1_PORT=$(echo $ATSIGN1_PORT)" >> $GITHUB_OUTPUT
+            echo "ATSIGN2_PORT=$(echo $ATSIGN2_PORT)" >> $GITHUB_OUTPUT                                            
+          else
+            echo "Error fetching Atsign Hostname"
+            exit 1
+          fi   
+        env:
+          ATSIGN_1_NAME: ${{ steps.atsign_names.outputs.ATSIGN_1_NAME }}   
+          ATSIGN_2_NAME: ${{ steps.atsign_names.outputs.ATSIGN_2_NAME }}             
+
+      - name: Check Connection 
+        run: |                    
+          sleep 20
+          host_status1=$((echo info; sleep 1) | openssl s_client  -connect $ATSIGN1_HOST:$ATSIGN1_PORT)
+          host_status2=$((echo info; sleep 1) | openssl s_client  -connect $ATSIGN2_HOST:$ATSIGN2_PORT)
+          if [ ! "$host_status1" == *"error"* ] && [ ! "$host_status2" == *"error"* ]; then
+            sed -i "s/ATSIGN_1_NAME/@$ATSIGN_1_NAME/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+            sed -i "s/ATSIGN_1_PORT/$ATSIGN1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+            sed -i "s/ATSIGN_1_HOST/$ATSIGN1_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+            sed -i "s/ATSIGN_2_NAME/@$ATSIGN_2_NAME/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+            sed -i "s/ATSIGN_2_PORT/$ATSIGN2_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+            sed -i "s/ATSIGN_2_HOST/$ATSIGN2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml  
+            mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
+            cat tests/at_end2end_test/config/config.yaml 
+            echo "connection successfull"
+          else
+            echo "connection error"
+          fi  
+        env:   
+          ATSIGN_1_NAME: ${{ steps.atsign_names.outputs.ATSIGN_1_NAME }}   
+          ATSIGN_2_NAME: ${{ steps.atsign_names.outputs.ATSIGN_2_NAME }} 
+          ATSIGN1_HOST: ${{ steps.atsign_hosts.outputs.ATSIGN1_HOST }} 
+          ATSIGN2_HOST: ${{ steps.atsign_hosts.outputs.ATSIGN2_HOST }} 
+          ATSIGN1_PORT: ${{ steps.atsign_hosts.outputs.ATSIGN1_PORT }}
+          ATSIGN2_PORT: ${{ steps.atsign_hosts.outputs.ATSIGN2_PORT }}                 
+  
+      - name: cloning at_libraries
+        uses: actions/checkout@v3
+        with:
+          repository: atsign-foundation/at_libraries
+          path: at_libraries
+          ref: trunk
+      - name: Activating Atsign    
+        run: |
+          mkdir -p /home/runner/.atsign/keys
+          ls -lrth at_libraries
+          cd at_libraries/packages/at_onboarding_cli/
+          dart pub get
+          dart run bin/activate_cli.dart -a @$ATSIGN_1_NAME -c $CRAM_KEY1 -r  root.atsign.wtf
+          dart run bin/activate_cli.dart -a @$ATSIGN_2_NAME -c $CRAM_KEY2 -r  root.atsign.wtf
+        env:
+          ATSIGN_1_NAME: ${{ steps.atsign_names.outputs.ATSIGN_1_NAME }}   
+          ATSIGN_2_NAME: ${{ steps.atsign_names.outputs.ATSIGN_2_NAME }}         
+          CRAM_KEY1: ${{ steps.cram_keys.outputs.CRAM_KEY1 }} 
+          CRAM_KEY2: ${{ steps.cram_keys.outputs.CRAM_KEY2 }}  
+
+      - name: cloning at_tools
+        uses: actions/checkout@v3
+        with:
+          repository: atsign-foundation/at_tools
+          path: at_tools
+          ref: trunk
+      
+      - name: Generate the at_demo_data.dart    
+        run: |
+          cd at_tools/packages/at_dump_atKeys/
+          dart pub get
+          dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/    
+          cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
+      # Run end to end test
+      - name: End to end test
+        working-directory: ${{ env.e2etest-working-directory }}
+        run: dart test --concurrency=1          
+
