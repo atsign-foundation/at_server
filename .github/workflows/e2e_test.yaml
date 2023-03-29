@@ -9,6 +9,7 @@ env:
   ftest-working-directory: ./tests/at_functional_test
   e2etest-working-directory: ./tests/at_end2end_test
 
+
 jobs:
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
@@ -169,8 +170,9 @@ jobs:
         run: |
           cd at_tools/packages/at_dump_atKeys/
           dart pub get
-          dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/    
+          dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/ -p pkam   
           cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
+
       # Run end to end test
       - name: End to end test
         working-directory: ${{ env.e2etest-working-directory }}
