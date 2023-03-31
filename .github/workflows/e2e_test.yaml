@@ -184,13 +184,13 @@ jobs:
           --header 'Authorization: ${{secrets.NODE_API_DELETE}}' \
           --header 'Content-Type: application/json' \
           --data-raw '{
-              "atsign" : "$ATSIGN_1_NAME"
+              "atsign" : '$ATSIGN_1_NAME'
           }'
           curl --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
           --header 'Authorization: ${{secrets.NODE_API_DELETE}}' \
           --header 'Content-Type: application/json' \
           --data-raw '{
-              "atsign" : "$ATSIGN_2_NAME"
+              "atsign" : '$ATSIGN_2_NAME'
           }'
         env:
           ATSIGN_1_NAME: ${{ steps.atsign_names.outputs.ATSIGN_1_NAME }}   
