@@ -68,11 +68,11 @@ jobs:
         id: cram_keys
         run: |     
           sleep 20
-          CRAM_1_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$ATSIGN_1_NAME\",\"ActivationKey\":\"$ATISGN1_KEY\"}"  -w '%{http_code}' -o cram_resp_1.json)
-          CRAM_2_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$ATSIGN_2_NAME\",\"ActivationKey\":\"$ATISGN2_KEY\"}"  -w '%{http_code}' -o cram_resp_2.json)    
+          CRAM_1_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_1\",\"ActivationKey\":\"$AT_SIGN_1_KEY\"}"  -w '%{http_code}' -o cram_1_resp.json)
+          CRAM_2_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_2\",\"ActivationKey\":\"$AT_SIGN_2_KEY\"}"  -w '%{http_code}' -o cram_2_resp.json)    
           if [ $CRAM_1_RESP -eq 200 ] && [ $CRAM_2_RESP -eq 200 ]; then
-            CRAM_KEY_1=$(cat cram_resp_1.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)   
-            CRAM_KEY_2=$(cat cram_resp_2.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)  
+            CRAM_KEY_1=$(cat cram_1_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)   
+            CRAM_KEY_2=$(cat cram_1_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)  
             echo "CRAM_KEY_1: $CRAM_KEY_1"   
             echo "CRAM_KEY_2: $CRAM_KEY_2"
             echo "CRAM_KEY_1=$(echo $CRAM_KEY_1)" >> $GITHUB_OUTPUT
