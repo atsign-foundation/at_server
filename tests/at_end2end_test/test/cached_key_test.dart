@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:test/test.dart';
-import 'package:version/version.dart';
 import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
 
@@ -143,12 +142,22 @@ void main() {
   try {
     test('update-lookup verb passing bypassCache ', () async {
       ///Update verb on atsign_1
+      // Check if TestingMode is enabled on the secondary server
+      // If yes allow the test to run, else skip
+      await sh1.writeCommand('config:print:autoNotify\n');
+      String response = await sh1.read();
+      // If the response is not true, testingMode is NOT enabled on the secondary server
+      // So, do not run the test.
+      if (!response.contains('true')) {
+        print('Testing mode is not enabled on the secondary server: $atSign_1. So skipping the test');
+        return;
+      }
+
       try {
         var oldValue = 'Hyderabad';
-
         await sh1.writeCommand(
             'update:ttr:100000:$atSign_2:fav-city$atSign_1  $oldValue');
-        String response = await sh1.read();
+        response = await sh1.read();
         print('update verb response : $response');
         assert((!response.contains('Invalid syntax')) &&
             (!response.contains('null')));
@@ -193,16 +202,7 @@ void main() {
         print('config set verb response is $response');
         expect(response, contains('data:ok'));
       }
-
-      // reset the autoNotify to default
-      /* More on skipping the test:
-       This tests needs testingMode set to true on the secondary server
-       At the moment, since the secondary are not created for each run, the
-       testingMode is set during the start of the secondary server in dess environment
-       Need to explore a way on how to set testingMode to true when secondaries are created
-       on the fly
-       */
-    }, skip: Skip('Skipping this test until a way to set testingMode to true on the secondary server'));
+    });
   } catch (e, s) {
     print(s);
   }
