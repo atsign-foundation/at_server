@@ -4,10 +4,12 @@ import 'package:at_utils/at_logger.dart';
 /// Builder class to build [AtMetaData] object.
 class AtMetadataBuilder {
   late AtMetaData atMetaData;
+
   /// We will constrain to millisecond precision because Hive only stores
   /// [DateTime]s to millisecond precision - see https://github.com/hivedb/hive/issues/474
   /// for details.
-  var currentUtcTimeToMillisecondPrecision = DateTime.now().toUtcMillisecondsPrecision();
+  var currentUtcTimeToMillisecondPrecision =
+      DateTime.now().toUtcMillisecondsPrecision();
 
   static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
@@ -16,26 +18,26 @@ class AtMetadataBuilder {
   /// ttb : Time to birth of the key. If ttb is null, atMetadata's ttb is assigned to ttb.
   /// ttr : Time to refresh of the key. If ttr is null, atMetadata's ttr is assigned to ttr.
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
-  AtMetadataBuilder(
-      {String? atSign,
-      AtMetaData? newAtMetaData,
-      AtMetaData? existingMetaData,
-      int? ttl,
-      int? ttb,
-      int? ttr,
-      bool? ccd,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      }) {
+  AtMetadataBuilder({
+    String? atSign,
+    AtMetaData? newAtMetaData,
+    AtMetaData? existingMetaData,
+    int? ttl,
+    int? ttb,
+    int? ttr,
+    bool? ccd,
+    bool? isBinary,
+    bool? isEncrypted,
+    String? dataSignature,
+    String? sharedKeyEncrypted,
+    String? publicKeyChecksum,
+    String? encoding,
+    String? encKeyName,
+    String? encAlgo,
+    String? ivNonce,
+    String? skeEncKeyName,
+    String? skeEncAlgo,
+  }) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     // createdAt indicates the date and time of the key created.
@@ -58,20 +60,10 @@ class AtMetadataBuilder {
         ? atMetaData.version = 0
         : atMetaData.version = (existingMetaData!.version! + 1);
 
-    //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
     ttl ??= newAtMetaData.ttl;
-    if (ttl == null && existingMetaData != null) ttl = existingMetaData.ttl;
-
     ttb ??= newAtMetaData.ttb;
-    if (ttb == null && existingMetaData != null) ttb = existingMetaData.ttb;
-
     ttr ??= newAtMetaData.ttr;
-    if (ttr == null && existingMetaData != null) ttr = existingMetaData.ttr;
-
     ccd ??= newAtMetaData.isCascade;
-    if (ccd == null && existingMetaData != null) {
-      ccd = existingMetaData.isCascade;
-    }
     isBinary ??= newAtMetaData.isBinary;
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
@@ -108,29 +100,34 @@ class AtMetadataBuilder {
     atMetaData.ivNonce = ivNonce;
     atMetaData.skeEncKeyName = skeEncKeyName;
     atMetaData.skeEncAlgo = skeEncAlgo;
+
+    atMetaData = _setNullOrExistingMetadata(existingMetaData);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
     if (ttl != null) {
       atMetaData.ttl = ttl;
-      atMetaData.expiresAt =
-          _getExpiresAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttl, ttb: ttb);
+      atMetaData.expiresAt = _getExpiresAt(
+          currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttl,
+          ttb: ttb);
     }
   }
 
   void setTTB(int? ttb) {
     if (ttb != null) {
       atMetaData.ttb = ttb;
-      atMetaData.availableAt =
-          _getAvailableAt(currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
-      logger.finer('setTTB($ttb) - set availableAt to ${atMetaData.availableAt}');
+      atMetaData.availableAt = _getAvailableAt(
+          currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
+      logger
+          .finer('setTTB($ttb) - set availableAt to ${atMetaData.availableAt}');
     }
   }
 
   void setTTR(int? ttr) {
     if (ttr != null) {
       atMetaData.ttr = ttr;
-      atMetaData.refreshAt = _getRefreshAt(currentUtcTimeToMillisecondPrecision, ttr);
+      atMetaData.refreshAt =
+          _getRefreshAt(currentUtcTimeToMillisecondPrecision, ttr);
     }
   }
 
@@ -161,6 +158,36 @@ class AtMetadataBuilder {
     }
 
     return today.add(Duration(seconds: ttr));
+  }
+
+  /// If metadata contains "null" string, then reset the metadata. So set it to null
+  /// If metadata contains null (null object), then fetch the existing metadata.If
+  /// existing metadata value is not null, set it the current AtMetaData obj.
+  AtMetaData _setNullOrExistingMetadata(AtMetaData? existingAtMetadata) {
+    if (existingAtMetadata == null) {
+      return atMetaData;
+    }
+    var atMetaDataJson = atMetaData.toJson();
+    var existingAtMetaDataJson = existingAtMetadata.toJson();
+    atMetaDataJson.forEach((key, value) {
+      switch (value) {
+        // If command does not contains the attributes of a metadata, then regex named
+        // group, inserts null. For a key, if an attribute has a value in previously,
+        // fetch the value and update it.
+        case null:
+          if (existingAtMetaDataJson[key] != null) {
+            atMetaDataJson[key] = existingAtMetaDataJson[key];
+          }
+          break;
+        // In the command, if an attribute is explicitly set to null, then verbParams
+        // contains String value "null". Then reset the metadata. So, set it to null
+        case 'null':
+          atMetaDataJson[key] = null;
+          break;
+      }
+    });
+
+    return AtMetaData.fromJson(atMetaDataJson);
   }
 
   AtMetaData build() {

@@ -1,3 +1,5 @@
+## 3.0.53
+- fix: Modify the AtMetadataBuilder to preserve the existing metadata when not set. Reset the metadata when explicitly set to null. 
 ## 3.0.52
 - feat: Add new encryption metadata fields to core persistence classes
 ## 3.0.51
