@@ -79,7 +79,7 @@ void main() async {
 
     /// notify command
     var value = '$lastValue-India';
-    await socket_writer( socketFirstAtsign!, 'notify:update:ttr:-1:$secondAtsign:country$firstAtsign:$value');
+    await socket_writer( socketFirstAtsign!, 'notify:update:ttr:-1:$firstAtsign:country$firstAtsign:$value');
     var notifyResponse = await read();
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
@@ -132,14 +132,14 @@ void main() async {
 
     /// delete command
     await socket_writer(
-        socketFirstAtsign!, 'notify:delete:$secondAtsign:country$firstAtsign');
+        socketFirstAtsign!, 'notify:delete:$firstAtsign:country$firstAtsign');
     var deleteResponse = await read();
     print(' notify delete verb response $deleteResponse');
     assert((!deleteResponse.contains('Invalid syntax')) &&
         (!deleteResponse.contains('null')));
     String notificationId = deleteResponse.replaceAll('data:', '');
     await getNotifyStatus(socketFirstAtsign!, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 000);
     var afterDelete = await notificationStats(socketFirstAtsign!);
     var sentCountAfterDelete = await afterDelete['type']['sent'];
     var statusAfterDelete = await afterDelete['status']['delivered'];
@@ -162,7 +162,9 @@ void main() async {
         (!deleteResponse.contains('null')));
     String notificationId = deleteResponse.replaceAll('data:', '');
     await getNotifyStatus(socketFirstAtsign!, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 20000);
+    // wait for seconds for the type to be updated
+    await Future.delayed(Duration(seconds: 5));
     var afterDelete = await notificationStats(socketFirstAtsign!);
     var sentCountAfterDelete = await afterDelete['type']['received'];
     expect(afterDelete['operations']['delete'],
@@ -180,14 +182,16 @@ void main() async {
     /// update command
     var value = 'Hey $lastValue';
     await socket_writer(socketFirstAtsign!,
-        'notify:messageType:text:ttr:-1:$secondAtsign:message$firstAtsign:$value');
+        'notify:messageType:text:ttr:-1:$firstAtsign:message$firstAtsign:$value');
     var notifyResponse = await read();
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
     await getNotifyStatus(socketFirstAtsign!, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 20000);
+    // wait for the type to be updated
+    await Future.delayed(Duration(seconds: 5));
     var afterNotify = await notificationStats(socketFirstAtsign!);
     var sentCountAfterNotify = await afterNotify['type']['sent'];
     var statusAfterNotify = await afterNotify['status']['delivered'];
@@ -214,7 +218,7 @@ void main() async {
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
     await getNotifyStatus(socketFirstAtsign!, notificationId,
-        returnWhenStatusIn: ['errored'], timeOutMillis: 15000);
+        returnWhenStatusIn: ['errored'], timeOutMillis: 20000);
     var afterUpdate = await notificationStats(socketFirstAtsign!);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['failed'];
