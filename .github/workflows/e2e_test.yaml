@@ -201,3 +201,19 @@ jobs:
         env:
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}  
+
+      # Verify if Atsign exists
+      - name: Verify if Atsign exists
+        run: |  
+          sleep 20
+          AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
+          AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
+          if [ -z "$AT_SIGN_1_HOST_RESP" ] && [ -z "$AT_SIGN_2_HOST_RESP" ]; then
+            echo "Atsign deleted successfully"
+          else
+            echo "Atsign still exists"
+            exit 1
+          fi          
+        env:
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}            
