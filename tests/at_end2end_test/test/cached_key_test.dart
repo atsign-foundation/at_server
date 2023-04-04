@@ -146,10 +146,12 @@ void main() {
       // If yes allow the test to run, else skip
       await sh1.writeCommand('config:print:autoNotify\n');
       String response = await sh1.read();
-      // If the response is not true, testingMode is NOT enabled on the secondary server
-      // So, do not run the test.
+      // If the autoNotify response is either data:true or data:false, then testingMode
+      // is enabled; else, testingMode is NOT enabled on the secondary server
+      // So, do not run the test when testingMode is disabled.
       if (!(response == 'data:true' || response == 'data:false')) {
-        print('Testing mode is not enabled on the secondary server: $atSign_1. So skipping the test');
+        print(
+            'Testing mode is not enabled on the secondary server: $atSign_1. So skipping the test');
         return;
       }
 
