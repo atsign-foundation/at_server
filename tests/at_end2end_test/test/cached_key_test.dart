@@ -148,7 +148,7 @@ void main() {
       String response = await sh1.read();
       // If the response is not true, testingMode is NOT enabled on the secondary server
       // So, do not run the test.
-      if (!response.contains('true')) {
+      if (response != 'data:true') {
         print('Testing mode is not enabled on the secondary server: $atSign_1. So skipping the test');
         return;
       }
