@@ -100,8 +100,6 @@ class AtMetadataBuilder {
     atMetaData.ivNonce = ivNonce;
     atMetaData.skeEncKeyName = skeEncKeyName;
     atMetaData.skeEncAlgo = skeEncAlgo;
-
-    atMetaData = _setNullOrExistingMetadata(existingMetaData);
   }
 
   void setTTL(int? ttl, {int? ttb}) {
@@ -158,36 +156,6 @@ class AtMetadataBuilder {
     }
 
     return today.add(Duration(seconds: ttr));
-  }
-
-  /// If metadata contains "null" string, then reset the metadata. So set it to null
-  /// If metadata contains null (null object), then fetch the existing metadata.If
-  /// existing metadata value is not null, set it the current AtMetaData obj.
-  AtMetaData _setNullOrExistingMetadata(AtMetaData? existingAtMetadata) {
-    if (existingAtMetadata == null) {
-      return atMetaData;
-    }
-    var atMetaDataJson = atMetaData.toJson();
-    var existingAtMetaDataJson = existingAtMetadata.toJson();
-    atMetaDataJson.forEach((key, value) {
-      switch (value) {
-        // If command does not contains the attributes of a metadata, then regex named
-        // group, inserts null. For a key, if an attribute has a value in previously,
-        // fetch the value and update it.
-        case null:
-          if (existingAtMetaDataJson[key] != null) {
-            atMetaDataJson[key] = existingAtMetaDataJson[key];
-          }
-          break;
-        // In the command, if an attribute is explicitly set to null, then verbParams
-        // contains String value "null". Then reset the metadata. So, set it to null
-        case 'null':
-          atMetaDataJson[key] = null;
-          break;
-      }
-    });
-
-    return AtMetaData.fromJson(atMetaDataJson);
   }
 
   AtMetaData build() {
