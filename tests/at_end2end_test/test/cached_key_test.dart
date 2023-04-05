@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:test/test.dart';
-import 'package:version/version.dart';
 import 'notify_verb_test.dart' as notification;
 import 'e2e_test_utils.dart' as e2e;
 
@@ -140,61 +139,75 @@ void main() {
   /// 4. Update the existing key to a new value
   /// 5. lookup with bypass_cache set to false should return the old value from the cache
   /// 6. lookup with bypass_cache set to true should return the new value
-  test('update-lookup verb passing bypassCache ', () async {
-    ///Update verb on atsign_1
-    try {
-      var oldValue = 'Hyderabad';
-
-      await sh1.writeCommand(
-          'update:ttr:100000:$atSign_2:fav-city$atSign_1  $oldValue');
+  try {
+    test('update-lookup verb passing bypassCache ', () async {
+      ///Update verb on atsign_1
+      // Check if TestingMode is enabled on the secondary server
+      // If yes allow the test to run, else skip
+      await sh1.writeCommand('config:print:autoNotify\n');
       String response = await sh1.read();
-      print('update verb response : $response');
-      assert((!response.contains('Invalid syntax')) &&
-          (!response.contains('null')));
+      // If the autoNotify response is either data:true or data:false, then testingMode
+      // is enabled; else, testingMode is NOT enabled on the secondary server
+      // So, do not run the test when testingMode is disabled.
+      if (!(response == 'data:true' || response == 'data:false')) {
+        print(
+            'Testing mode is not enabled on the secondary server: $atSign_1. So skipping the test');
+        return;
+      }
 
-      // Wait a few seconds to make sure the message has got to atSign_2
-      await Future.delayed(Duration(seconds: 3));
+      try {
+        var oldValue = 'Hyderabad';
+        await sh1.writeCommand(
+            'update:ttr:100000:$atSign_2:fav-city$atSign_1  $oldValue');
+        response = await sh1.read();
+        print('update verb response : $response');
+        assert((!response.contains('Invalid syntax')) &&
+            (!response.contains('null')));
 
-      ///lookup verb alice  atsign_2
-      await sh2.writeCommand('lookup:fav-city$atSign_1');
-      response = await sh2.read();
-      print('lookup verb response : $response');
-      expect(response, contains('data: $oldValue'));
+        // Wait a few seconds to make sure the message has got to atSign_2
+        await Future.delayed(Duration(seconds: 3));
 
-      // config set auto notify to false
-      await sh1.writeCommand('config:set:autoNotify=false');
-      response = await sh1.read();
-      print('config set verb response is $response');
-      expect(response, contains('data:ok'));
+        ///lookup verb alice  atsign_2
+        await sh2.writeCommand('lookup:fav-city$atSign_1');
+        response = await sh2.read();
+        print('lookup verb response : $response');
+        expect(response, contains('data: $oldValue'));
 
-      var newValue = 'Chennai';
-      await sh1.writeCommand('update:$atSign_2:fav-city$atSign_1  $newValue');
-      response = await sh1.read();
-      print('update verb response : $response');
-      assert((!response.contains('Invalid syntax')) &&
-          (!response.contains('null')));
+        // config set auto notify to false
+        await sh1.writeCommand('config:set:autoNotify=false');
+        response = await sh1.read();
+        print('config set verb response is $response');
+        expect(response, contains('data:ok'));
 
-      ///lookup with bypassCache:false (the default) should return the old value
-      await sh2.writeCommand('lookup:fav-city$atSign_1');
-      response = await sh2.read();
-      print('lookup verb response : $response');
-      expect(response, contains('data: $oldValue'));
+        var newValue = 'Chennai';
+        await sh1.writeCommand('update:$atSign_2:fav-city$atSign_1  $newValue');
+        response = await sh1.read();
+        print('update verb response : $response');
+        assert((!response.contains('Invalid syntax')) &&
+            (!response.contains('null')));
 
-      /// lookup with bypass_cache set to true
-      /// should return the newly updated value
-      await sh2.writeCommand('lookup:bypassCache:true:fav-city$atSign_1');
-      response = await sh2.read();
-      print('lookup verb response : $response');
-      expect(response, contains('data: $newValue'));
-    } finally {
-      await sh1.writeCommand('config:reset:autoNotify');
-      var response = await sh1.read();
-      print('config set verb response is $response');
-      expect(response, contains('data:ok'));
-    }
+        ///lookup with bypassCache:false (the default) should return the old value
+        await sh2.writeCommand('lookup:fav-city$atSign_1');
+        response = await sh2.read();
+        print('lookup verb response : $response');
+        expect(response, contains('data: $oldValue'));
 
-    // reset the autoNotify to default
-  }, timeout: Timeout(Duration(minutes: 3)));
+        /// lookup with bypass_cache set to true
+        /// should return the newly updated value
+        await sh2.writeCommand('lookup:bypassCache:true:fav-city$atSign_1');
+        response = await sh2.read();
+        print('lookup verb response : $response');
+        expect(response, contains('data: $newValue'));
+      } finally {
+        await sh1.writeCommand('config:reset:autoNotify');
+        var response = await sh1.read();
+        print('config set verb response is $response');
+        expect(response, contains('data:ok'));
+      }
+    });
+  } catch (e, s) {
+    print(s);
+  }
 
   test('test to verify update and delete of cached key via update-delete verb',
       () async {
