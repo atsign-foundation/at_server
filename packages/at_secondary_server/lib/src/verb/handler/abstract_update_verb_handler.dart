@@ -110,7 +110,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
     atData.metaData =
-        _setNullOrExistingMetadata(atData.metaData!, existingAtMetaData);
+        _unsetOrRetainMetadata(atData.metaData!, existingAtMetaData);
 
     notify(
         sharedBy,
@@ -205,7 +205,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// If metadata contains "null" string, then reset the metadata. So set it to null
   /// If metadata contains null (null object), then fetch the existing metadata.If
   /// existing metadata value is not null, set it the current AtMetaData obj.
-  AtMetaData _setNullOrExistingMetadata(
+  AtMetaData _unsetOrRetainMetadata(
       AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
     if (existingAtMetadata == null) {
       return newAtMetadata;
