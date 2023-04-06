@@ -881,6 +881,61 @@ void main() {
         await doit();
       }
     });
+
+    test('A test to verify existing metadata is retained after an update',
+        () async {
+      var atKey = 'email.wavi';
+      var value = 'alice@atsign.com';
+      var updateBuilder = UpdateVerbBuilder()
+        ..value = value
+        ..atKey = atKey
+        ..sharedBy = alice
+        ..sharedWith = bob
+        ..ivNonce = 'some_iv';
+      var updateCommand = updateBuilder.buildCommand().trim();
+      expect(
+          updateCommand,
+          'update'
+          ':ivNonce:some_iv'
+          ':$bob:$atKey$alice $value');
+
+      inboundConnection.metadata.isAuthenticated = true;
+      // 1. Do an update and verify via llookup
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateHandler.process(updateCommand, inboundConnection);
+
+      LocalLookupVerbHandler llookupHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await llookupHandler.process(
+          'llookup:all:$bob:$atKey$alice', inboundConnection);
+      Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
+      AtMetaData atMetaData = AtMetaData.fromJson(mapSentToClient['metaData']);
+      expect(atMetaData.ivNonce, 'some_iv');
+
+      // 2. Update the metadata of a different metadata attribute
+      updateBuilder = UpdateVerbBuilder()
+        ..value = value
+        ..atKey = atKey
+        ..sharedBy = alice
+        ..sharedWith = bob
+        ..sharedKeyEncrypted = 'shared_key_encrypted';
+      updateCommand = updateBuilder.buildCommand().trim();
+      updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateHandler.process(updateCommand, inboundConnection);
+
+      await llookupHandler.process(
+          'llookup:all:$bob:$atKey$alice', inboundConnection);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['key'], '$bob:$atKey$alice');
+      expect(mapSentToClient['data'], value);
+      atMetaData = AtMetaData.fromJson(mapSentToClient['metaData']);
+      expect(atMetaData.ivNonce, 'some_iv');
+      expect(atMetaData.sharedKeyEnc, 'shared_key_encrypted');
+    });
   });
 
   group('A group of tests to validate sharedBy atsign', () {
