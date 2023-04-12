@@ -274,7 +274,7 @@ jobs:
             wget -q -O update_image.sh "$scriptURL"
             ./update_image.sh
 
-# The job runs end to end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
+# The job runs end-to-end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
   end2end_test_12:
     needs: [ end2end_test_prep ]
     concurrency: cicd12
@@ -298,12 +298,12 @@ jobs:
       - name: Config for @cicd1/2
         run:  mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
 
-      # Run end to end test
-      - name: End to end test
+      # Run end-to-end test
+      - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end to end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
+# The job runs end-to-end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
   end2end_test_34:
     needs: [ end2end_test_prep ]
     concurrency: cicd34
@@ -327,12 +327,12 @@ jobs:
       - name: Config for @cicd3/4
         run:  mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
 
-      # Run end to end test
-      - name: End to end test
+      # Run end-to-end test
+      - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end to end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
+# The job runs end-to-end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
   end2end_test_56:
     needs: [ end2end_test_prep ]
     concurrency: cicd56
@@ -356,12 +356,12 @@ jobs:
       - name: Config for @cicd5/6
         run:  mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
 
-      # Run end to end test
-      - name: End to end test
+      # Run end-to-end test
+      - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end to end tests between the staging run time secondaries
+# The job runs end-to-end tests between the staging run time secondaries
   end2end_test_staging:
     needs: [ end2end_test_prep ]
     concurrency: cicdtest
@@ -514,8 +514,8 @@ jobs:
           dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/ -p pkam   
           cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
 
-      # Run end to end test
-      - name: End to end test
+      # Run end-to-end test
+      - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1               
         
@@ -555,12 +555,11 @@ jobs:
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}            
 
 
-  # This job run's on trigger event 'push' to trunk branch.
+  # This job runs on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
-  # The job run's on completion of 'run_end2end_tests' job.
   push_staging_virtual_env_images:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
@@ -669,7 +668,7 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_observable_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
