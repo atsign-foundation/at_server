@@ -109,6 +109,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
+    atData.metaData =
+        _unsetOrRetainMetadata(atData.metaData!, existingAtMetaData);
+
     notify(
         sharedBy,
         sharedWith,
@@ -117,7 +120,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
         atData.metaData!);
 
-    return UpdatePreProcessResult(atKey, atData, updateParams);
+    return UpdatePreProcessResult(atKey, atData);
   }
 
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
@@ -179,8 +182,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       return;
     }
     key = '$forAtSign:$key$atSign';
-    int ttlInMillis = Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
-        .inMilliseconds;
+    int ttlInMillis =
+        Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+            .inMilliseconds;
 
     var atNotification = (AtNotificationBuilder()
           ..fromAtSign = atSign
@@ -197,12 +201,41 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     unawaited(notificationManager.notify(atNotification));
     return atNotification;
   }
+
+  /// If metadata contains "null" string, then reset the metadata. So set it to null
+  /// If metadata contains null (null object), then fetch the existing metadata.If
+  /// existing metadata value is not null, set it the current AtMetaData obj.
+  AtMetaData _unsetOrRetainMetadata(
+      AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
+    if (existingAtMetadata == null) {
+      return newAtMetadata;
+    }
+    var atMetaDataJson = newAtMetadata.toJson();
+    var existingAtMetaDataJson = existingAtMetadata.toJson();
+    atMetaDataJson.forEach((key, value) {
+      switch (value) {
+        // If command does not contains the attributes of a metadata, then regex named
+        // group, inserts null. For a key, if an attribute has a value in previously,
+        // fetch the value and update it.
+        case null:
+          if (existingAtMetaDataJson[key] != null) {
+            atMetaDataJson[key] = existingAtMetaDataJson[key];
+          }
+          break;
+        // In the command, if an attribute is explicitly set to null, then verbParams
+        // contains String value "null". Then reset the metadata. So, set it to null
+        case 'null':
+          atMetaDataJson[key] = null;
+          break;
+      }
+    });
+    return AtMetaData.fromJson(atMetaDataJson);
+  }
 }
 
 class UpdatePreProcessResult {
   String atKey;
   AtData atData;
-  UpdateParams updateParams;
 
-  UpdatePreProcessResult(this.atKey, this.atData, this.updateParams);
+  UpdatePreProcessResult(this.atKey, this.atData);
 }

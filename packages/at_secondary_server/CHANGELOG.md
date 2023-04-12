@@ -1,3 +1,6 @@
+## 3.0.30
+- fix: When metadata attributes are not set, merge the existing metadata attributes
+- fix: When metadata attributes are explicitly set to null, reset the metadata
 ## 3.0.29
 - fix: Check if connected atSign is authorized to send notifications
 - feat: support new pkam verb syntax allowing for authentication using multiple signing and hashing algorithms
