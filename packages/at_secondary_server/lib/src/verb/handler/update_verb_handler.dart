@@ -13,8 +13,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   static Update update = Update();
 
-  UpdateVerbHandler(
-      SecondaryKeyStore keyStore, StatsNotificationService statsNotificationService, notificationManager)
+  UpdateVerbHandler(SecondaryKeyStore keyStore,
+      StatsNotificationService statsNotificationService, notificationManager)
       : super(keyStore, statsNotificationService, notificationManager);
 
   // Method to verify whether command is accepted or not
@@ -37,11 +37,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-
     var updatePreProcessResult =
         await super.preProcessAndNotify(response, verbParams, atConnection);
-
-    var updateParams = updatePreProcessResult.updateParams;
 
     logger.finer(
         'calling keyStore.put(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData}');
@@ -50,21 +47,22 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       // update the key in data store
       var result = await keyStore.put(
           updatePreProcessResult.atKey, updatePreProcessResult.atData,
-          time_to_live: updateParams.metadata!.ttl,
-          time_to_born: updateParams.metadata!.ttb,
-          time_to_refresh: updateParams.metadata!.ttr,
-          isCascade: updateParams.metadata!.ccd,
-          isBinary: updateParams.metadata!.isBinary,
-          isEncrypted: updateParams.metadata!.isEncrypted,
-          dataSignature: updateParams.metadata!.dataSignature,
-          sharedKeyEncrypted: updateParams.metadata!.sharedKeyEnc,
-          publicKeyChecksum: updateParams.metadata!.pubKeyCS,
-          encoding: updateParams.metadata!.encoding,
-          encKeyName: updateParams.metadata!.encKeyName,
-          encAlgo: updateParams.metadata!.encAlgo,
-          ivNonce: updateParams.metadata!.ivNonce,
-          skeEncKeyName: updateParams.metadata!.skeEncKeyName,
-          skeEncAlgo: updateParams.metadata!.skeEncAlgo);
+          time_to_live: updatePreProcessResult.atData.metaData!.ttl,
+          time_to_born: updatePreProcessResult.atData.metaData!.ttb,
+          time_to_refresh: updatePreProcessResult.atData.metaData!.ttr,
+          isCascade: updatePreProcessResult.atData.metaData!.isCascade,
+          isBinary: updatePreProcessResult.atData.metaData!.isBinary,
+          isEncrypted: updatePreProcessResult.atData.metaData!.isEncrypted,
+          dataSignature: updatePreProcessResult.atData.metaData!.dataSignature,
+          sharedKeyEncrypted:
+              updatePreProcessResult.atData.metaData!.sharedKeyEnc,
+          publicKeyChecksum: updatePreProcessResult.atData.metaData!.pubKeyCS,
+          encoding: updatePreProcessResult.atData.metaData!.encoding,
+          encKeyName: updatePreProcessResult.atData.metaData!.encKeyName,
+          encAlgo: updatePreProcessResult.atData.metaData!.encAlgo,
+          ivNonce: updatePreProcessResult.atData.metaData!.ivNonce,
+          skeEncKeyName: updatePreProcessResult.atData.metaData!.skeEncKeyName,
+          skeEncAlgo: updatePreProcessResult.atData.metaData!.skeEncAlgo);
       response.data = result?.toString();
     } catch (e, st) {
       logger.warning('$e\n$st');
