@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -45,7 +47,8 @@ class InboundMessageListener {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();
-      logger.info('Inbound connection is invalid. Closing the connection');
+      logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
+          'Inbound connection is invalid. Closing the connection'));
       await GlobalExceptionHandler.getInstance().handle(
           ConnectionInvalidException('Connection is invalid'),
           atConnection: connection);
@@ -74,8 +77,8 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.info(
-            'RCVD: [${connection.getMetaData().sessionID}] ${BaseConnection.truncateForLogging(command)}');
+        logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
+            'RCVD: ${BaseConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();

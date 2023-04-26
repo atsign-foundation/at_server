@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.30
+version: 3.0.31
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -29,6 +29,13 @@ dependencies:
   meta: 1.8.0
   mutex: ^3.0.1
   yaml: ^3.1.1
+
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: add_constants
 
 dev_dependencies:
   test: ^1.22.1

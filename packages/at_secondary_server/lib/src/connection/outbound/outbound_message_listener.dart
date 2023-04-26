@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
 
 ///Listener class for messages received by [OutboundClient]
@@ -58,8 +59,9 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info(
-          'RCVD: [${outboundClient.outboundConnection!.metaData.sessionID}] ${BaseConnection.truncateForLogging(result)}');
+      logger.info(logger.getAtConnectionLogMessage(
+          outboundClient.outboundConnection!.metaData,
+          'RCVD: ${BaseConnection.truncateForLogging(result)}'));
       _queue.add(result);
     }
   }
