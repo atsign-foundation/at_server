@@ -34,7 +34,8 @@ void main() {
     StatsNotificationService statsNotificationService =
         StatsNotificationService.getInstance();
 
-    expect(statsNotificationService.state, StatsNotificationServiceState.notScheduled);
+    expect(statsNotificationService.state,
+        StatsNotificationServiceState.notScheduled);
 
     statsNotificationService.atCommitLog = mockAtCommitLog;
     statsNotificationService.inboundConnectionPool = mockInboundConnectionPool;
@@ -57,13 +58,17 @@ void main() {
     when(() => mockInboundConnection2.isMonitor).thenAnswer((_) => false);
 
     var statsNotificationJobTimeInterval = Duration(milliseconds: 50);
-    await statsNotificationService.schedule('@alice', interval: statsNotificationJobTimeInterval);
-    expect(statsNotificationService.state, StatsNotificationServiceState.scheduled);
+    await statsNotificationService.schedule('@alice',
+        interval: statsNotificationJobTimeInterval);
+    expect(statsNotificationService.state,
+        StatsNotificationServiceState.scheduled);
 
-    await Future.delayed(statsNotificationJobTimeInterval + Duration(milliseconds: 10));
+    await Future.delayed(
+        statsNotificationJobTimeInterval + Duration(milliseconds: 10));
 
     statsNotificationService.cancel();
-    expect(statsNotificationService.state, StatsNotificationServiceState.notScheduled);
+    expect(statsNotificationService.state,
+        StatsNotificationServiceState.notScheduled);
 
     expect(inboundConn1Written, true);
     expect(inboundConn2Written, false);

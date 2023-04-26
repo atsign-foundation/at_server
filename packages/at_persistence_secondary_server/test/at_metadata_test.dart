@@ -119,7 +119,8 @@ void main() async {
           key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putAll(key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
+      await hiveKeyStore?.putAll(
+          key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
       expect(
@@ -156,18 +157,23 @@ void main() async {
   group('Test json round-tripping', () {
     test('Test without null values', () {
       final Metadata startMetaData = Metadata()
-          ..ttl=100..ttb=200..ttr=3600
-          ..ccd=true..isBinary=false..isEncrypted=true
-          ..dataSignature='dataSignature'
-          ..pubKeyCS='pubKeyChecksum'
-          ..sharedKeyEnc='sharedKeyEncrypted'
-          ..encoding='someEncoding'
-          ..encKeyName='someEncKeyName'
-          ..encAlgo='AES/CTR/PKCS7Padding'
-          ..ivNonce='someIvNonce'
-          ..skeEncKeyName='someSkeEncKeyName'
-          ..skeEncAlgo='someSkeEncAlgo';
-      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+        ..ttl = 100
+        ..ttb = 200
+        ..ttr = 3600
+        ..ccd = true
+        ..isBinary = false
+        ..isEncrypted = true
+        ..dataSignature = 'dataSignature'
+        ..pubKeyCS = 'pubKeyChecksum'
+        ..sharedKeyEnc = 'sharedKeyEncrypted'
+        ..encoding = 'someEncoding'
+        ..encKeyName = 'someEncKeyName'
+        ..encAlgo = 'AES/CTR/PKCS7Padding'
+        ..ivNonce = 'someIvNonce'
+        ..skeEncKeyName = 'someSkeEncKeyName'
+        ..skeEncAlgo = 'someSkeEncAlgo';
+      final AtMetaData startAtMetaData =
+          AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);
@@ -177,20 +183,25 @@ void main() async {
       final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
       expect(endMetaData, startMetaData);
     });
-    test ('Test with null values', () {
+    test('Test with null values', () {
       final Metadata startMetaData = Metadata()
-        ..ttl=null..ttb=null..ttr=null
-        ..ccd=false..isBinary=true..isEncrypted=false
-        ..dataSignature=null
-        ..pubKeyCS=null
-        ..sharedKeyEnc=null
-        ..encoding=null
-        ..encKeyName=null
-        ..encAlgo=null
-        ..ivNonce=null
-        ..skeEncKeyName=null
-        ..skeEncAlgo=null;
-      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+        ..ttl = null
+        ..ttb = null
+        ..ttr = null
+        ..ccd = false
+        ..isBinary = true
+        ..isEncrypted = false
+        ..dataSignature = null
+        ..pubKeyCS = null
+        ..sharedKeyEnc = null
+        ..encoding = null
+        ..encKeyName = null
+        ..encAlgo = null
+        ..ivNonce = null
+        ..skeEncKeyName = null
+        ..skeEncAlgo = null;
+      final AtMetaData startAtMetaData =
+          AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);
@@ -200,20 +211,25 @@ void main() async {
       final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
       expect(endMetaData, startMetaData);
     });
-    test ('Test with some null, some non-null values', () {
+    test('Test with some null, some non-null values', () {
       final Metadata startMetaData = Metadata()
-        ..ttl=0..ttb=0..ttr=0
-        ..ccd=false..isBinary=true..isEncrypted=false
-        ..dataSignature='foo'
-        ..pubKeyCS=null
-        ..sharedKeyEnc=null
-        ..encoding='base64'
-        ..encKeyName='someEncKeyName'
-        ..encAlgo='AES/CTR/PKCS7Padding'
-        ..ivNonce='someIvOrNonce'
-        ..skeEncKeyName=null
-        ..skeEncAlgo=null;
-      final AtMetaData startAtMetaData = AtMetaData.fromCommonsMetadata(startMetaData);
+        ..ttl = 0
+        ..ttb = 0
+        ..ttr = 0
+        ..ccd = false
+        ..isBinary = true
+        ..isEncrypted = false
+        ..dataSignature = 'foo'
+        ..pubKeyCS = null
+        ..sharedKeyEnc = null
+        ..encoding = 'base64'
+        ..encKeyName = 'someEncKeyName'
+        ..encAlgo = 'AES/CTR/PKCS7Padding'
+        ..ivNonce = 'someIvOrNonce'
+        ..skeEncKeyName = null
+        ..skeEncAlgo = null;
+      final AtMetaData startAtMetaData =
+          AtMetaData.fromCommonsMetadata(startMetaData);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);

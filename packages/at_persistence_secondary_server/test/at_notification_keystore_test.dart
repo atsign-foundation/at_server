@@ -11,27 +11,27 @@ void main() async {
     test('test put and get', () async {
       var keyStore = AtNotificationKeystore.getInstance();
       var commonsMetadata = Metadata()
-            ..ttl = 100
-            ..ttb = 200
-            ..ttr = 3600
-            ..ccd = true
-            ..isBinary = false
-            ..isEncrypted = true
-            ..dataSignature = 'dataSignature'
-            ..pubKeyCS = 'pubKeyChecksum'
-            ..sharedKeyEnc = 'sharedKeyEncrypted'
-            ..encoding = 'someEncoding'
-            ..encKeyName = 'someEncKeyName'
-            ..encAlgo = 'AES/CTR/PKCS7Padding'
-            ..ivNonce = 'someIvNonce'
-            ..skeEncKeyName = 'someSkeEncKeyName'
-            ..skeEncAlgo = 'someSkeEncAlgo';
+        ..ttl = 100
+        ..ttb = 200
+        ..ttr = 3600
+        ..ccd = true
+        ..isBinary = false
+        ..isEncrypted = true
+        ..dataSignature = 'dataSignature'
+        ..pubKeyCS = 'pubKeyChecksum'
+        ..sharedKeyEnc = 'sharedKeyEncrypted'
+        ..encoding = 'someEncoding'
+        ..encKeyName = 'someEncKeyName'
+        ..encAlgo = 'AES/CTR/PKCS7Padding'
+        ..ivNonce = 'someIvNonce'
+        ..skeEncKeyName = 'someSkeEncKeyName'
+        ..skeEncAlgo = 'someSkeEncAlgo';
       var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
       var atNotification = (AtNotificationBuilder()
-        ..toAtSign = '@bob'
-        ..fromAtSign = '@alice'
-        ..id = '123'
-        ..atMetaData = atMetaData)
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..id = '123'
+            ..atMetaData = atMetaData)
           .build();
       await keyStore.put(atNotification.id, atNotification);
       final value = await keyStore.get(atNotification.id);

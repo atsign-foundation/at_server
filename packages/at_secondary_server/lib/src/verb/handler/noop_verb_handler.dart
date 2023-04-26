@@ -16,16 +16,22 @@ class NoOpVerbHandler extends AbstractVerbHandler {
   Verb getVerb() => noOpVerb;
 
   @override
-  Future<void> processVerb(Response response, HashMap<String, String?> verbParams, InboundConnection atConnection) async {
-    String? delayMillisParam = verbParams['delayMillis']; // as per NoOp documentation, delayMillis may not be more than 5000
+  Future<void> processVerb(
+      Response response,
+      HashMap<String, String?> verbParams,
+      InboundConnection atConnection) async {
+    String? delayMillisParam = verbParams[
+        'delayMillis']; // as per NoOp documentation, delayMillis may not be more than 5000
     if (delayMillisParam == null) {
-      throw IllegalArgumentException("${noOpVerb.usage()} where the duration maximum is 5000 milliseconds");
+      throw IllegalArgumentException(
+          "${noOpVerb.usage()} where the duration maximum is 5000 milliseconds");
     }
     var delayMillis = int.parse(delayMillisParam);
     if (delayMillis > 5000) {
-      throw IllegalArgumentException("${noOpVerb.usage()} where the duration maximum is 5000 milliseconds");
+      throw IllegalArgumentException(
+          "${noOpVerb.usage()} where the duration maximum is 5000 milliseconds");
     }
-    await Future.delayed(Duration(milliseconds:delayMillis));
+    await Future.delayed(Duration(milliseconds: delayMillis));
     response.data = 'ok';
   }
 }

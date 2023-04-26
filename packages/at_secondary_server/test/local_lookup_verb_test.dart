@@ -171,7 +171,10 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(
+          keyStore,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'phone');
@@ -219,7 +222,10 @@ void main() {
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
-      var updateVerbHandler = UpdateVerbHandler(keyStore, StatsNotificationService.getInstance(), NotificationManager.getInstance());
+      var updateVerbHandler = UpdateVerbHandler(
+          keyStore,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
       updateVerbParams.putIfAbsent(AT_KEY, () => 'location');

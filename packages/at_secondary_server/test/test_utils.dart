@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -20,16 +19,27 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 
-
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockNotificationManager extends Mock implements NotificationManager {}
-class MockStatsNotificationService extends Mock implements StatsNotificationService {}
+
+class MockStatsNotificationService extends Mock
+    implements StatsNotificationService {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
-class MockSecondaryAddressFinder extends Mock implements at_lookup.SecondaryAddressFinder {}
-class MockOutboundConnectionFactory extends Mock implements OutboundConnectionFactory {}
+
+class MockSecondaryAddressFinder extends Mock
+    implements at_lookup.SecondaryAddressFinder {}
+
+class MockOutboundConnectionFactory extends Mock
+    implements OutboundConnectionFactory {}
+
 class MockOutboundConnection extends Mock implements OutboundConnection {}
+
 class MockSecureSocket extends Mock implements SecureSocket {}
+
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 String alice = '@alice';
@@ -94,8 +104,8 @@ verbTestsSetUp() async {
 
   mockOutboundConnection = MockOutboundConnection();
   mockOutboundConnectionFactory = MockOutboundConnectionFactory();
-  when(() => mockOutboundConnectionFactory.createOutboundConnection(bobHost, bobPort, bob))
-      .thenAnswer((invocation) async {
+  when(() => mockOutboundConnectionFactory.createOutboundConnection(
+      bobHost, bobPort, bob)).thenAnswer((invocation) async {
     return mockOutboundConnection;
   });
 
@@ -103,14 +113,16 @@ verbTestsSetUp() async {
   registerFallbackValue(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder, outboundConnectionFactory: mockOutboundConnectionFactory)
+      secondaryAddressFinder: mockSecondaryAddressFinder,
+      outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder, outboundConnectionFactory: mockOutboundConnectionFactory)
+      secondaryAddressFinder: mockSecondaryAddressFinder,
+      outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
@@ -122,12 +134,14 @@ verbTestsSetUp() async {
       .thenAnswer((_) {
     return outboundClientWithHandshake;
   });
-  when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
+  when(() =>
+          mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
       .thenAnswer((_) {
     return outboundClientWithoutHandshake;
   });
 
-  AtConnectionMetaData outboundConnectionMetadata = OutboundConnectionMetadata();
+  AtConnectionMetaData outboundConnectionMetadata =
+      OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
   when(() => mockOutboundConnection.getMetaData())
       .thenReturn(outboundConnectionMetadata);
@@ -149,35 +163,42 @@ verbTestsSetUp() async {
     return MockStreamSubscription();
   });
 
-  cacheManager = AtCacheManager(alice, secondaryKeyStore, mockOutboundClientManager);
+  cacheManager =
+      AtCacheManager(alice, secondaryKeyStore, mockOutboundClientManager);
 
   AtSecondaryServerImpl.getInstance().cacheManager = cacheManager;
   AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
-  AtSecondaryServerImpl.getInstance().outboundClientManager = mockOutboundClientManager;
+  AtSecondaryServerImpl.getInstance().outboundClientManager =
+      mockOutboundClientManager;
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-  AtSecondaryServerImpl.getInstance().signingKey = bobServerSigningKeypair.privateKey.toString();
+  AtSecondaryServerImpl.getInstance().signingKey =
+      bobServerSigningKeypair.privateKey.toString();
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
-  bobOriginalPublicKeyAtData.data = bobOriginalPublicKeypair.publicKey.toString();
+  bobOriginalPublicKeyAtData.data =
+      bobOriginalPublicKeypair.publicKey.toString();
   bobOriginalPublicKeyAtData.metaData = AtMetaData()
-    ..ttr=-1
-    ..createdAt=now
-    ..updatedAt=now;
-  bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData('all', bobOriginalPublicKeyAtData, key: 'public:publickey$bob')!;
-  bobOriginalPublicKeyAtData = AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
+    ..ttr = -1
+    ..createdAt = now
+    ..updatedAt = now;
+  bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData(
+      'all', bobOriginalPublicKeyAtData,
+      key: 'public:publickey$bob')!;
+  bobOriginalPublicKeyAtData =
+      AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
 
   when(() => mockOutboundConnection.write(any()))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn(
-        'error:AT0001-Mock exception : '
+    socketOnDataFn('error:AT0001-Mock exception : '
             'No mock response defined for request '
             '[${invocation.positionalArguments[0]}]\n$alice@'
-            .codeUnits);
+        .codeUnits);
   });
   when(() => mockOutboundConnection.write('from:$alice\n'))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn("data:proof:mock-session-id$bob:server-challenge-text\n@".codeUnits); // actual challenge is different, of course, but not important for unit tests
+    socketOnDataFn("data:proof:mock-session-id$bob:server-challenge-text\n@"
+        .codeUnits); // actual challenge is different, of course, but not important for unit tests
   });
   when(() => mockOutboundConnection.write('pol\n'))
       .thenAnswer((Invocation invocation) async {
@@ -194,7 +215,8 @@ verbTestsSetUp() async {
       .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
-  when(() => statsNotificationService.writeStatsToMonitor()).thenAnswer((invocation) {});
+  when(() => statsNotificationService.writeStatsToMonitor())
+      .thenAnswer((invocation) {});
 }
 
 verbTestsTearDown() async {
@@ -209,21 +231,26 @@ verbTestsTearDown() async {
 final Random testUtilsRandom = Random();
 
 Map decodeResponse(String sentToClient) {
-  return jsonDecode(sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
+  return jsonDecode(
+      sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
 }
 
-Future<AtData> createRandomKeyStoreEntry(String owner, String keyName, SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
+Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
+    SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
     {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
-  AtData entry = createRandomAtData(owner, data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
+  AtData entry = createRandomAtData(owner,
+      data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
   await secondaryKeyStore.put(keyName, entry);
   return (await secondaryKeyStore.get(keyName))!;
 }
 
-AtData createRandomAtData(String owner, {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) {
+AtData createRandomAtData(String owner,
+    {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) {
   AtData atData = AtData();
   atData.data = data;
   atData.data ??= createRandomString(100);
-  atData.metaData = createRandomAtMetaData(owner, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
+  atData.metaData = createRandomAtMetaData(owner,
+      commonsMetadata: commonsMetadata, refreshAt: refreshAt);
   return atData;
 }
 
@@ -249,7 +276,8 @@ Metadata createRandomCommonsMetadata({bool noNullsPlease = false}) {
   return md;
 }
 
-AtMetaData createRandomAtMetaData(String owner, {Metadata? commonsMetadata, DateTime? refreshAt}) {
+AtMetaData createRandomAtMetaData(String owner,
+    {Metadata? commonsMetadata, DateTime? refreshAt}) {
   late AtMetaData md;
 
   if (commonsMetadata != null) {
@@ -289,7 +317,8 @@ int createRandomPositiveInt({int maxInclusive = 100000}) {
   return testUtilsRandom.nextInt(maxInclusive) + 1;
 }
 
-int? createRandomNullablePositiveInt({int minInclusive = 100, int maxInclusive = 100000}) {
+int? createRandomNullablePositiveInt(
+    {int minInclusive = 100, int maxInclusive = 100000}) {
   // We'll make it null 50% of the time
   if (testUtilsRandom.nextInt(2) == 0) {
     return null;
@@ -298,7 +327,7 @@ int? createRandomNullablePositiveInt({int minInclusive = 100, int maxInclusive =
   if (testUtilsRandom.nextInt(5) == 0) {
     return 0;
   }
-  return testUtilsRandom.nextInt(maxInclusive-minInclusive) + minInclusive;
+  return testUtilsRandom.nextInt(maxInclusive - minInclusive) + minInclusive;
 }
 
 bool? createRandomNullableBoolean() {
@@ -313,7 +342,11 @@ bool createRandomBoolean() {
   return (i == 1);
 }
 
-const String characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+const String characters =
+    '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
 String createRandomString(int length) {
-  return String.fromCharCodes(Iterable.generate(length, (index) => characters.codeUnitAt(testUtilsRandom.nextInt(characters.length))));
+  return String.fromCharCodes(Iterable.generate(
+      length,
+      (index) =>
+          characters.codeUnitAt(testUtilsRandom.nextInt(characters.length))));
 }

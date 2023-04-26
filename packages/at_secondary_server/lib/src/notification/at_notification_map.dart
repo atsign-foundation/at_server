@@ -15,8 +15,10 @@ class AtNotificationMap {
     return _singleton;
   }
 
-  final Map<String?, Map<String, NotificationStrategy>> _notificationMap = <String?, Map<String, NotificationStrategy>>{};
-  final Map<String, NotificationWaitTime> _waitTimeMap = <String, NotificationWaitTime>{};
+  final Map<String?, Map<String, NotificationStrategy>> _notificationMap =
+      <String?, Map<String, NotificationStrategy>>{};
+  final Map<String, NotificationWaitTime> _waitTimeMap =
+      <String, NotificationWaitTime>{};
   final Map<String?, DateTime> _quarantineMap = <String?, DateTime>{};
 
   Map<String?, DateTime> get quarantineMap => _quarantineMap;
@@ -36,7 +38,8 @@ class AtNotificationMap {
       return 0;
     }
 
-    Map<String, NotificationStrategy>? tempMap = _notificationMap[atSign]!; // can't be null, we've just checked containsKey
+    Map<String, NotificationStrategy>? tempMap = _notificationMap[
+        atSign]!; // can't be null, we've just checked containsKey
     LatestNotifications latestList = tempMap['latest'] as LatestNotifications;
     AllNotifications allList = tempMap['all'] as AllNotifications;
     return latestList.length + allList.length;
@@ -49,7 +52,8 @@ class AtNotificationMap {
     if (_notificationMap.isEmpty || !_notificationMap.containsKey(atSign)) {
       returnList = [];
     } else {
-      Map<String, NotificationStrategy> tempMap = _notificationMap.remove(atSign)!;
+      Map<String, NotificationStrategy> tempMap =
+          _notificationMap.remove(atSign)!;
       var latestList = tempMap['latest'] as LatestNotifications;
       var allList = tempMap['all'] as AllNotifications;
       returnList = List<AtNotification>.from(latestList.toList())
@@ -57,13 +61,13 @@ class AtNotificationMap {
       tempMap.clear();
     }
     returnList.sort((a, b) {
-      if(a.notificationDateTime == null && b.notificationDateTime == null) {
+      if (a.notificationDateTime == null && b.notificationDateTime == null) {
         return 0;
       }
-      if(a.notificationDateTime == null) {
+      if (a.notificationDateTime == null) {
         return 1;
       }
-      if(b.notificationDateTime == null) {
+      if (b.notificationDateTime == null) {
         return -1;
       }
 
@@ -96,11 +100,13 @@ class AtNotificationMap {
   /// Computes the wait for the notification.
   void _computeWaitTime(AtNotification atNotification) {
     if (atNotification.toAtSign == null) {
-      logger.severe('_computeWaitTime found a notification with a null atSign: $atNotification');
+      logger.severe(
+          '_computeWaitTime found a notification with a null atSign: $atNotification');
       return;
     }
 
-    _waitTimeMap.putIfAbsent(atNotification.toAtSign!, () => NotificationWaitTime());
+    _waitTimeMap.putIfAbsent(
+        atNotification.toAtSign!, () => NotificationWaitTime());
 
     var notificationWaitTime = _waitTimeMap[atNotification.toAtSign]!;
     notificationWaitTime.prioritiesSum = atNotification.priority!.index;

@@ -81,11 +81,13 @@ class SecondaryServerBootStrapper {
         exit(0);
       }
     } on Exception catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(
+          "Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
       exit(1);
     } on Error catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(
+          "Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
       exit(1);
     } finally {

@@ -128,7 +128,8 @@ class AtConfig {
     var newData = AtData();
     newData.data = jsonEncode(config);
 
-    newData = keyStoreHelper.prepareDataForKeystoreOperation(newData, existingAtData: existingData);
+    newData = keyStoreHelper.prepareDataForKeystoreOperation(newData,
+        existingAtData: existingData);
 
     logger.finest('hive key:$configKey');
     logger.finest('hive value:$newData');

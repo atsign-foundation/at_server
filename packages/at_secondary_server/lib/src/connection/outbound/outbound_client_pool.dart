@@ -23,7 +23,8 @@ class OutboundClientPool {
   /// or returns null if there are fewer than 2 items currently in the pool.
   OutboundClient? removeLeastRecentlyUsed() {
     if (closed) {
-      throw StateError('removeLeastRecentlyUsed() called, but we are in closed state');
+      throw StateError(
+          'removeLeastRecentlyUsed() called, but we are in closed state');
     }
     if (_clients.length < 2) {
       return null;
