@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -7,8 +6,6 @@ import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
-import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -87,8 +84,7 @@ void main() {
       upMetaParams.putIfAbsent('forAtSign', () => bob);
       upMetaParams.putIfAbsent('atKey', () => 'phone');
       upMetaParams.putIfAbsent('ttb', () => ttb.toString());
-      await upMetaHandler.processVerb(
-          upMetaR, upMetaParams, inboundConnection);
+      await upMetaHandler.processVerb(upMetaR, upMetaParams, inboundConnection);
 
       // Look Up verb
       var localLookUpResponse = Response();
@@ -110,8 +106,8 @@ void main() {
 
     test('test update meta handler processVerb with ttl', () async {
       //Update Verb
-      var updateVerbHandler =
-          UpdateVerbHandler(secondaryKeyStore, statsNotificationService, notificationManager);
+      var updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => alice);

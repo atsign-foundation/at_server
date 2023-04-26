@@ -23,7 +23,8 @@ class AtCacheRefreshJob {
   /// Gets everything that is currently cached,
   Future<Map> refreshNow({Duration? pauseAfterFinishing}) async {
     if (running) {
-      var message = 'refreshNow() called but the cache refresh job is already running';
+      var message =
+          'refreshNow() called but the cache refresh job is already running';
       logger.severe(message);
       throw StateError(message);
     }
@@ -44,13 +45,15 @@ class AtCacheRefreshJob {
         AtData? newValue;
 
         try {
-          newValue = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: false);
+          newValue = await cacheManager.remoteLookUp(cachedKeyName,
+              maintainCache: false);
         } on KeyNotFoundException {
           await cacheManager.delete(cachedKeyName);
           deletedByRemote++;
           continue;
         } catch (e) {
-          logger.info("Exception while trying to get latest value for $cachedKeyName : $e");
+          logger.info(
+              "Exception while trying to get latest value for $cachedKeyName : $e");
           exceptionFromRemote++;
           continue;
         }
@@ -63,7 +66,8 @@ class AtCacheRefreshJob {
 
         // If old value and new value are equal, then do not update;
         // Continue for next key.
-        AtData? oldValue = await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+        AtData? oldValue =
+            await cacheManager.get(cachedKeyName, applyMetadataRules: false);
         if (oldValue?.data == newValue.data) {
           logger.finer(
               '$cachedKeyName cached value is same as looked-up value. Not updating the cached key');
@@ -82,18 +86,19 @@ class AtCacheRefreshJob {
       running = false;
     }
     return {
-      "keysChecked":keysChecked,
-      "valueUnchanged":valueUnchanged,
-      "valueChanged":valueChanged,
-      "deletedByRemote":deletedByRemote,
-      "exceptionFromRemote":exceptionFromRemote
+      "keysChecked": keysChecked,
+      "valueUnchanged": valueUnchanged,
+      "valueChanged": valueChanged,
+      "deletedByRemote": deletedByRemote,
+      "exceptionFromRemote": exceptionFromRemote
     };
   }
 
   /// Schedule an execution of [refreshNow] at [runJobHour]:00
   void scheduleRefreshJob(int runJobHour) {
     if (cron != null) {
-      var message = 'scheduleRefreshJob() called but refresh job has already been scheduled';
+      var message =
+          'scheduleRefreshJob() called but refresh job has already been scheduled';
       logger.severe(message);
       throw StateError(message);
     }
@@ -103,9 +108,11 @@ class AtCacheRefreshJob {
       logger.info('Scheduled Cache Refresh Job started');
       try {
         var summary = await refreshNow();
-        logger.info('Scheduled Cache Refresh Job completed successfully: $summary');
+        logger.info(
+            'Scheduled Cache Refresh Job completed successfully: $summary');
       } catch (e, st) {
-        logger.severe('Scheduled Cache Refresh Job failed with exception $e and stackTrace $st');
+        logger.severe(
+            'Scheduled Cache Refresh Job failed with exception $e and stackTrace $st');
       }
     });
   }

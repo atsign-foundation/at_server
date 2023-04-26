@@ -28,7 +28,8 @@ class NotificationManager implements NotificationManagerSpec {
 
   ///Stores the AtNotification Object to Queue.
   ///Returns the AtNotification id.
-  Future<String?> _storeNotificationInQueue(AtNotification atNotification) async {
+  Future<String?> _storeNotificationInQueue(
+      AtNotification atNotification) async {
     // Queueing notification for sending
     if (atNotification.type == NotificationType.sent) {
       var queueManager = QueueManager.getInstance();

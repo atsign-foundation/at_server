@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
@@ -51,8 +52,8 @@ void main() {
           ..isAuthenticated = true);
       var response = Response();
       // Verify Notification is inserted into keystore
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notifyListParams = getVerbParam(NotifyList().syntax(), 'notify:list');
       await notifyListVerbHandler.processVerb(
           response, notifyListParams, atConnection);

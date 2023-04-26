@@ -49,9 +49,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _loadVerbHandlers();
   }
 
-  void close() {
-
-  }
+  void close() {}
 
   ///Accepts the command in UTF-8 format and returns the appropriate verbHandler.
   ///@param - utf8EncodedCommand: command in UTF-8 format.
@@ -74,13 +72,19 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(FromVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore));
     _verbHandlers.add(PkamVerbHandler(keyStore));
-    _verbHandlers.add(UpdateVerbHandler(keyStore, statsNotificationService, notificationManager));
-    _verbHandlers.add(UpdateMetaVerbHandler(keyStore, statsNotificationService, notificationManager));
+    _verbHandlers.add(UpdateVerbHandler(
+        keyStore, statsNotificationService, notificationManager));
+    _verbHandlers.add(UpdateMetaVerbHandler(
+        keyStore, statsNotificationService, notificationManager));
     _verbHandlers.add(LocalLookupVerbHandler(keyStore));
-    _verbHandlers.add(ProxyLookupVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers.add(LookupVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers.add(ScanVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers.add(PolVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers.add(
+        ProxyLookupVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers
+        .add(LookupVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers
+        .add(ScanVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers
+        .add(PolVerbHandler(keyStore, outboundClientManager, cacheManager));
     _verbHandlers.add(DeleteVerbHandler(keyStore, statsNotificationService));
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));

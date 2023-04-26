@@ -91,7 +91,8 @@ void main() async {
         expect(dataFromHive?.metaData, atMetaData);
 
         var updateData = AtData();
-        var updateMetaData = AtMetaData.fromJson(atMetaData.toJson()); // clone it
+        var updateMetaData =
+            AtMetaData.fromJson(atMetaData.toJson()); // clone it
         updateData.data = 'united states';
         updateData.metaData = updateMetaData;
         await keyStore.put(key, updateData);
@@ -634,7 +635,11 @@ void main() async {
     //inserting sample keys
     for (int i = 0; i < 30; i++) {
       //inserting random metaData to induce variance in data
-      metaData = AtMetadataBuilder(ttl: 12000 + i.toInt(), ttb: i, atSign: '@atsign_$i', isBinary: true)
+      metaData = AtMetadataBuilder(
+              ttl: 12000 + i.toInt(),
+              ttb: i,
+              atSign: '@atsign_$i',
+              isBinary: true)
           .build();
 
       atData.data = 'value_test_$i';

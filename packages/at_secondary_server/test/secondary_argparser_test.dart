@@ -80,7 +80,13 @@ void main() {
     });
 
     test('invalid flag name', () {
-      var arguments = ['--at_sign', 'alice', '--server_port', '6400', '--ttraining'];
+      var arguments = [
+        '--at_sign',
+        'alice',
+        '--server_port',
+        '6400',
+        '--ttraining'
+      ];
       expect(() => CommandLineParser().getParserResults(arguments),
           throwsA(predicate((dynamic e) => e is ArgParserException)));
     });

@@ -31,10 +31,11 @@ class ResourceManager {
     return _singleton;
   }
 
-  final NotifyConnectionsPool _notifyConnectionsPool = NotifyConnectionsPool.getInstance();
+  final NotifyConnectionsPool _notifyConnectionsPool =
+      NotifyConnectionsPool.getInstance();
 
   int get outboundConnectionLimit => _notifyConnectionsPool.size;
-  set outboundConnectionLimit (int ocl) => _notifyConnectionsPool.size = ocl;
+  set outboundConnectionLimit(int ocl) => _notifyConnectionsPool.size = ocl;
 
   void start() {
     _started = true;
@@ -89,7 +90,8 @@ class ResourceManager {
       var numberOfOutboundConnections = _notifyConnectionsPool.size;
 
       //2. Get the atsign on priority basis.
-      var atSignIterator = AtNotificationMap.getInstance().getAtSignToNotify(numberOfOutboundConnections);
+      var atSignIterator = AtNotificationMap.getInstance()
+          .getAtSignToNotify(numberOfOutboundConnections);
 
       while (atSignIterator.moveNext()) {
         String atSign = atSignIterator.current;

@@ -11,7 +11,8 @@ class AtSecondaryContext extends AtServerContext {
   int inboundIdleTimeMillis = 600000;
   int outboundIdleTimeMillis = 600000;
 
-  int unauthenticatedMinAllowableIdleTimeMillis = 5000; // have to allow time for connection handshakes // TODO Run tests to identify a p99.999 value
+  int unauthenticatedMinAllowableIdleTimeMillis =
+      5000; // have to allow time for connection handshakes // TODO Run tests to identify a p99.999 value
   double inboundConnectionLowWaterMarkRatio = 0.5;
   bool progressivelyReduceAllowableInboundIdleTime = true;
   String? currentAtSign;

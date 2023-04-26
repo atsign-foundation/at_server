@@ -54,7 +54,8 @@ void main() {
 
       setUp(() async {
         await verbTestsSetUp();
-        plookupVerbHandler = ProxyLookupVerbHandler(secondaryKeyStore, mockOutboundClientManager, cacheManager);
+        plookupVerbHandler = ProxyLookupVerbHandler(
+            secondaryKeyStore, mockOutboundClientManager, cacheManager);
       });
 
       tearDown(() async {
@@ -64,27 +65,41 @@ void main() {
       var keyName = 'first_name.wavi$bob';
       var cachedKeyName = 'cached:public:$keyName';
 
-      test('plookup - do nothing except trigger first run of setUp()', () async {});
+      test('plookup - do nothing except trigger first run of setUp()',
+          () async {});
 
       test('plookup - not in cache and does not exist on remote', () async {
-        inboundConnection.getMetaData().isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.getMetaData().isAuthenticated =
+            true; // owner connection, authenticated
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
-          socketOnDataFn('error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'.codeUnits);
+          socketOnDataFn(
+              'error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'
+                  .codeUnits);
         });
-        await expectLater(plookupVerbHandler.process('plookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+        await expectLater(
+            plookupVerbHandler.process(
+                'plookup:all:$keyName', inboundConnection),
+            throwsA(isA<KeyNotFoundException>()));
       });
 
       // To test various flavours of ttr without repeating a ton of code for each one
-      Future<void> lookupAndCache({required int? ttr, required bool expectDifferentMetadata, required int? expectedTtl, required int? expectedTtr}) async {
+      Future<void> lookupAndCache(
+          {required int? ttr,
+          required bool expectDifferentMetadata,
+          required int? expectedTtl,
+          required int? expectedTtr}) async {
         AtData bobData = createRandomAtData(bob);
         bobData.metaData!.ttr = ttr;
         bobData.metaData!.ttb = null;
         bobData.metaData!.ttl = null;
-        String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobData, key: 'public:$keyName')!;
+        String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+            'all', bobData,
+            key: 'public:$keyName')!;
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
         // The plookup will make an unauthenticated lookup request to the other atServer
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
@@ -92,7 +107,8 @@ void main() {
           socketOnDataFn("data:$bobDataAsJsonWithKey\n@".codeUnits);
         });
 
-        await plookupVerbHandler.process('plookup:all:$keyName', inboundConnection);
+        await plookupVerbHandler.process(
+            'plookup:all:$keyName', inboundConnection);
 
         // Even if the ttr is null or zero, our compromise rules for now are that
         // we will cache the record, keep ttr as null (or zero), but assign a ttl of 24 hours
@@ -102,18 +118,25 @@ void main() {
         expect(cachedAtData.data, bobData.data);
         // The metadata should NOT match, as we have set a ttl
         if (expectDifferentMetadata) {
-          expect(cachedAtData.metaData!.toCommonsMetadata() == bobData.metaData!.toCommonsMetadata(), false);
+          expect(
+              cachedAtData.metaData!.toCommonsMetadata() ==
+                  bobData.metaData!.toCommonsMetadata(),
+              false);
           // But if we then set the ttl and/or ttr on the original metaData, the metadata should match exactly
           bobData.metaData!.ttl = expectedTtl;
           bobData.metaData!.ttr = expectedTtr;
         }
-        expect(cachedAtData.metaData!.toCommonsMetadata(), bobData.metaData!.toCommonsMetadata());
+        expect(cachedAtData.metaData!.toCommonsMetadata(),
+            bobData.metaData!.toCommonsMetadata());
         expect(cachedAtData.key, cachedKeyName);
 
         // First plookup:all (when it's not in the cache) will have 'key' in the response of e.g. public:first_name.wavi@bob
-        Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+        Map mapSentToClient =
+            decodeResponse(inboundConnection.lastWrittenData!);
         expect(mapSentToClient['data'], bobData.data);
-        expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+        expect(
+            AtMetaData.fromJson(mapSentToClient['metaData'])
+                .toCommonsMetadata(),
             bobData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
 
@@ -122,16 +145,32 @@ void main() {
       }
 
       test('plookup - not in cache but exists on remote - ttr null', () async {
-        await lookupAndCache(ttr:null, expectDifferentMetadata:true, expectedTtl:24 * 60 * 60 * 1000, expectedTtr:null);
+        await lookupAndCache(
+            ttr: null,
+            expectDifferentMetadata: true,
+            expectedTtl: 24 * 60 * 60 * 1000,
+            expectedTtr: null);
       });
       test('plookup - not in cache but exists on remote - ttr 0', () async {
-        await lookupAndCache(ttr:0, expectDifferentMetadata:true, expectedTtl:24 * 60 * 60 * 1000, expectedTtr:0);
+        await lookupAndCache(
+            ttr: 0,
+            expectDifferentMetadata: true,
+            expectedTtl: 24 * 60 * 60 * 1000,
+            expectedTtr: 0);
       });
       test('plookup - not in cache but exists on remote - ttr 10', () async {
-        await lookupAndCache(ttr:10, expectDifferentMetadata:false, expectedTtl:null, expectedTtr:10);
+        await lookupAndCache(
+            ttr: 10,
+            expectDifferentMetadata: false,
+            expectedTtl: null,
+            expectedTtr: 10);
       });
       test('plookup - not in cache but exists on remote - ttr -1', () async {
-        await lookupAndCache(ttr:-1, expectDifferentMetadata:false, expectedTtl:null, expectedTtr:-1);
+        await lookupAndCache(
+            ttr: -1,
+            expectDifferentMetadata: false,
+            expectedTtl: null,
+            expectedTtr: -1);
       });
 
       test('plookup - in cache and valid', () async {
@@ -142,14 +181,19 @@ void main() {
         await cacheManager.put(cachedKeyName, bobData);
         expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
-        await plookupVerbHandler.process('plookup:all:$keyName', inboundConnection);
+        await plookupVerbHandler.process(
+            'plookup:all:$keyName', inboundConnection);
 
         // plookup:all when there is a cache hit will have 'key' like e.g. cached:public:first_name.wavi@bob
-        Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+        Map mapSentToClient =
+            decodeResponse(inboundConnection.lastWrittenData!);
         expect(mapSentToClient['data'], bobData.data);
-        expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+        expect(
+            AtMetaData.fromJson(mapSentToClient['metaData'])
+                .toCommonsMetadata(),
             bobData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'cached:public:$keyName');
       });
@@ -166,22 +210,31 @@ void main() {
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
         bobOriginalData.metaData!.ttr = 60; // 1 minute, just to distinguish
-        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobNewData, key: 'public:$keyName')!;
+        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+            'all', bobNewData,
+            key: 'public:$keyName')!;
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
           socketOnDataFn("data:$bobNewDataAsJsonWithKey\n@".codeUnits);
         });
 
-        verifyNever(() => mockOutboundConnection.write('lookup:all:$keyName\n'));
-        await plookupVerbHandler.process('plookup:bypassCache:true:all:$keyName', inboundConnection);
-        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n')).called(1);
+        verifyNever(
+            () => mockOutboundConnection.write('lookup:all:$keyName\n'));
+        await plookupVerbHandler.process(
+            'plookup:bypassCache:true:all:$keyName', inboundConnection);
+        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+            .called(1);
 
-        Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+        Map mapSentToClient =
+            decodeResponse(inboundConnection.lastWrittenData!);
         expect(mapSentToClient['data'], bobNewData.data);
-        expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+        expect(
+            AtMetaData.fromJson(mapSentToClient['metaData'])
+                .toCommonsMetadata(),
             bobNewData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
       });
@@ -197,24 +250,35 @@ void main() {
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
-        bobOriginalData.metaData!.ttr = 60; // 2 seconds, just to be different from original
-        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobNewData, key: 'public:$keyName')!;
+        bobOriginalData.metaData!.ttr =
+            60; // 2 seconds, just to be different from original
+        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+            'all', bobNewData,
+            key: 'public:$keyName')!;
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
-        await Future.delayed(Duration(seconds: 1)); // Wait for a second so that it's time to refresh
+        await Future.delayed(Duration(
+            seconds: 1)); // Wait for a second so that it's time to refresh
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
           socketOnDataFn("data:$bobNewDataAsJsonWithKey\n@".codeUnits);
         });
 
-        verifyNever(() => mockOutboundConnection.write('lookup:all:$keyName\n'));
-        await plookupVerbHandler.process('plookup:all:$keyName', inboundConnection);
-        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n')).called(1);
+        verifyNever(
+            () => mockOutboundConnection.write('lookup:all:$keyName\n'));
+        await plookupVerbHandler.process(
+            'plookup:all:$keyName', inboundConnection);
+        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+            .called(1);
 
-        Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+        Map mapSentToClient =
+            decodeResponse(inboundConnection.lastWrittenData!);
         expect(mapSentToClient['data'], bobNewData.data);
-        expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+        expect(
+            AtMetaData.fromJson(mapSentToClient['metaData'])
+                .toCommonsMetadata(),
             bobNewData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
       });
@@ -232,11 +296,16 @@ void main() {
         bobOriginalData.metaData!.ttr = -1;
         bobOriginalData.metaData!.ttl = 24 * 60 * 60 * 1000;
         bobNewData.data = "New data";
-        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData('all', bobNewData, key: 'public:$keyName')!;
+        String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+            'all', bobNewData,
+            key: 'public:$keyName')!;
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
-        await Future.delayed(Duration(milliseconds: 6)); // Wait for 6 milliseconds so that the key has definitely expired
+        await Future.delayed(Duration(
+            milliseconds:
+                6)); // Wait for 6 milliseconds so that the key has definitely expired
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
@@ -244,18 +313,25 @@ void main() {
         });
 
         // We expect the key to be refreshed
-        verifyNever(() => mockOutboundConnection.write('lookup:all:$keyName\n'));
-        await plookupVerbHandler.process('plookup:all:$keyName', inboundConnection);
-        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n')).called(1);
+        verifyNever(
+            () => mockOutboundConnection.write('lookup:all:$keyName\n'));
+        await plookupVerbHandler.process(
+            'plookup:all:$keyName', inboundConnection);
+        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+            .called(1);
 
-        Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+        Map mapSentToClient =
+            decodeResponse(inboundConnection.lastWrittenData!);
         expect(mapSentToClient['data'], bobNewData.data);
-        expect(AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
+        expect(
+            AtMetaData.fromJson(mapSentToClient['metaData'])
+                .toCommonsMetadata(),
             bobNewData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
       });
 
-      test('plookup - in cache but key has expired, and no longer exists', () async {
+      test('plookup - in cache but key has expired, and no longer exists',
+          () async {
         AtData bobOriginalData = createRandomAtData(bob);
         bobOriginalData.metaData!.ttr = -1;
         bobOriginalData.metaData!.ttl = 5; // expire in 5 milliseconds
@@ -266,31 +342,51 @@ void main() {
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
-          socketOnDataFn('error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'.codeUnits);
+          socketOnDataFn(
+              'error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'
+                  .codeUnits);
         });
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
-        await Future.delayed(Duration(milliseconds: 6)); // Wait for 6 milliseconds so that the key has definitely expired
+        await Future.delayed(Duration(
+            milliseconds:
+                6)); // Wait for 6 milliseconds so that the key has definitely expired
 
         // We expect a KeyNotFoundException
-        await expectLater(plookupVerbHandler.process('plookup:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
+        await expectLater(
+            plookupVerbHandler.process(
+                'plookup:all:$keyName', inboundConnection),
+            throwsA(isA<KeyNotFoundException>()));
       });
 
-      test('plookup - not in cache, and bypassCache requested, and key does not exist on remote', () async {
+      test(
+          'plookup - not in cache, and bypassCache requested, and key does not exist on remote',
+          () async {
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
-          socketOnDataFn('error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'.codeUnits);
+          socketOnDataFn(
+              'error:{"errorCode":"AT0015","errorDescription":"$keyName does not exist"}\n$alice@'
+                  .codeUnits);
         });
 
-        inboundConnection.metadata.isAuthenticated = true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
 
-        await Future.delayed(Duration(milliseconds: 6)); // Wait for 6 milliseconds so that the key has definitely expired
+        await Future.delayed(Duration(
+            milliseconds:
+                6)); // Wait for 6 milliseconds so that the key has definitely expired
 
         // We expect a KeyNotFoundException from the remote server
-        verifyNever(() => mockOutboundConnection.write('lookup:all:$keyName\n'));
-        await expectLater(plookupVerbHandler.process('plookup:bypassCache:true:all:$keyName', inboundConnection), throwsA(isA<KeyNotFoundException>()));
-        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n')).called(1);
+        verifyNever(
+            () => mockOutboundConnection.write('lookup:all:$keyName\n'));
+        await expectLater(
+            plookupVerbHandler.process(
+                'plookup:bypassCache:true:all:$keyName', inboundConnection),
+            throwsA(isA<KeyNotFoundException>()));
+        verify(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+            .called(1);
       });
     });
   } catch (e, s) {
@@ -299,7 +395,8 @@ void main() {
 
   group('plookup (proxy lookup) syntax tests', () {
     SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-    OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+    OutboundClientManager mockOutboundClientManager =
+        MockOutboundClientManager();
     AtCacheManager mockAtCacheManager = MockAtCacheManager();
 
     test('test proxy_lookup key-value', () {
@@ -312,14 +409,16 @@ void main() {
     });
 
     test('test proxy_lookup getVerb', () {
-      var handler = ProxyLookupVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ProxyLookupVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var verb = handler.getVerb();
       expect(verb is ProxyLookup, true);
     });
 
     test('test proxy_lookup command accept test', () {
       var command = 'plookup:location@alice';
-      var handler = ProxyLookupVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ProxyLookupVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       expect(result, true);
     });
