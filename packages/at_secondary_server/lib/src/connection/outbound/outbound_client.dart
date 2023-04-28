@@ -86,6 +86,17 @@ class OutboundClient {
       messageListener = OutboundMessageListener(this);
       messageListener.listen();
 
+      //1. create from request
+      outboundConnection!.write(AtRequestFormatter.createFromRequest(
+          AtSecondaryServerImpl.getInstance().currentAtSign));
+
+      //2. Receive proof
+      var fromResult = await messageListener.read();
+      if (fromResult == '') {
+        throw HandShakeException(
+            'no response received for From:$toAtSign command');
+      }
+
       await checkRemotePublicKey();
 
       // 3. Establish handshake if required

@@ -64,6 +64,8 @@ export logLevel="WARNING"
 
 export testingMode="true"
 
+export telemetryEventWebHook="http://localhost:8080/hook"
+
 # Set up on the local root server
 redis-cli << EOF
 auth foobared

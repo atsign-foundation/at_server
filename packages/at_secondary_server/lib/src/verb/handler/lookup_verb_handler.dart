@@ -95,10 +95,10 @@ class LookupVerbHandler extends AbstractVerbHandler {
     } else { // isAuthenticated is false
       // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
       var keyPrefix = '';
-      if (!(atConnectionMetadata.isAuthenticated)) {
-        keyPrefix = (fromAtSign == null || fromAtSign == '')
-            ? 'public:'
-            : '$fromAtSign:';
+      if (atConnectionMetadata.isPolAuthenticated) {
+        keyPrefix = '$fromAtSign:';
+      } else { // unauthenticated connection
+        keyPrefix = 'public:';
       }
       // Form the look up key
       var lookupKey = keyPrefix + keyAtAtSign;

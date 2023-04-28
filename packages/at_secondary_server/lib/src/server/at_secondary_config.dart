@@ -90,6 +90,9 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static final bool _shouldRemoveMalformedKeys = true;
 
+  // Telemetry web hook
+  static final String _telemetryEventWebHook = '';
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -660,6 +663,17 @@ class AtSecondaryConfig {
     }
   }
 
+  static String get telemetryEventWebHook {
+    if (_envVars.containsKey('telemetryEventWebHook')) {
+      return _envVars['telemetryEventWebHook']!;
+    }
+    try {
+      return getConfigFromYaml(['telemetry', 'eventWebHook']);
+    } on ElementNotFoundException {
+      return _telemetryEventWebHook;
+    }
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
@@ -730,6 +744,8 @@ class AtSecondaryConfig {
         return false;
       case ModifiableConfigs.doCacheRefreshNow:
         return false;
+      case ModifiableConfigs.telemetryEventWebHook:
+        return telemetryEventWebHook;
     }
   }
 
@@ -802,15 +818,20 @@ String? getStringValueFromYaml(List<String> keyParts) {
 }
 
 enum ModifiableConfigs {
-  inboundMaxLimit,
-  commitLogCompactionFrequencyMins,
-  accessLogCompactionFrequencyMins,
-  notificationKeyStoreCompactionFrequencyMins,
-  autoNotify,
-  maxNotificationRetries,
-  checkCertificateReload,
-  shouldReloadCertificates,
-  doCacheRefreshNow
+  inboundMaxLimit(requireTestingMode:true, isInt:true),
+  commitLogCompactionFrequencyMins(requireTestingMode:true, isInt:true),
+  accessLogCompactionFrequencyMins(requireTestingMode:true, isInt:true),
+  notificationKeyStoreCompactionFrequencyMins(requireTestingMode:true, isInt:true),
+  autoNotify(requireTestingMode:true, isInt:false),
+  maxNotificationRetries(requireTestingMode:true, isInt:true),
+  checkCertificateReload(requireTestingMode:true, isInt:false),
+  shouldReloadCertificates(requireTestingMode:true, isInt:false),
+  doCacheRefreshNow(requireTestingMode:true, isInt:false),
+  telemetryEventWebHook(requireTestingMode:true, isInt:false);
+
+  final bool requireTestingMode;
+  final bool isInt;
+  const ModifiableConfigs({required this.requireTestingMode, required this.isInt});
 }
 
 class ModifiableConfigurationEntry {
