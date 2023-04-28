@@ -107,7 +107,8 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
     // ignore: deprecated_member_use
-    var secondaryUrl = await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
+    var secondaryUrl =
+        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $fromAtSign');

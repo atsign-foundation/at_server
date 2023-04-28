@@ -58,6 +58,7 @@ class MockResponseHandler extends Mock implements DefaultResponseHandler {
 }
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -67,14 +68,16 @@ void main() {
 
   group('A group of scan verb tests', () {
     test('test scan getVerb', () {
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var verb = handler.getVerb();
       expect(verb is Scan, true);
     });
 
     test('test scan command accept test', () {
       var command = 'scan';
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -93,7 +96,8 @@ void main() {
     test('test scan verb - upper case', () {
       var command = 'SCAN';
       command = SecondaryUtil.convertCommand(command);
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -151,7 +155,8 @@ void main() {
     late ResponseHandlerManager mockResponseHandlerManager;
     late InboundConnection inboundConnection;
     setUp(() {
-      scanVerbHandler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      scanVerbHandler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       mockResponseHandlerManager = MockResponseHandlerManager();
       inboundConnection = DummyInboundConnection()
         ..metadata = (InboundConnectionMetadata()..isAuthenticated = true);

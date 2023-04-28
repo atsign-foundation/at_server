@@ -72,7 +72,8 @@ class SecondaryUtil {
     if (atData.metaData != null) {
       var birthTime = atData.metaData!.availableAt;
       var endOfLifeTime = atData.metaData!.expiresAt;
-      logger.finest('isActiveKey found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
+      logger.finest(
+          'isActiveKey found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
       if (birthTime == null && endOfLifeTime == null) return true;
       if (birthTime != null) {
         var ttbMillis = birthTime.toUtc().millisecondsSinceEpoch;
@@ -104,7 +105,8 @@ class SecondaryUtil {
   /// This is relevant in the lookup and plookup verb handlers when we need the
   /// client to be able to determine from the response whether the data was
   /// served from cache or not
-  static String? prepareResponseData(String? operation, AtData? atData, {String? key}) {
+  static String? prepareResponseData(String? operation, AtData? atData,
+      {String? key}) {
     String? result;
     if (atData == null) {
       return result;
@@ -140,7 +142,7 @@ class SecondaryUtil {
         continue;
       }
       if (val is Map) {
-        val = removeNulls (val);
+        val = removeNulls(val);
       }
       out[key] = val;
     }

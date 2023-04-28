@@ -193,11 +193,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     outboundClientManager.poolSize = serverContext!.outboundConnectionLimit;
 
     // Refresh Cached Keys
-    cacheManager = AtCacheManager(serverContext!.currentAtSign!, secondaryKeyStore, outboundClientManager);
+    cacheManager = AtCacheManager(serverContext!.currentAtSign!,
+        secondaryKeyStore, outboundClientManager);
 
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
-    atRefreshJob = AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
+    atRefreshJob =
+        AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
     // setting doCacheRefresh to true will trigger an immediate run of the cache refresh job
@@ -208,7 +210,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         unawaited(atRefreshJob.refreshNow());
       }
     });
-
 
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
     // But if not, create a DefaultVerbHandlerManager
@@ -240,7 +241,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (certificateReloadJob == null) {
       certificateReloadJob = AtCertificateValidationJob(
           this,
-          AtSecondaryConfig.certificateChainLocation!.replaceAll('fullchain.pem', 'restart'),
+          AtSecondaryConfig.certificateChainLocation!
+              .replaceAll('fullchain.pem', 'restart'),
           AtSecondaryConfig.isForceRestart!);
       await certificateReloadJob!.start();
 
@@ -272,7 +274,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification job
     notificationResourceManager = ResourceManager.getInstance();
-    notificationResourceManager.outboundConnectionLimit = serverContext!.outboundConnectionLimit;
+    notificationResourceManager.outboundConnectionLimit =
+        serverContext!.outboundConnectionLimit;
     notificationResourceManager.start();
 
     // Starts StatsNotificationService to keep monitor connections alive
@@ -426,7 +429,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
-        logger.finer('In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+        logger.finer(
+            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
         connection = inBoundConnectionManager.createConnection(clientSocket,
             sessionId: sessionID);
@@ -463,13 +467,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         retryCount++;
         logger.info('${e.message}:${e.path}');
         logger.info('certs unavailable. Retry count $retryCount');
-        await Future.delayed(Duration(seconds:10));
+        await Future.delayed(Duration(seconds: 10));
       }
     }
     if (certsAvailable) {
       _serverSocket = await SecureServerSocket.bind(
-              InternetAddress.anyIPv4, serverContext!.port, secCon,
-              requestClientCertificate: true);
+          InternetAddress.anyIPv4, serverContext!.port, secCon,
+          requestClientCertificate: true);
       logger.info(
           'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
       logger.info('Secure Socket open for $currentAtSign !');
@@ -481,7 +485,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
   Future<void> _startUnSecuredServer() async {
-    _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
+    _serverSocket =
+        await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
     logger.info('Unsecure Socket open');
     _listen(_serverSocket);
   }
@@ -497,7 +502,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
-            ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+            ServerIsPausedException(
+                'Server is temporarily paused and should be available again shortly'),
             atConnection: connection);
         return;
       }
@@ -510,11 +516,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await GlobalExceptionHandler.getInstance()
           .handle(e, stackTrace: st, atConnection: connection);
     } on Error catch (e, st) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
+      await GlobalExceptionHandler.getInstance().handle(
+          InternalServerError(e.toString()),
+          stackTrace: st,
+          atConnection: connection);
     } catch (e, st) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(InternalServerError(e.toString()), stackTrace: st, atConnection: connection);
+      await GlobalExceptionHandler.getInstance().handle(
+          InternalServerError(e.toString()),
+          stackTrace: st,
+          atConnection: connection);
     }
   }
 
@@ -523,7 +533,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finer('stream id:$streamId');
     if (_isPaused) {
       GlobalExceptionHandler.getInstance().handle(
-          ServerIsPausedException('Server is temporarily paused and should be available again shortly'),
+          ServerIsPausedException(
+              'Server is temporarily paused and should be available again shortly'),
           atConnection: sender);
       return;
     }

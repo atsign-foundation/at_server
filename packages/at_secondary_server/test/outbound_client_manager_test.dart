@@ -112,9 +112,18 @@ void main() {
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(dummySocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);
-      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis ~/ 2));
+      sleep(Duration(
+          milliseconds: AtSecondaryServerImpl.getInstance()
+                  .serverContext!
+                  .outboundIdleTimeMillis ~/
+              2));
       expect(outBoundClient_1.isInValid(), false);
-      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis ~/ 2 + 1));
+      sleep(Duration(
+          milliseconds: AtSecondaryServerImpl.getInstance()
+                      .serverContext!
+                      .outboundIdleTimeMillis ~/
+                  2 +
+              1));
       expect(outBoundClient_1.isInValid(), true);
     });
   });

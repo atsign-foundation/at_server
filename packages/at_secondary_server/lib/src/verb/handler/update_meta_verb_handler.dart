@@ -9,8 +9,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
   static UpdateMeta updateMeta = UpdateMeta();
 
-  UpdateMetaVerbHandler(
-      SecondaryKeyStore keyStore, StatsNotificationService statsNotificationService, notificationManager)
+  UpdateMetaVerbHandler(SecondaryKeyStore keyStore,
+      StatsNotificationService statsNotificationService, notificationManager)
       : super(keyStore, statsNotificationService, notificationManager);
 
   @override

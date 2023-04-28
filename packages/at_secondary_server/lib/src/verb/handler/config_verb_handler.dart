@@ -62,9 +62,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         switch (operation) {
           case 'show':
             var blockList = await atConfigInstance.getBlockList();
-            result = (blockList.isNotEmpty)
-                ? _toJsonResponse(blockList)
-                : null;
+            result = (blockList.isNotEmpty) ? _toJsonResponse(blockList) : null;
             break;
           case 'add':
             var nonCurrentAtSignList =

@@ -25,14 +25,16 @@ void main() {
     });
 
     test('test delete getVerb', () {
-      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
       var verb = handler.getVerb();
       expect(verb is Delete, true);
     });
 
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
-      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -41,7 +43,8 @@ void main() {
     test('test delete command command with upper case and spaces', () {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
-      var handler = DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);

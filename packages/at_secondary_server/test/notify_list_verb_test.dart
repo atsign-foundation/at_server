@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 void main() {
@@ -25,14 +26,16 @@ void main() {
   late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
-      var handler = NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
+      var handler =
+          NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var verb = handler.getVerb();
       expect(verb is NotifyList, true);
     });
 
     test('test notify command accept test', () {
       var command = 'notify:list .me:2021-01-01:2021-01-12';
-      var handler = NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
+      var handler =
+          NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -81,8 +84,8 @@ void main() {
   group('A group of tests on date time', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('A test to verify from date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -145,8 +148,8 @@ void main() {
     });
 
     test('A test to verify from and to date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -239,9 +242,12 @@ void main() {
   });
   group('A group of tests on expiry ', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
-    test('A test to verify notify list does not return expired entries - 1 expired entry', () async {
+    test(
+        'A test to verify notify list does not return expired entries - 1 expired entry',
+        () async {
       var ttl = 100;
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -294,9 +300,11 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
       expect(result.length, 1);
@@ -305,8 +313,10 @@ void main() {
       await AtNotificationKeystore.getInstance().remove('125');
     });
 
-    test('A test to verify notify list expired entries - No expired entry', () async {
-      var notifyListVerbHandler = NotifyListVerbHandler(keyStoreManager.getKeyStore(), mockOutboundClientManager);
+    test('A test to verify notify list expired entries - No expired entry',
+        () async {
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -360,9 +370,11 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)..metaData = metadata;
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+        ..metaData = metadata;
       var response = Response();
-      await notifyListVerbHandler.processVerb(response, verbParams, atConnection);
+      await notifyListVerbHandler.processVerb(
+          response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
       print(result);
       expect(result.length, 2);

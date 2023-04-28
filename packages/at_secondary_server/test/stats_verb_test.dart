@@ -22,7 +22,9 @@ import 'notify_verb_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -157,8 +159,8 @@ void main() {
         },
         'createdOn': 0,
       };
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStoreManager!.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager!.getKeyStore(), mockOutboundClientManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
@@ -418,8 +420,8 @@ void main() {
       expect(
           decodedData[AtCompactionConstants.postCompactionEntriesCount], '1');
       expect(decodedData[AtCompactionConstants.preCompactionEntriesCount], '1');
-      expect(
-          decodedData[AtCompactionConstants.compactionDurationInMills], '10000');
+      expect(decodedData[AtCompactionConstants.compactionDurationInMills],
+          '10000');
     });
   });
 }

@@ -13,12 +13,15 @@ import 'package:meta/meta.dart';
 enum StatsNotificationServiceState {
   /// Periodic job not currently running. Can call [schedule] to start
   notScheduled,
+
   /// [schedule] has been called but has not yet completed
   scheduling,
+
   /// Job has been scheduled to run periodically. To cancel, call [cancel].
   /// When [cancel] is called, the state will reset to [notScheduled]
   scheduled
 }
+
 /// [StatsNotificationService] is a singleton class that notifies the latest commitID
 /// to the active monitor connections.
 /// The schedule job runs at a time interval which defaults to the value specified
@@ -63,9 +66,11 @@ class StatsNotificationService {
   Notification notification = Notification.empty();
 
   @visibleForTesting
-  StatsNotificationServiceState state = StatsNotificationServiceState.notScheduled;
+  StatsNotificationServiceState state =
+      StatsNotificationServiceState.notScheduled;
 
   @visibleForTesting
+
   /// Timer is created when [schedule] is called successfully. [Timer.cancel] is called
   /// when this class's [cancel] method is called, and [timer] will be set to null.
   Timer? timer;
@@ -78,26 +83,31 @@ class StatsNotificationService {
   /// Creates a periodic Timer which will call the [writeStatsToMonitor] method every [interval]
   /// and sets the [timer] instance variable accordingly.
   Future<void> schedule(String currentAtSign, {Duration? interval}) async {
-    interval ??= Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval);
+    interval ??=
+        Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval);
 
     // We interpret an interval of less than zero duration to mean that this service should not run.
     if (interval < Duration.zero) {
-      _logger.info('Interval ($interval) is less than zero - will not schedule.');
+      _logger
+          .info('Interval ($interval) is less than zero - will not schedule.');
       return;
     }
     switch (state) {
       case StatsNotificationServiceState.notScheduled:
         break;
       case StatsNotificationServiceState.scheduling:
-        throw StateError('This StatsNotificationService job is in the process of being scheduled');
+        throw StateError(
+            'This StatsNotificationService job is in the process of being scheduled');
       case StatsNotificationServiceState.scheduled:
-          throw StateError('This StatsNotificationService job has already been scheduled');
+        throw StateError(
+            'This StatsNotificationService job has already been scheduled');
     }
     state = StatsNotificationServiceState.scheduling;
 
     _logger.info('StatsNotificationService is enabled. Runs every $interval');
     this.currentAtSign = currentAtSign;
-    atCommitLog ??= await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
+    atCommitLog ??=
+        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
 
     // Runs the _schedule method as long as server is up and running.
     timer = Timer.periodic(interval, (timer) {

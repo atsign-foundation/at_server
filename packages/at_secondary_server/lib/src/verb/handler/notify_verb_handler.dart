@@ -333,7 +333,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       atMetadata.ivNonce = verbParams[IV_OR_NONCE];
     }
     if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] != null) {
-      atMetadata.skeEncKeyName = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+      atMetadata.skeEncKeyName =
+          verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
     }
     if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] != null) {
       atMetadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];

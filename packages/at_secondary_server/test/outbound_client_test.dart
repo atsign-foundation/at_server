@@ -30,7 +30,11 @@ void main() {
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
       var client = OutboundClient(connection1, 'bob');
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis + 1));
+      sleep(Duration(
+          milliseconds: AtSecondaryServerImpl.getInstance()
+                  .serverContext!
+                  .outboundIdleTimeMillis +
+              1));
       expect(client.isInValid(), true);
     });
 

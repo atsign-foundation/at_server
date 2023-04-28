@@ -15,7 +15,9 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -24,14 +26,16 @@ void main() {
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
 
   test('test pol Verb', () {
-    var handler = PolVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+    var handler = PolVerbHandler(
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
     var verb = handler.getVerb();
     expect(verb is Pol, true);
   });
 
   test('test pol command accept test', () {
     var command = 'pol';
-    var handler = PolVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+    var handler = PolVerbHandler(
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
     var result = handler.accept(command);
     print('result : $result');
     expect(result, true);
