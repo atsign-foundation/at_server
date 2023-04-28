@@ -10,4 +10,17 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// fromOtherAtSign will be populated iff 'from' has been executed with an atSign which is NOT the atSign of this atServer
   String? fromAtSign;
+
+  /// A unique identifier to distinguish clients in the server logs.
+  String? clientId;
+
+  /// The name of the app the InboundConnection is associated with. This helps to
+  /// know app that is sending the request.
+  String? appName;
+
+  /// The version of the app
+  String? appVersion;
+
+  /// The platform on which the client(origin of connection) is running
+  String? platform;
 }
