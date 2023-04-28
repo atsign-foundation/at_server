@@ -50,7 +50,6 @@ abstract class BaseConnection extends AtConnection {
     }
     try {
       getSocket().write(data);
-      getSocket().flush();
       getMetaData().lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
       getMetaData().isStale = true;

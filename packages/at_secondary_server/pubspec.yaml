@@ -24,18 +24,11 @@ dependencies:
   at_server_spec: 3.0.11
   at_utils: 3.0.12
   at_chops: 1.0.3
-  at_commons: 3.0.44
+  at_commons: 3.0.45
   version: 3.0.2
   meta: 1.8.0
   mutex: ^3.0.1
   yaml: ^3.1.1
-
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_commons
-      ref: add_constants
 
 dev_dependencies:
   test: ^1.22.1
