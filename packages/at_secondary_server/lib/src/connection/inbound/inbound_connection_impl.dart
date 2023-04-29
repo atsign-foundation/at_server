@@ -235,7 +235,8 @@ class InboundConnectionImpl extends BaseConnection
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
     }
-    if (data == '@') { // response to initial connection
+    if (data == '@') {
+      // response to initial connection
       return;
     }
     AtServerTelemetryEventType eventType = data.startsWith('error:')

@@ -24,10 +24,10 @@ class AtServerTelemetryEvent extends AtTelemetryEvent {
       : super(eventType.name, value, time: time);
 
   Map<String, dynamic> toJson() => {
-    'eventType': eventType.name,
-    'time': time.millisecondsSinceEpoch,
-    'value':value
-  };
+        'eventType': eventType.name,
+        'time': time.millisecondsSinceEpoch,
+        'value': value
+      };
 }
 
 class AtServerInteractionEvent extends AtServerTelemetryEvent {
@@ -44,12 +44,12 @@ class AtServerInteractionEvent extends AtServerTelemetryEvent {
 
   @override
   Map<String, dynamic> toJson() => {
-    'eventType': eventType.name,
-    'time': time.millisecondsSinceEpoch,
-    'from':from,
-    'to':to,
-    'value':value
-  };
+        'eventType': eventType.name,
+        'time': time.millisecondsSinceEpoch,
+        'from': from,
+        'to': to,
+        'value': value
+      };
 }
 
 class AtServerTelemetrySample extends AtTelemetrySample {

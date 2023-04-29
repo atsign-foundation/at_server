@@ -61,7 +61,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void handleDynamicConfigOperations(String setOperation, HashMap<String, String?> verbParams, Response response) {
+  void handleDynamicConfigOperations(String setOperation,
+      HashMap<String, String?> verbParams, Response response) {
     //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
     late ModifiableConfigs configName;
     dynamic configValue;
@@ -106,11 +107,11 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     return;
   }
 
-  Future<void> handleBlockListOperations(String operation, Response response, String? atsigns) async {
+  Future<void> handleBlockListOperations(
+      String operation, Response response, String? atsigns) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AtConfig atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance()
-            .getCommitLog(currentAtSign),
+        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
         currentAtSign);
 
     switch (operation) {

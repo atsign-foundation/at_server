@@ -82,8 +82,11 @@ class InboundMessageListener {
       return;
     }
     if (connection.getMetaData().isStream) {
-      telemetry?.interaction(eventType: AtServerTelemetryEventType.stream,
-          from: client, to: server, value: data.length);
+      telemetry?.interaction(
+          eventType: AtServerTelemetryEventType.stream,
+          from: client,
+          to: server,
+          value: data.length);
       await onStreamCallBack(data, connection);
       return;
     }
@@ -110,16 +113,20 @@ class InboundMessageListener {
             'RCVD: ${BaseConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
-          telemetry?.interaction(eventType: AtServerTelemetryEventType.request,
-              from: client, to: server,
-              value:'@exit');
+          telemetry?.interaction(
+              eventType: AtServerTelemetryEventType.request,
+              from: client,
+              to: server,
+              value: '@exit');
           await _finishedHandler();
           return;
         }
         _buffer.clear();
-        if (! command.startsWith('from:')) {
-          telemetry?.interaction(eventType: AtServerTelemetryEventType.request,
-              from: client, to: server,
+        if (!command.startsWith('from:')) {
+          telemetry?.interaction(
+              eventType: AtServerTelemetryEventType.request,
+              from: client,
+              to: server,
               value: getVerbFromCommand(command));
         }
         await onBufferEndCallBack(command, connection);

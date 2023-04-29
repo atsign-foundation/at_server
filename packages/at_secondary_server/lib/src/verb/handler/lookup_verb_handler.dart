@@ -107,7 +107,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
       var keyPrefix = '';
       if (atConnectionMetadata.isPolAuthenticated) {
         keyPrefix = '$fromAtSign:';
-      } else { // unauthenticated connection
+      } else {
+        // unauthenticated connection
         keyPrefix = 'public:';
       }
       // Form the look up key

@@ -819,20 +819,22 @@ String? getStringValueFromYaml(List<String> keyParts) {
 }
 
 enum ModifiableConfigs {
-  inboundMaxLimit(requireTestingMode:true, isInt:true),
-  commitLogCompactionFrequencyMins(requireTestingMode:true, isInt:true),
-  accessLogCompactionFrequencyMins(requireTestingMode:true, isInt:true),
-  notificationKeyStoreCompactionFrequencyMins(requireTestingMode:true, isInt:true),
-  autoNotify(requireTestingMode:true, isInt:false),
-  maxNotificationRetries(requireTestingMode:true, isInt:true),
-  checkCertificateReload(requireTestingMode:true, isInt:false),
-  shouldReloadCertificates(requireTestingMode:true, isInt:false),
-  doCacheRefreshNow(requireTestingMode:true, isInt:false),
-  telemetryEventWebHook(requireTestingMode:true, isInt:false);
+  inboundMaxLimit(requireTestingMode: true, isInt: true),
+  commitLogCompactionFrequencyMins(requireTestingMode: true, isInt: true),
+  accessLogCompactionFrequencyMins(requireTestingMode: true, isInt: true),
+  notificationKeyStoreCompactionFrequencyMins(
+      requireTestingMode: true, isInt: true),
+  autoNotify(requireTestingMode: true, isInt: false),
+  maxNotificationRetries(requireTestingMode: true, isInt: true),
+  checkCertificateReload(requireTestingMode: true, isInt: false),
+  shouldReloadCertificates(requireTestingMode: true, isInt: false),
+  doCacheRefreshNow(requireTestingMode: true, isInt: false),
+  telemetryEventWebHook(requireTestingMode: true, isInt: false);
 
   final bool requireTestingMode;
   final bool isInt;
-  const ModifiableConfigs({required this.requireTestingMode, required this.isInt});
+  const ModifiableConfigs(
+      {required this.requireTestingMode, required this.isInt});
 }
 
 class ModifiableConfigurationEntry {

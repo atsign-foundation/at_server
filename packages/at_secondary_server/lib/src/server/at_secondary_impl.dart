@@ -9,7 +9,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
@@ -140,7 +139,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     telemetryService ??= AtServerTelemetryService();
-    createWebHookTelemetryConsumer(telemetryService!, AtSecondaryConfig.telemetryEventWebHook);
+    createWebHookTelemetryConsumer(
+        telemetryService!, AtSecondaryConfig.telemetryEventWebHook);
 
     // We used to check at this stage that a verbHandlerManager was set
     // but now we don't, as if it's not set we will create a DefaultVerbHandlerManager
@@ -332,10 +332,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     resume();
   }
 
-  void createWebHookTelemetryConsumer(AtServerTelemetryService telemetryService, String? webHookUri) {
+  void createWebHookTelemetryConsumer(
+      AtServerTelemetryService telemetryService, String? webHookUri) {
     // If we have one already
     //     If the new Uri is different, then shut it down and set to null
-    if (telemetryWebHookConsumer != null && telemetryWebHookConsumer!.uri.toString() != webHookUri) {
+    if (telemetryWebHookConsumer != null &&
+        telemetryWebHookConsumer!.uri.toString() != webHookUri) {
       telemetryWebHookConsumer!.close();
       telemetryWebHookConsumer = null;
     }
