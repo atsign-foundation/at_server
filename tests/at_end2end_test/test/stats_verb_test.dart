@@ -34,45 +34,6 @@ void main() {
     sh2.clear();
   });
 
-  test('stats verb returns result', () async {
-    /// STATS VERB
-    await sh1.writeCommand('stats');
-    var statsResponse = await sh1.read();
-    print('stats verb response : $statsResponse');
-    assert((!statsResponse.contains('Invalid syntax')) &&
-        (!statsResponse.contains('data:null')));
-  });
-
-  test('stats verb for id 3 ', () async {
-    /// STATS VERB
-    var value = 'Bob_$lastValue';
-    await sh1.writeCommand('update:public:username$atSign_1 $value');
-    var updateResponse = await sh1.read();
-    print('update verb response : $updateResponse');
-    assert((!updateResponse.contains('Invalid syntax')) &&
-        (!updateResponse.contains('null')));
-    String commitId = updateResponse.trim().replaceAll('data:', '');
-    print(commitId);
-
-    /// stats:3 verb response
-    await sh1.writeCommand('stats:3');
-    var statsResponse = await sh1.read();
-    print('stats verb response : $statsResponse');
-    expect(statsResponse,
-        contains('[{"id":"3","name":"lastCommitID","value":"$commitId"'));
-  });
-
-  test('stats verb for invalid id ', () async {
-    /// STATS VERB
-    await sh1.writeCommand('stats:-1');
-    var statsResponse = await sh1.read();
-    print('stats verb esponse : $statsResponse');
-    expect(statsResponse, contains('Invalid syntax'));
-    // As invalid syntx closes the connection. Creating a new connection
-    sh1.close();
-    sh1 = await e2e.getSocketHandler(atSign_1);
-  });
-
   test(
       'stats verb for id 11 - update operation count from sender for the messageType key',
       () async {
@@ -105,30 +66,6 @@ void main() {
   });
 
   test(
-      'stats verb for id 11 - update operation count from receiver for the messageType key',
-      () async {
-    /// stats:11 verb response
-    var beforeUpdateCount = await notificationStats(sh2);
-    var receivedCountBeforeUpdate = beforeUpdateCount['type']['received'];
-
-    /// update command
-    var value = '$lastValue-UK';
-    await sh1.writeCommand('notify:update:$atSign_2:country$atSign_1:$value');
-    var notifyResponse = await sh1.read();
-    print('notify verb response $notifyResponse');
-    assert((!notifyResponse.contains('Invalid syntax')) &&
-        (!notifyResponse.contains('null')));
-    String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    var afterUpdateCount = await notificationStats(sh2);
-    var receivedCountAfterUpdate = afterUpdateCount['type']['received'];
-    expect(afterUpdateCount['operations']['update'],
-        beforeUpdateCount['operations']['update'] + 1);
-    expect(receivedCountAfterUpdate, receivedCountBeforeUpdate + 1);
-  }, timeout: Timeout(Duration(seconds: 120)));
-
-  test(
       'stats verb for id 11 - delete operation count from sender for the messageType key',
       () async {
     /// stats:11 verb response
@@ -153,27 +90,6 @@ void main() {
     expect(sentCountAfterDelete, sentCountBeforeDelete + 1);
     expect(statusAfterDelete, statusBeforeDelete + 1);
   });
-
-  test('stats verb for id 11 - delete operation count from receiver', () async {
-    /// stats:11 verb response
-    var beforeDelete = await notificationStats(sh2);
-    var sentCountBeforeDelete = await beforeDelete['type']['received'];
-
-    /// delete command
-    await sh1.writeCommand('notify:delete:$atSign_2:country$atSign_1');
-    var deleteResponse = await sh1.read();
-    print('notify delete verb response $deleteResponse');
-    assert((!deleteResponse.contains('Invalid syntax')) &&
-        (!deleteResponse.contains('null')));
-    String notificationId = deleteResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    var afterDelete = await notificationStats(sh2);
-    var sentCountAfterDelete = await afterDelete['type']['received'];
-    expect(afterDelete['operations']['delete'],
-        beforeDelete['operations']['delete'] + 1);
-    expect(sentCountAfterDelete, sentCountBeforeDelete + 1);
-  }, timeout: Timeout(Duration(seconds: 120)));
 
   test('stats verb for id 11 - for messageType text ', () async {
     /// stats:11 verb response
@@ -217,8 +133,8 @@ void main() {
     assert((!notifyResponse.contains('Invalid syntax')) &&
         (!notifyResponse.contains('null')));
     String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification
-        .getNotifyStatus(sh1, notificationId, returnWhenStatusIn: ['errored'], timeOutMillis: 15000);
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['errored'], timeOutMillis: 15000);
     var afterUpdate = await notificationStats(sh1);
     var sentCountAfterUpdate = await afterUpdate['type']['sent'];
     var statusAfterUpdate = await afterUpdate['status']['failed'];

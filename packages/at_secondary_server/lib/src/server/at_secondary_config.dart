@@ -5,7 +5,8 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
-  static final Map<ModifiableConfigs, ModifiableConfigurationEntry> _streamListeners = {};
+  static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
+      _streamListeners = {};
   //Certs
   static final bool _useTLS = true;
   static final bool _clientCertificateRequired = true;

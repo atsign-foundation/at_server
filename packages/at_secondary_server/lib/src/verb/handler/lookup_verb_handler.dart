@@ -19,7 +19,9 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
 
-  LookupVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager) : super(keyStore);
+  LookupVerbHandler(
+      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
+      : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -42,8 +44,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
-    var atAccessLog =
-        await AtAccessLogManagerImpl.getInstance().getAccessLog(thisServersAtSign);
+    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(thisServersAtSign);
     var fromAtSign = atConnectionMetadata.fromAtSign;
     String keyOwnersAtSign = verbParams[AT_SIGN]!;
     keyOwnersAtSign = AtUtils.formatAtSign(keyOwnersAtSign)!;
@@ -61,7 +63,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
         // We're looking up data owned by this server's atSign
         var lookupKey = '$thisServersAtSign:$keyAtAtSign';
         var lookupValue = await keyStore.get(lookupKey);
-        response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
+        response.data =
+            SecondaryUtil.prepareResponseData(operation, lookupValue);
 
         //Resolving value references to correct value
         if (response.data != null &&
@@ -70,29 +73,36 @@ class LookupVerbHandler extends AbstractVerbHandler {
               response.data.toString(), thisServersAtSign);
         }
         try {
-          await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+          await atAccessLog!
+              .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
         } on DataStoreException catch (e) {
           logger.severe('Hive error adding to access log:${e.toString()}');
         }
-      } else { // keyOwnersAtSign != thisServersAtSign
+      } else {
+        // keyOwnersAtSign != thisServersAtSign
         // We're looking up data owned by another atSign.
         String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
         //Get cached value.
-        AtData? cachedValue = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
-        response.data = SecondaryUtil.prepareResponseData(operation, cachedValue);
+        AtData? cachedValue =
+            await cacheManager.get(cachedKeyName, applyMetadataRules: true);
+        response.data =
+            SecondaryUtil.prepareResponseData(operation, cachedValue);
 
         //If cached value is null or byPassCache is true, do a remote lookUp
         if (response.data == null ||
             response.data == '' ||
             byPassCacheStr == 'true') {
-          AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
+          AtData? atData = await cacheManager.remoteLookUp(cachedKeyName,
+              maintainCache: true);
           if (atData != null) {
-            response.data = SecondaryUtil.prepareResponseData(operation, atData, key: '$thisServersAtSign:$keyAtAtSign');
+            response.data = SecondaryUtil.prepareResponseData(operation, atData,
+                key: '$thisServersAtSign:$keyAtAtSign');
           }
         }
       }
       return;
-    } else { // isAuthenticated is false
+    } else {
+      // isAuthenticated is false
       // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
       var keyPrefix = '';
       if (atConnectionMetadata.isPolAuthenticated) {
@@ -107,16 +117,19 @@ class LookupVerbHandler extends AbstractVerbHandler {
       var lookupData = await keyStore.get(lookupKey);
       var isActive = SecondaryUtil.isActiveKey(lookupData);
       if (isActive) {
-        response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
+        response.data =
+            SecondaryUtil.prepareResponseData(operation, lookupData);
         //Resolving value references to correct values
         if (response.data != null &&
             response.data!.contains(AT_VALUE_REFERENCE)) {
-          response.data = await resolveValueReference(response.data!, keyPrefix);
+          response.data =
+              await resolveValueReference(response.data!, keyPrefix);
         }
         //Omit all keys starting with '_' to record in access log
         if (!keyAtAtSign.startsWith('_')) {
           try {
-            await atAccessLog!.insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+            await atAccessLog!
+                .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
           } on DataStoreException catch (e) {
             logger.severe('Hive error adding to access log:${e.toString()}');
           }

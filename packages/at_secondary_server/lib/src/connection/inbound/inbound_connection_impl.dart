@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dar
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 import 'dummy_inbound_connection.dart';
@@ -187,7 +188,8 @@ class InboundConnectionImpl extends BaseConnection
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
       getSocket().destroy();
-      logger.finer('$address:$port Disconnected');
+      logger.finer(logger.getAtConnectionLogMessage(
+          getMetaData(), '$address:$port Disconnected'));
       getMetaData().isClosed = true;
       telemetry?.interaction(
           eventType: AtServerTelemetryEventType.disconnect,
@@ -229,6 +231,10 @@ class InboundConnectionImpl extends BaseConnection
   @override
   void write(String data) {
     super.write(data);
+    if (metaData is InboundConnectionMetadata) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
+    }
     if (data == '@') { // response to initial connection
       return;
     }
@@ -237,12 +243,4 @@ class InboundConnectionImpl extends BaseConnection
         : AtServerTelemetryEventType.response;
     telemetry?.interaction(eventType: eventType, from: server, to: client);
   }
-  // @override
-  // void write(String data) {
-  //   if (metaData is InboundConnectionMetadata) {
-  //     logger.info(logger.getClientConnectionLogMessage(
-  //         metaData as InboundConnectionMetadata, 'SENDING response'));
-  //   }
-  //   super.write(data);
-  // }
 }

@@ -26,7 +26,7 @@ class AtCacheManager {
     var itr = keysList.iterator;
     while (itr.moveNext()) {
       var key = itr.current;
-      logger.finer ("getKeyNamesToRefresh : Checking $key");
+      logger.finer("getKeyNamesToRefresh : Checking $key");
 
       AtMetaData? metadata = await keyStore.getMeta(key);
 
@@ -41,13 +41,14 @@ class AtCacheManager {
         // Technically, we should NEVER have this situation
         // However, we do, because of history
         // Log a warning, but continue
-        logger.warning('getKeyNamesToRefresh: for $key the ttr is null or zero - should not be in cache');
+        logger.warning(
+            'getKeyNamesToRefresh: for $key the ttr is null or zero - should not be in cache');
       }
 
       // If metadata.availableAt is in the future, key's TTB is not met, we should not refresh
       if (metadata.availableAt != null &&
           metadata.availableAt!.millisecondsSinceEpoch >= nowInEpoch) {
-        logger.finer ("getKeyNamesToRefresh : $key not yet available");
+        logger.finer("getKeyNamesToRefresh : $key not yet available");
         continue;
       }
 
@@ -55,29 +56,34 @@ class AtCacheManager {
       // TODO Should we actually remove it at this point?
       if (metadata.expiresAt != null &&
           nowInEpoch >= metadata.expiresAt!.millisecondsSinceEpoch) {
-        logger.finer ("getKeyNamesToRefresh : $key has expired");
+        logger.finer("getKeyNamesToRefresh : $key has expired");
         continue;
       }
 
       // Is this cached key supposed to auto-refresh? -1 means no, you can cache indefinitely.
       if (metadata.ttr == -1) {
-        logger.finer ("getKeyNamesToRefresh : $key ttr is -1");
+        logger.finer("getKeyNamesToRefresh : $key ttr is -1");
         continue;
       }
 
       // Is it time to refresh yet?
-      if (metadata.refreshAt != null && metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
-        logger.finer ("getKeyNamesToRefresh : $key refreshAt (${metadata.refreshAt}) not yet reached");
+      if (metadata.refreshAt != null &&
+          metadata.refreshAt!.millisecondsSinceEpoch > nowInEpoch) {
+        logger.finer(
+            "getKeyNamesToRefresh : $key refreshAt (${metadata.refreshAt}) not yet reached");
         continue;
       }
 
-      if (metadata.refreshAt == null && metadata.ttr != null && metadata.ttr! > 0) {
+      if (metadata.refreshAt == null &&
+          metadata.ttr != null &&
+          metadata.ttr! > 0) {
         // We've got a real ttr but no refreshAt - this is technically an illegal state
         // Log a warning, as the cache refresh job can deal with it
-        logger.warning('getKeyNamesToRefresh: for $key the ttr is ${metadata.ttr} - but refreshAt is null');
+        logger.warning(
+            'getKeyNamesToRefresh: for $key the ttr is ${metadata.ttr} - but refreshAt is null');
       }
 
-      logger.finer ("adding $key to list of key names to refresh");
+      logger.finer("adding $key to list of key names to refresh");
       cachedKeys.add(key);
     }
     return cachedKeys;
@@ -93,10 +99,12 @@ class AtCacheManager {
   ///   * If we get a valid response, update the cache
   ///
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
-  Future<AtData?> remoteLookUp(String cachedKeyName, {bool maintainCache = false}) async {
+  Future<AtData?> remoteLookUp(String cachedKeyName,
+      {bool maintainCache = false}) async {
     logger.info("remoteLookUp: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
-      throw IllegalArgumentException('AtCacheManager.remoteLookUp called with invalid cachedKeyName $cachedKeyName');
+      throw IllegalArgumentException(
+          'AtCacheManager.remoteLookUp called with invalid cachedKeyName $cachedKeyName');
     }
 
     String? remoteResponse;
@@ -104,21 +112,26 @@ class AtCacheManager {
     try {
       if (cachedKeyName.startsWith('cached:public:')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:public:', '');
-        remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
+        remoteResponse =
+            await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
       } else if (cachedKeyName.startsWith('cached:$atSign')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
-        remoteResponse = await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
+        remoteResponse =
+            await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
       } else {
-        throw IllegalArgumentException('remoteLookup called with invalid cachedKeyName $cachedKeyName');
+        throw IllegalArgumentException(
+            'remoteLookup called with invalid cachedKeyName $cachedKeyName');
       }
     } on KeyNotFoundException {
       if (maintainCache) {
-        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName');
-        if (! cachedKeyName.startsWith('cached:public:publickey@')) {
+        logger.info(
+            'remoteLookUp: KeyNotFoundException while looking up $remoteKeyName');
+        if (!cachedKeyName.startsWith('cached:public:publickey@')) {
           await delete(cachedKeyName);
         }
       } else {
-        logger.info('remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
+        logger.info(
+            'remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
             ' - but maintainCache is false, so leaving $cachedKeyName in cache');
       }
       rethrow;
@@ -129,15 +142,18 @@ class AtCacheManager {
     remoteResponse = remoteResponse!.replaceAll('data:', '');
     if (remoteResponse == 'null') {
       if (maintainCache) {
-        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName');
-        if (! cachedKeyName.startsWith('cached:public:publickey@')) {
+        logger.info(
+            'remoteLookUp: String value of "null" response while looking up $remoteKeyName');
+        if (!cachedKeyName.startsWith('cached:public:publickey@')) {
           await delete(cachedKeyName);
         }
       } else {
-        logger.info('remoteLookUp: String value of "null" response while looking up $remoteKeyName'
+        logger.info(
+            'remoteLookUp: String value of "null" response while looking up $remoteKeyName'
             ' - but maintainCache is false, so leaving $cachedKeyName in cache');
       }
-      throw KeyNotFoundException("remoteLookUp: remote atServer returned String value 'null' for $remoteKeyName");
+      throw KeyNotFoundException(
+          "remoteLookUp: remote atServer returned String value 'null' for $remoteKeyName");
     }
 
     AtData atData = AtData().fromJson(jsonDecode(remoteResponse));
@@ -145,15 +161,18 @@ class AtCacheManager {
     // We only cache other people's stuff
     if (cachedKeyName.endsWith(atSign)) {
       // TODO Why would we ever do a 'remote' lookup on our own stuff?
-      logger.warning('Bizarrely, we did a remoteLookup of our own data $remoteKeyName');
+      logger.warning(
+          'Bizarrely, we did a remoteLookup of our own data $remoteKeyName');
     } else {
       if (maintainCache) {
         late bool shouldCache;
-        logger.info('remoteLookUp: Successfully looked up $remoteKeyName - updating cache for $cachedKeyName');
+        logger.info(
+            'remoteLookUp: Successfully looked up $remoteKeyName - updating cache for $cachedKeyName');
         if (atData.metaData == null) {
           // No metaData? Should never happen. don't cache
           shouldCache = false;
-          logger.severe('No metadata in remote response for $remoteKeyName - will not cache');
+          logger.severe(
+              'No metadata in remote response for $remoteKeyName - will not cache');
         } else if (atData.metaData!.ttr == 0 || atData.metaData!.ttr == null) {
           // ttr of zero or null means 'do not cache' according to the spec
           shouldCache = false;
@@ -176,7 +195,8 @@ class AtCacheManager {
           await put(cachedKeyName, atData);
         }
       } else {
-        logger.info('remoteLookUp: Successfully looked up $remoteKeyName - but maintainCache is false, so not adding to cache');
+        logger.info(
+            'remoteLookUp: Successfully looked up $remoteKeyName - but maintainCache is false, so not adding to cache');
       }
     }
 
@@ -188,10 +208,12 @@ class AtCacheManager {
   /// * If [applyMetadataRules] is true, then use [SecondaryUtil.isActiveKey] to check
   ///   * Is this record 'active' i.e. it is non-null, it's been 'born', and it is still 'alive'
   ///   * Is it cacheable indefinitely (ttr == -1) or have we not yet reached its 'refreshAt' timestamp?
-  Future<AtData?> get(String cachedKeyName, {required bool applyMetadataRules}) async {
+  Future<AtData?> get(String cachedKeyName,
+      {required bool applyMetadataRules}) async {
     logger.info("get: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
-      throw IllegalArgumentException('AtCacheManager.get called with invalid cachedKeyName $cachedKeyName');
+      throw IllegalArgumentException(
+          'AtCacheManager.get called with invalid cachedKeyName $cachedKeyName');
     }
 
     if (!keyStore.isKeyExists(cachedKeyName)) {
@@ -203,7 +225,7 @@ class AtCacheManager {
     }
 
     // If not applying the metadata rules, just return what we found
-    if (! applyMetadataRules) {
+    if (!applyMetadataRules) {
       return atData;
     }
 
@@ -231,16 +253,17 @@ class AtCacheManager {
   Future<void> delete(String cachedKeyName) async {
     logger.info("delete: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
-      throw IllegalArgumentException('AtCacheManager.delete called with invalid cachedKeyName $cachedKeyName');
+      throw IllegalArgumentException(
+          'AtCacheManager.delete called with invalid cachedKeyName $cachedKeyName');
     }
 
     try {
       await keyStore.remove(cachedKeyName);
     } on KeyNotFoundException {
-      logger.warning('remove operation - key $cachedKeyName does not exist in keystore');
+      logger.warning(
+          'remove operation - key $cachedKeyName does not exist in keystore');
     }
   }
-
 
   /// Update the cached data.
   ///
@@ -262,15 +285,19 @@ class AtCacheManager {
   Future<void> put(String cachedKeyName, AtData atData) async {
     logger.info("put: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
-      throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName');
+      throw IllegalArgumentException(
+          'AtCacheManager.put called with invalid cachedKeyName $cachedKeyName');
     }
     if (cachedKeyName.endsWith(atSign)) {
-      throw IllegalArgumentException('AtCacheManager.put called with invalid cachedKeyName $cachedKeyName - we do not re-cache our own data');
+      throw IllegalArgumentException(
+          'AtCacheManager.put called with invalid cachedKeyName $cachedKeyName - we do not re-cache our own data');
     }
 
     // For everything other than 'cached:public:publickey@atSign' just put it into the key store
-    if (! cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData, time_to_refresh: atData.metaData!.ttr, time_to_live: atData.metaData!.ttl);
+    if (!cachedKeyName.startsWith('cached:public:publickey@')) {
+      await keyStore.put(cachedKeyName, atData,
+          time_to_refresh: atData.metaData!.ttr,
+          time_to_live: atData.metaData!.ttl);
       return;
     }
 
@@ -283,10 +310,11 @@ class AtCacheManager {
     //   ==> in fact we're going to remove the current key from the keystore, and create the new one,
     //       so that we get the correct 'createdAt' value
     // If the data has not changed, then we don't need to do anything
-    var otherAtSignWithoutTheAt = cachedKeyName.replaceFirst('cached:public:publickey@', '');
+    var otherAtSignWithoutTheAt =
+        cachedKeyName.replaceFirst('cached:public:publickey@', '');
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
-      if (! keyStore.isKeyExists(cachedKeyName)) {
+      if (!keyStore.isKeyExists(cachedKeyName)) {
         await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
         return;
       }
@@ -301,9 +329,9 @@ class AtCacheManager {
         late AtData existing;
         try {
           existing = (await keyStore.get(cachedKeyName))!;
-          if (atData.data != null
-              && atData.data != 'null'
-              && existing.data != atData.data) {
+          if (atData.data != null &&
+              atData.data != 'null' &&
+              existing.data != atData.data) {
             // We're only setting the 'publicKeyChanged' flag to true IFF
             // 1) We previously had real data and we also have some new real data (not null, nor the literal value 'null')
             // 2) The data is actually different
@@ -321,15 +349,16 @@ class AtCacheManager {
         // Firstly - Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
         // e.g. find shared_key.bob@alice and rename it to shared_key.bob.until.<epochMillis>@alice
         var now = DateTime.now().toUtc().millisecondsSinceEpoch;
-        var nameOfMyCopyOfSharedKey = 'shared_key.$otherAtSignWithoutTheAt$atSign';
+        var nameOfMyCopyOfSharedKey =
+            'shared_key.$otherAtSignWithoutTheAt$atSign';
         if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
-
           AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
 
           logger.warning('Removing $nameOfMyCopyOfSharedKey');
           await keyStore.remove(nameOfMyCopyOfSharedKey);
 
-          var copyOfSharedKeyKeyName = 'shared_key.$otherAtSignWithoutTheAt.until.$now$atSign';
+          var copyOfSharedKeyKeyName =
+              'shared_key.$otherAtSignWithoutTheAt.until.$now$atSign';
           logger.warning('Creating $copyOfSharedKeyKeyName');
           await keyStore.put(copyOfSharedKeyKeyName, data);
         }
@@ -339,7 +368,8 @@ class AtCacheManager {
         await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
       }
     } catch (e, st) {
-      logger.severe('Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
+      logger.severe(
+          'Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
     }
   }
 
@@ -354,8 +384,7 @@ class AtCacheManager {
     // Need not connect again if the client's handshake is already done
 
     if (!outBoundClient.isHandShakeDone) {
-      var connectResult =
-      await outBoundClient.connect(handshake: isHandShake);
+      var connectResult = await outBoundClient.connect(handshake: isHandShake);
       logger.finer('connect result: $connectResult');
     }
     return await outBoundClient.lookUp(key, handshake: isHandShake);

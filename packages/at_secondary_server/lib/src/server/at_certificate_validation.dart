@@ -21,7 +21,7 @@ class AtCertificateValidationJob {
   static final logger = AtSignLogger('AtCertificationValidation');
 
   /// Default value for [gracefulExitWaitTimeout]
-  static const Duration defaultGracefulWaitTimeout = Duration(seconds:30);
+  static const Duration defaultGracefulWaitTimeout = Duration(seconds: 30);
 
   /// The location at which we will find the file which indicates we need to restart
   String restartFilePath;
@@ -41,9 +41,7 @@ class AtCertificateValidationJob {
   Cron? _cron;
 
   AtCertificateValidationJob(
-      this.secondaryServer,
-      this.restartFilePath,
-      this.forceRestart,
+      this.secondaryServer, this.restartFilePath, this.forceRestart,
       {this.gracefulExitWaitTimeout = defaultGracefulWaitTimeout});
 
   /// [start] May only be called once. Will throw a StateError if called more than once.
@@ -57,8 +55,10 @@ class AtCertificateValidationJob {
     // Run the cron job twice a day.
     // Generate a random number between 0 and 11
     var certsJobHour = Random().nextInt(11);
-    _cron!.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]), checkAndRestartIfRequired);
-    logger.info("CertificateExpiryCheck cron scheduled - will run (24-hour-clock) at $certsJobHour:00 and ${certsJobHour+12}:00");
+    _cron!.schedule(Schedule(hours: [certsJobHour, certsJobHour + 12]),
+        checkAndRestartIfRequired);
+    logger.info(
+        "CertificateExpiryCheck cron scheduled - will run (24-hour-clock) at $certsJobHour:00 and ${certsJobHour + 12}:00");
   }
 
   /// To prevent two checks running concurrently
@@ -68,10 +68,10 @@ class AtCertificateValidationJob {
   /// required and if so, it
   /// - waits for [waitUntilReadyToRestart]
   /// - waits for [restartServer]
-  Future<void> checkAndRestartIfRequired() async
-  {
+  Future<void> checkAndRestartIfRequired() async {
     if (_checkInProgress) {
-      logger.info('checkAndRestartIfRequired called - but checkAndRestartIfRequired is already in progress. Returning.');
+      logger.info(
+          'checkAndRestartIfRequired called - but checkAndRestartIfRequired is already in progress. Returning.');
       return;
     }
 
@@ -104,6 +104,7 @@ class AtCertificateValidationJob {
   }
 
   @visibleForTesting
+
   /// Restarts the secondary server by calling secondaryServer.stop() and then secondaryServer.start()
   Future<void> restartServer() async {
     logger.info("restartServer called");
@@ -116,6 +117,7 @@ class AtCertificateValidationJob {
   }
 
   @visibleForTesting
+
   /// - Calls secondaryServer.pause() which tells the server that it should not accept
   /// any new connections, should close existing idle connections, should prevent existing connections
   /// from accepting new requests, and should close existing active connections once they have finished
@@ -131,13 +133,16 @@ class AtCertificateValidationJob {
     DateTime gracePeriodEnd = DateTime.now().add(gracefulExitWaitTimeout);
 
     int monitorSize, totalSize, activeSize;
-    while (DateTime.now().toUtc().microsecondsSinceEpoch < gracePeriodEnd.microsecondsSinceEpoch) {
+    while (DateTime.now().toUtc().microsecondsSinceEpoch <
+        gracePeriodEnd.microsecondsSinceEpoch) {
       monitorSize = ConnectionUtil.getMonitorConnectionSize();
       totalSize = ConnectionUtil.getActiveConnectionSize();
       activeSize = totalSize - monitorSize;
-      logger.info('Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
+      logger.info(
+          'Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
       if (totalSize == 0 || totalSize == monitorSize) {
-        logger.info('No active connections except for asynchronous connections - OK to restart server');
+        logger.info(
+            'No active connections except for asynchronous connections - OK to restart server');
         return true;
       } else {
         await Future.delayed(Duration(seconds: 1));
@@ -146,8 +151,10 @@ class AtCertificateValidationJob {
     monitorSize = ConnectionUtil.getMonitorConnectionSize();
     totalSize = ConnectionUtil.getActiveConnectionSize();
     activeSize = totalSize - monitorSize;
-    logger.warning('gracefulExitWaitTimeout $gracefulExitWaitTimeout has passed. Will restart server even though we may have active connections');
-    logger.info('Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
+    logger.warning(
+        'gracefulExitWaitTimeout $gracefulExitWaitTimeout has passed. Will restart server even though we may have active connections');
+    logger.info(
+        'Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
     return false;
   }
 
@@ -157,21 +164,25 @@ class AtCertificateValidationJob {
       try {
         await file.delete();
       } catch (e) {
-        logger.warning("deleteRestartFile apparently failed to delete file: $e");
+        logger
+            .warning("deleteRestartFile apparently failed to delete file: $e");
       }
     }
-    logger.info("after deleteRestartFile(): file.exists() is ${await file.exists()}");
+    logger.info(
+        "after deleteRestartFile(): file.exists() is ${await file.exists()}");
   }
 
   Future<void> createRestartFile() async {
     var file = File(restartFilePath);
-    if (! await file.exists()) {
+    if (!await file.exists()) {
       try {
         await file.create();
       } catch (e) {
-        logger.warning("createRestartFile apparently failed to create file: $e");
+        logger
+            .warning("createRestartFile apparently failed to create file: $e");
       }
     }
-    logger.info("after createRestartFile(): file.exists() is ${await file.exists()}");
+    logger.info(
+        "after createRestartFile(): file.exists() is ${await file.exists()}");
   }
 }

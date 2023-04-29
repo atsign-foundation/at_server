@@ -55,7 +55,8 @@ class OutboundClient {
   late OutboundConnectionFactory _outboundConnectionFactory;
 
   OutboundClient(this.inboundConnection, this.toAtSign,
-      {this.secondaryAddressFinder, OutboundConnectionFactory? outboundConnectionFactory}) {
+      {this.secondaryAddressFinder,
+      OutboundConnectionFactory? outboundConnectionFactory}) {
     outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
     _outboundConnectionFactory = outboundConnectionFactory;
   }
@@ -79,7 +80,8 @@ class OutboundClient {
       String toHost = secondaryInfo[0];
       int toPort = int.parse(secondaryInfo[1]);
       // 2. Create an outbound connection for the host and port
-      outboundConnection = await _outboundConnectionFactory.createOutboundConnection(toHost, toPort, toAtSign);
+      outboundConnection = await _outboundConnectionFactory
+          .createOutboundConnection(toHost, toPort, toAtSign);
       isConnectionCreated = true;
 
       // 3. Listen to outbound message
@@ -113,7 +115,8 @@ class OutboundClient {
           'socket exception connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     } on HandShakeException catch (e) {
-      logger.severe('HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
+      logger.severe(
+          'HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
     }
 
@@ -135,11 +138,13 @@ class OutboundClient {
 
     // TODO Using singleton until we have won the long war on singletons and can inject the AtCacheManager
     // TODO into this object at construction time.
-    AtCacheManager cacheManager = AtSecondaryServerImpl.getInstance().cacheManager;
+    AtCacheManager cacheManager =
+        AtSecondaryServerImpl.getInstance().cacheManager;
 
     String doing = 'checkRemotePublicKey looking up $remotePublicKeyName';
     try {
-      remoteResponse = (await lookUp('all:$remotePublicKeyName', handshake: false))!;
+      remoteResponse =
+          (await lookUp('all:$remotePublicKeyName', handshake: false))!;
     } on KeyNotFoundException {
       // Do nothing
       return;
@@ -154,7 +159,8 @@ class OutboundClient {
       if (remoteResponse.startsWith('data:')) {
         remoteResponse = remoteResponse.replaceFirst('data:', '');
       }
-      doing = 'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
+      doing =
+          'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
       atData = AtData().fromJson(jsonDecode(remoteResponse));
 
       doing = 'checkRemotePublicKey updating $cachedPublicKeyName in cache';
@@ -170,7 +176,8 @@ class OutboundClient {
 
   Future<String> _findSecondary(toAtSign) async {
     if (secondaryAddressFinder != null) {
-      at_lookup.SecondaryAddress address = await secondaryAddressFinder!.findSecondary(toAtSign);
+      at_lookup.SecondaryAddress address =
+          await secondaryAddressFinder!.findSecondary(toAtSign);
       return address.toString();
     }
 
@@ -208,13 +215,9 @@ class OutboundClient {
 
       if (productionMode) {
         var signedChallenge = SecondaryUtil.signChallenge(
-            challenge, AtSecondaryServerImpl
-            .getInstance()
-            .signingKey);
+            challenge, AtSecondaryServerImpl.getInstance().signingKey);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-            AtSecondaryServerImpl
-                .getInstance()
-                .currentAtSign);
+            AtSecondaryServerImpl.getInstance().currentAtSign);
       }
 
       //4. Create pol request
@@ -227,7 +230,8 @@ class OutboundClient {
         logger.info("pol handshake complete");
         return true;
       } else {
-        logger.info("pol handshake failed - handShakeResult was $handShakeResult");
+        logger.info(
+            "pol handshake failed - handShakeResult was $handShakeResult");
         return false;
       }
     } on ConnectionInvalidException {
@@ -249,10 +253,12 @@ class OutboundClient {
   Future<String?> lookUp(String key, {bool handshake = true}) async {
     logger.finer('lookUp($key, handshake:$handshake) called for $toAtSign');
     if (handshake && !isHandShakeDone) {
-      throw LookupException('OutboundClient.lookUp: Handshake not done, but lookUp was called with handshake: true');
+      throw LookupException(
+          'OutboundClient.lookUp: Handshake not done, but lookUp was called with handshake: true');
     }
     if (isHandShakeDone && !handshake) {
-      throw LookupException('OutboundClient.lookUp: Handshake done, but lookUp was called with handshake: false');
+      throw LookupException(
+          'OutboundClient.lookUp: Handshake done, but lookUp was called with handshake: false');
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
@@ -266,7 +272,8 @@ class OutboundClient {
     }
 
     // Actually read the response from the remote secondary
-    String lookupResult = await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
+    String lookupResult =
+        await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
     lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return lookupResult;
@@ -319,7 +326,8 @@ class OutboundClient {
         (outboundConnection != null && outboundConnection!.isInValid());
   }
 
-  Future<String?> notify(String notifyCommandBody, {bool handshake = true}) async {
+  Future<String?> notify(String notifyCommandBody,
+      {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a lookup');
@@ -336,7 +344,8 @@ class OutboundClient {
     }
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
     // response.
-    var notifyResult = await messageListener.read(maxWaitMilliSeconds: notifyTimeoutMillis);
+    var notifyResult =
+        await messageListener.read(maxWaitMilliSeconds: notifyTimeoutMillis);
     //notifyResult = notifyResult.replaceFirst(RegExp(r'\n\S+'), '');
     lastUsed = DateTime.now();
     return notifyResult;
@@ -371,18 +380,22 @@ class OutboundClient {
 }
 
 abstract class OutboundConnectionFactory {
-  Future<OutboundConnection> createOutboundConnection(String host, int port, String toAtSign);
+  Future<OutboundConnection> createOutboundConnection(
+      String host, int port, String toAtSign);
 }
 
 class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   @override
-  Future<OutboundConnection> createOutboundConnection(String host, int port, String toAtSign) async {
+  Future<OutboundConnection> createOutboundConnection(
+      String host, int port, String toAtSign) async {
     var securityContext = AtSecurityContextImpl();
     var secConConnect = SecurityContext();
     secConConnect.useCertificateChain(securityContext.publicKeyPath());
     secConConnect.usePrivateKey(securityContext.privateKeyPath());
-    secConConnect.setTrustedCertificates(securityContext.trustedCertificatePath());
-    var secureSocket = await SecureSocket.connect(host, port, context: secConConnect);
+    secConConnect
+        .setTrustedCertificates(securityContext.trustedCertificatePath());
+    var secureSocket =
+        await SecureSocket.connect(host, port, context: secConConnect);
     return OutboundConnectionImpl(secureSocket, toAtSign);
   }
 }

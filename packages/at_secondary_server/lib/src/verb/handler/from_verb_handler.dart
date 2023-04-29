@@ -50,11 +50,18 @@ class FromVerbHandler extends AbstractVerbHandler {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = verbParams[AT_SIGN];
+
     if (verbParams[CLIENT_CONFIG] != null &&
         verbParams[CLIENT_CONFIG]!.isNotEmpty) {
-      atConnectionMetadata.clientVersion =
-          jsonDecode(verbParams[CLIENT_CONFIG]!)[VERSION];
+      var decodedClientConfig = jsonDecode(verbParams[CLIENT_CONFIG]!);
+      atConnectionMetadata
+        ..clientVersion = decodedClientConfig[VERSION]
+        ..clientId = decodedClientConfig[CLIENT_ID]
+        ..appName = decodedClientConfig[APP_NAME]
+        ..appVersion = decodedClientConfig[APP_VERSION]
+        ..platform = decodedClientConfig[PLATFORM];
     }
+
     fromAtSign = AtUtils.formatAtSign(fromAtSign);
     fromAtSign = AtUtils.fixAtSign(fromAtSign!);
     var atData = AtData();
@@ -107,7 +114,8 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
     // ignore: deprecated_member_use
-    var secondaryUrl = await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
+    var secondaryUrl =
+        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
     if (secondaryUrl == null) {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $fromAtSign');

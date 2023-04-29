@@ -22,7 +22,8 @@ Future<void> main(List<String> arguments) async {
     logger.shout(e.message);
     exit(1);
   } on Exception catch (e) {
-    logger.shout('Unexpected exception while starting secondary server: ${e.toString()}');
+    logger.shout(
+        'Unexpected exception while starting secondary server: ${e.toString()}');
     exit(1);
   }
 }

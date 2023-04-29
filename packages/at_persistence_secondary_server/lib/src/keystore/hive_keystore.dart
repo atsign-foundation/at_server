@@ -35,6 +35,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @Deprecated("Use [initialize]")
+
   /// Deprecated. Use [initialize]
   Future<void> init() async {
     await initialize();
@@ -113,10 +114,22 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     // Set CommitOp to UPDATE_META if any of the metadata args are not null
     var hasNonNullMetadata = ObjectsUtil.anyNotNull({
-      time_to_live,time_to_born,time_to_refresh,
-      isCascade,isBinary,isEncrypted,
-      dataSignature, sharedKeyEncrypted, publicKeyChecksum, encoding,
-      encKeyName, encAlgo, ivNonce, skeEncKeyName, skeEncAlgo});
+      time_to_live,
+      time_to_born,
+      time_to_refresh,
+      isCascade,
+      isBinary,
+      isEncrypted,
+      dataSignature,
+      sharedKeyEncrypted,
+      publicKeyChecksum,
+      encoding,
+      encKeyName,
+      encAlgo,
+      ivNonce,
+      skeEncKeyName,
+      skeEncAlgo
+    });
     if (hasNonNullMetadata) {
       commitOp = CommitOp.UPDATE_META;
     }
@@ -148,8 +161,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
-        var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(
-            value!,
+        var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingAtData: existingData!,
             ttl: time_to_live,
             ttb: time_to_born,
@@ -255,10 +267,23 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
 
     // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
-    if (ObjectsUtil.anyNotNull({time_to_live,time_to_born,time_to_refresh,
-      isCascade,isBinary,isEncrypted,
-      dataSignature, sharedKeyEncrypted, publicKeyChecksum, encoding,
-      encKeyName, encAlgo, ivNonce, skeEncKeyName, skeEncAlgo})) {
+    if (ObjectsUtil.anyNotNull({
+      time_to_live,
+      time_to_born,
+      time_to_refresh,
+      isCascade,
+      isBinary,
+      isEncrypted,
+      dataSignature,
+      sharedKeyEncrypted,
+      publicKeyChecksum,
+      encoding,
+      encKeyName,
+      encAlgo,
+      ivNonce,
+      skeEncKeyName,
+      skeEncAlgo
+    })) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 

@@ -141,7 +141,9 @@ void main() async {
           'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
     });
 
-    test('Test to verify prepare an update notification command with a value and all the metadata', () {
+    test(
+        'Test to verify prepare an update notification command with a value and all the metadata',
+        () {
       var ttln = 24 * 60 * 60 * 1000;
       var atNotification = (AtNotificationBuilder()
             ..fromAtSign = '@alice'
@@ -154,8 +156,8 @@ void main() async {
             ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
             ..ttl = ttln
             ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
-              ..ttr=1
-              ..ccd=true
+              ..ttr = 1
+              ..ccd = true
               ..pubKeyCS = '123'
               ..sharedKeyEnc = 'abc'
               ..encKeyName = 'ekn'
@@ -168,7 +170,8 @@ void main() async {
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
 
-      print (notifyCommand);
+      print(notifyCommand);
+
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(
           notifyCommand,

@@ -9,6 +9,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
@@ -20,6 +21,7 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -532,7 +534,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer('inside _executeVerbCallBack: $command');
+    logger.finer(logger.getAtConnectionLogMessage(
+        connection.getMetaData(), 'inside _executeVerbCallBack: $command'));
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
@@ -566,7 +569,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
     var streamId = sender.getMetaData().streamId;
-    logger.finer('stream id:$streamId');
+    logger.finer(logger.getAtConnectionLogMessage(
+        sender.getMetaData(), 'stream id:$streamId'));
     if (_isPaused) {
       GlobalExceptionHandler.getInstance().handle(
           ServerIsPausedException(
