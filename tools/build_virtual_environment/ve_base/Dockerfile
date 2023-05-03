@@ -17,7 +17,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
 
-FROM debian@sha256:0a78ed641b76252739e28ebbbe8cdbd80dc367fba4502565ca839e5803cfd86e
+FROM debian@sha256:b165f187c702504db07c9c39c53f9d923ff31039bebcb8f8516079d2d29e1e9c
 # was debian:stable-20221114-slim
 USER root
 
