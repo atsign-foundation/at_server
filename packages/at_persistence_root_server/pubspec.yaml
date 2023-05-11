@@ -7,7 +7,7 @@ documentation: https://atsign.dev/at_docs-dev_env/at_persistence_root_server/ind
 publish_to: none
 
 environment:
-  sdk: '>=2.12.0 <4.0.0'
+  sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
   at_commons: ^3.0.0

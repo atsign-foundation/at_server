@@ -4,7 +4,7 @@ description: Tool to load PKAM keys into root server for testing atSigns
 # homepage: https://www.example.com
 
 environment:
-  sdk: '>=2.8.1 <4.0.0'
+  sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
   at_demo_data: ^1.0.0
