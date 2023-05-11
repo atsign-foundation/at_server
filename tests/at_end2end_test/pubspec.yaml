@@ -4,15 +4,22 @@ publish_to: none
 version: 1.0.1
 
 environment:
-  sdk: '>=2.12.0 <3.0.0'
+  sdk: '>=2.12.0 <4.0.0'
 
 dependencies:
   at_demo_data:
     git:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
-      ref: master
+      ref: trunk
   at_lookup: ^3.0.32
+
+dependency_overrides:
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_lookup
+      ref: dart-3
 
 dev_dependencies:
   lints: ^1.0.1

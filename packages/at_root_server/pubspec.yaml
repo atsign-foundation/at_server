@@ -6,29 +6,34 @@ homepage: https://atsign.dev
 publish_to: none
 
 environment:
-  sdk: '>=2.12.0 <3.0.0'
+  sdk: '>=2.12.0 <4.0.0'
 
 dependencies:
   args: ^2.1.0
   uuid: ^3.0.4
   yaml: ^3.1.0
+  at_commons: ^3.0.0
+  at_utils: ^3.0.0
   at_server_spec: ^3.0.0
   at_persistence_root_server:
+    path: ../at_persistence_root_server
+
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: dart-3
+  at_utils:
+    git:
+      url: https://github.com/atsign-foundation/at_tools.git
+      path: packages/at_commons
+      ref: dart-3
+  at_server_spec:
     git:
       url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_root_server
-      ref: trunk
-      version: ^2.0.5
-  at_utils: ^3.0.0
-  at_commons: ^3.0.0
-
-#dependency_overrides:
-#  at_server_spec:
-#    path: ../../../at_server/at_server_spec
-#  at_persistence_root_server:
-#    path: ../../../at_server/at_root/at_persistence_root_server
-#  at_commons:
-#    path: ../../../at_tools/at_commons
+      path: packages/at_server_spec
+      ref: dart-3
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
