@@ -16,36 +16,6 @@ dependency_overrides:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: packages/at_lookup
       ref: dart-3
-  at_client:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      path: packages/at_client
-      ref: dart-3
-  at_onboarding_cli:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_onboarding_cli
-      ref: dart-3
-  at_server_status:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_server_status
-      ref: dart-3
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_server_spec
-      ref: dart-3
-  at_persistence_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_spec
-      ref: dart-3
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_secondary_server
-      ref: dart-3
   at_demo_data:
     git:
       url: https://github.com/atsign-foundation/at_demos.git
