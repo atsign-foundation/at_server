@@ -2,7 +2,7 @@ import 'package:at_demo_data/at_demo_data.dart' as at_demo_data;
 import 'package:at_lookup/at_lookup.dart';
 
 void main(List<String> arguments) async {
-  await Future.forEach(at_demo_data.allAtsigns, (atSign) async {
+  await Future.forEach(at_demo_data.allAtsigns, (String atSign) async {
     if (atSign != 'anonymous') {
       await lookItUp(atSign);
     }
@@ -35,7 +35,7 @@ Future<void> lookItUp(String atSign) async {
     command =
         'update:public:publickey${atSign} ${at_demo_data.encryptionPublicKeyMap[atSign]}\n';
     response = await _atLookup.executeCommand(command, auth: true);
-    if (response.startsWith('data:') && response != 'data:null') {
+    if (response!.startsWith('data:') && response != 'data:null') {
       print('Setting of PKAM public key for $atSign is successful');
     } else {
       print('Failed to update PKAM public key for $atSign');
@@ -45,7 +45,7 @@ Future<void> lookItUp(String atSign) async {
     // Set pkamInstalled key to "yes"
     command = 'update:public:pkaminstalled$atSign yes\n';
     response = await _atLookup.executeCommand(command, auth: true);
-    if (response.startsWith('data:') && response != 'data:null') {
+    if (response!.startsWith('data:') && response != 'data:null') {
       print('Set pkaminstalled key for $atSign is successful');
     } else {
       print('Failed to update pkaminstalled key for $atSign');
