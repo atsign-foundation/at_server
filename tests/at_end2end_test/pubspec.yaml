@@ -14,13 +14,6 @@ dependencies:
       ref: trunk
   at_lookup: ^3.0.32
 
-dependency_overrides:
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_lookup
-      ref: dart-3
-
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.14.4

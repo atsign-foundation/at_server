@@ -18,23 +18,6 @@ dependencies:
   at_persistence_root_server:
     path: ../at_persistence_root_server
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_commons
-      ref: dart-3
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_utils
-      ref: dart-3
-  at_server_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_server_spec
-      ref: dart-3
-
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
   test_cov: ^1.0.1

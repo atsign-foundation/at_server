@@ -19,24 +19,6 @@ dependencies:
   at_persistence_spec: ^2.0.12
   meta: ^1.8.0
 
-dependency_overrides:
-  at_utf7:
-    git:
-      url: https://github.com/atsign-foundation/at-dart-utf7.git
-      ref: trunk
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_commons
-      ref: dart-3
-  at_utils:
-    git:
-      url: https://github.com/atsign-foundation/at_tools.git
-      path: packages/at_utils
-      ref: dart-3
-  at_persistence_spec:
-    path: ../at_persistence_spec
-
 dev_dependencies:
   lints: ^2.0.0
   test: ^1.21.4
