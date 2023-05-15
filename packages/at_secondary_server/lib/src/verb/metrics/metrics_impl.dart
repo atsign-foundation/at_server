@@ -485,17 +485,18 @@ class NotificationCompactionStats implements MetricProvider {
 class LatestCommitEntryOfEachKey implements MetricProvider {
   @override
   getMetrics({String? regex}) async {
-    var responseMap = <String, Map<String, dynamic>>{};
+    var responseMap = <String, List<dynamic>>{};
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
 
-    var commitEntryIterator = atCommitLog!.getEntries(-1);
+    Iterator commitEntryIterator = atCommitLog!.getEntries(-1);
 
     while (commitEntryIterator.moveNext()) {
-      responseMap[commitEntryIterator.current.key] = {
-        'commitId': commitEntryIterator.current.value.commitId,
-        'commitOp': commitEntryIterator.current.value.operation.toString()
-      };
+      CommitEntry commitEntry = commitEntryIterator.current.value;
+      responseMap[commitEntry.atKey!] = [
+        commitEntry.commitId,
+        commitEntry.operation.name
+      ];
     }
     return jsonEncode(responseMap);
   }

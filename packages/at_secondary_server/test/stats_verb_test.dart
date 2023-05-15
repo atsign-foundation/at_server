@@ -458,24 +458,17 @@ void main() {
       var latestCommitIdForEachKey =
           await LatestCommitEntryOfEachKey().getMetrics();
       var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
-      expect(
-          latestCommitIdMap['@alice:location-$randomString@alice']['commitId'],
+      expect(latestCommitIdMap['@alice:location-$randomString@alice'][0],
           (int.parse(lastCommitId) + 2));
-      expect(
-          latestCommitIdMap['@alice:location-$randomString@alice']['commitOp'],
-          'CommitOp.UPDATE');
+      expect(latestCommitIdMap['@alice:location-$randomString@alice'][1], '+');
 
-      expect(latestCommitIdMap['@alice:phone-$randomString@alice']['commitId'],
+      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][0],
           (int.parse(lastCommitId) + 3));
-      expect(latestCommitIdMap['@alice:phone-$randomString@alice']['commitOp'],
-          'CommitOp.UPDATE_ALL');
+      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][1], '*');
 
-      expect(
-          latestCommitIdMap['@alice:deletekey-$randomString@alice']['commitId'],
+      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][0],
           (int.parse(lastCommitId) + 5));
-      expect(
-          latestCommitIdMap['@alice:deletekey-$randomString@alice']['commitOp'],
-          'CommitOp.DELETE');
+      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][1], '-');
     });
   });
 }
