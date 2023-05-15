@@ -287,9 +287,11 @@ class NotificationsMetricImpl implements MetricProvider {
       NotificationsMetricImpl._internal();
 
   NotificationsMetricImpl._internal();
+
   factory NotificationsMetricImpl.getInstance() {
     return _singleton;
   }
+
   String _asString(dynamic enumData) {
     return enumData == null ? 'null' : enumData.toString().split('.')[1];
   }
@@ -477,5 +479,30 @@ class NotificationCompactionStats implements MetricProvider {
   @override
   String getName() {
     return 'NotificationCompactionStats';
+  }
+}
+
+class LatestCommitEntryOfEachKey implements MetricProvider {
+  @override
+  getMetrics({String? regex}) async {
+    var responseMap = <String, List<dynamic>>{};
+    var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
+        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+
+    Iterator commitEntryIterator = atCommitLog!.getEntries(-1);
+
+    while (commitEntryIterator.moveNext()) {
+      CommitEntry commitEntry = commitEntryIterator.current.value;
+      responseMap[commitEntry.atKey!] = [
+        commitEntry.commitId,
+        commitEntry.operation.name
+      ];
+    }
+    return jsonEncode(responseMap);
+  }
+
+  @override
+  String getName() {
+    return 'LatestCommitEntryOfEachKey';
   }
 }

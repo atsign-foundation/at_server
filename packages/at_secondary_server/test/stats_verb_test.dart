@@ -18,8 +18,11 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:uuid/uuid.dart';
 import 'notify_verb_test.dart';
 import 'package:mocktail/mocktail.dart';
+
+import 'test_utils.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -422,6 +425,50 @@ void main() {
       expect(decodedData[AtCompactionConstants.preCompactionEntriesCount], '1');
       expect(decodedData[AtCompactionConstants.compactionDurationInMills],
           '10000');
+    });
+  });
+
+  group('A group of test to validate latestCommitEntryOfEachKey', () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test('A test to validate latestCommitEntryOfEachKey', () async {
+      secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(alice);
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId =
+          await LastCommitIDMetricImpl.getInstance().getMetrics();
+      var randomString = Uuid().v4();
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:phone-$randomString@alice', AtData()..data = '9848033443');
+      // create a new key
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:location-$randomString@alice', AtData()..data = 'Hyderabad');
+      // Update the first key again
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:phone-$randomString@alice', AtData()..data = '9848033444');
+      // Insert and delete a key
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:deleteKey-$randomString@alice',
+          AtData()..data = '9848033444');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .remove('@alice:deleteKey-$randomString@alice');
+      var latestCommitIdForEachKey =
+          await LatestCommitEntryOfEachKey().getMetrics();
+      var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
+      expect(latestCommitIdMap['@alice:location-$randomString@alice'][0],
+          (int.parse(lastCommitId) + 2));
+      expect(latestCommitIdMap['@alice:location-$randomString@alice'][1], '+');
+
+      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][0],
+          (int.parse(lastCommitId) + 3));
+      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][1], '*');
+
+      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][0],
+          (int.parse(lastCommitId) + 5));
+      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][1], '-');
     });
   });
 }
