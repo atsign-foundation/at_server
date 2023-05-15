@@ -29,7 +29,8 @@ enum MetricNames {
   NOTIFICATION_COUNT,
   COMMIT_LOG_COMPACTION,
   ACCESS_lOG_COMPACTION,
-  NOTIFICATION_COMPACTION
+  NOTIFICATION_COMPACTION,
+  LATEST_COMMIT_ENTRY_OF_EACH_KEY
 }
 
 extension MetricClasses on MetricNames? {
@@ -63,6 +64,8 @@ extension MetricClasses on MetricNames? {
         return AccessLogCompactionStats.getInstance();
       case MetricNames.NOTIFICATION_COMPACTION:
         return NotificationCompactionStats.getInstance();
+      case MetricNames.LATEST_COMMIT_ENTRY_OF_EACH_KEY:
+        return LatestCommitEntryOfEachKey();
       default:
         return null;
     }
@@ -83,7 +86,8 @@ final Map statsMap = {
   '11': MetricNames.NOTIFICATION_COUNT,
   '12': MetricNames.COMMIT_LOG_COMPACTION,
   '13': MetricNames.ACCESS_lOG_COMPACTION,
-  '14': MetricNames.NOTIFICATION_COMPACTION
+  '14': MetricNames.NOTIFICATION_COMPACTION,
+  '15': MetricNames.LATEST_COMMIT_ENTRY_OF_EACH_KEY
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
