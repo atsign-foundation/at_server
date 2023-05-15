@@ -5,7 +5,6 @@ import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 import 'functional_test_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
-import 'package:version/version.dart';
 
 void main() {
   var firstAtsign =

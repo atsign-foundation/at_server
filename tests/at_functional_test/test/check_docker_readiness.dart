@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import 'check_test_env.dart';
 import 'functional_test_commons.dart';
 
 var maxRetryCount = 10;

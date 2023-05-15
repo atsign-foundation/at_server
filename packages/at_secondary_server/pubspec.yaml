@@ -6,29 +6,29 @@ homepage: https://www.example.com
 publish_to: none
 
 environment:
-  sdk: '>=2.12.0 <3.0.0'
+  sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
-  args: 2.3.1
+  args: 2.4.1
   uuid: 3.0.7
   convert: 3.1.1
-  cron: ^0.5.1
+  cron: 0.5.1
   crypto: 3.0.2
   crypton: 2.1.0
   collection: 1.17.0
   basic_utils: 5.4.2
-  ecdsa: ^0.0.4
-  at_persistence_spec: 2.0.12
-  at_persistence_secondary_server: 3.0.52
-  at_lookup: 3.0.36
-  at_server_spec: 3.0.11
+  ecdsa: 0.0.4
+  at_commons: 3.0.45
   at_utils: 3.0.12
   at_chops: 1.0.3
-  at_commons: 3.0.45
+  at_lookup: 3.0.36
+  at_server_spec: 3.0.11
+  at_persistence_spec: 2.0.12
+  at_persistence_secondary_server: 3.0.52
   version: 3.0.2
   meta: 1.8.0
-  mutex: ^3.0.1
-  yaml: ^3.1.1
+  mutex: 3.0.1
+  yaml: 3.1.1
 
 dev_dependencies:
   test: ^1.22.1
