@@ -1,3 +1,6 @@
+## 3.0.32
+- fix: Enhance stats verb to return latest commitEntry of each key
+- chore: Ignore melos files
 ## 3.0.31
 - feat: Introduce clientId, appName, appVersion and platform to distinguish requests from several clients in server logs.
 ## 3.0.30
