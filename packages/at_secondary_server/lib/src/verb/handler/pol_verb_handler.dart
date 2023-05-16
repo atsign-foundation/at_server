@@ -60,7 +60,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     var sessionID = atConnectionMetadata.sessionID;
 
     logger.info('from : ${atConnectionMetadata.from.toString()}');
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
+    AtAccessLog? atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
@@ -71,8 +71,8 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
 
     // Getting secondary server URL
-    // ignore: deprecated_member_use
     var secondaryUrl =
+        // ignore: deprecated_member_use
         await AtLookupImpl.findSecondary(fromAtSign!, _rootDomain, _rootPort!);
     logger.finer('secondary url : $secondaryUrl');
     if (secondaryUrl != null && secondaryUrl.contains(':')) {
@@ -92,6 +92,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
       // Getting stored secret from this secondary server
       var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
+      logger.finer('secret fetch status : ${secret != null}');
       var message = secret?.data;
       if (fromPublicKey != null && signedChallenge != null) {
         // Comparing secretLookup form other secondary and stored secret are same or not
@@ -107,6 +108,11 @@ class PolVerbHandler extends AbstractVerbHandler {
         } else {
           throw UnAuthenticatedException('Pol Authentication Failed');
         }
+      } else {
+        logger.finer('fromPublicKey is $fromPublicKey\n'
+            'signedChallenge is $signedChallenge');
+        throw AtKeyNotFoundException(
+            'fromPublicKey or signedChallenge is null');
       }
       outBoundClient.close();
       return;

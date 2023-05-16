@@ -75,7 +75,7 @@ class OutboundClient {
     var result = false;
     try {
       // 1. Find secondary url for the toAtSign
-      var secondaryUrl = await _findSecondary(toAtSign);
+      String secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
       String toHost = secondaryInfo[0];
       int toPort = int.parse(secondaryInfo[1]);
@@ -83,6 +83,7 @@ class OutboundClient {
       outboundConnection = await _outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
       isConnectionCreated = true;
+      logger.finer('outbound connection created for $toHost $toPort $toAtSign');
 
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
@@ -167,6 +168,7 @@ class OutboundClient {
     if (secondaryAddressFinder != null) {
       at_lookup.SecondaryAddress address =
           await secondaryAddressFinder!.findSecondary(toAtSign);
+      logger.finer('secondary address found for $toAtSign: $address');
       return address.toString();
     }
 
@@ -177,6 +179,7 @@ class OutboundClient {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
     }
+    logger.finer('secondary url found for $toAtSign: $secondaryUrl');
     return secondaryUrl;
   }
 
@@ -301,16 +304,19 @@ class OutboundClient {
   Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
     lastUsed = DateTime.now();
+    logger.finer('plookup result of the $key: $result');
     return result;
   }
 
   void close() {
     if (outboundConnection != null) {
       outboundConnection!.close();
+      logger.finer('Outbound connection closed');
     }
   }
 
   bool isInValid() {
+    logger.finer('connection is invalid');
     return inboundConnection.isInValid() ||
         (outboundConnection != null && outboundConnection!.isInValid());
   }
@@ -377,8 +383,8 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   @override
   Future<OutboundConnection> createOutboundConnection(
       String host, int port, String toAtSign) async {
-    var securityContext = AtSecurityContextImpl();
-    var secConConnect = SecurityContext();
+    AtSecurityContextImpl securityContext = AtSecurityContextImpl();
+    SecurityContext secConConnect = SecurityContext();
     secConConnect.useCertificateChain(securityContext.publicKeyPath());
     secConConnect.usePrivateKey(securityContext.privateKeyPath());
     secConConnect
