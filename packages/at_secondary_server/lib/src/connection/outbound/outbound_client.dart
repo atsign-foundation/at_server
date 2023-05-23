@@ -108,6 +108,9 @@ class OutboundClient {
       logger.severe(
           'HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
       rethrow;
+    } on Exception catch(e){
+      logger.severe('Exception while creating an Outbound Connection: $e');
+      rethrow;
     }
 
     lastUsed = DateTime.now();
