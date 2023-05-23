@@ -9,7 +9,7 @@ packages = [{include = "at_server_tools"}]
 [tool.poetry.dependencies]
 python = "^3.8"
 "ruamel.yaml" = "0.17.26"
-requests = "2.30.0"
+requests = "2.31.0"
 dnspython = "2.3.0"
 
 
