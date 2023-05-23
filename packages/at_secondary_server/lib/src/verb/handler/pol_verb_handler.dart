@@ -54,7 +54,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atConnectionMetadata =
+    InboundConnectionMetadata atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
@@ -71,10 +71,10 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
 
     // Getting secondary server URL
-    var secondaryUrl =
+    String? secondaryUrl =
         // ignore: deprecated_member_use
         await AtLookupImpl.findSecondary(fromAtSign!, _rootDomain, _rootPort!);
-    logger.finer('secondary url : $secondaryUrl');
+    logger.finer('secondary url: $secondaryUrl');
     if (secondaryUrl != null && secondaryUrl.contains(':')) {
       var lookUpKey = '$sessionID$fromAtSign';
       // Connect to the other secondary server and get the secret
@@ -82,24 +82,36 @@ class PolVerbHandler extends AbstractVerbHandler {
           outboundClientManager.getClient(fromAtSign, atConnection);
       if (!outBoundClient.isConnectionCreated) {
         logger.finer('creating outbound connection $fromAtSign');
-        await outBoundClient.connect(handshake: false);
+        try {
+          await outBoundClient.connect(handshake: false);
+        } on Exception catch(e, st){
+          logger.severe('Exception while connecting to the outbound client.\n$e');
+          logger.severe(st);
+        }
       }
-      var signedChallenge =
-          await (outBoundClient.lookUp(lookUpKey, handshake: false));
-      signedChallenge = signedChallenge?.replaceFirst('data:', '');
-      var plookupCommand = 'signing_publickey$fromAtSign';
-      var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
-      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
-      // Getting stored secret from this secondary server
-      var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
-      logger.finer('secret fetch status : ${secret != null}');
-      var message = secret?.data;
+
+      String? signedChallenge, message, fromPublicKey;
+      try {
+        signedChallenge =
+        await (outBoundClient.lookUp(lookUpKey, handshake: false));
+        signedChallenge = signedChallenge?.replaceFirst('data:', '');
+        var plookupCommand = 'signing_publickey$fromAtSign';
+        fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
+        fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
+        // Getting stored secret from this secondary server
+        var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
+        logger.finer('secret fetch status : ${secret != null}');
+        message = secret?.data;
+      } on Exception catch(e, st){
+        logger.severe('Exception while connecting to the outbound client.\n$e');
+        logger.severe(st);
+      }
       if (fromPublicKey != null && signedChallenge != null) {
         // Comparing secretLookup form other secondary and stored secret are same or not
-        var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
-            .verifySHA256Signature(utf8.encode(message) as Uint8List,
+        bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+            .verifySHA256Signature(utf8.encode(message!) as Uint8List,
                 base64Decode(signedChallenge));
-        logger.finer('isValidChallenge:$isValidChallenge');
+        logger.finer('isValidChallenge: $isValidChallenge');
         if (isValidChallenge) {
           atConnectionMetadata.isPolAuthenticated = true;
           response.data = 'pol:$fromAtSign@';
@@ -109,7 +121,8 @@ class PolVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException('Pol Authentication Failed');
         }
       } else {
-        logger.finer('fromPublicKey is $fromPublicKey\n'
+        logger.finer('Outbound Client status: ${outBoundClient.toString()}');
+        logger.severe('fromPublicKey is $fromPublicKey\n'
             'signedChallenge is $signedChallenge');
         throw AtKeyNotFoundException(
             'fromPublicKey or signedChallenge is null');
@@ -117,8 +130,10 @@ class PolVerbHandler extends AbstractVerbHandler {
       outBoundClient.close();
       return;
     } else {
+      logger.severe(
+          'Invalid Secondary Address: Secondary Address is: $secondaryUrl');
       throw SecondaryNotFoundException(
-          'secondary server not found for $fromAtSign');
+          'Secondary server not found for $fromAtSign');
     }
   }
 }
