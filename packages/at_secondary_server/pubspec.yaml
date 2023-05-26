@@ -30,6 +30,12 @@ dependencies:
   mutex: 3.0.1
   yaml: 3.1.1
 
+dependency_overrides:
+  at_commons:
+    path: ../../../at_tools/packages/at_commons
+  at_server_spec:
+    path: ../at_server_spec
+
 dev_dependencies:
   test: ^1.22.1
   coverage: ^1.6.1

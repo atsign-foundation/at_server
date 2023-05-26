@@ -11,5 +11,9 @@ environment:
 dependencies:
   at_commons: ^3.0.35
 
+dependency_overrides:
+  at_commons:
+    path: ../../../at_tools/packages/at_commons
+
 dev_dependencies:
   lints: ^1.0.1

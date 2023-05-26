@@ -146,7 +146,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('User atSign is not set');
     }
 
-    currentAtSign = AtUtils.formatAtSign(serverContext!.currentAtSign);
+    currentAtSign = AtUtils.fixAtSign(serverContext!.currentAtSign!);
     logger.info('currentAtSign : $currentAtSign');
 
     // Initialize persistent storage

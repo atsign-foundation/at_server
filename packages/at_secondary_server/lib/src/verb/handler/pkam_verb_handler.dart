@@ -102,6 +102,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // authenticate if signature is valid
     if (isValidSignature) {
       atConnectionMetadata.isAuthenticated = true;
+      atConnectionMetadata.authType = AuthType.pkam_legacy;
       response.data = 'success';
     } else {
       atConnectionMetadata.isAuthenticated = false;
