@@ -16,7 +16,9 @@ class EnrollDataStoreValue {
     deviceName = json['deviceName'];
     apkamPublicKey = json['apkamPublicKey'];
     requestType = json['requestType'];
-    approval = EnrollApproval.fromJson(json['approval']);
+    if (json['approval'] != null) {
+      approval = EnrollApproval.fromJson(json['approval']);
+    }
     json['namespaces'].forEach((e) {
       namespaces.add(EnrollNamespace.fromJson(e));
     });
@@ -64,3 +66,5 @@ class EnrollApproval {
     return '{state: $state}';
   }
 }
+
+enum EnrollStatus { pending, approved, denied }

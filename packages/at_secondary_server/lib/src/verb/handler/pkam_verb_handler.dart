@@ -1,6 +1,8 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -10,6 +12,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_secondary/src/enroll/enroll_constants.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
@@ -33,22 +36,42 @@ class PkamVerbHandler extends AbstractVerbHandler {
   @override
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
-    var atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata =
+        atConnection.getMetaData() as InboundConnectionMetadata;
     var sessionID = atConnectionMetadata.sessionID;
     var signature = verbParams[AT_PKAM_SIGNATURE]!;
     var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
     var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
+    var enrollId = verbParams[enrollApprovalId];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
 
+    var pkamAuthType = AuthType.pkam_legacy;
+    var publicKey;
+
+    // Use APKAM public key for verification if enrollId is passed. Otherwise use legacy pkam public key.
+    if (enrollId != null && enrollId.isNotEmpty) {
+      var key =
+          '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
+      var enrollData = await keyStore.get(key);
+      if (enrollData != null) {
+        final atData = enrollData.data;
+        logger.finer('enrollData: $atData');
+        publicKey =
+            EnrollDataStoreValue.fromJson(jsonDecode(atData)).apkamPublicKey;
+        pkamAuthType = AuthType.apkam;
+      }
+    } else {
+      var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
+      publicKey = publicKeyData.data;
+    }
     // If there is no public key in the keystore then throw an exception
-    if (publicKeyData == null) {
+    if (publicKey == null || publicKey.isEmpty) {
       response.data = 'failure';
       response.isError = true;
       response.errorMessage = 'pkam publickey not found';
       throw UnAuthenticatedException('pkam publickey not found');
     }
-    var publicKey = publicKeyData.data;
+
     var isValidSignature = false;
 
     //retrieve stored secret using sessionid and atsign
@@ -60,7 +83,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // if no signature algorithm is passed, default to RSA verification. This preserves
     // backward compatibility for old pkam messages without signing algo.
     logger.finer('signingAlgo: $signingAlgo');
-    logger.finer('in process verb of branch issue#1229');
     if (signingAlgo == null || signingAlgo.isEmpty) {
       signingAlgoEnum = SigningAlgoType.rsa2048;
       inputSignature = base64Decode(signature);
@@ -83,6 +105,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       hashingAlgoEnum = HashingAlgoType.sha512;
     }
     logger.finer('hashingAlgoEnum: $hashingAlgoEnum');
+    logger.finer('public key:$publicKey');
     final verificationInput = AtSigningVerificationInput(
         utf8.encode('$sessionID$atSign:$storedSecret') as Uint8List,
         inputSignature,
@@ -102,7 +125,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // authenticate if signature is valid
     if (isValidSignature) {
       atConnectionMetadata.isAuthenticated = true;
-      atConnectionMetadata.authType = AuthType.pkam_legacy;
+      atConnectionMetadata.authType = pkamAuthType;
+      atConnectionMetadata.enrollApprovalId = enrollId;
       response.data = 'success';
     } else {
       atConnectionMetadata.isAuthenticated = false;
