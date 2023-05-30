@@ -84,16 +84,17 @@ class PolVerbHandler extends AbstractVerbHandler {
         logger.finer('creating outbound connection $fromAtSign');
         try {
           await outBoundClient.connect(handshake: false);
-        } on Exception catch(e, st){
-          logger.severe('Exception while connecting to the outbound client.\n$e');
-          logger.severe(st);
+        } on Exception catch (e) {
+          logger.severe(
+              'Exception while connecting to the outbound client for: $fromAtSign\n$e');
+          rethrow;
         }
       }
 
       String? signedChallenge, message, fromPublicKey;
       try {
         signedChallenge =
-        await (outBoundClient.lookUp(lookUpKey, handshake: false));
+            await (outBoundClient.lookUp(lookUpKey, handshake: false));
         signedChallenge = signedChallenge?.replaceFirst('data:', '');
         var plookupCommand = 'signing_publickey$fromAtSign';
         fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
@@ -102,9 +103,10 @@ class PolVerbHandler extends AbstractVerbHandler {
         var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
         logger.finer('secret fetch status : ${secret != null}');
         message = secret?.data;
-      } on Exception catch(e, st){
-        logger.severe('Exception while connecting to the outbound client.\n$e');
-        logger.severe(st);
+      } on Exception catch (e) {
+        logger.severe(
+            'Exception while connecting to the outbound client for: $fromAtSign\n$e');
+        rethrow;
       }
       if (fromPublicKey != null && signedChallenge != null) {
         // Comparing secretLookup form other secondary and stored secret are same or not
