@@ -18,8 +18,8 @@ dependencies:
   collection: 1.17.0
   basic_utils: 5.4.2
   ecdsa: 0.0.4
-  at_commons: 3.0.45
-  at_utils: 3.0.12
+  at_commons: 3.0.47
+  at_utils: 3.0.13
   at_chops: 1.0.3
   at_lookup: 3.0.36
   at_server_spec: 3.0.11
