@@ -8,7 +8,7 @@ WORKDIR /app
 # If building manually then (from packages/at_root_server):
 ## sudo docker build -t atsigncompany/root .
 COPY . .
-RUN \
+RUN set -eux ; \
   mkdir -p $HOMEDIR/config ; \
   mkdir -p $BINARYDIR/config ; \
   dart pub get ; \
