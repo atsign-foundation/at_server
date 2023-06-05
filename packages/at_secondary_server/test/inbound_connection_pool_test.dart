@@ -149,7 +149,7 @@ void main() async {
     /// - Wait until we pass the allowable idle time for unauthenticated
     /// - Verify that the number of connections in the pool is now 55, comprised of
     ///   10 unauthenticated connections, and all 45 of the 'authenticated' ones
-    /// - Wait until we pass the cureently allowable idle time for 'authenticated'
+    /// - Wait until we pass the currently allowable idle time for 'authenticated'
     /// - Verify that the number of connections in the pool is now 3, since only
     ///   the 3 that we wrote to earlier are still not 'idle'
     test('test connection pool - 90% capacity - clear idle connection', () {
@@ -160,13 +160,11 @@ void main() async {
       List<MockInboundConnectionImpl> connections = [];
 
       int desiredPoolSize = (maxPoolSize * 0.9).floor();
-      int numAuthenticated = 0;
       int numUnauthenticated = 0;
       for (int i = 0; i < desiredPoolSize; i++) {
         var mockConnection = MockInboundConnectionImpl(null, 'mock session $i');
         if (i.isEven) {
           mockConnection.getMetaData().isAuthenticated = true;
-          numAuthenticated++;
         } else {
           numUnauthenticated++;
         }
