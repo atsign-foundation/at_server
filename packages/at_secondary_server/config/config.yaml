@@ -45,20 +45,31 @@ hive:
 
 # The @Protocol connection configurations.
 connection:
-  # The maximum time in milliseconds for an inbound connection to expire.
-  # This should NEVER be set to less than 60 seconds. Internally, the effective
-  # value used is reduced progressively as the number of connections approaches the max limit
+  # At any point, at most [inbound_max_limit] inbound connections are allowed. The inbound connection
+  # pool takes care of ensuring that idle connections are closed as necessary
+  inbound_max_limit: 200
+
+  # The maximum time in milliseconds for an **unauthenticated** inbound connection to expire.
+  # Default value is 10 minutes (10 * 60 * 1000 == 600000)
+  # Internally, the effective value used is reduced progressively towards 5 seconds as the current
+  # number of connections approaches the inbound_max_limit.
   inbound_idle_time_millis: 600000
+
+  # The maximum time in milliseconds for an **AUTHENTICATED** inbound connection to expire.
+  # Default value is 30 days (30 * 24 * 60 * 60 * 1000 == 2592000000)
+  # Internally, the effective value used is reduced progressively towards 60 seconds as the current
+  # number of connections approaches the max limit. So for example if the max number of connections is
+  # 200, and there are currently 200 connections, and a new client tries to connect,
+  # then any authenticated connection which has been idle for more than 60 seconds will be closed
+  # However: if there are only, say, 100 connections currently, then only authenticated connections
+  # which have been idle for more than 30 days will be closed
+  authenticated_inbound_idletime_millis: 2592000000
+
   # The maximum time in milliseconds for an outbound connection to expire.
   outbound_idle_time_millis: 600000
-  # Creates an inbound connection and adds the connection to inbound connection pool. At any point, at most [inbound_max_limit] connections can only be created.
-  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
-  # The connection in the pool will exist until its [inbound_idle_time_millis] expires.
-  inbound_max_limit: 50
-  # Creates an outbound connection and adds the connection to outbound connection pool. At any point, at most [outbound_max_limit] connections can only be created.
-  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
-  # The connection in the pool will exist until its [outbound_idle_time_millis] expires.
-  outbound_max_limit: 50
+
+  # At any point, at most [outbound_max_limit] outbound connections are allowed.
+  outbound_max_limit: 200
 
 # The @Protocol commit log compaction job configurations.
 commit_log_compaction:

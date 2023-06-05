@@ -61,9 +61,10 @@ class AtSecondaryConfig {
   static final int _runRefreshJobHour = 3;
 
   //Connection
-  static final int _inboundMaxLimit = 10;
-  static final int _outboundMaxLimit = 10;
-  static final int _inboundIdleTimeMillis = 600000;
+  static final int _inboundMaxLimit = 200;
+  static final int _outboundMaxLimit = 200;
+  static final int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
+  static final int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
   static final int _outboundIdleTimeMillis = 600000;
 
   //Lookup
@@ -403,7 +404,20 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _inboundIdleTimeMillis;
+      return _unauthenticatedInboundIdleTimeMillis;
+    }
+  }
+
+  // ignore: non_constant_identifier_names
+  static int get authenticated_inbound_idletime_millis {
+    var result = _getIntEnvVar('authenticated_inbound_idletime_millis');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _authenticatedInboundIdleTimeMillis;
     }
   }
 

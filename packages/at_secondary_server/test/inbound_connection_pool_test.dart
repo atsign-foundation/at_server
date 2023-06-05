@@ -14,9 +14,11 @@ AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 
 void main() async {
   setUpAll(() {
-    serverContext.inboundIdleTimeMillis = 250;
+    serverContext.unauthenticatedInboundIdleTimeMillis = 250;
+    serverContext.authenticatedInboundIdleTimeMillis = 500;
     serverContext.inboundConnectionLowWaterMarkRatio = 0.5;
     serverContext.unauthenticatedMinAllowableIdleTimeMillis = 20;
+    serverContext.authenticatedMinAllowableIdleTimeMillis = 100;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     InboundConnectionPool.getInstance().init(10);
   });
@@ -86,11 +88,15 @@ void main() async {
       poolInstance.add(connection2);
       poolInstance.add(connection3);
       sleep(Duration(
-          milliseconds: (serverContext.inboundIdleTimeMillis * 0.9).floor()));
+          milliseconds:
+              (serverContext.unauthenticatedInboundIdleTimeMillis * 0.9)
+                  .floor()));
       connection2.write('test data');
       expect(poolInstance.getCurrentSize(), 3);
       sleep(Duration(
-          milliseconds: (serverContext.inboundIdleTimeMillis * 0.2).floor()));
+          milliseconds:
+              (serverContext.unauthenticatedInboundIdleTimeMillis * 0.2)
+                  .floor()));
       print('connection 1: ${connection1.getMetaData().created} '
           '${connection1.getMetaData().lastAccessed} ${connection1.isInValid()}');
       print('connection 2: ${connection2.getMetaData().created} '
@@ -119,19 +125,33 @@ void main() async {
       }
 
       sleep(Duration(
-          milliseconds: (serverContext.inboundIdleTimeMillis * 0.9).floor()));
+          milliseconds:
+              (serverContext.unauthenticatedInboundIdleTimeMillis * 0.9)
+                  .floor()));
 
       connections[1].write('test data');
       expect(poolInstance.getCurrentSize(), lowWaterMark);
       sleep(Duration(
           milliseconds:
-              ((serverContext.inboundIdleTimeMillis * 0.1) + 1).floor()));
+              ((serverContext.unauthenticatedInboundIdleTimeMillis * 0.1) + 1)
+                  .floor()));
 
       poolInstance.clearInvalidConnections();
       expect(poolInstance.getCurrentSize(), 1);
     });
 
     /// Verify that, beyond lowWaterMark, allowable idle time progressively reduces
+    /// - Create a pool of 90 connections with a max pool size of 100
+    /// - Mark half of them as 'authenticated'
+    /// - Wait for 80% of the _currently_ allowable idle time
+    /// - Write to 3 of the 'authenticated' connections to reset their idle time
+    /// - Write to 10 of the 'unauthenticated' connections to reset their idle time
+    /// - Wait until we pass the allowable idle time for unauthenticated
+    /// - Verify that the number of connections in the pool is now 55, comprised of
+    ///   10 unauthenticated connections, and all 45 of the 'authenticated' ones
+    /// - Wait until we pass the cureently allowable idle time for 'authenticated'
+    /// - Verify that the number of connections in the pool is now 3, since only
+    ///   the 3 that we wrote to earlier are still not 'idle'
     test('test connection pool - 90% capacity - clear idle connection', () {
       int maxPoolSize = 100; // Please don't change this
 
@@ -163,14 +183,11 @@ void main() async {
         connections[i].metaData.lastAccessed = startTimeAsDateTime;
       }
 
-      int unauthenticatedMinAllowableIdleTimeMillis =
-          serverContext.unauthenticatedMinAllowableIdleTimeMillis;
-      int authenticatedMinAllowableIdleTimeMillis =
-          (serverContext.inboundIdleTimeMillis / 5).floor();
-
-      // Actual allowable idle time should be as per InboundConnectionImpl.dart - i.e.
       int unauthenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(
-          poolInstance, maxPoolSize, unauthenticatedMinAllowableIdleTimeMillis);
+          poolInstance,
+          maxPoolSize,
+          serverContext.unauthenticatedMinAllowableIdleTimeMillis,
+          serverContext.unauthenticatedInboundIdleTimeMillis);
       logger.info(
           "unAuth actual allowed idle time: $unauthenticatedActualAllowableIdleTime");
 
@@ -210,17 +227,21 @@ void main() async {
 
       // now when we clear invalid connections, we're going to see all of the unused unauthenticated connections returned to pool
       // Since we wrote to 10 unauthenticated connections, that means we will clean up numUnauthenticated - 10
+      var preClearSize = poolInstance.getCurrentSize();
       poolInstance.clearInvalidConnections();
       int expected =
           desiredPoolSize - (numUnauthenticated - numUnAuthToWriteTo);
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       logger.info(
-          'After $elapsed : expect pool size after unauthenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
+          '$elapsed milliseconds after start: expect pool size after unauthenticated clean up to be $expected (pre-clear size was $preClearSize)');
       expect(poolInstance.getCurrentSize(), expected);
 
       // now let's sleep until the unused connections will have been idle for longer than the currently allowable idle time for AUTHENTICATED connections
       int authenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(
-          poolInstance, maxPoolSize, authenticatedMinAllowableIdleTimeMillis);
+          poolInstance,
+          maxPoolSize,
+          serverContext.authenticatedMinAllowableIdleTimeMillis,
+          serverContext.authenticatedInboundIdleTimeMillis);
       logger.info(
           "auth actual allowed idle time: $authenticatedActualAllowableIdleTime");
 
@@ -232,25 +253,28 @@ void main() async {
 
       // now when we clear invalid connections, we're going to additionally see all of the unused AUTHENTICATED connections returned to pool
       // Since we wrote to 3 (numAuthToWriteTo variable above) authenticated connections, that means we will clean up an additional numAuthenticated - 3 connections
+      // And we'll also be cleaning up all of the UN-Authenticated connections, leaving us
+      // with just the 3 'authenticated' connections
+      preClearSize = poolInstance.getCurrentSize();
       poolInstance.clearInvalidConnections();
-      expected -= (numAuthenticated - numAuthToWriteTo);
+      expected = numAuthToWriteTo;
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       logger.info(
-          'After $elapsed : expect pool size after AUTHenticated clean up to be $expected (pre-clear size was $desiredPoolSize)');
+          '$elapsed milliseconds after start : expect pool size after AUTHenticated clean up to be $expected (pre-clear size was $preClearSize)');
       expect(poolInstance.getCurrentSize(), expected);
     });
   });
 }
 
 int calcActualAllowableIdleTime(
-    poolInstance, maxPoolSize, minAllowableIdleTime) {
+    poolInstance, maxPoolSize, minAllowableIdleTime, maxAllowableIdleTime) {
   int lowWaterMark =
       (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio).floor();
   int numConnectionsOverLwm =
       max(poolInstance.getCurrentSize() - lowWaterMark, 0);
   double idleTimeReductionFactor =
       1 - (numConnectionsOverLwm / (maxPoolSize - lowWaterMark));
-  return (((serverContext.inboundIdleTimeMillis - minAllowableIdleTime) *
+  return (((maxAllowableIdleTime - minAllowableIdleTime) *
               idleTimeReductionFactor) +
           minAllowableIdleTime)
       .floor();
