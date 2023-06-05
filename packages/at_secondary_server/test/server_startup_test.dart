@@ -2,7 +2,6 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
-import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:test/test.dart';
 

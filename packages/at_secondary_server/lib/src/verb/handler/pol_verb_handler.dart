@@ -6,6 +6,7 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -77,12 +78,8 @@ class PolVerbHandler extends AbstractVerbHandler {
     if (secondaryUrl != null && secondaryUrl.contains(':')) {
       var lookUpKey = '$sessionID$fromAtSign';
       // Connect to the other secondary server and get the secret
-      var outBoundClient =
+      OutboundClient outBoundClient =
           outboundClientManager.getClient(fromAtSign, atConnection);
-      if (outBoundClient == null) {
-        logger.severe('max outbound limit reached');
-        throw AtConnectException('max outbound limit reached');
-      }
       if (!outBoundClient.isConnectionCreated) {
         logger.finer('creating outbound connection $fromAtSign');
         await outBoundClient.connect(handshake: false);

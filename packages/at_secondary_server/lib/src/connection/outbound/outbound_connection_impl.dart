@@ -45,12 +45,10 @@ class OutboundConnectionImpl extends OutboundConnection {
     }
 
     try {
-      var address = getSocket().remoteAddress;
-      var port = getSocket().remotePort;
       var socket = getSocket();
-      if (socket != null) {
-        socket.destroy();
-      }
+      var address = socket.remoteAddress;
+      var port = socket.remotePort;
+      socket.destroy();
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {

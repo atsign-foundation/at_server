@@ -34,7 +34,7 @@ fi
 # Script dir is <repo_root>/tools/run_locally/scripts/<platform>
 # We will create logs etc in <repo_root>/tools/run_locally/runtime which
 # is in .gitignore
-cd "$scriptDir"/../..
+cd "$scriptDir"/../../
 mkdir -p runtime
 cd runtime
 
