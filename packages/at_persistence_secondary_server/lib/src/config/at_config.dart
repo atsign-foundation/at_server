@@ -131,8 +131,7 @@ class AtConfig {
     newData = keyStoreHelper.prepareDataForKeystoreOperation(newData,
         existingAtData: existingData);
 
-    logger.finest('hive key:$configKey');
-    logger.finest('hive value:$newData');
+    logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
     await _commitLog!.commit(configKey, CommitOp.UPDATE);
     result = 'success';

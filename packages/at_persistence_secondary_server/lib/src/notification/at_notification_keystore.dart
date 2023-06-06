@@ -112,12 +112,11 @@ class AtNotificationKeystore
     try {
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
-        _logger.finer('expired keys: $expiredKeys');
         await Future.forEach(expiredKeys, (expiredKey) async {
           await remove(expiredKey);
         });
       } else {
-        _logger.finer('notification key store. No expired notifications');
+        _logger.finest('notification key store. No expired notifications');
       }
     } on Exception catch (e) {
       result = false;
@@ -125,7 +124,7 @@ class AtNotificationKeystore
       throw DataStoreException(
           'exception in deleteExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
-      _logger.severe('HiveKeystore get error: $error');
+      _logger.severe('Error occurred in notification keystore: $error');
       throw DataStoreException(error.message);
     }
     return result;
