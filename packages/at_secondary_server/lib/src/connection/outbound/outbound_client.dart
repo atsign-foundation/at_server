@@ -324,15 +324,14 @@ class OutboundClient {
   bool isInValid() {
     bool isInvalid = false;
     if (inboundConnection.isInValid()) {
-      logger.severe(
+      logger.finer(
           'InboundConnection from ${inboundConnection.initiatedBy} is invalid');
       isInvalid = true;
     }
     if (outboundConnection != null && outboundConnection!.isInValid()) {
-      logger.severe('OutboundConnection to $toAtSign is invalid');
+      logger.finer('OutboundConnection to $toAtSign is invalid');
       isInvalid = true;
     }
-    logger.finer('Invalid Connection: ${toString()}');
     return isInvalid;
   }
 
