@@ -1,17 +1,17 @@
-# The @Protocol secondary server configurations.
+# The atProtocol secondary server configurations.
 
-# The @Protocol root server configuration
+# The atProtocol atDirectory (aka root server) configuration
 root_server:
-  # The port to connect to root server
+  # The atDirectory's port
   port: 64
-  # The url to connect to root server
+  # The atDirectory's host
   url: 'root.atsign.org'
 
-# The @Protocol application log configurations
+# Default logger settings
 log:
   level: INFO
 
-# The @Protocol security configurations.
+# The atProtocol security configurations.
 security:
   # To start secondary server in Secure/UnSecure mode. When [useTLS] is set to false, the secondary server starts in un-secure mode.
   # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
@@ -22,7 +22,7 @@ security:
   trustedCertificateLocation: '/etc/cacert/cacert.pem'
   clientCertificateRequired: true
 
-# The @Protocol storage configurations
+# The atProtocol storage configurations
 hive:
   # The storage path for secondary storage.
 
@@ -43,7 +43,7 @@ hive:
   # set the flag to false.
   shouldRemoveMalformedKeys: true
 
-# The @Protocol connection configurations.
+# The atProtocol connection configurations.
 connection:
   # At any point, at most [inbound_max_limit] inbound connections are allowed. The inbound connection
   # pool takes care of ensuring that idle connections are closed as necessary
@@ -71,7 +71,7 @@ connection:
   # At any point, at most [outbound_max_limit] outbound connections are allowed.
   outbound_max_limit: 200
 
-# The @Protocol commit log compaction job configurations.
+# The atProtocol commit log compaction job configurations.
 commit_log_compaction:
   # The frequent time interval (in minutes) to initiate the commit log compaction job service.
   compactionFrequencyMins: 18
@@ -82,7 +82,7 @@ commit_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
   sizeInKB: 10
 
-# The @Protocol access log compaction job configurations.
+# The atProtocol access log compaction job configurations.
 access_log_compaction:
   # The frequent time interval (in minutes) to initiate the access log compaction job service.
   compactionFrequencyMins: 15
@@ -93,19 +93,19 @@ access_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the access log compaction job service.
   sizeInKB: 2
 
-# The @Protocol notification keystore compaction job configurations.
+# The atProtocol notification keystore compaction job configurations.
 notification_keystore_compaction:
   compactionFrequencyMins: 5
   compactionPercentage: 30
   expiryInDays: 1
   sizeInKB: -1
 
-# The @Protocol key lookup configurations.
+# The atProtocol key lookup configurations.
 lookup:
   # The number of iterations to resolve the atSign value references.
   depth_of_resolution: 3
 
-# The configurations for @Protocol statistics
+# The configurations for atProtocol statistics
 stats:
   # Return the other atSign users who visited the current atSign for maximum number of times in the descending order.
   top_visits: 5
