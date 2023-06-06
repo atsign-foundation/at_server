@@ -74,8 +74,6 @@ class OutboundClient {
     logger.finer('connect(handshake:$handshake) called for $toAtSign');
     var result = false;
     try {
-      logger.severe(
-          'Dummy Socket exception connecting to secondary $toAtSign\n ${IllegalArgumentException('test').toString()}');
       // 1. Find secondary url for the toAtSign
       String secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
@@ -326,14 +324,15 @@ class OutboundClient {
   bool isInValid() {
     bool isInvalid = false;
     if (inboundConnection.isInValid()) {
-      logger.finer('Outbound Connection to $toAtSign is invalid');
+      logger.severe('Outbound Connection to $toAtSign is invalid');
       isInvalid = true;
     }
     if (outboundConnection != null && outboundConnection!.isInValid()) {
-      logger.finer(
+      logger.severe(
           'Inbound connection from ${inboundConnection.initiatedBy} is invalid');
       isInvalid = true;
     }
+    logger.severe('Invalid Connection: ${toString()}');
     return isInvalid;
   }
 
