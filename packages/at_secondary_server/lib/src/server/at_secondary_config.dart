@@ -5,7 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 
 class AtSecondaryConfig {
-  static const Map<ModifiableConfigs, ModifiableConfigurationEntry>
+  static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
   //Certs
   static const bool _useTLS = true;
@@ -89,7 +89,7 @@ class AtSecondaryConfig {
   static const int _syncPageLimit = 100;
 
   // Malformed Keys
-  static const List<String> _malformedKeys = [];
+  static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
   //version
