@@ -1,9 +1,12 @@
 ## 3.0.32
 - fix: Enhance stats verb to return latest commitEntry of each key
 - chore: Ignore melos files
-- chore: Uptake at_commons v3.0.46 which fixes failure of server when atSign has emoji with variation selector
+- chore: Uptake at_commons v3.0.46 which fixes failure of server when atSign
+  has emoji with variation selector
 - chore: Uptake at_utils v3.0.13 which enables logging to StandardError
-## 3.0.31
+- feat: Retain current inbound pool management logic, but be a **LOT** less 
+  aggressive when closing idle **authenticated** inbound connections
+- ## 3.0.31
 - feat: Introduce clientId, appName, appVersion and platform to distinguish requests from several clients in server logs.
 ## 3.0.30
 - fix: When metadata attributes are not set, merge the existing metadata attributes

@@ -23,10 +23,21 @@ class InboundConnectionImpl extends BaseConnection
 
   InboundConnectionPool? owningPool;
 
-  late int maxAllowableInboundIdleTimeMillis;
-  late double lowWaterMarkRatio;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
+  late int unauthenticatedMaxAllowableIdleTimeMillis;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
   late int unauthenticatedMinAllowableIdleTimeMillis;
+
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
+  late int authenticatedMaxAllowableIdleTimeMillis;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
   late int authenticatedMinAllowableIdleTimeMillis;
+
+  late double lowWaterMarkRatio;
   late bool progressivelyReduceAllowableInboundIdleTime;
 
   InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool})
@@ -40,19 +51,23 @@ class InboundConnectionImpl extends BaseConnection
         AtSecondaryServerImpl.getInstance().serverContext;
     // In test harnesses, secondary context may not yet have been set, in which case create a default AtSecondaryContext instance
     secondaryContext ??= AtSecondaryContext();
-    // We have one value set in config : inboundIdleTimeMillis
-    maxAllowableInboundIdleTimeMillis = secondaryContext.inboundIdleTimeMillis;
+
     lowWaterMarkRatio = secondaryContext.inboundConnectionLowWaterMarkRatio;
+    progressivelyReduceAllowableInboundIdleTime =
+        secondaryContext.progressivelyReduceAllowableInboundIdleTime;
+
+    // As number of connections increases then the "allowable" idle time
+    // reduces from the 'max' towards the 'min' value.
+    unauthenticatedMaxAllowableIdleTimeMillis =
+        secondaryContext.unauthenticatedInboundIdleTimeMillis;
     unauthenticatedMinAllowableIdleTimeMillis =
         secondaryContext.unauthenticatedMinAllowableIdleTimeMillis;
 
-    // minAllowableIdleTimeMillis for authenticated connections should be a lot more generous.
-    // if configured inboundIdleTimeMillis is 600,000 then authenticated min allowable will be 120,000
-    // if configured inboundIdleTimeMillis is 60,000 then authenticated min allowable will be 30,000
+    authenticatedMaxAllowableIdleTimeMillis =
+        secondaryContext.authenticatedInboundIdleTimeMillis;
     authenticatedMinAllowableIdleTimeMillis =
-        (maxAllowableInboundIdleTimeMillis / 5).floor();
-    progressivelyReduceAllowableInboundIdleTime =
-        secondaryContext.progressivelyReduceAllowableInboundIdleTime;
+        secondaryContext.authenticatedMinAllowableIdleTimeMillis;
+
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -120,7 +135,9 @@ class InboundConnectionImpl extends BaseConnection
       // When: current == 49, idle time allowable = (605-5) * (1 - (49-10)/(50-10)) + 5 i.e. 600 * (1 - 39/40) + 5 i.e. 600 * .025 + 5 i.e. 20
       // When: current == 50, idle time allowable = (605-5) * (1 - (50-10)/(50-10)) + 5 i.e. 600 * (1 - 40/40) + 5 i.e. 600 * 0 + 5 i.e. 5
       int allowableIdleTime = calcAllowableIdleTime(
-          idleTimeReductionFactor, unauthenticatedMinAllowableIdleTimeMillis);
+          idleTimeReductionFactor,
+          unauthenticatedMinAllowableIdleTimeMillis,
+          unauthenticatedMaxAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
       return retVal;
@@ -129,7 +146,9 @@ class InboundConnectionImpl extends BaseConnection
       // TODO (1) if the connection has a request in progress, we should never mark it as invalid
       // (2) otherwise, we will mark as invalid using same algorithm as above, but using authenticatedMinAllowableIdleTimeMillis
       int allowableIdleTime = calcAllowableIdleTime(
-          idleTimeReductionFactor, authenticatedMinAllowableIdleTimeMillis);
+          idleTimeReductionFactor,
+          authenticatedMinAllowableIdleTimeMillis,
+          authenticatedMaxAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
       return retVal;
@@ -137,8 +156,10 @@ class InboundConnectionImpl extends BaseConnection
   }
 
   int calcAllowableIdleTime(
-          double idleTimeReductionFactor, int minAllowableIdleTimeMillis) =>
-      (((maxAllowableInboundIdleTimeMillis - minAllowableIdleTimeMillis) *
+          double idleTimeReductionFactor,
+      int minAllowableIdleTimeMillis,
+      int maxAllowableIdleTimeMillis) =>
+      (((maxAllowableIdleTimeMillis - minAllowableIdleTimeMillis) *
                   idleTimeReductionFactor) +
               minAllowableIdleTimeMillis)
           .floor();
@@ -155,7 +176,12 @@ class InboundConnectionImpl extends BaseConnection
   /// Returns true if the client's idle time is greater than configured idle time.
   /// false otherwise
   bool _idleForLongerThanMax() {
-    return _getIdleTimeMillis() > maxAllowableInboundIdleTimeMillis;
+    var idleTimeMillis = _getIdleTimeMillis();
+    if (getMetaData().isAuthenticated || getMetaData().isPolAuthenticated) {
+      return idleTimeMillis > authenticatedMaxAllowableIdleTimeMillis;
+    } else {
+      return idleTimeMillis > unauthenticatedMaxAllowableIdleTimeMillis;
+    }
   }
 
   @override

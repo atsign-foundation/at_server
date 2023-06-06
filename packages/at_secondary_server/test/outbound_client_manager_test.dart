@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.inboundIdleTimeMillis = 50;
+    serverContext.unauthenticatedInboundIdleTimeMillis = 50;
     serverContext.outboundIdleTimeMillis = 30;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });

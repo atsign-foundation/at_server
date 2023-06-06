@@ -298,7 +298,6 @@ class CommitLogKeyStore
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      _logger.finer('startKey: $startKey all commit log entries: $values');
       limit ??= values.length + 1;
       for (CommitEntry element in values) {
         if (element.key >= startKey &&
@@ -344,7 +343,7 @@ class CommitLogKeyStore
     var values = await _getValues();
     for (var value in values) {
       if (value.commitId == null) {
-        _logger.severe(
+        _logger.finest(
             'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
         continue;
       }

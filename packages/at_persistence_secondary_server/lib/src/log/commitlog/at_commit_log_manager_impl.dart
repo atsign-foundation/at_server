@@ -1,5 +1,4 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_utils/at_logger.dart';
 
 class AtCommitLogManagerImpl implements AtCommitLogManager {
   static final AtCommitLogManagerImpl _singleton =
@@ -10,8 +9,6 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
   factory AtCommitLogManagerImpl.getInstance() {
     return _singleton;
   }
-
-  var logger = AtSignLogger('AtCommitLogManagerImpl');
 
   final Map<String, AtCommitLog> _commitLogMap = {};
 
