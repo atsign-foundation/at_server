@@ -98,18 +98,18 @@ class OutboundClient {
       }
     } on SecondaryNotFoundException catch (e) {
       logger
-          .severe('Secondary server not found for $toAtSign\n${e.toString()}');
+          .finer('Secondary server not found for $toAtSign | ${e.toString()}');
       rethrow;
     } on SocketException catch (e) {
-      logger.severe(
-          'Socket exception connecting to secondary $toAtSign\n ${e.toString()}');
+      logger.finer(
+          'Socket exception connecting to secondary $toAtSign | ${e.toString()}');
       rethrow;
     } on HandShakeException catch (e) {
-      logger.severe(
-          'HandShakeException connecting to secondary $toAtSign\n ${e.toString()}');
+      logger.finer(
+          'HandShakeException connecting to secondary $toAtSign | ${e.toString()}');
       rethrow;
     } on Exception catch (e) {
-      logger.severe('Exception while creating an Outbound Connection: $e');
+      logger.finer('Exception while creating an Outbound Connection: $e');
       rethrow;
     }
 
@@ -230,7 +230,7 @@ class OutboundClient {
         return false;
       }
     } on ConnectionInvalidException {
-      logger.severe('Invalid connection: ${toString()}');
+      logger.finer('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } catch (e) {
       await outboundConnection!.close();
@@ -264,7 +264,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
-      logger.severe('Invalid connection: ${toString()}');
+      logger.finer('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
@@ -293,7 +293,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
-      logger.severe('Invalid connection: ${toString()}');
+      logger.finer('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
@@ -324,15 +324,15 @@ class OutboundClient {
   bool isInValid() {
     bool isInvalid = false;
     if (inboundConnection.isInValid()) {
-      logger.severe('Outbound Connection to $toAtSign is invalid');
+      logger.severe(
+          'InboundConnection from ${inboundConnection.initiatedBy} is invalid');
       isInvalid = true;
     }
     if (outboundConnection != null && outboundConnection!.isInValid()) {
-      logger.severe(
-          'Inbound connection from ${inboundConnection.initiatedBy} is invalid');
+      logger.severe('OutboundConnection to $toAtSign is invalid');
       isInvalid = true;
     }
-    logger.severe('Invalid Connection: ${toString()}');
+    logger.finer('Invalid Connection: ${toString()}');
     return isInvalid;
   }
 
