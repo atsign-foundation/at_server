@@ -74,6 +74,8 @@ class OutboundClient {
     logger.finer('connect(handshake:$handshake) called for $toAtSign');
     var result = false;
     try {
+      logger.severe(
+          'Dummy Socket exception connecting to secondary $toAtSign\n ${IllegalArgumentException('test').toString()}');
       // 1. Find secondary url for the toAtSign
       String secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
@@ -83,7 +85,7 @@ class OutboundClient {
       outboundConnection = await _outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
       isConnectionCreated = true;
-      logger.finer('outbound connection created for $toHost $toPort $toAtSign');
+      logger.finer('Outbound connection created for $toHost $toPort $toAtSign');
 
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
@@ -98,17 +100,17 @@ class OutboundClient {
       }
     } on SecondaryNotFoundException catch (e) {
       logger
-          .severe('secondary server not found for $toAtSign: ${e.toString()}');
+          .severe('Secondary server not found for $toAtSign\n${e.toString()}');
       rethrow;
     } on SocketException catch (e) {
       logger.severe(
-          'socket exception connecting to secondary $toAtSign: ${e.toString()}');
+          'Socket exception connecting to secondary $toAtSign\n ${e.toString()}');
       rethrow;
     } on HandShakeException catch (e) {
       logger.severe(
-          'HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
+          'HandShakeException connecting to secondary $toAtSign\n ${e.toString()}');
       rethrow;
-    } on Exception catch(e){
+    } on Exception catch (e) {
       logger.severe('Exception while creating an Outbound Connection: $e');
       rethrow;
     }
@@ -171,7 +173,7 @@ class OutboundClient {
     if (secondaryAddressFinder != null) {
       at_lookup.SecondaryAddress address =
           await secondaryAddressFinder!.findSecondary(toAtSign);
-      logger.finer('secondary address found for $toAtSign: $address');
+      logger.finer('Secondary address found for $toAtSign: $address');
       return address.toString();
     }
 
@@ -182,7 +184,7 @@ class OutboundClient {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
     }
-    logger.finer('secondary url found for $toAtSign: $secondaryUrl');
+    logger.finer('Secondary url found for $toAtSign: $secondaryUrl');
     return secondaryUrl;
   }
 
@@ -230,6 +232,7 @@ class OutboundClient {
         return false;
       }
     } on ConnectionInvalidException {
+      logger.severe('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } catch (e) {
       await outboundConnection!.close();
@@ -263,6 +266,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
+      logger.severe('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
@@ -291,6 +295,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
+      logger.severe('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
@@ -319,9 +324,17 @@ class OutboundClient {
   }
 
   bool isInValid() {
-    logger.finer('connection is invalid');
-    return inboundConnection.isInValid() ||
-        (outboundConnection != null && outboundConnection!.isInValid());
+    bool isInvalid = false;
+    if (inboundConnection.isInValid()) {
+      logger.finer('Outbound Connection to $toAtSign is invalid');
+      isInvalid = true;
+    }
+    if (outboundConnection != null && outboundConnection!.isInValid()) {
+      logger.finer(
+          'Inbound connection from ${inboundConnection.initiatedBy} is invalid');
+      isInvalid = true;
+    }
+    return isInvalid;
   }
 
   Future<String?> notify(String notifyCommandBody,
@@ -338,6 +351,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
+      logger.severe('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
@@ -369,6 +383,7 @@ class OutboundClient {
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
     } on ConnectionInvalidException {
+      logger.severe('Invalid connection: ${toString()}');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
