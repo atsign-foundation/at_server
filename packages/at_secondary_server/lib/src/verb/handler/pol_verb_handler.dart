@@ -126,8 +126,8 @@ class PolVerbHandler extends AbstractVerbHandler {
         logger.finer('Outbound Client status: ${outBoundClient.toString()}');
         logger.severe('fromPublicKey is $fromPublicKey\n'
             'signedChallenge is $signedChallenge');
-        throw AtKeyNotFoundException(
-            'fromPublicKey or signedChallenge is null');
+        throw AtException(
+            'Unable to verify signature - Signing public key or signed challenge is null');
       }
       outBoundClient.close();
       return;
