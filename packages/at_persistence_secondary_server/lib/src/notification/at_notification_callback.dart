@@ -45,7 +45,8 @@ class AtNotificationCallback {
         return;
       }
       //Based on notification Entry type get callback function and invoke
-      if (atNotification.type == NotificationType.received) {
+      if (atNotification.type == NotificationType.received
+      ||  atNotification.type == NotificationType.self) {
         var callbacks = callbackMethods[atNotification.type!];
         if (callbacks == null || callbacks.isEmpty) {
           //logger.info('No callback registered for received notifications');

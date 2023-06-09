@@ -6,6 +6,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -68,6 +70,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var enrollnamespaces = [];
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
@@ -75,13 +78,45 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
+        List<String> filteredKeys = [];
+        final enrollId = atConnectionMetadata.enrollApprovalId;
+        logger.finer('inside scan: $enrollId');
+        if (enrollId != null && enrollId.isNotEmpty) {
+          final key =
+              '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+          final enrollData = await keyStore.get('$key$currentAtSign');
+          if (enrollData != null) {
+            final atData = enrollData.data;
+
+            final enrollDataStoreValue =
+                EnrollDataStoreValue.fromJson(jsonDecode(atData));
+            enrollnamespaces = enrollDataStoreValue.namespaces;
+            logger.finer('scan namespaces: $enrollnamespaces');
+          }
+        }
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
+        for (var key in keyString) {
+          for (var namespace in enrollnamespaces) {
+            var namespaceRegex = namespace.name;
+            if (!namespaceRegex.startsWith('.')) {
+              namespaceRegex = '.$namespaceRegex';
+            }
+            if (key.contains(RegExp(namespaceRegex)) ||
+                key.startsWith('public:')) {
+              filteredKeys.add(key);
+            }
+          }
+        }
         // Apply regex on keyString to remove unnecessary characters and spaces.
         logger.finer('response.data : $keyString');
         var keysArray = keyString;
         logger.finer('keysArray : $keysArray, ${keysArray.length}');
-        response.data = json.encode(keysArray);
+        if (enrollnamespaces.isNotEmpty) {
+          response.data = json.encode(filteredKeys);
+        } else {
+          response.data = json.encode(keysArray);
+        }
       }
     } on Exception catch (e) {
       response.isError = true;

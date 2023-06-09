@@ -56,9 +56,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
       if (enrollData != null) {
         final atData = enrollData.data;
         logger.finer('enrollData: $atData');
-        publicKey =
-            EnrollDataStoreValue.fromJson(jsonDecode(atData)).apkamPublicKey;
-        pkamAuthType = AuthType.apkam;
+        final enrollDataStoreValue =
+            EnrollDataStoreValue.fromJson(jsonDecode(atData));
+        if (enrollDataStoreValue.approval != null &&
+            enrollDataStoreValue.approval!.state ==
+                EnrollStatus.approved.name) {
+          publicKey =
+              EnrollDataStoreValue.fromJson(jsonDecode(atData)).apkamPublicKey;
+          pkamAuthType = AuthType.apkam;
+        } else {
+          response.data = 'failure';
+          response.isError = true;
+          response.errorMessage = 'enrol'
+              'lment id: $enrollId is not approved';
+          throw UnAuthenticatedException(response.errorMessage);
+        }
       }
     } else {
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);

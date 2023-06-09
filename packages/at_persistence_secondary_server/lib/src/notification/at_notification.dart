@@ -148,7 +148,7 @@ class AtNotification {
 
 enum NotificationStatus { delivered, errored, queued, expired }
 
-enum NotificationType { sent, received }
+enum NotificationType { sent, received, self }
 
 enum OperationType { update, delete }
 

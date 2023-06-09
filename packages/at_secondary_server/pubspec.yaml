@@ -25,7 +25,9 @@ dependencies:
   at_server_spec: 3.0.11
   at_persistence_spec: 2.0.12
   at_persistence_secondary_server: 3.0.52
+  intl: ^0.18.1
   version: 3.0.2
+  expire_cache: ^2.0.1
   meta: 1.8.0
   mutex: 3.0.1
   yaml: 3.1.1
@@ -35,6 +37,9 @@ dependency_overrides:
     path: ../../../at_tools/packages/at_commons
   at_server_spec:
     path: ../at_server_spec
+  at_persistence_secondary_server:
+    path: .././at_persistence_secondary_server
+
 
 dev_dependencies:
   test: ^1.22.1

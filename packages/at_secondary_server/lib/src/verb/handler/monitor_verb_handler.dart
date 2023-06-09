@@ -43,16 +43,18 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       var atNotificationCallback = AtNotificationCallback.getInstance();
 
       atNotificationCallback.registerNotificationCallback(
-          NotificationType.received, processReceivedAtNotification);
+          NotificationType.received, processAtNotification);
+      atNotificationCallback.registerNotificationCallback(
+          NotificationType.self, processAtNotification);
 
       if (verbParams.containsKey(EPOCH_MILLIS) &&
           verbParams[EPOCH_MILLIS] != null) {
         // Send notifications that are already received after EPOCH_MILLIS first
         var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
         var receivedNotifications =
-            await _getReceivedNotificationsAfterEpoch(fromEpochMillis);
+            await _getNotificationsAfterEpoch(fromEpochMillis);
         for (var notification in receivedNotifications) {
-          processReceivedNotification(notification);
+          processNotification(notification);
         }
       }
     }
@@ -60,7 +62,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   }
 
   /// Writes [notification] to connection if the [notification] matches [monitor]'s [regex]
-  void processReceivedNotification(Notification notification) {
+  void processNotification(Notification notification) {
     var key = notification.notification;
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
@@ -96,12 +98,14 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void processReceivedAtNotification(AtNotification atNotification) {
+  void processAtNotification(AtNotification atNotification) {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
       var atNotificationCallback = AtNotificationCallback.getInstance();
       atNotificationCallback.unregisterNotificationCallback(
-          NotificationType.received, processReceivedAtNotification);
+          NotificationType.received, processAtNotification);
+      atNotificationCallback.unregisterNotificationCallback(
+          NotificationType.self, processAtNotification);
     } else {
       notification
         ..id = atNotification.id
@@ -124,27 +128,27 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
         };
-      processReceivedNotification(notification);
+      processNotification(notification);
     }
   }
 
   /// Returns received notifications of the current atsign
   /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atsign.
-  Future<List<Notification>> _getReceivedNotificationsAfterEpoch(
+  /// @param Future<List> : Returns a list of received/self notifications of the current atsign.
+  Future<List<Notification>> _getNotificationsAfterEpoch(
       int millisecondsEpoch) async {
-    // Get all received notifications
-    var allReceivedNotifications = <Notification>[];
+    // Get all received/self notifications
+    var notifications = <Notification>[];
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var keyList = await notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
         (element) => _fetchNotificationEntry(
-            element, allReceivedNotifications, notificationKeyStore));
+            element, notifications, notificationKeyStore));
 
     // Filter previous notifications than millisecondsEpoch
     var responseList = <Notification>[];
-    for (var notification in allReceivedNotifications) {
+    for (var notification in notifications) {
       if (notification.dateTime! > millisecondsEpoch) {
         responseList.add(notification);
       }
@@ -157,7 +161,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       AtNotificationKeystore notificationKeyStore) async {
     var notificationEntry = await notificationKeyStore.get(element.id);
     if (notificationEntry != null &&
-        notificationEntry.type == NotificationType.received &&
+        (notificationEntry.type == NotificationType.received ||
+            notificationEntry.type == NotificationType.self) &&
         !notificationEntry.isExpired()) {
       responseList.add(Notification(element));
     }
