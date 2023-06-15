@@ -79,21 +79,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
         List<String> filteredKeys = [];
-        final enrollId = atConnectionMetadata.enrollApprovalId;
-        logger.finer('inside scan: $enrollId');
-        if (enrollId != null && enrollId.isNotEmpty) {
-          final key =
-              '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-          final enrollData = await keyStore.get('$key$currentAtSign');
-          if (enrollData != null) {
-            final atData = enrollData.data;
-
-            final enrollDataStoreValue =
-                EnrollDataStoreValue.fromJson(jsonDecode(atData));
-            enrollnamespaces = enrollDataStoreValue.namespaces;
-            logger.finer('scan namespaces: $enrollnamespaces');
-          }
+        final enrollmentId = atConnectionMetadata.enrollApprovalId;
+        logger.finer('inside scan: $enrollmentId');
+        if (enrollmentId != null && enrollmentId.isNotEmpty) {
+          enrollnamespaces = await getEnrollmentNamespaces(enrollmentId, currentAtSign);
+          logger.finer('scan namespaces: $enrollnamespaces');
         }
+
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {

@@ -62,6 +62,20 @@ class LookupVerbHandler extends AbstractVerbHandler {
       if (keyOwnersAtSign == thisServersAtSign) {
         // We're looking up data owned by this server's atSign
         var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+        final enrollApprovalId =
+            (atConnection.getMetaData() as InboundConnectionMetadata)
+                .enrollApprovalId;
+        bool isAuthorized = true; // for legacy clients allow access by default
+        if (enrollApprovalId != null) {
+          var keyNamespace =
+              lookupKey.substring(lookupKey.lastIndexOf('.') + 1);
+          isAuthorized =
+              await super.isAuthorized(enrollApprovalId, keyNamespace);
+        }
+        if (!isAuthorized) {
+          throw UnAuthorizedException(
+              'Enrollment Id: $enrollApprovalId is not authorized for lookup operation');
+        }
         var lookupValue = await keyStore.get(lookupKey);
         response.data =
             SecondaryUtil.prepareResponseData(operation, lookupValue);
