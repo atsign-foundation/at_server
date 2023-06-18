@@ -109,7 +109,7 @@ class OutboundClient {
           'HandShakeException connecting to secondary $toAtSign | ${e.toString()}');
       rethrow;
     } on Exception catch (e) {
-      logger.finer('Exception while creating an Outbound Connection: $e');
+      logger.finer('Exception creating an Outbound Connection: $e');
       rethrow;
     }
 
@@ -171,7 +171,6 @@ class OutboundClient {
     if (secondaryAddressFinder != null) {
       at_lookup.SecondaryAddress address =
           await secondaryAddressFinder!.findSecondary(toAtSign);
-      logger.finer('Secondary address found for $toAtSign: $address');
       return address.toString();
     }
 
@@ -182,7 +181,6 @@ class OutboundClient {
       throw SecondaryNotFoundException(
           'No secondary url found for atsign: $toAtSign');
     }
-    logger.finer('Secondary url found for $toAtSign: $secondaryUrl');
     return secondaryUrl;
   }
 
@@ -200,7 +198,7 @@ class OutboundClient {
       var fromResult = await messageListener.read();
       if (fromResult == '') {
         throw HandShakeException(
-            'no response received for From:$toAtSign command');
+            'No response received for From:$toAtSign command');
       }
 
       //3. Get the session ID and the pol challenge from the response
@@ -229,8 +227,8 @@ class OutboundClient {
             "pol handshake failed - handShakeResult was $handShakeResult");
         return false;
       }
-    } on ConnectionInvalidException {
-      logger.finer('Invalid connection: ${toString()}');
+    } on ConnectionInvalidException catch(e){
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } catch (e) {
       await outboundConnection!.close();
@@ -263,8 +261,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
-      logger.finer('Invalid connection: ${toString()}');
+    } on ConnectionInvalidException catch(e){
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
@@ -292,8 +290,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
-      logger.finer('Invalid connection: ${toString()}');
+    } on ConnectionInvalidException catch(e){
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
@@ -339,7 +337,7 @@ class OutboundClient {
       {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
-          'Handshake did not succeed. Cannot perform a lookup');
+          'Handshake failed. Cannot perform a lookup');
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
@@ -348,8 +346,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
-      logger.severe('Invalid connection: ${toString()}');
+    } on ConnectionInvalidException catch(e){
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
@@ -380,8 +378,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
-      logger.severe('Invalid connection: ${toString()}');
+    } on ConnectionInvalidException catch(e){
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
