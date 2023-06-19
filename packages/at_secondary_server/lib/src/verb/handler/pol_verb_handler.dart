@@ -80,16 +80,16 @@ class PolVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _createOutboundConnection(
-      String? fromAtSign, var atConnection) async {
+      String? fromAtsign, var atConnection) async {
     // Connect to the other secondary server
     _outboundClient =
-        outboundClientManager.getClient(fromAtSign!, atConnection);
+        outboundClientManager.getClient(fromAtsign!, atConnection);
     if (!_outboundClient!.isConnectionCreated) {
       try {
         await _outboundClient!.connect(handshake: false);
       } on Exception catch (e) {
         logger.finer(
-            'Exception connecting to $fromAtSign\'s outbound client | $e');
+            'Exception connecting to $fromAtsign\'s outbound client | $e');
         rethrow;
       }
     }
@@ -102,7 +102,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   Future<HashMap<String, String>> _fetchSecret(
       String fromAtSign, String sessionID) async {
     String? signedChallenge, fromPublicKey, message;
-    HashMap<String, String> response = {}[3];
+    HashMap<String, String> response = HashMap();
     try {
       // construct the key that needs to be looked up
       var lookUpKey = '$sessionID$fromAtSign';
@@ -149,6 +149,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     if (!isValidChallenge) {
       throw UnAuthenticatedException('Pol Authentication Failed');
     }
+    return;
   }
 
   Future<void> _insertIntoAccessLog(String key, String value) async {
