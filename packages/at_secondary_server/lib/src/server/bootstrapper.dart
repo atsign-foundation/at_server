@@ -14,12 +14,6 @@ import 'package:at_utils/at_utils.dart';
 class SecondaryServerBootStrapper {
   List<String> arguments;
   static final bool? useTLS = AtSecondaryConfig.useTLS;
-  static final int inboundMaxLimit = AtSecondaryConfig.inbound_max_limit;
-  static final int outboundMaxLimit = AtSecondaryConfig.outbound_max_limit;
-  static final int inboundIdleTimeMillis =
-      AtSecondaryConfig.inbound_idletime_millis;
-  static final int outboundIdleTimeMillis =
-      AtSecondaryConfig.outbound_idletime_millis;
 
   SecondaryServerBootStrapper(this.arguments);
 
@@ -37,10 +31,16 @@ class SecondaryServerBootStrapper {
       secondaryContext.port = int.parse(results['server_port']);
       secondaryContext.currentAtSign = AtUtils.fixAtSign(results['at_sign']);
       secondaryContext.sharedSecret = results['shared_secret'];
-      secondaryContext.inboundConnectionLimit = inboundMaxLimit;
-      secondaryContext.outboundConnectionLimit = outboundMaxLimit;
-      secondaryContext.inboundIdleTimeMillis = inboundIdleTimeMillis;
-      secondaryContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
+      secondaryContext.inboundConnectionLimit =
+          AtSecondaryConfig.inbound_max_limit;
+      secondaryContext.outboundConnectionLimit =
+          AtSecondaryConfig.outbound_max_limit;
+      secondaryContext.unauthenticatedInboundIdleTimeMillis =
+          AtSecondaryConfig.inbound_idletime_millis;
+      secondaryContext.authenticatedInboundIdleTimeMillis =
+          AtSecondaryConfig.authenticated_inbound_idletime_millis;
+      secondaryContext.outboundIdleTimeMillis =
+          AtSecondaryConfig.outbound_idletime_millis;
       if (useTLS!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }
@@ -55,7 +55,7 @@ class SecondaryServerBootStrapper {
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, stackTrace) {
-        logger.severe('Uncaught error: $error \n Stacktrace: $stackTrace');
+        logger.severe('Uncaught error: $error \n StackTrace: $stackTrace');
         handleTerminateSignal(ProcessSignal.sigstop);
       }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
@@ -81,11 +81,13 @@ class SecondaryServerBootStrapper {
         exit(0);
       }
     } on Exception catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(
+          "Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
       exit(1);
     } on Error catch (e, stacktrace) {
-      logger.warning("Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
+      logger.warning(
+          "Caught $e from secondaryServerInstance.stop() sequence - exiting with status 1");
       logger.warning(stacktrace.toString());
       exit(1);
     } finally {

@@ -96,11 +96,11 @@ class AtMetaData extends HiveObject {
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
       ..encoding = encoding
-      ..encKeyName=encKeyName
-      ..encAlgo=encAlgo
-      ..ivNonce=ivNonce
-      ..skeEncKeyName=skeEncKeyName
-      ..skeEncAlgo=skeEncAlgo;
+      ..encKeyName = encKeyName
+      ..encAlgo = encAlgo
+      ..ivNonce = ivNonce
+      ..skeEncKeyName = skeEncKeyName
+      ..skeEncAlgo = skeEncAlgo;
   }
 
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
@@ -116,11 +116,11 @@ class AtMetaData extends HiveObject {
       ..sharedKeyEnc = metadata.sharedKeyEnc
       ..pubKeyCS = metadata.pubKeyCS
       ..encoding = metadata.encoding
-      ..encKeyName=metadata.encKeyName
-      ..encAlgo=metadata.encAlgo
-      ..ivNonce=metadata.ivNonce
-      ..skeEncKeyName=metadata.skeEncKeyName
-      ..skeEncAlgo=metadata.skeEncAlgo;
+      ..encKeyName = metadata.encKeyName
+      ..encAlgo = metadata.encAlgo
+      ..ivNonce = metadata.ivNonce
+      ..skeEncKeyName = metadata.skeEncKeyName
+      ..skeEncAlgo = metadata.skeEncAlgo;
     return AtMetadataBuilder(newAtMetaData: atMetadata).build();
   }
 
@@ -159,54 +159,52 @@ class AtMetaData extends HiveObject {
   }
 
   AtMetaData fromJson(Map json) {
-
-      createdBy = json['createdBy'];
-      updatedBy = json['updatedBy'];
-      createdAt = DateTime.parse(json['createdAt']);
-      updatedAt = DateTime.parse(json['updatedAt']);
-      expiresAt = (json['expiresAt'] == null || json['expiresAt'] == 'null')
-          ? null
-          : DateTime.parse(json['expiresAt']);
-      refreshAt = (json['refreshAt'] == null || json['refreshAt'] == 'null')
-          ? null
-          : DateTime.parse(json['refreshAt']);
-      availableAt =
-          (json['availableAt'] == null || json['availableAt'] == 'null')
-              ? null
-              : DateTime.parse(json['availableAt']);
-      status = json['status'];
-      version = (json['version'] is String)
-          ? int.parse(json['version'])
-          : (json['version'] == null)
-              ? 0
-              : json['version'];
-      ttl = (json[AT_TTL] is String)
-          ? int.parse(json[AT_TTL])
-          : (json[AT_TTL] == null)
-              ? null
-              : json[AT_TTL];
-      ttb = (json[AT_TTB] is String)
-          ? int.parse(json[AT_TTB])
-          : (json[AT_TTB] == null)
-              ? null
-              : json[AT_TTB];
-      ttr = (json[AT_TTR] is String)
-          ? int.parse(json[AT_TTR])
-          : (json[AT_TTR] == null)
-              ? null
-              : json[AT_TTR];
-      isCascade = json[CCD];
-      isBinary = json[IS_BINARY];
-      isEncrypted = json[IS_ENCRYPTED];
-      dataSignature = json[PUBLIC_DATA_SIGNATURE];
-      sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
-      pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
-      encoding = json[ENCODING];
-      encKeyName = json[ENCRYPTING_KEY_NAME];
-      encAlgo = json[ENCRYPTING_ALGO];
-      ivNonce = json[IV_OR_NONCE];
-      skeEncKeyName = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
-      skeEncAlgo = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+    createdBy = json['createdBy'];
+    updatedBy = json['updatedBy'];
+    createdAt = DateTime.parse(json['createdAt']);
+    updatedAt = DateTime.parse(json['updatedAt']);
+    expiresAt = (json['expiresAt'] == null || json['expiresAt'] == 'null')
+        ? null
+        : DateTime.parse(json['expiresAt']);
+    refreshAt = (json['refreshAt'] == null || json['refreshAt'] == 'null')
+        ? null
+        : DateTime.parse(json['refreshAt']);
+    availableAt = (json['availableAt'] == null || json['availableAt'] == 'null')
+        ? null
+        : DateTime.parse(json['availableAt']);
+    status = json['status'];
+    version = (json['version'] is String)
+        ? int.parse(json['version'])
+        : (json['version'] == null)
+            ? 0
+            : json['version'];
+    ttl = (json[AT_TTL] is String)
+        ? int.parse(json[AT_TTL])
+        : (json[AT_TTL] == null)
+            ? null
+            : json[AT_TTL];
+    ttb = (json[AT_TTB] is String)
+        ? int.parse(json[AT_TTB])
+        : (json[AT_TTB] == null)
+            ? null
+            : json[AT_TTB];
+    ttr = (json[AT_TTR] is String)
+        ? int.parse(json[AT_TTR])
+        : (json[AT_TTR] == null)
+            ? null
+            : json[AT_TTR];
+    isCascade = json[CCD];
+    isBinary = json[IS_BINARY];
+    isEncrypted = json[IS_ENCRYPTED];
+    dataSignature = json[PUBLIC_DATA_SIGNATURE];
+    sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
+    pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+    encoding = json[ENCODING];
+    encKeyName = json[ENCRYPTING_KEY_NAME];
+    encAlgo = json[ENCRYPTING_ALGO];
+    ivNonce = json[IV_OR_NONCE];
+    skeEncKeyName = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+    skeEncAlgo = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
 
     return this;
   }

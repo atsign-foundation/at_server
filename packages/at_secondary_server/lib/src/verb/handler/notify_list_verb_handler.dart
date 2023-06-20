@@ -17,7 +17,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
   final OutboundClientManager outboundClientManager;
 
-  NotifyListVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager) : super(keyStore);
+  NotifyListVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager)
+      : super(keyStore);
 
   @override
   bool accept(String command) =>
@@ -63,7 +64,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
       String fromAtSign = atConnectionMetadata.fromAtSign!;
-      responseList = await (_getSentNotifications(responseList, fromAtSign, atConnection));
+      responseList =
+          await (_getSentNotifications(responseList, fromAtSign, atConnection));
     }
     responseList =
         _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
@@ -104,7 +106,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection);
+    var outBoundClient =
+        outboundClientManager.getClient(fromAtSign, atConnection);
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
       var connectResult = await outBoundClient.connect();

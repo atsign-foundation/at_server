@@ -6,6 +6,7 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -24,7 +25,9 @@ class PolVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
 
-  PolVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager) : super(keyStore);
+  PolVerbHandler(
+      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
+      : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -62,22 +65,21 @@ class PolVerbHandler extends AbstractVerbHandler {
     // Checking whether from: verb executed or not.
     // If true proceed else return error message
     if (atConnectionMetadata.from != true) {
-      throw InvalidRequestException ('You must execute a ''from:'' command before you may run the pol command');
+      throw InvalidRequestException('You must execute a '
+          'from:'
+          ' command before you may run the pol command');
     }
 
     // Getting secondary server URL
     // ignore: deprecated_member_use
-    var secondaryUrl = await AtLookupImpl.findSecondary(
-        fromAtSign!, _rootDomain, _rootPort!);
+    var secondaryUrl =
+        await AtLookupImpl.findSecondary(fromAtSign!, _rootDomain, _rootPort!);
     logger.finer('secondary url : $secondaryUrl');
     if (secondaryUrl != null && secondaryUrl.contains(':')) {
       var lookUpKey = '$sessionID$fromAtSign';
       // Connect to the other secondary server and get the secret
-      var outBoundClient = outboundClientManager.getClient(fromAtSign, atConnection);
-      if (outBoundClient == null) {
-        logger.severe('max outbound limit reached');
-        throw AtConnectException('max outbound limit reached');
-      }
+      OutboundClient outBoundClient =
+          outboundClientManager.getClient(fromAtSign, atConnection);
       if (!outBoundClient.isConnectionCreated) {
         logger.finer('creating outbound connection $fromAtSign');
         await outBoundClient.connect(handshake: false);

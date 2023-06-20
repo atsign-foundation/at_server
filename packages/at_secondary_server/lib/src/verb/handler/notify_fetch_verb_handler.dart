@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -42,6 +43,10 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
 
   String _getJsonEncodedString(AtNotification atNotification) {
     var atNotificationJson = atNotification.toJson();
+    if (atNotificationJson['atMetadata'] != null) {
+      atNotificationJson['atMetadata'] =
+          SecondaryUtil.removeNulls(atNotification.atMetadata!.toJson());
+    }
     for (MapEntry entry in atNotificationJson.entries) {
       if (entry.value is! String) {
         atNotificationJson[entry.key] = entry.value.toString();

@@ -1,4 +1,4 @@
-FROM dart:2.19.4@sha256:5d2f42239d719bef7fe60abb37273aea16d8526980662b696c218663ac005d96 AS buildimage
+FROM dart:3.0.5@sha256:65e5f5d6d72ad2f7b32f402c01b5fe8a426455b1ede1e9f840f95a2a8c14afbd AS buildimage
 ENV HOMEDIR=/atsign
 ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024
@@ -8,7 +8,7 @@ WORKDIR /app
 # If building manually then (from packages/at_root_server):
 ## sudo docker build -t atsigncompany/root .
 COPY . .
-RUN \
+RUN set -eux ; \
   mkdir -p $HOMEDIR/config ; \
   mkdir -p $BINARYDIR/config ; \
   dart pub get ; \

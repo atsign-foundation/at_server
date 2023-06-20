@@ -6,6 +6,8 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
@@ -56,6 +58,7 @@ class MockResponseHandler extends Mock implements DefaultResponseHandler {
 }
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -65,14 +68,16 @@ void main() {
 
   group('A group of scan verb tests', () {
     test('test scan getVerb', () {
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var verb = handler.getVerb();
       expect(verb is Scan, true);
     });
 
     test('test scan command accept test', () {
       var command = 'scan';
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -91,7 +96,8 @@ void main() {
     test('test scan verb - upper case', () {
       var command = 'SCAN';
       command = SecondaryUtil.convertCommand(command);
-      var handler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -112,7 +118,12 @@ void main() {
       var command = 'scann';
       var inbound = InboundConnectionImpl(null, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
-      var defaultVerbHandlerManager = DefaultVerbHandlerManager(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var defaultVerbHandlerManager = DefaultVerbHandlerManager(
+          mockKeyStore,
+          mockOutboundClientManager,
+          mockAtCacheManager,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance());
 
       expect(
           () => defaultVerbExecutor.execute(
@@ -144,7 +155,8 @@ void main() {
     late ResponseHandlerManager mockResponseHandlerManager;
     late InboundConnection inboundConnection;
     setUp(() {
-      scanVerbHandler = ScanVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      scanVerbHandler = ScanVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       mockResponseHandlerManager = MockResponseHandlerManager();
       inboundConnection = DummyInboundConnection()
         ..metadata = (InboundConnectionMetadata()..isAuthenticated = true);

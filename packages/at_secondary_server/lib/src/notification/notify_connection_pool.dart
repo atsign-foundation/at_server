@@ -6,12 +6,14 @@ import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
-  static final NotifyConnectionsPool _singleton = NotifyConnectionsPool._internal();
+  static final NotifyConnectionsPool _singleton =
+      NotifyConnectionsPool._internal();
   static final logger = AtSignLogger('NotifyConnectionPool');
 
   static const int defaultPoolSize = 50;
 
-  final OutboundClientPool _outboundClientPool = OutboundClientPool(size: defaultPoolSize);
+  final OutboundClientPool _outboundClientPool =
+      OutboundClientPool(size: defaultPoolSize);
   OutboundClientPool get pool => _outboundClientPool;
 
   NotifyConnectionsPool._internal();
@@ -21,11 +23,12 @@ class NotifyConnectionsPool {
   }
 
   int get size => _outboundClientPool.size;
-  set size (int s) => _outboundClientPool.size = s;
+  set size(int s) => _outboundClientPool.size = s;
 
   int getCapacity() {
     _outboundClientPool.clearInvalidClients();
-    return _outboundClientPool.getCapacity()! - _outboundClientPool.getCurrentSize();
+    return _outboundClientPool.getCapacity()! -
+        _outboundClientPool.getCurrentSize();
   }
 
   OutboundClient get(String toAtSign) {
@@ -39,10 +42,12 @@ class NotifyConnectionsPool {
     }
 
     if (!_outboundClientPool.hasCapacity()) {
-      OutboundClient? evictedClient = _outboundClientPool.removeLeastRecentlyUsed();
+      OutboundClient? evictedClient =
+          _outboundClientPool.removeLeastRecentlyUsed();
       logger.info("Evicted LRU client from pool : $evictedClient");
       if (!_outboundClientPool.hasCapacity()) {
-        throw OutboundConnectionLimitException('max limit ${_outboundClientPool.size} reached on outbound pool');
+        throw OutboundConnectionLimitException(
+            'max limit ${_outboundClientPool.size} reached on outbound pool');
       }
     }
 

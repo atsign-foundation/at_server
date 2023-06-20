@@ -298,7 +298,6 @@ class CommitLogKeyStore
         return changes;
       }
       var startKey = sequenceNumber + 1;
-      _logger.finer('startKey: $startKey all commit log entries: $values');
       limit ??= values.length + 1;
       for (CommitEntry element in values) {
         if (element.key >= startKey &&
@@ -344,7 +343,7 @@ class CommitLogKeyStore
     var values = await _getValues();
     for (var value in values) {
       if (value.commitId == null) {
-        _logger.severe(
+        _logger.finest(
             'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
         continue;
       }
@@ -432,7 +431,7 @@ class CommitLogKeyStore
   Future<bool> repairCommitLogAndCreateCachedMap() async {
     // Ensures the below code runs only when initialized from secondary server.
     // enableCommitId is set to true in secondary server and to false in client SDK.
-    if (! enableCommitId) {
+    if (!enableCommitId) {
       return false;
     }
 
@@ -454,30 +453,35 @@ class CommitLogKeyStore
   /// Removes all entries which have a malformed [CommitEntry.atKey]
   /// Returns the list of [CommitEntry.atKey]s which were removed
   @visibleForTesting
-  Future<List<String>> removeEntriesWithMalformedAtKeys(Map<int, CommitEntry> allEntries) async {
+  Future<List<String>> removeEntriesWithMalformedAtKeys(
+      Map<int, CommitEntry> allEntries) async {
     List<String> removed = [];
     await Future.forEach(allEntries.keys, (int seqNum) async {
       CommitEntry? commitEntry = allEntries[seqNum];
       if (commitEntry == null) {
-        _logger.warning('CommitLog seqNum $seqNum has a null commitEntry - removing');
+        _logger.warning(
+            'CommitLog seqNum $seqNum has a null commitEntry - removing');
 
         remove(seqNum);
         return;
       }
       String? atKey = commitEntry.atKey;
       if (atKey == null) {
-        _logger.warning('CommitLog seqNum $seqNum has an entry with a null atKey - removed');
+        _logger.warning(
+            'CommitLog seqNum $seqNum has an entry with a null atKey - removed');
         return;
       }
       KeyType keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
       if (keyType == KeyType.invalidKey) {
-        _logger.warning('CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
+        _logger.warning(
+            'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
 
         remove(seqNum);
         return;
       } else {
-        _logger.finer('CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
+        _logger.finer(
+            'CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
       }
     });
     return removed;

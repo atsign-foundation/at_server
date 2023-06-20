@@ -1,3 +1,5 @@
+## 3.0.12
+- feat: added enroll verb
 ## 3.0.11
 - feat: Added 'notifyFetch' verb
 ## 3.0.10

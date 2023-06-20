@@ -1,6 +1,5 @@
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:at_utf7/at_utf7.dart';
 
 class HiveKeyStoreHelper {
@@ -11,8 +10,6 @@ class HiveKeyStoreHelper {
   factory HiveKeyStoreHelper.getInstance() {
     return _singleton;
   }
-
-  final logger = AtSignLogger('HiveKeyStoreHelper');
 
   String prepareKey(String key) {
     key = key.trim().toLowerCase().replaceAll(' ', '');

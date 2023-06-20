@@ -10,7 +10,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 /// The verbHandlers responsible for generating change in keystore should extend this
 /// verbHandler to write the commitId to SDK.
 abstract class ChangeVerbHandler extends AbstractVerbHandler {
-  ChangeVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  final StatsNotificationService statsNotificationService;
+  ChangeVerbHandler(SecondaryKeyStore keyStore, this.statsNotificationService)
+      : super(keyStore);
 
   Response? _responseInternal;
 
@@ -21,7 +23,7 @@ abstract class ChangeVerbHandler extends AbstractVerbHandler {
     if (_responseInternal != null &&
         _responseInternal!.isError == false &&
         _responseInternal!.data != null) {
-      StatsNotificationService.getInstance().writeStatsToMonitor(
+      statsNotificationService.writeStatsToMonitor(
           latestCommitID: _responseInternal!.data,
           operationType: getVerb().name());
     }

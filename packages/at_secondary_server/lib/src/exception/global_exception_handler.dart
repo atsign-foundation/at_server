@@ -25,45 +25,38 @@ class GlobalExceptionHandler {
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
       {AtConnection? atConnection,
-        Socket? clientSocket,
-        StackTrace? stackTrace
-      }) async {
+      Socket? clientSocket,
+      StackTrace? stackTrace}) async {
     if (exception is InvalidAtSignException ||
         exception is BufferOverFlowException ||
         exception is ConnectionInvalidException) {
       logger.shout(exception.toString());
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
-
     } else if (exception is BlockedConnectionException) {
       // log as INFO and close the connection
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
-
     } else if (exception is InvalidSyntaxException ||
         exception is InvalidAtKeyException ||
         exception is IllegalArgumentException) {
       // This is normal behaviour, log as INFO
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
-
     } else if (exception is DataStoreException) {
       logger.shout(exception.toString());
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
-
     } else if (exception is InboundConnectionLimitException) {
       // This requires different handling which is in _handleInboundLimit
       logger.info(exception.toString());
       await _handleInboundLimit(exception, clientSocket!);
-
     } else if (exception is ServerIsPausedException) {
       // This is thrown when a new verb request comes in and the server is paused (likely
       // pending restart)
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
-
     } else if (exception is OutboundConnectionLimitException ||
         exception is LookupException ||
         exception is SecondaryNotFoundException ||
@@ -73,16 +66,16 @@ class GlobalExceptionHandler {
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||
         exception is AtConnectException ||
+        exception is SocketException ||
         exception is AtTimeoutException) {
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
-
     } else if (exception is InternalServerError) {
       logger.severe('$exception - stack trace $stackTrace');
       await _handleInternalException(exception, atConnection);
-
     } else {
-      logger.shout("Unexpected exception '${exception.toString()}' - stack trace $stackTrace");
+      logger.shout(
+          "Unexpected exception '${exception.toString()}' - stack trace $stackTrace");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);

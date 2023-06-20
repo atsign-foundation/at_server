@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:uuid/uuid.dart';
 
 class OutboundConnectionImpl extends OutboundConnection {
@@ -43,12 +45,10 @@ class OutboundConnectionImpl extends OutboundConnection {
     }
 
     try {
-      var address = getSocket().remoteAddress;
-      var port = getSocket().remotePort;
       var socket = getSocket();
-      if (socket != null) {
-        socket.destroy();
-      }
+      var address = socket.remoteAddress;
+      var port = socket.remotePort;
+      socket.destroy();
       logger.finer('$address:$port Disconnected');
       getMetaData().isClosed = true;
     } on Exception {
@@ -58,5 +58,12 @@ class OutboundConnectionImpl extends OutboundConnection {
       getMetaData().isStale = true;
       // Ignore error on a connection close
     }
+  }
+
+  @override
+  void write(String data) {
+    super.write(data);
+    logger.info(logger.getAtConnectionLogMessage(
+        getMetaData(), 'SENT: ${BaseConnection.truncateForLogging(data)}'));
   }
 }

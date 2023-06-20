@@ -92,6 +92,26 @@ void main() {
       var result = handler.accept(command);
       expect(result, true);
     });
+
+    test(
+        'test to verify unauthorized exception is thrown when sharedBy atSign is not currentAtSign',
+        () {
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var notifyVerb = NotifyVerbHandler(mockKeyStore);
+      var inboundConnection = InboundConnectionImpl(null, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isAuthenticated = true;
+      var notifyResponse = Response();
+      var notifyVerbParams = HashMap<String, String>();
+      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
+      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@colin');
+
+      expect(
+          () => notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthorizedException)));
+    });
   });
 
   group('A group of notify verb regex - invalid syntax', () {
@@ -211,6 +231,30 @@ void main() {
       AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+    });
+
+    test(
+        'A test to verify unauthenticated exception is thrown when connection is unauthenticated',
+        () async {
+      var verb = Notify();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+
+      var command = 'notify:update:messagetype:text:@bob:hello';
+      var regex = verb.syntax();
+
+      var notifyVerbHandler = NotifyVerbHandler(mockKeyStore);
+      var notifyResponse = Response();
+      var notifyVerbParams = getVerbParam(regex, command);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              notifyResponse, notifyVerbParams, atConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthenticatedException &&
+              e.message ==
+                  'Notify command cannot be executed without authentication')));
     });
   });
 
@@ -376,6 +420,34 @@ void main() {
       expect(notifyData[0][TO], '@test_user_1');
       expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
       expect(notifyData[0][OPERATION], 'delete');
+    });
+
+    test(
+        'A test to verify notify verb params are populated when message type is text',
+        () async {
+      var verb = Notify();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+
+      var command = 'notify:update:messagetype:text:@bob:hello';
+      var regex = verb.syntax();
+
+      var notifyVerbHandler = NotifyVerbHandler(keyStore);
+      var notifyResponse = Response();
+      var notifyVerbParams = getVerbParam(regex, command);
+      await notifyVerbHandler.processVerb(
+          notifyResponse, notifyVerbParams, atConnection);
+
+      AtNotification? atNotification =
+          await AtNotificationKeystore.getInstance().get(notifyResponse.data);
+      expect(atNotification?.toAtSign, '@bob');
+      expect(atNotification?.fromAtSign, '@alice');
+      expect(atNotification?.notification, '@bob:hello');
+      expect(atNotification?.type, NotificationType.sent);
     });
     tearDown(() async => await tearDownFunc());
   });

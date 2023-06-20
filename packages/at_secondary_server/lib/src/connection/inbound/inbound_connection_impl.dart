@@ -7,11 +7,13 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 import 'dummy_inbound_connection.dart';
 
-class InboundConnectionImpl extends BaseConnection implements InboundConnection {
+class InboundConnectionImpl extends BaseConnection
+    implements InboundConnection {
   @override
   bool? isMonitor = false;
 
@@ -21,31 +23,51 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
 
   InboundConnectionPool? owningPool;
 
-  late int maxAllowableInboundIdleTimeMillis;
-  late double lowWaterMarkRatio;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
+  late int unauthenticatedMaxAllowableIdleTimeMillis;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
   late int unauthenticatedMinAllowableIdleTimeMillis;
+
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
+  late int authenticatedMaxAllowableIdleTimeMillis;
+  /// As number of connections increases then the "allowable" idle time
+  /// reduces from the 'max' towards the 'min' value.
   late int authenticatedMinAllowableIdleTimeMillis;
+
+  late double lowWaterMarkRatio;
   late bool progressivelyReduceAllowableInboundIdleTime;
 
-  InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool}) : super(socket) {
+  InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool})
+      : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
 
-    AtSecondaryContext? secondaryContext = AtSecondaryServerImpl.getInstance().serverContext;
+    AtSecondaryContext? secondaryContext =
+        AtSecondaryServerImpl.getInstance().serverContext;
     // In test harnesses, secondary context may not yet have been set, in which case create a default AtSecondaryContext instance
     secondaryContext ??= AtSecondaryContext();
-    // We have one value set in config : inboundIdleTimeMillis
-    maxAllowableInboundIdleTimeMillis = secondaryContext.inboundIdleTimeMillis;
-    lowWaterMarkRatio = secondaryContext.inboundConnectionLowWaterMarkRatio;
-    unauthenticatedMinAllowableIdleTimeMillis = secondaryContext.unauthenticatedMinAllowableIdleTimeMillis;
 
-    // minAllowableIdleTimeMillis for authenticated connections should be a lot more generous.
-    // if configured inboundIdleTimeMillis is 600,000 then authenticated min allowable will be 120,000
-    // if configured inboundIdleTimeMillis is 60,000 then authenticated min allowable will be 30,000
-    authenticatedMinAllowableIdleTimeMillis = (maxAllowableInboundIdleTimeMillis / 5).floor();
-    progressivelyReduceAllowableInboundIdleTime = secondaryContext.progressivelyReduceAllowableInboundIdleTime;
+    lowWaterMarkRatio = secondaryContext.inboundConnectionLowWaterMarkRatio;
+    progressivelyReduceAllowableInboundIdleTime =
+        secondaryContext.progressivelyReduceAllowableInboundIdleTime;
+
+    // As number of connections increases then the "allowable" idle time
+    // reduces from the 'max' towards the 'min' value.
+    unauthenticatedMaxAllowableIdleTimeMillis =
+        secondaryContext.unauthenticatedInboundIdleTimeMillis;
+    unauthenticatedMinAllowableIdleTimeMillis =
+        secondaryContext.unauthenticatedMinAllowableIdleTimeMillis;
+
+    authenticatedMaxAllowableIdleTimeMillis =
+        secondaryContext.authenticatedInboundIdleTimeMillis;
+    authenticatedMinAllowableIdleTimeMillis =
+        secondaryContext.authenticatedMinAllowableIdleTimeMillis;
+
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -59,7 +81,8 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     // Without the above check, we were getting runtime errors on the next check
     // since DummyInboundConnection.getSocket throws a "not implemented" error
 
-    if (getSocket().remoteAddress.address == connection.getSocket().remoteAddress.address &&
+    if (getSocket().remoteAddress.address ==
+            connection.getSocket().remoteAddress.address &&
         getSocket().remotePort == connection.getSocket().remotePort) {
       return true;
     }
@@ -75,7 +98,8 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     }
 
     // If we don't know our owning pool, OR we've disabled the new logic, just use old logic
-    if (owningPool == null || progressivelyReduceAllowableInboundIdleTime == false) {
+    if (owningPool == null ||
+        progressivelyReduceAllowableInboundIdleTime == false) {
       var retVal = _idleForLongerThanMax();
       return retVal;
     }
@@ -86,10 +110,12 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     // Ultimately, the caller (e.g. [InboundConnectionManager] decides **whether** to reap or not.
     int? poolMaxConnections = owningPool!.getCapacity();
     int lowWaterMark = (poolMaxConnections! * lowWaterMarkRatio).floor();
-    int numConnectionsOverLwm = max(owningPool!.getCurrentSize() - lowWaterMark, 0);
+    int numConnectionsOverLwm =
+        max(owningPool!.getCurrentSize() - lowWaterMark, 0);
 
     // We're past the low water mark. Let's use some fancier logic to mark connections invalid increasingly aggressively.
-    double idleTimeReductionFactor = 1 - (numConnectionsOverLwm / (poolMaxConnections - lowWaterMark));
+    double idleTimeReductionFactor =
+        1 - (numConnectionsOverLwm / (poolMaxConnections - lowWaterMark));
     if (!getMetaData().isAuthenticated && !getMetaData().isPolAuthenticated) {
       // For **unauthenticated** connections, we deem invalid if idle time is greater than
       // ((maxIdleTime - minIdleTime) * (1 - numConnectionsOverLwm / (maxConnections - connectionsLowWaterMark))) + minIdleTime
@@ -108,7 +134,10 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       // When: current == 40, idle time allowable = (605-5) * (1 - (40-10)/(50-10)) + 5 i.e. 600 * (1 - 30/40) + 5 i.e. 155
       // When: current == 49, idle time allowable = (605-5) * (1 - (49-10)/(50-10)) + 5 i.e. 600 * (1 - 39/40) + 5 i.e. 600 * .025 + 5 i.e. 20
       // When: current == 50, idle time allowable = (605-5) * (1 - (50-10)/(50-10)) + 5 i.e. 600 * (1 - 40/40) + 5 i.e. 600 * 0 + 5 i.e. 5
-      int allowableIdleTime = calcAllowableIdleTime(idleTimeReductionFactor, unauthenticatedMinAllowableIdleTimeMillis);
+      int allowableIdleTime = calcAllowableIdleTime(
+          idleTimeReductionFactor,
+          unauthenticatedMinAllowableIdleTimeMillis,
+          unauthenticatedMaxAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
       return retVal;
@@ -116,15 +145,24 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       // For authenticated connections
       // TODO (1) if the connection has a request in progress, we should never mark it as invalid
       // (2) otherwise, we will mark as invalid using same algorithm as above, but using authenticatedMinAllowableIdleTimeMillis
-      int allowableIdleTime = calcAllowableIdleTime(idleTimeReductionFactor, authenticatedMinAllowableIdleTimeMillis);
+      int allowableIdleTime = calcAllowableIdleTime(
+          idleTimeReductionFactor,
+          authenticatedMinAllowableIdleTimeMillis,
+          authenticatedMaxAllowableIdleTimeMillis);
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
       return retVal;
     }
   }
 
-  int calcAllowableIdleTime(double idleTimeReductionFactor, int minAllowableIdleTimeMillis) =>
-      (((maxAllowableInboundIdleTimeMillis - minAllowableIdleTimeMillis) * idleTimeReductionFactor) + minAllowableIdleTimeMillis).floor();
+  int calcAllowableIdleTime(
+          double idleTimeReductionFactor,
+      int minAllowableIdleTimeMillis,
+      int maxAllowableIdleTimeMillis) =>
+      (((maxAllowableIdleTimeMillis - minAllowableIdleTimeMillis) *
+                  idleTimeReductionFactor) +
+              minAllowableIdleTimeMillis)
+          .floor();
 
   /// Get the idle time of the inbound connection since last write operation
   int _getIdleTimeMillis() {
@@ -138,11 +176,17 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
   /// Returns true if the client's idle time is greater than configured idle time.
   /// false otherwise
   bool _idleForLongerThanMax() {
-    return _getIdleTimeMillis() > maxAllowableInboundIdleTimeMillis;
+    var idleTimeMillis = _getIdleTimeMillis();
+    if (getMetaData().isAuthenticated || getMetaData().isPolAuthenticated) {
+      return idleTimeMillis > authenticatedMaxAllowableIdleTimeMillis;
+    } else {
+      return idleTimeMillis > unauthenticatedMaxAllowableIdleTimeMillis;
+    }
   }
 
   @override
-  void acceptRequests(Function(String, InboundConnection) callback, Function(List<int>, InboundConnection) streamCallBack) {
+  void acceptRequests(Function(String, InboundConnection) callback,
+      Function(List<int>, InboundConnection) streamCallBack) {
     var listener = InboundMessageListener(this);
     listener.listen(callback, streamCallBack);
   }
@@ -167,7 +211,8 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
       var address = getSocket().remoteAddress;
       var port = getSocket().remotePort;
       getSocket().destroy();
-      logger.finer('$address:$port Disconnected');
+      logger.finer(logger.getAtConnectionLogMessage(
+          getMetaData(), '$address:$port Disconnected'));
       getMetaData().isClosed = true;
     } on Exception {
       getMetaData().isStale = true;
@@ -175,6 +220,15 @@ class InboundConnectionImpl extends BaseConnection implements InboundConnection 
     } on Error {
       getMetaData().isStale = true;
       // Ignore error on a connection close
+    }
+  }
+
+  @override
+  void write(String data) {
+    super.write(data);
+    if (metaData is InboundConnectionMetadata) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
     }
   }
 }

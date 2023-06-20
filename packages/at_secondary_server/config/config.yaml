@@ -1,17 +1,17 @@
-# The @Protocol secondary server configurations.
+# The atProtocol secondary server configurations.
 
-# The @Protocol root server configuration
+# The atProtocol atDirectory (aka root server) configuration
 root_server:
-  # The port to connect to root server
+  # The atDirectory's port
   port: 64
-  # The url to connect to root server
+  # The atDirectory's host
   url: 'root.atsign.org'
 
-# The @Protocol application log configurations
+# Default logger settings
 log:
   level: INFO
 
-# The @Protocol security configurations.
+# The atProtocol security configurations.
 security:
   # To start secondary server in Secure/UnSecure mode. When [useTLS] is set to false, the secondary server starts in un-secure mode.
   # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
@@ -22,7 +22,7 @@ security:
   trustedCertificateLocation: '/etc/cacert/cacert.pem'
   clientCertificateRequired: true
 
-# The @Protocol storage configurations
+# The atProtocol storage configurations
 hive:
   # The storage path for secondary storage.
 
@@ -43,24 +43,35 @@ hive:
   # set the flag to false.
   shouldRemoveMalformedKeys: true
 
-# The @Protocol connection configurations.
+# The atProtocol connection configurations.
 connection:
-  # The maximum time in milliseconds for an inbound connection to expire.
-  # This should NEVER be set to less than 60 seconds. Internally, the effective
-  # value used is reduced progressively as the number of connections approaches the max limit
+  # At any point, at most [inbound_max_limit] inbound connections are allowed. The inbound connection
+  # pool takes care of ensuring that idle connections are closed as necessary
+  inbound_max_limit: 200
+
+  # The maximum time in milliseconds for an **unauthenticated** inbound connection to expire.
+  # Default value is 10 minutes (10 * 60 * 1000 == 600000)
+  # Internally, the effective value used is reduced progressively towards 5 seconds as the current
+  # number of connections approaches the inbound_max_limit.
   inbound_idle_time_millis: 600000
+
+  # The maximum time in milliseconds for an **AUTHENTICATED** inbound connection to expire.
+  # Default value is 30 days (30 * 24 * 60 * 60 * 1000 == 2592000000)
+  # Internally, the effective value used is reduced progressively towards 60 seconds as the current
+  # number of connections approaches the max limit. So for example if the max number of connections is
+  # 200, and there are currently 200 connections, and a new client tries to connect,
+  # then any authenticated connection which has been idle for more than 60 seconds will be closed
+  # However: if there are only, say, 100 connections currently, then only authenticated connections
+  # which have been idle for more than 30 days will be closed
+  authenticated_inbound_idletime_millis: 2592000000
+
   # The maximum time in milliseconds for an outbound connection to expire.
   outbound_idle_time_millis: 600000
-  # Creates an inbound connection and adds the connection to inbound connection pool. At any point, at most [inbound_max_limit] connections can only be created.
-  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
-  # The connection in the pool will exist until its [inbound_idle_time_millis] expires.
-  inbound_max_limit: 50
-  # Creates an outbound connection and adds the connection to outbound connection pool. At any point, at most [outbound_max_limit] connections can only be created.
-  # When all connections are active, additional connection requested can be served upon one of the active connection is closed.
-  # The connection in the pool will exist until its [outbound_idle_time_millis] expires.
-  outbound_max_limit: 50
 
-# The @Protocol commit log compaction job configurations.
+  # At any point, at most [outbound_max_limit] outbound connections are allowed.
+  outbound_max_limit: 200
+
+# The atProtocol commit log compaction job configurations.
 commit_log_compaction:
   # The frequent time interval (in minutes) to initiate the commit log compaction job service.
   compactionFrequencyMins: 18
@@ -71,7 +82,7 @@ commit_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
   sizeInKB: 10
 
-# The @Protocol access log compaction job configurations.
+# The atProtocol access log compaction job configurations.
 access_log_compaction:
   # The frequent time interval (in minutes) to initiate the access log compaction job service.
   compactionFrequencyMins: 15
@@ -82,19 +93,19 @@ access_log_compaction:
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the access log compaction job service.
   sizeInKB: 2
 
-# The @Protocol notification keystore compaction job configurations.
+# The atProtocol notification keystore compaction job configurations.
 notification_keystore_compaction:
   compactionFrequencyMins: 5
   compactionPercentage: 30
   expiryInDays: 1
   sizeInKB: -1
 
-# The @Protocol key lookup configurations.
+# The atProtocol key lookup configurations.
 lookup:
   # The number of iterations to resolve the atSign value references.
   depth_of_resolution: 3
 
-# The configurations for @Protocol statistics
+# The configurations for atProtocol statistics
 stats:
   # Return the other atSign users who visited the current atSign for maximum number of times in the descending order.
   top_visits: 5

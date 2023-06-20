@@ -127,7 +127,7 @@ class AtNotification {
         'notifier': _notifier,
         'expiresAt': _expiresAt,
         'atValue': _atValue,
-        'atMetadata': _atMetadata,
+        'atMetadata': _atMetadata?.toJson(),
         'ttl': _ttl
       };
 
@@ -456,7 +456,9 @@ class AtNotificationBuilder {
 
   AtNotification build() {
     if ((ttl != null && ttl! > 0) && expiresAt == null) {
-      expiresAt = DateTime.now().toUtcMillisecondsPrecision().add(Duration(milliseconds: ttl!));
+      expiresAt = DateTime.now()
+          .toUtcMillisecondsPrecision()
+          .add(Duration(milliseconds: ttl!));
     }
     return AtNotification._builder(this);
   }

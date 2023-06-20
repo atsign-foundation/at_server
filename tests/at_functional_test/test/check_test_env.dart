@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'functional_test_commons.dart';

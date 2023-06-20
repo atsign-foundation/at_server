@@ -117,8 +117,7 @@ void main() {
       expect(connectionMetadata.self, true);
     });
 
-    test('test from verb handler from atsign does not contain @',
-        () async {
+    test('test from verb handler from atsign does not contain @', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';

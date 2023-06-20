@@ -5,7 +5,7 @@ repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 
 environment:
-  sdk: '>=2.12.0 <3.0.0'
+  sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
   path: ^1.8.2
@@ -13,10 +13,10 @@ dependencies:
   cron: ^0.5.0
   crypto: ^3.0.2
   uuid: ^3.0.6
-  at_persistence_spec: ^2.0.12
-  at_utils: ^3.0.11
-  at_commons: ^3.0.42
   at_utf7: ^1.0.0
+  at_commons: ^3.0.42
+  at_utils: ^3.0.11
+  at_persistence_spec: ^2.0.12
   meta: ^1.8.0
 
 dev_dependencies:

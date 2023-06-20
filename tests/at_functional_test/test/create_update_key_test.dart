@@ -5,7 +5,6 @@ import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 import 'functional_test_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
-import 'package:version/version.dart';
 
 void main() {
   var firstAtsign =
@@ -132,36 +131,17 @@ void main() {
     test('delete same key multiple times test', () async {
       int noOfTests = 3;
       late String response;
-      await socket_writer(socketFirstAtsign!, 'info');
-      var infoResponse = await read();
-      infoResponse = infoResponse.replaceFirst('data:', '');
-      final versionObj = jsonDecode(infoResponse)['version'];
-      var versionStr = versionObj?.split('+')[0];
-      var serverVersion;
-      if (versionStr != null) {
-        serverVersion = Version.parse(versionStr);
-      }
-      print('*** serverVersion $serverVersion');
 
       /// Delete VERB
       for (int i = 1; i <= noOfTests; i++) {
         await socket_writer(
             socketFirstAtsign!, 'delete:public:location$firstAtsign');
         response = await read();
-        print('delete verb response : $response');
-        if (serverVersion != null && serverVersion > Version(3, 0, 25)) {
-          if (i > 1) {
-            assert(
-                response.startsWith('error:') && response.contains('AT0015'));
-          }
-        } else {
-          assert((!response.contains('Invalid syntax')) &&
-              (!response.contains('null')));
-        }
+        print('delete verb response : ${response.trim()}');
+        var re = RegExp(r'^data:\d+\n$');
+        assert(re.hasMatch(response));
       }
-    },
-        skip:
-            'The changes related to throwing an exception on deleting a non-existent key are reverted in at_persistence_secondary_server : 3.0.42');
+    });
 
     test('update multiple key at the same time', () async {
       int noOfTests = 5;

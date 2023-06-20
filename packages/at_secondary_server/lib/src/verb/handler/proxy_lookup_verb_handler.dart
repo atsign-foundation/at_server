@@ -19,7 +19,9 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
 
-  ProxyLookupVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager) : super(keyStore);
+  ProxyLookupVerbHandler(
+      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
+      : super(keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -59,14 +61,17 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     }
 
     // First, check if we've even got a cached value
-    var atData = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
+    var atData =
+        await cacheManager.get(cachedKeyName, applyMetadataRules: true);
     var result = SecondaryUtil.prepareResponseData(operation, atData);
 
     // If we don't have a cached value, or byPassCache parameter is set to 'true', then do a remote lookUp.
     if (result == null || byPassCacheStr == 'true') {
-      AtData? atData = await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
+      AtData? atData =
+          await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
       if (atData != null) {
-        result = SecondaryUtil.prepareResponseData(operation, atData, key: 'public:$keyName');
+        result = SecondaryUtil.prepareResponseData(operation, atData,
+            key: 'public:$keyName');
       }
     }
     response.data = result;

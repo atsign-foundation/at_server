@@ -95,22 +95,22 @@ class InboundConnectionPool {
 
   void _checkWarningStatesOnAdd() {
     if (_connections.length >= _size * 0.85 && !passedEightyFivePercent) {
-      logger.warning('InboundConnectionPool >= 85% full');
+      logger.warning('InboundConnectionPool >= 85% of $_size');
       passedEightyFivePercent = true;
     }
     if (_connections.length >= _size * 0.95 && !passedNinetyFivePercent) {
-      logger.severe('InboundConnectionPool >= 95% full');
+      logger.severe('InboundConnectionPool >= 95% of $_size');
       passedNinetyFivePercent = true;
     }
   }
 
   void _checkWarningStatesOnRemove() {
     if (_connections.length < _size * 0.95 && passedNinetyFivePercent) {
-      logger.info('InboundConnectionPool < 95% full');
+      logger.info('InboundConnectionPool < 95% of $_size');
       passedNinetyFivePercent = false;
     }
     if (_connections.length < _size * 0.85 && passedEightyFivePercent) {
-      logger.info('InboundConnectionPool < 85% full');
+      logger.info('InboundConnectionPool < 85% of $_size');
       passedEightyFivePercent = false;
     }
   }

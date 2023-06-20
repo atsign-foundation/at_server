@@ -9,7 +9,9 @@ import 'package:at_commons/at_commons.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
 void main() {
@@ -50,7 +52,8 @@ void main() {
 
     test('test plookup meta command accept test without operation', () {
       var command = 'plookup:location@alice';
-      var handler = ProxyLookupVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ProxyLookupVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -58,7 +61,8 @@ void main() {
 
     test('test plookup meta command accept test for meta', () {
       var command = 'plookup:meta:location@alice';
-      var handler = ProxyLookupVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ProxyLookupVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);
@@ -66,7 +70,8 @@ void main() {
 
     test('test plookup meta command accept test for all', () {
       var command = 'plookup:all:location@alice';
-      var handler = ProxyLookupVerbHandler(mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+      var handler = ProxyLookupVerbHandler(
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
       print('result : $result');
       expect(result, true);

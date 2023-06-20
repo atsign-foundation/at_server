@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.inboundIdleTimeMillis = 50;
+    serverContext.unauthenticatedInboundIdleTimeMillis = 50;
     serverContext.outboundIdleTimeMillis = 30;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });
@@ -112,9 +112,18 @@ void main() {
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(dummySocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);
-      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis ~/ 2));
+      sleep(Duration(
+          milliseconds: AtSecondaryServerImpl.getInstance()
+                  .serverContext!
+                  .outboundIdleTimeMillis ~/
+              2));
       expect(outBoundClient_1.isInValid(), false);
-      sleep(Duration(milliseconds: AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis ~/ 2 + 1));
+      sleep(Duration(
+          milliseconds: AtSecondaryServerImpl.getInstance()
+                      .serverContext!
+                      .outboundIdleTimeMillis ~/
+                  2 +
+              1));
       expect(outBoundClient_1.isInValid(), true);
     });
   });

@@ -34,7 +34,9 @@ fi
 # Script dir is <repo_root>/tools/run_locally/scripts/<platform>
 # We will create logs etc in <repo_root>/tools/run_locally/runtime which
 # is in .gitignore
-cd "$scriptDir"/../../runtime
+cd "$scriptDir"/../../
+mkdir -p runtime
+cd runtime
 
 mkdir -p atServers
 cd atServers
@@ -58,8 +60,9 @@ export secondaryStoragePath="$storageDir/hive"
 export commitLogPath="$storageDir/commitLog"
 export accessLogPath="$storageDir/accessLog"
 export notificationStoragePath="$storageDir/notificationLog.v1"
+export inbound_max_limit=200
 
-export logLevel="INFO"
+export logLevel="WARNING"
 
 export testingMode="true"
 
@@ -74,5 +77,8 @@ if [ ! -L certs ]; then
   echo "Linking secondary certs"
   ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs .
 fi
+
+# Finally, we need to copy the pubspec.yaml file to the working directory, for the version
+cp "$scriptDir"/../../../../packages/at_secondary_server/pubspec.yaml .
 
 dart "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

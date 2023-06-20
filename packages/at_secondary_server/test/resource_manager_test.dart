@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
@@ -63,6 +64,7 @@ void main() async {
             ..notification = 'location'
             ..retryCount = 1)
           .build();
+
       var atsign = '@alice';
       // Iterator containing all the notifications
       Iterator notificationIterator =
@@ -137,6 +139,50 @@ void main() async {
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
           'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
+    });
+
+    test(
+        'Test to verify prepare an update notification command with a value and all the metadata',
+        () {
+      var ttln = 24 * 60 * 60 * 1000;
+      var atNotification = (AtNotificationBuilder()
+            ..fromAtSign = '@alice'
+            ..toAtSign = '@bob'
+            ..id = '1234'
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..atValue = 'Hi Bob, Alice here'
+            ..notification = '@bob:test.test@alice'
+            ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
+            ..ttl = ttln
+            ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
+              ..ttr = 1
+              ..ccd = true
+              ..pubKeyCS = '123'
+              ..sharedKeyEnc = 'abc'
+              ..encKeyName = 'ekn'
+              ..encAlgo = 'ea'
+              ..ivNonce = 'ivn'
+              ..skeEncKeyName = 'ske_ekn'
+              ..skeEncAlgo = 'ske_ea'))
+          .build();
+
+      var notifyCommand = ResourceManager.getInstance()
+          .prepareNotifyCommandBody(atNotification);
+
+      print(notifyCommand);
+
+      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
+      expect(
+          notifyCommand,
+          'id:1234:update:messageType:key:notifier:system'
+          ':ttln:$ttln'
+          ':ttr:1:ccd:true'
+          ':sharedKeyEnc:abc:pubKeyCS:123'
+          ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
+          ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
+          ':@bob:test.test@alice'
+          ':Hi Bob, Alice here');
     });
   });
 }
