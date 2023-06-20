@@ -9,7 +9,7 @@ environment:
   sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
-  at_commons: ^3.0.35
+  at_commons: ^3.0.48
 
 dev_dependencies:
   lints: ^1.0.1

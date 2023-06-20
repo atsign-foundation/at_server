@@ -1,5 +1,6 @@
 ## 3.0.12
 - feat: added enroll verb
+- chore: upgraded at_commons version
 ## 3.0.11
 - feat: Added 'notifyFetch' verb
 ## 3.0.10
