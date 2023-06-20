@@ -41,4 +41,4 @@ abstract class AtConnectionMetaData {
   String clientVersion = clientVersionNotAvailable;
 }
 
-enum AuthType { cram, pkam_legacy, apkam }
+enum AuthType { cram, pkamLegacy, apkam }

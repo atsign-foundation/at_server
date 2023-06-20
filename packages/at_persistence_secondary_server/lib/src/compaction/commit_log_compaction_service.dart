@@ -48,7 +48,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
         await Future.forEach(
             _commitLogEntriesMap.keys, (key) => _compactExpiredKeys(key));
         var keysAfterCompaction = _commitLogKeyStore.getEntriesCount();
-        _logger.info(
+        _logger.finer(
             'Commit Log compacted successfully. Removed ${keysBeforeCompaction - keysAfterCompaction} duplicate entries');
         //Reset keysToCompactCount to 0 after deleting the expired keys.
         keysToCompactCount = 0;

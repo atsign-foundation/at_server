@@ -175,9 +175,9 @@ class AtCommitLog implements AtLogType<int, CommitEntry> {
             keyStoreType: KeyStoreType.commitLogKeyStore));
       }
     } on Exception catch (e) {
-      logger.info('Failed to publish change event ${e.toString()}');
+      logger.severe('Failed to publish change event ${e.toString()}');
     } on Error catch (err) {
-      logger.info('Failed to publish change event ${err.toString()}');
+      logger.severe('Failed to publish change event ${err.toString()}');
     }
   }
 

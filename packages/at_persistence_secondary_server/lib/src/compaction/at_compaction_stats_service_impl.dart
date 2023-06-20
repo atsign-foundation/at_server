@@ -25,7 +25,8 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
 
   @override
   Future<void> handleStats(AtCompactionStats atCompactionStats) async {
-    _logger.finer('$_atCompaction: ${atCompactionStats.toString()}');
+    _logger.finest(
+        'Completed compaction of $_atCompaction: ${atCompactionStats.toString()}');
     try {
       await _keyStore.put(compactionStatsKey,
           AtData()..data = json.encode(atCompactionStats.toJson()));
