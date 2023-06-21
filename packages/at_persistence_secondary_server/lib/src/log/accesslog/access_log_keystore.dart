@@ -11,8 +11,6 @@ export 'package:at_persistence_spec/at_persistence_spec.dart';
 class AccessLogKeyStore
     with HiveBase<AccessLogEntry?>
     implements LogKeyStore<int, AccessLogEntry?> {
-  var logger = AtSignLogger('AccessLogKeyStore');
-
   final String _currentAtSign;
   late String _boxName;
 

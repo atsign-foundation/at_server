@@ -1,7 +1,16 @@
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
 
-/// #TODO documentation
+/// Enroll verb enables a new app or client to request new enrollment to a secondary server
+/// Secondary server will notify the new enrollment request to already enrolled apps which have access to __manage namespace.
+/// The enrolled app which receives the notification may approve or reject the enrollment request.
+/// Syntax
+/// enroll:request:appName:<appName>:deviceName:<deviceName>:namespaces:<namespaces>:totp:<totp>:apkamPublicKey:<apkamPublicKey>
+/// appName - Name of the app or client requesting enrollment
+/// deviceName- Name of the device or client
+/// namespaces - List of namespaces the requesting app or client needs access e.g [wavi,r;buzz,rw]
+/// totp - timebased OTP which has to fetched from an already enrolled app
+/// apkamPublicKey - new pkam public key from the requesting app/client
 class Enroll extends Verb {
   @override
   String name() => 'enroll';
@@ -16,7 +25,7 @@ class Enroll extends Verb {
 
   @override
   String usage() {
-    return 'enroll:request:appName:wavi:deviceName:iPhone:apkamPublicKey:<public_key>';
+    return 'enroll:request:appName:wavi:deviceName:iPhone:namespaces:[wavi,rw]:totp:<totp>:apkamPublicKey:<public_key>';
   }
 
   @override

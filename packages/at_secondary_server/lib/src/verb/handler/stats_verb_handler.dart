@@ -113,7 +113,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     var metric = _getMetrics(id);
     var name = metric.name!.getName();
     dynamic value;
-    if (id == '3' && _regex != null) {
+    if ((id == '3' || id == '15') && _regex != null) {
       value = await metric.name!.getMetrics(regex: _regex);
     } else {
       value = await metric.name!.getMetrics();
