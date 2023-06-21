@@ -26,6 +26,7 @@ dependencies:
   at_persistence_spec: 2.0.12
   at_persistence_secondary_server: 3.0.52
   intl: ^0.18.1
+  json_annotation: ^4.8.0
   version: 3.0.2
   expire_cache: ^2.0.1
   meta: 1.8.0
@@ -46,3 +47,5 @@ dev_dependencies:
   coverage: ^1.6.1
   lints: ^2.0.1
   mocktail: ^0.3.0
+  build_runner: ^2.3.3
+  json_serializable: ^6.7.0

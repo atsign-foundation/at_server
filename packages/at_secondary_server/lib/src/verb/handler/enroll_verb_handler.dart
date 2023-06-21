@@ -66,7 +66,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               verbParams['apkamPublicKey']!);
 
           if (atConnection.getMetaData().authType == AuthType.cram) {
-            print('inside cram');
             enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.approved.name);
@@ -75,15 +74,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             await keyStore.put(AT_PKAM_PUBLIC_KEY,
                 AtData()..data = verbParams['apkamPublicKey']!);
           } else {
-            print('storing notification');
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.pending.name);
             await _storeNotification(key, currentAtSign);
-            print('done storing notification');
             responseJson['status'] = 'pending';
           }
 
           enrollmentValue.namespaces = enrollNamespaces;
+          enrollmentValue.requestType = EnrollRequestType.newEnrollment;
           AtData enrollData = AtData()
             ..data = jsonEncode(enrollmentValue.toJson());
           logger.finer('enrollData: $enrollData');
@@ -134,8 +132,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _storeNotification(String notificationKey, String atSign) async {
-    var keyPattern =
-        '^.*$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     try {
       final atNotification = (AtNotificationBuilder()
             ..notification = notificationKey

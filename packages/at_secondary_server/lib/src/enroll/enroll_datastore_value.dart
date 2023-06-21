@@ -1,38 +1,22 @@
-//TODO documentation
-// there may be a  easier way to implement this class using a dart/3rd party package - TODO explore
+import 'package:json_annotation/json_annotation.dart';
+part 'enroll_datastore_value.g.dart';
+
+@JsonSerializable()
 class EnrollDataStoreValue {
   late String sessionId;
   late String appName;
   late String deviceName;
   List<EnrollNamespace> namespaces = [];
   late String apkamPublicKey;
-  String? requestType;
+  EnrollRequestType? requestType;
   EnrollApproval? approval;
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
-  EnrollDataStoreValue.fromJson(Map<String, dynamic> json) {
-    sessionId = json['sessionId'];
-    appName = json['appName'];
-    deviceName = json['deviceName'];
-    apkamPublicKey = json['apkamPublicKey'];
-    requestType = json['requestType'];
-    if (json['approval'] != null) {
-      approval = EnrollApproval.fromJson(json['approval']);
-    }
-    json['namespaces'].forEach((e) {
-      namespaces.add(EnrollNamespace.fromJson(e));
-    });
-  }
 
-  Map<String, dynamic> toJson() => {
-        'sessionId': sessionId,
-        'appName': appName,
-        'deviceName': deviceName,
-        'namespaces': namespaces,
-        'apkamPublicKey': apkamPublicKey,
-        'requestType': requestType,
-        'approval': approval
-      };
+  factory EnrollDataStoreValue.fromJson(Map<String, dynamic> json) =>
+      _$EnrollDataStoreValueFromJson(json);
+
+  Map<String, dynamic> toJson() => _$EnrollDataStoreValueToJson(this);
 }
 
 class EnrollNamespace {
@@ -68,3 +52,5 @@ class EnrollApproval {
 }
 
 enum EnrollStatus { pending, approved, denied }
+
+enum EnrollRequestType { newEnrollment, changeEnrollment }

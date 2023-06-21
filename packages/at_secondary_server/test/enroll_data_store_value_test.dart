@@ -42,7 +42,7 @@ void main() {
           EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
             ..namespaces = namespaceList
             ..approval = enrollApproval
-            ..requestType = 'newEnrollment';
+            ..requestType = EnrollRequestType.newEnrollment;
       final enrollJson = enrollDataStoreValue.toJson();
       print(enrollJson);
       expect(enrollJson['sessionId'], '123');
@@ -75,7 +75,7 @@ void main() {
       expect(enrollValueObject.appName, 'testclient');
       expect(enrollValueObject.deviceName, 'iphone');
       expect(enrollValueObject.apkamPublicKey, 'mykey');
-      expect(enrollValueObject.requestType, 'newEnrollment');
+      expect(enrollValueObject.requestType, EnrollRequestType.newEnrollment);
     });
   });
 }

@@ -45,7 +45,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var enrollId = verbParams[enrollApprovalId];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
 
-    var pkamAuthType = AuthType.pkam_legacy;
+    var pkamAuthType = AuthType.pkamLegacy;
     var publicKey;
 
     // Use APKAM public key for verification if enrollId is passed. Otherwise use legacy pkam public key.
@@ -67,8 +67,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
         } else {
           response.data = 'failure';
           response.isError = true;
-          response.errorMessage = 'enrol'
-              'lment id: $enrollId is not approved';
+          response.errorMessage = 'enrollment id: $enrollId is not approved';
           throw UnAuthenticatedException(response.errorMessage);
         }
       }
