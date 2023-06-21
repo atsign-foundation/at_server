@@ -16,7 +16,7 @@ import 'abstract_verb_handler.dart';
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
   static int? approximateStartTimeMillis;
-  static String? apkam_metadata;
+
   InfoVerbHandler(SecondaryKeyStore keyStore) : super(keyStore) {
     approximateStartTimeMillis ??= DateTime.now().millisecondsSinceEpoch;
   }
@@ -33,11 +33,13 @@ class InfoVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     Map infoMap = {};
+    String? apkamMetadataKey;
+    String? result;
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData()
         as InboundConnectionMetadata; // structure of what is returned is documented in the [Info] verb in at_server_spec
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     final enrollApprovalId = atConnectionMetadata.enrollApprovalId;
-    apkam_metadata =
+    apkamMetadataKey =
         '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
@@ -48,7 +50,10 @@ class InfoVerbHandler extends AbstractVerbHandler {
       String uptimeAsWords = durationToWords(uptime);
       infoMap['uptimeAsWords'] = uptimeAsWords;
       if (atConnectionMetadata.isAuthenticated) {
-        await _setApkamMetadata(infoMap);
+        result = await _getapkamMetadataKey(apkamMetadataKey);
+        if (result != null) {
+          infoMap['apkam_metadata'] = result;
+        }
       }
       infoMap['features'] = [
         {
@@ -88,16 +93,13 @@ class InfoVerbHandler extends AbstractVerbHandler {
     return uptimeAsWords;
   }
 
-  Future<Map> _setApkamMetadata(Map infoMap) async {
+  Future<String?> _getapkamMetadataKey(String? apkamMetadataKey) async {
     AtData? result;
     try {
-      result = await keyStore.get(apkam_metadata);
+      result = await keyStore.get(apkamMetadataKey);
     } on Exception catch (e) {
       logger.severe('apkam_metadata not found | $e');
     }
-    if (result != null) {
-      infoMap['apkam_metadata'] = result;
-    }
-    return infoMap;
+    return result?.data;
   }
 }
