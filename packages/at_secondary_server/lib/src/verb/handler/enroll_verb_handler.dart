@@ -65,7 +65,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               verbParams['deviceName']!,
               verbParams['apkamPublicKey']!);
 
-          if (atConnection.getMetaData().authType == AuthType.cram) {
+          if (atConnection.getMetaData().isAuthenticated) {
+            // approve request from connection that are authenticated. This connection may be cram or legacyPkam authenticated
             enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.approved.name);

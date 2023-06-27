@@ -13,6 +13,7 @@ import 'package:expire_cache/expire_cache.dart';
 
 class TotpVerbHandler extends AbstractVerbHandler {
   static Totp totpVerb = Totp();
+  //#TODO replace sharedSecret
   static String sharedSecret = 'HelloTotp';
   static final expireDuration = Duration(seconds: 90);
   static ExpireCache<String, String> cache =
