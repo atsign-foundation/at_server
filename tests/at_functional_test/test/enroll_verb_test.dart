@@ -148,6 +148,7 @@ void main() {
       // now do the apkam using the enrollment id
       await socket_writer(socketConnection2!, 'from:$firstAtsign');
       fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
       pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
       var apkamEnrollId = 'pkam:enrollApprovalId:$secondEnrollId:$pkamDigest\n';
 
@@ -221,12 +222,10 @@ void main() {
       expect(approveJson['status'], 'approved');
       expect(approveJson['enrollmentId'], secondEnrollId);
 
-      // wait for second before doing an APKaM
-      await Future.delayed(Duration(seconds: 2));
-
       // connect to the second client to do an apkam
       await socket_writer(socketConnection2!, 'from:$firstAtsign');
       fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
       // now do the apkam using the enrollment id
       pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
       var apkamEnrollId = 'pkam:enrollApprovalId:$secondEnrollId:$pkamDigest\n';
@@ -353,7 +352,7 @@ void main() {
       var updateResponse = await read();
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
-      
+
       var enrollRequest =
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
       await socket_writer(socketConnection1!, enrollRequest);
@@ -438,7 +437,6 @@ void main() {
       //Closing the socket connection
       clear();
       socketConnection1!.destroy();
-      
     });
   });
 }
