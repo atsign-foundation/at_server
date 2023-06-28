@@ -26,26 +26,6 @@ void main() {
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 
   String atmosphereKey = 'atmospherekey.atmosphere$firstAtsign';
-  // Before the start of the tests create the keys with different namespaces
-  
-  // key with atmosphere namespace
-  Future<void> createKeys() async {
-    await socket_writer(socketConnection1!, 'from:$firstAtsign');
-    var fromResponse = await read();
-    print('from verb response : $fromResponse');
-    fromResponse = fromResponse.replaceAll('data:', '');
-    var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-
-    await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-    var pkamResult = await read();
-    expect(pkamResult, 'data:success\n');
-
-    await socket_writer(
-        socketConnection1!, 'update:$atmosphereKey atmospherevalue');
-    var updateResponse = await read();
-    assert((!updateResponse.contains('Invalid syntax')) &&
-        (!updateResponse.contains('null')));
-  }
 
   //Establish the client socket connection
   setUp(() async {
