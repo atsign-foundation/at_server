@@ -71,9 +71,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.approved.name);
             responseJson['status'] = 'success';
-            //#TODO below line is adhoc for demo purpose. Remove once enrollment Id changes are done in atclient/atlookup
-            await keyStore.put(AT_PKAM_PUBLIC_KEY,
-                AtData()..data = verbParams['apkamPublicKey']!);
           } else {
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.pending.name);
