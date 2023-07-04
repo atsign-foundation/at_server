@@ -27,6 +27,7 @@ dependencies:
   at_persistence_secondary_server: 3.0.52
   intl: ^0.18.1
   json_annotation: ^4.8.0
+  pub_semver: ^2.1.0
   version: 3.0.2
   expire_cache: ^2.0.1
   meta: 1.8.0

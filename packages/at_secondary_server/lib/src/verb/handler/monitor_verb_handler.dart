@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -10,6 +11,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
+
+  static const selfNotificationMinClientVersion = '3.0.62';
 
   late InboundConnection atConnection;
 
@@ -36,6 +39,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    final clientVersion = atConnection.getMetaData().clientVersion;
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
@@ -44,8 +48,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
       atNotificationCallback.registerNotificationCallback(
           NotificationType.received, processAtNotification);
-      atNotificationCallback.registerNotificationCallback(
-          NotificationType.self, processAtNotification);
+      if (clientVersion != AtConnectionMetaData.clientVersionNotAvailable &&
+          SecondaryUtil.isVersionGreater(
+              clientVersion, selfNotificationMinClientVersion)) {
+        logger.finer('self notification callback registered');
+        atNotificationCallback.registerNotificationCallback(
+            NotificationType.self, processAtNotification);
+      }
 
       if (verbParams.containsKey(EPOCH_MILLIS) &&
           verbParams[EPOCH_MILLIS] != null) {
