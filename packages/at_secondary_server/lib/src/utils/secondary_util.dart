@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
-import 'package:pub_semver/pub_semver.dart';
 
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
