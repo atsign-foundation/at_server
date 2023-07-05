@@ -2,13 +2,11 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -20,10 +18,9 @@ import 'package:crypton/crypton.dart';
 // ex: pol\n
 class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
-  static final _rootDomain = AtSecondaryConfig.rootServerUrl;
-  static final _rootPort = AtSecondaryConfig.rootServerPort;
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
+  OutboundClient? _outboundClient;
 
   PolVerbHandler(
       SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
@@ -54,65 +51,112 @@ class PolVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atConnectionMetadata =
+    InboundConnectionMetadata atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
 
     logger.info('from : ${atConnectionMetadata.from.toString()}');
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-    // Checking whether from: verb executed or not.
-    // If true proceed else return error message
+    // Check if from: verb is executed
     if (atConnectionMetadata.from != true) {
       throw InvalidRequestException('You must execute a '
-          'from:'
-          ' command before you may run the pol command');
+          '\'from:\' command before you may run the pol command');
     }
 
-    // Getting secondary server URL
-    // ignore: deprecated_member_use
-    var secondaryUrl =
-        await AtLookupImpl.findSecondary(fromAtSign!, _rootDomain, _rootPort!);
-    logger.finer('secondary url : $secondaryUrl');
-    if (secondaryUrl != null && secondaryUrl.contains(':')) {
-      var lookUpKey = '$sessionID$fromAtSign';
-      // Connect to the other secondary server and get the secret
-      OutboundClient outBoundClient =
-          outboundClientManager.getClient(fromAtSign, atConnection);
-      if (!outBoundClient.isConnectionCreated) {
-        logger.finer('creating outbound connection $fromAtSign');
-        await outBoundClient.connect(handshake: false);
+    await _createOutboundConnection(fromAtSign, atConnection);
+    HashMap<String, String> fetchSecretResult =
+        await _fetchSecret(fromAtSign!, sessionID!);
+    // pass the result from _fetchSecret() to validateChallenge()
+    // validateChallenge() requires the params fetched through _fetchSecret()
+    _validateChallenge(fetchSecretResult);
+
+    atConnectionMetadata.isPolAuthenticated = true;
+    response.data = 'pol:$fromAtSign@';
+    await _insertIntoAccessLog(fromAtSign, pol.name());
+    logger.info('response : $fromAtSign@');
+
+    _outboundClient?.close();
+    return;
+  }
+
+  Future<void> _createOutboundConnection(
+      String? fromAtsign, var atConnection) async {
+    // Connect to the other secondary server
+    _outboundClient =
+        outboundClientManager.getClient(fromAtsign!, atConnection);
+    if (!_outboundClient!.isConnectionCreated) {
+      try {
+        await _outboundClient!.connect(handshake: false);
+      } on Exception catch (e) {
+        logger.finer(
+            'Exception connecting to $fromAtsign\'s outbound client | $e');
+        rethrow;
       }
-      var signedChallenge =
-          await (outBoundClient.lookUp(lookUpKey, handshake: false));
-      signedChallenge = signedChallenge?.replaceFirst('data:', '');
-      var plookupCommand = 'signing_publickey$fromAtSign';
-      var fromPublicKey = await (outBoundClient.plookUp(plookupCommand));
-      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
-      // Getting stored secret from this secondary server
-      var secret = await keyStore.get('public:${sessionID!}$fromAtSign');
-      var message = secret?.data;
-      if (fromPublicKey != null && signedChallenge != null) {
-        // Comparing secretLookup form other secondary and stored secret are same or not
-        var isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
-            .verifySHA256Signature(utf8.encode(message) as Uint8List,
-                base64Decode(signedChallenge));
-        logger.finer('isValidChallenge:$isValidChallenge');
-        if (isValidChallenge) {
-          atConnectionMetadata.isPolAuthenticated = true;
-          response.data = 'pol:$fromAtSign@';
-          await atAccessLog!.insert(fromAtSign, pol.name());
-          logger.info('response : $fromAtSign@');
-        } else {
-          throw UnAuthenticatedException('Pol Authentication Failed');
-        }
-      }
-      outBoundClient.close();
-      return;
-    } else {
-      throw SecondaryNotFoundException(
-          'secondary server not found for $fromAtSign');
     }
+    return;
+  }
+
+  /// fetches signedChallenge and publicKey from the other secondary
+  /// and secret from this secondary
+  /// throws an exception if any of these could not be fetched
+  Future<HashMap<String, String>> _fetchSecret(
+      String fromAtSign, String sessionID) async {
+    String? signedChallenge, fromPublicKey, message;
+    HashMap<String, String> response = HashMap();
+    try {
+      // construct the key that needs to be looked up
+      var lookUpKey = '$sessionID$fromAtSign';
+      // fetch the challenge from the other secondary
+      signedChallenge =
+          await (_outboundClient?.lookUp(lookUpKey, handshake: false));
+      signedChallenge = signedChallenge?.replaceFirst('data:', '');
+
+      // look for the public key on the other secondary
+      var plookupCommand = 'signing_publickey$fromAtSign';
+      fromPublicKey = await (_outboundClient?.plookUp(plookupCommand));
+      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
+
+      // Getting stored secret from this secondary server
+      var secret = await keyStore.get('public:$sessionID$fromAtSign');
+      logger.finer('Secret fetch status : ${secret != null}');
+      message = secret?.data;
+    } on Exception catch (e) {
+      logger.finer('Exception fetching secret: $e');
+      rethrow;
+    }
+
+    if (fromPublicKey == null || signedChallenge == null || message == null) {
+      logger.finer(
+          'Invalid OutboundClient status: ${_outboundClient.toString()}');
+      logger
+          .severe('Unable to verify signature. fromPublicKey is $fromPublicKey'
+              ' | signedChallenge is $signedChallenge | message is $message');
+      throw AtException('Unable to verify signature');
+    }
+    response['signedChallenge'] = signedChallenge;
+    response['fromPublicKey'] = fromPublicKey;
+    response['message'] = message;
+
+    return response;
+  }
+
+  void _validateChallenge(HashMap<String, String> inputs) {
+    // Comparing secretLookup form other secondary and stored secret are same or not
+    bool isValidChallenge = RSAPublicKey.fromString(inputs['fromPublicKey']!)
+        .verifySHA256Signature(utf8.encode(inputs['message']!) as Uint8List,
+            base64Decode(inputs['signedChallenge']!));
+    logger.finer('isValidChallenge: $isValidChallenge');
+    if (!isValidChallenge) {
+      throw UnAuthenticatedException('Pol Authentication Failed');
+    }
+    return;
+  }
+
+  Future<void> _insertIntoAccessLog(String key, String value) async {
+    AtAccessLog? atAccessLog = await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
+
+    await atAccessLog!.insert(key, value);
+    return;
   }
 }
