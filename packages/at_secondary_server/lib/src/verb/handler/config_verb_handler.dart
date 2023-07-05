@@ -98,7 +98,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         response.data = 'ok';
         break;
       case 'print':
-        response.data = AtSecondaryConfig.getLatestConfigValue(configName);
+        response.data = AtSecondaryConfig.getLatestConfigValue(configName)?.toString();
         break;
       default:
         response.data = 'invalid setOperation';

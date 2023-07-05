@@ -111,7 +111,7 @@ void main() {
     expect(response.trim(), 'data:');
 
     // expect that there is no persisted value for the webhook uri
-    await socket_writer(socketFirstAtsign!, 'llookup:local:telemetryEventWebHook$socketFirstAtsign');
+    await socket_writer(socketFirstAtsign!, 'llookup:local:telemetryEventWebHook$firstAtsign');
     response = await read();
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);
@@ -125,7 +125,7 @@ void main() {
       String uri = 'http://foo';
 
       await socket_writer(
-          socketFirstAtsign!, 'config:set:telemetryEventWebHook:$uri');
+          socketFirstAtsign!, 'config:set:telemetryEventWebHook=$uri');
       response = await read();
       expect(response.trim(), 'data:ok');
 
@@ -137,7 +137,7 @@ void main() {
 
       // Expect it to have been persisted
       await socket_writer(socketFirstAtsign!,
-          'llookup:local:telemetryEventWebHook$socketFirstAtsign');
+          'llookup:local:telemetryEventWebHook$firstAtsign');
       response = await read();
       expect(response.trim(), 'data:$uri');
     } finally {
