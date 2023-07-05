@@ -200,8 +200,4 @@ class SecondaryUtil {
     }
     return false;
   }
-
-  static bool isVersionGreater(String currentVersion, String targetVersion) {
-    return Version.parse(currentVersion) > Version.parse(targetVersion);
-  }
 }

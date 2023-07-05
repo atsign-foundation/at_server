@@ -43,14 +43,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
+      final selfNotifications = verbParams[MONITOR_SELF_NOTIFICATIONS];
 
       var atNotificationCallback = AtNotificationCallback.getInstance();
 
       atNotificationCallback.registerNotificationCallback(
           NotificationType.received, processAtNotification);
-      if (clientVersion != AtConnectionMetaData.clientVersionNotAvailable &&
-          SecondaryUtil.isVersionGreater(
-              clientVersion, selfNotificationMinClientVersion)) {
+      if (selfNotifications == MONITOR_SELF_NOTIFICATIONS) {
         logger.finer('self notification callback registered');
         atNotificationCallback.registerNotificationCallback(
             NotificationType.self, processAtNotification);
