@@ -15,7 +15,7 @@ void main() {
   var secondAtsign =
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
-  setUp(() async {
+  setUpAll(() async {
     var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
     var firstAtsignPort =
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
@@ -100,7 +100,56 @@ void main() {
     assert(errorMap['errorDescription'].contains('Invalid syntax'));
   });
 
-  tearDown(() {
+  test('Check that default telemetryEventWebHook is empty string', () async {
+    await socket_writer(socketFirstAtsign!, 'config:reset:telemetryEventWebHook');
+    var response = await read();
+    expect(response.trim(), 'data:ok');
+
+    // expect empty string
+    await socket_writer(socketFirstAtsign!, 'config:print:telemetryEventWebHook');
+    response = await read();
+    expect(response.trim(), 'data:');
+
+    // expect that there is no persisted value for the webhook uri
+    await socket_writer(socketFirstAtsign!, 'llookup:local:telemetryEventWebHook$socketFirstAtsign');
+    response = await read();
+    response = response.replaceFirst('error:', '');
+    var errorMap = jsonDecode(response);
+    print('config verb response : $response');
+    expect(errorMap['errorCode'], 'AT0015'); // KeyNotFound
+  });
+
+  test('Check that setting telemetryEventWebHook works', () async {
+    String response;
+    try {
+      String uri = 'http://foo';
+
+      await socket_writer(
+          socketFirstAtsign!, 'config:set:telemetryEventWebHook:$uri');
+      response = await read();
+      expect(response.trim(), 'data:ok');
+
+      // Expect it to have been set
+      await socket_writer(
+          socketFirstAtsign!, 'config:print:telemetryEventWebHook');
+      response = await read();
+      expect(response.trim(), 'data:$uri');
+
+      // Expect it to have been persisted
+      await socket_writer(socketFirstAtsign!,
+          'llookup:local:telemetryEventWebHook$socketFirstAtsign');
+      response = await read();
+      expect(response.trim(), 'data:$uri');
+    } finally {
+      // Let's reset it again
+      await socket_writer(
+          socketFirstAtsign!, 'config:reset:telemetryEventWebHook');
+      response = await read();
+      expect(response.trim(), 'data:ok');
+    }
+  });
+
+  tearDownAll(() {
     //Closing the client socket connection
     clear();
     socketFirstAtsign!.destroy();
