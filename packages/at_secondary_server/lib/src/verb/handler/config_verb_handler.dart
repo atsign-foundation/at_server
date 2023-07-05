@@ -83,7 +83,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     }
 
     if (!AtSecondaryConfig.testingMode && configName.requireTestingMode) {
-      response.data = 'testing mode disabled by default';
+      response.data = 'Setting $configName requires testingMode to be enabled';
       return;
     }
 

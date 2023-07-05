@@ -138,10 +138,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Verb executor is not initialized');
     }
 
-    telemetryService ??= AtServerTelemetryService();
-    createWebHookTelemetryConsumer(
-        telemetryService!, AtSecondaryConfig.telemetryEventWebHook);
-
     // We used to check at this stage that a verbHandlerManager was set
     // but now we don't, as if it's not set we will create a DefaultVerbHandlerManager
 
@@ -289,10 +285,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Starts StatsNotificationService to keep monitor connections alive
     await StatsNotificationService.getInstance().schedule(currentAtSign);
 
-    //initializes subscribers for dynamic config change 'config:Set'
-    if (AtSecondaryConfig.testingMode) {
-      await initDynamicConfigListeners();
-    }
+    // Initialize telemetry service, set up webhook telemetry consumer
+    // if one has been configured, setup dynamic config listener
+    await initTelemetry();
+
+    //initializes all other subscribers for dynamic config change 'config:Set'
+    await initDynamicConfigListeners();
 
     // clean up malformed keys from keystore
     await removeMalformedKeys();
@@ -372,8 +370,38 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
+  Future<void> initTelemetry() async {
+    // We will persist the URI when set via the `config:set:` command. When we
+    // do so, it's important that it not go into the commit log, so we will use
+    // a 'local' key, which the CommitLog will ignore.
+    String telemetryWebHookUriPersistedID = 'local:telemetryEventWebHook$currentAtSign';
+
+    telemetryService ??= AtServerTelemetryService();
+    createWebHookTelemetryConsumer(
+        telemetryService!, AtSecondaryConfig.telemetryEventWebHook);
+
+    // Subscriber for telemetryEventWebHook change
+    logger.finest('Subscribing to dynamic changes to telemetryEventWebHook');
+    var subscription = AtSecondaryConfig.subscribe(ModifiableConfigs.telemetryEventWebHook);
+    subscription?.listen((dynamic newWebHookUri) async {
+      if (newWebHookUri == null || newWebHookUri == '') {
+        await secondaryKeyStore.remove(telemetryWebHookUriPersistedID);
+      } else {
+        await secondaryKeyStore.put(
+            telemetryWebHookUriPersistedID, AtData()..data = newWebHookUri.toString());
+      }
+      createWebHookTelemetryConsumer(telemetryService!, newWebHookUri);
+    });
+
+    // Check if we have a persisted telemetryEventWebHook
+    if (secondaryKeyStore.isKeyExists(telemetryWebHookUriPersistedID)) {
+      String webHookUri = (await secondaryKeyStore.get(telemetryWebHookUriPersistedID))!.data!;
+      AtSecondaryConfig.broadcastConfigChange(ModifiableConfigs.telemetryEventWebHook, webHookUri);
+    }
+  }
+
   Future<void> initDynamicConfigListeners() async {
-    //only works if testingMode is set to true
+    // The following configs require testingMode to be enabled in order to be changed
     if (AtSecondaryConfig.testingMode) {
       logger.warning(
           'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
@@ -447,13 +475,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         QueueManager.getInstance().setMaxRetries(newCount);
       });
     }
-    //subscriber for telemetryEventWebHook change
-    logger
-        .finest('Subscribing to dynamic changes made to telemetryEventWebHook');
-    AtSecondaryConfig.subscribe(ModifiableConfigs.telemetryEventWebHook)
-        ?.listen((newWebHookUri) {
-      createWebHookTelemetryConsumer(telemetryService!, newWebHookUri);
-    });
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket

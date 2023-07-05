@@ -64,9 +64,7 @@ export inbound_max_limit=200
 
 export logLevel="INFO"
 
-export testingMode="true"
-
-export telemetryEventWebHook="http://localhost:8080/hook"
+export testingMode="false"
 
 # Set up on the local root server
 redis-cli << EOF

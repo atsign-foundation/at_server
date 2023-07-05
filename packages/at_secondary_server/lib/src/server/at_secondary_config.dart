@@ -93,7 +93,7 @@ class AtSecondaryConfig {
   static const bool _shouldRemoveMalformedKeys = true;
 
   // Telemetry web hook
-  static final String _telemetryEventWebHook = '';
+  static final String defaultTelemetryEventWebHook = '';
 
   //version
   static final String? _secondaryServerVersion =
@@ -685,46 +685,41 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['telemetry', 'eventWebHook']);
     } on ElementNotFoundException {
-      return _telemetryEventWebHook;
+      return defaultTelemetryEventWebHook;
     }
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (testingMode) {
-      if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<dynamic>.broadcast()
-          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
-      }
-      return _streamListeners[configName]!.streamController.stream;
+    if (!_streamListeners.containsKey(configName)) {
+      _streamListeners[configName] = ModifiableConfigurationEntry()
+        ..streamController = StreamController<dynamic>.broadcast()
+        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
     }
-    return null;
+    return _streamListeners[configName]!.streamController.stream;
   }
 
   //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    if (testingMode) {
-      //if an entry for the config does not exist new entry is created
-      if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<dynamic>.broadcast()
-          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
-      }
-      //in case of reset, the default value of that config is broadcast
-      if (isReset) {
-        _streamListeners[configName]
-            ?.streamController
-            .add(_streamListeners[configName]!.defaultValue);
-        _streamListeners[configName]?.currentValue =
-            _streamListeners[configName]!.defaultValue;
-        // this else case broadcast new config value
-      } else {
-        _streamListeners[configName]?.streamController.add(newConfigValue!);
-        _streamListeners[configName]?.currentValue = newConfigValue;
-      }
+    //if an entry for the config does not exist new entry is created
+    if (!_streamListeners.containsKey(configName)) {
+      _streamListeners[configName] = ModifiableConfigurationEntry()
+        ..streamController = StreamController<dynamic>.broadcast()
+        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+    }
+    //in case of reset, the default value of that config is broadcast
+    if (isReset) {
+      _streamListeners[configName]
+          ?.streamController
+          .add(_streamListeners[configName]!.defaultValue);
+      _streamListeners[configName]?.currentValue =
+          _streamListeners[configName]!.defaultValue;
+      // this else case broadcast new config value
+    } else {
+      _streamListeners[configName]?.streamController.add(newConfigValue!);
+      _streamListeners[configName]?.currentValue = newConfigValue;
     }
   }
 
@@ -843,7 +838,7 @@ enum ModifiableConfigs {
   checkCertificateReload(requireTestingMode: true, isInt: false),
   shouldReloadCertificates(requireTestingMode: true, isInt: false),
   doCacheRefreshNow(requireTestingMode: true, isInt: false),
-  telemetryEventWebHook(requireTestingMode: true, isInt: false);
+  telemetryEventWebHook(requireTestingMode: false, isInt: false);
 
   final bool requireTestingMode;
   final bool isInt;
