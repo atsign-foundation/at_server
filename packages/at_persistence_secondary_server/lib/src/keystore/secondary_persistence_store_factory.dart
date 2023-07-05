@@ -1,6 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
-import 'package:at_utils/at_logger.dart';
 
 class SecondaryPersistenceStoreFactory {
   static final SecondaryPersistenceStoreFactory _singleton =
@@ -11,8 +10,6 @@ class SecondaryPersistenceStoreFactory {
   factory SecondaryPersistenceStoreFactory.getInstance() {
     return _singleton;
   }
-
-  final logger = AtSignLogger('SecondaryPersistenceStoreFactory');
 
   final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
       {};

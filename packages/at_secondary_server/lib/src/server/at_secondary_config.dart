@@ -8,88 +8,89 @@ class AtSecondaryConfig {
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
   //Certs
-  static final bool _useTLS = true;
-  static final bool _clientCertificateRequired = true;
-  static final bool _testingMode = false;
+  static const bool _useTLS = true;
+  static const bool _clientCertificateRequired = true;
+  static const bool _testingMode = false;
 
   //Certificate Paths
-  static final String _certificateChainLocation = 'certs/fullchain.pem';
-  static final String _privateKeyLocation = 'certs/privkey.pem';
-  static final String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
+  static const String _certificateChainLocation = 'certs/fullchain.pem';
+  static const String _privateKeyLocation = 'certs/privkey.pem';
+  static const String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
-  static final String _storagePath = 'storage/hive';
-  static final String _commitLogPath = 'storage/commitLog';
-  static final String _accessLogPath = 'storage/accessLog';
-  static final String _notificationStoragePath = 'storage/notificationLog.v1';
-  static final int _expiringRunFreqMins = 10;
+  static const String _storagePath = 'storage/hive';
+  static const String _commitLogPath = 'storage/commitLog';
+  static const String _accessLogPath = 'storage/accessLog';
+  static const String _notificationStoragePath = 'storage/notificationLog.v1';
+  static const int _expiringRunFreqMins = 10;
 
   //Commit Log
-  static final int _commitLogCompactionFrequencyMins = 18;
-  static final int _commitLogCompactionPercentage = 20;
-  static final int _commitLogExpiryInDays = 15;
-  static final int _commitLogSizeInKB = 2;
+  static const int _commitLogCompactionFrequencyMins = 18;
+  static const int _commitLogCompactionPercentage = 20;
+  static const int _commitLogExpiryInDays = 15;
+  static const int _commitLogSizeInKB = 2;
 
   //Access Log
-  static final int _accessLogCompactionFrequencyMins = 15;
-  static final int _accessLogCompactionPercentage = 30;
-  static final int _accessLogExpiryInDays = 15;
-  static final int _accessLogSizeInKB = 2;
+  static const int _accessLogCompactionFrequencyMins = 15;
+  static const int _accessLogCompactionPercentage = 30;
+  static const int _accessLogExpiryInDays = 15;
+  static const int _accessLogSizeInKB = 2;
 
   //Notification
-  static final bool _autoNotify = true;
+  static const bool _autoNotify = true;
   // The maximum number of retries for a notification.
-  static final int _maxNotificationRetries = 30;
+  static const int _maxNotificationRetries = 30;
   // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
-  static final int _notificationQuarantineDuration = 10;
+  static const int _notificationQuarantineDuration = 10;
   // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
   // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
   // seconds have passed since the last queue-processing run completed.
-  static final int _notificationJobFrequency = 11;
+  static const int _notificationJobFrequency = 11;
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
-  static final int _statsNotificationJobTimeInterval = 15;
+  static const int _statsNotificationJobTimeInterval = 15;
   // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
-  static final int _notificationExpiresAfterMins = 1440;
+  static const int _notificationExpiresAfterMins = 1440;
 
-  static final int _notificationKeyStoreCompactionFrequencyMins = 5;
-  static final int _notificationKeyStoreCompactionPercentage = 30;
-  static final int _notificationKeyStoreExpiryInDays = 1;
-  static final int _notificationKeyStoreSizeInKB = -1;
+  static const int _notificationKeyStoreCompactionFrequencyMins = 5;
+  static const int _notificationKeyStoreCompactionPercentage = 30;
+  static const int _notificationKeyStoreExpiryInDays = 1;
+  static const int _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
-  static final int _runRefreshJobHour = 3;
+  static const int _runRefreshJobHour = 3;
 
   //Connection
-  static final int _inboundMaxLimit = 10;
-  static final int _outboundMaxLimit = 10;
-  static final int _inboundIdleTimeMillis = 600000;
-  static final int _outboundIdleTimeMillis = 600000;
+  static const int _inboundMaxLimit = 200;
+  static const int _outboundMaxLimit = 200;
+  static const int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
+  static const int _outboundIdleTimeMillis = 600000;
 
   //Lookup
-  static final int _lookupDepthOfResolution = 3;
+  static const int _lookupDepthOfResolution = 3;
 
   //Stats
-  static final int _statsTopKeys = 5;
-  static final int _statsTopVisits = 5;
+  static const int _statsTopKeys = 5;
+  static const int _statsTopVisits = 5;
 
   //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
-  static final String _defaultLogLevel = 'INFO';
+  static const String _defaultLogLevel = 'INFO';
 
   //root server configurations
-  static final String _rootServerUrl = 'root.atsign.org';
-  static final int _rootServerPort = 64;
+  static const String _rootServerUrl = 'root.atsign.org';
+  static const int _rootServerPort = 64;
 
   //force restart
-  static final bool _isForceRestart = false;
+  static const bool _isForceRestart = false;
 
   //Sync Configurations
-  static final int _syncBufferSize = 5242880;
-  static final int _syncPageLimit = 100;
+  static const int _syncBufferSize = 5242880;
+  static const int _syncPageLimit = 100;
 
   // Malformed Keys
   static final List<String> _malformedKeys = [];
-  static final bool _shouldRemoveMalformedKeys = true;
+  static const bool _shouldRemoveMalformedKeys = true;
 
   // Telemetry web hook
   static final String _telemetryEventWebHook = '';
@@ -406,7 +407,20 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'inbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _inboundIdleTimeMillis;
+      return _unauthenticatedInboundIdleTimeMillis;
+    }
+  }
+
+  // ignore: non_constant_identifier_names
+  static int get authenticated_inbound_idletime_millis {
+    var result = _getIntEnvVar('authenticated_inbound_idletime_millis');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _authenticatedInboundIdleTimeMillis;
     }
   }
 
