@@ -25,6 +25,7 @@ dependencies:
   at_server_spec: 3.0.11
   at_persistence_spec: 2.0.12
   at_persistence_secondary_server: 3.0.52
+  expire_cache: ^2.0.1
   intl: ^0.18.1
   json_annotation: ^4.8.0
   version: 3.0.2
