@@ -1,3 +1,6 @@
+## 3.0.53
+- feat: Introduced self notification type in enum for apkam enrollment
+- chore: upgraded at_commons to 3.0.50 and at_utils to 3.0.14
 ## 3.0.52
 - feat: Add new encryption metadata fields to core persistence classes
 ## 3.0.51
