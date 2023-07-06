@@ -24,18 +24,11 @@ dependencies:
   at_lookup: 3.0.37
   at_server_spec: 3.0.11
   at_persistence_spec: 2.0.12
-  at_persistence_secondary_server: 3.0.52
+  at_persistence_secondary_server: 3.0.53
   version: 3.0.2
   meta: 1.9.1
   mutex: 3.0.1
   yaml: 3.1.2
-
-dependency_overrides:
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server
-      path: packages/at_persistence_secondary_server
-      ref: apkam_persistence_changes
 
 dev_dependencies:
   test: ^1.24.4
