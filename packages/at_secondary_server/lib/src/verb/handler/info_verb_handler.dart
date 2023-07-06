@@ -50,7 +50,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
       String uptimeAsWords = durationToWords(uptime);
       infoMap['uptimeAsWords'] = uptimeAsWords;
       if (atConnectionMetadata.isAuthenticated) {
-        result = await _getapkamMetadataKey(apkamMetadataKey);
+        result = await _getApkamMetadataKey(apkamMetadataKey);
         if (result != null) {
           infoMap['apkam_metadata'] = result;
         }
@@ -93,11 +93,11 @@ class InfoVerbHandler extends AbstractVerbHandler {
     return uptimeAsWords;
   }
 
-  Future<String?> _getapkamMetadataKey(String? apkamMetadataKey) async {
+  Future<String?> _getApkamMetadataKey(String? apkamMetadataKey) async {
     AtData? result;
     try {
       result = await keyStore.get(apkamMetadataKey);
-    } on Exception catch (e) {
+    } on AtKeyNotFoundException catch (e) {
       logger.severe('apkam_metadata not found | $e');
     }
     return result?.data;
