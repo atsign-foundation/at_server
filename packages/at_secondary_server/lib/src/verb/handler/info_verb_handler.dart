@@ -38,9 +38,6 @@ class InfoVerbHandler extends AbstractVerbHandler {
     InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData()
         as InboundConnectionMetadata; // structure of what is returned is documented in the [Info] verb in at_server_spec
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    final enrollApprovalId = atConnectionMetadata.enrollApprovalId;
-    apkamMetadataKey =
-        '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
     Duration uptime = Duration(
@@ -49,7 +46,10 @@ class InfoVerbHandler extends AbstractVerbHandler {
     if (verbParams[paramFullCommandAsReceived] == 'info') {
       String uptimeAsWords = durationToWords(uptime);
       infoMap['uptimeAsWords'] = uptimeAsWords;
-      if (atConnectionMetadata.isAuthenticated) {
+      final enrollApprovalId = atConnectionMetadata.enrollApprovalId;
+      if (atConnectionMetadata.isAuthenticated && enrollApprovalId != null) {
+        apkamMetadataKey =
+            '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
         result = await _getApkamMetadataKey(apkamMetadataKey);
         if (result != null) {
           infoMap['apkam_metadata'] = result;
@@ -97,8 +97,8 @@ class InfoVerbHandler extends AbstractVerbHandler {
     AtData? result;
     try {
       result = await keyStore.get(apkamMetadataKey);
-    } on AtKeyNotFoundException catch (e) {
-      logger.severe('apkam_metadata not found | $e');
+    } on KeyNotFoundException {
+      logger.warning('apkam key $apkamMetadataKey not found');
     }
     return result?.data;
   }
