@@ -1,3 +1,5 @@
+// ignore_for_file: unused_import
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +11,7 @@ import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
 void main() {
+  // ignore: unused_local_variable
   var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
   Socket? socketFirstAtsign;
