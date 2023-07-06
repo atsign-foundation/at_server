@@ -24,7 +24,7 @@ void main() {
         ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
     socketFirstAtsign =
-        await socketConnection(firstAtsignServer, firstAtsignPort);
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
     socket_listener(socketFirstAtsign!);
   });
 
