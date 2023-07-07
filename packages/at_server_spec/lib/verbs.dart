@@ -26,3 +26,5 @@ export 'package:at_server_spec/src/verb/update_meta.dart';
 export 'package:at_server_spec/src/verb/verb.dart';
 export 'package:at_server_spec/src/verb/notify_fetch.dart';
 export 'package:at_server_spec/src/verb/enroll.dart';
+export 'package:at_server_spec/src/verb/totp.dart';
+export 'package:at_server_spec/src/verb/keys.dart';
