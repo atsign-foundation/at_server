@@ -8,17 +8,18 @@ import 'at_demo_data.dart';
 import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
-Socket? socketFirstAtsign;
-Future<void> _connect() async {
-  var firstAtsignServer =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-  var firstAtsignPort =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+Socket? socketConnection1;
+Socket? socketConnection2;
+var firstAtsignServer =
+    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
+var firstAtsignPort =
+    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
 
+Future<void> _connect() async {
   // socket connection for first atsign
-  socketFirstAtsign =
+  socketConnection1 =
       await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  socket_listener(socketFirstAtsign!);
+  socket_listener(socketConnection1!);
 }
 
 void main() {
@@ -32,17 +33,17 @@ void main() {
 
   group('A group of tests to verify apkam enroll requests', () {
     test('enroll request on authenticated connection', () async {
-      await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
       var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketFirstAtsign!, 'pkam:$pkamDigest');
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
       var pkamResult = await read();
       expect(pkamResult, 'data:success\n');
       var enrollRequest =
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
-      await socket_writer(socketFirstAtsign!, enrollRequest);
+      await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -54,7 +55,7 @@ void main() {
     test('enroll request on unauthenticated connection without totp', () async {
       var enrollRequest =
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
-      await socket_writer(socketFirstAtsign!, enrollRequest);
+      await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -67,7 +68,7 @@ void main() {
     test('enroll request on unauthenticated connection invalid totp', () async {
       var enrollRequest =
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:totp:1234:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
-      await socket_writer(socketFirstAtsign!, enrollRequest);
+      await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -78,17 +79,17 @@ void main() {
     });
 
     test('second enroll request using totp', () async {
-      await socket_writer(socketFirstAtsign!, 'from:$firstAtsign');
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
       var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketFirstAtsign!, 'pkam:$pkamDigest');
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
       var pkamResult = await read();
       expect(pkamResult, 'data:success\n');
       var enrollRequest =
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
-      await socket_writer(socketFirstAtsign!, enrollRequest);
+      await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -97,24 +98,28 @@ void main() {
       expect(enrollJsonMap['status'], 'success');
       // final enrollmentId = enrollJsonMap['enrollmentId'];
       var totpRequest = 'totp:get\n';
-      await socket_writer(socketFirstAtsign!, totpRequest);
+      await socket_writer(socketConnection1!, totpRequest);
       var totpResponse = await read();
       totpResponse = totpResponse.replaceFirst('data:', '');
       print(totpResponse);
       totpResponse = totpResponse.trim();
-      //destroy the authenticated connection
-      socketFirstAtsign!.destroy();
-      print('socket destroyed');
-      await _connect();
+      
+
+      // connect to the second client
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+
       //send second enroll request with totp
-      var apkamPublicKey = apkamPublicKeyMap[firstAtsign];
+      var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
       var secondEnrollRequest =
           'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:$apkamPublicKey\n';
       print(secondEnrollRequest);
-      await socket_writer(socketFirstAtsign!, secondEnrollRequest);
+      await socket_writer(socketConnection2!, secondEnrollRequest);
 
       var secondEnrollResponse = await read();
       print(secondEnrollResponse);
+      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
