@@ -34,12 +34,6 @@ dependencies:
   yaml: 3.1.2
 
 dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      path: packages/at_commons
-      ref: monitor_self_notification_flag
-
   at_server_spec:
     path: ../at_server_spec
   at_persistence_secondary_server:
