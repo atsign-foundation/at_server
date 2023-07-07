@@ -39,18 +39,25 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
+      final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
 
       var atNotificationCallback = AtNotificationCallback.getInstance();
 
       atNotificationCallback.registerNotificationCallback(
-          NotificationType.received, processReceivedAtNotification);
+          NotificationType.received, processAtNotification);
+      if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
+        logger.finer('self notification callback registered');
+        atNotificationCallback.registerNotificationCallback(
+            NotificationType.self, processAtNotification);
+      }
 
       if (verbParams.containsKey(EPOCH_MILLIS) &&
           verbParams[EPOCH_MILLIS] != null) {
         // Send notifications that are already received after EPOCH_MILLIS first
         var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
-        var receivedNotifications =
-            await _getReceivedNotificationsAfterEpoch(fromEpochMillis);
+        var receivedNotifications = await _getNotificationsAfterEpoch(
+            fromEpochMillis,
+            selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
         for (var notification in receivedNotifications) {
           processReceivedNotification(notification);
         }
@@ -96,12 +103,12 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void processReceivedAtNotification(AtNotification atNotification) {
+  void processAtNotification(AtNotification atNotification) {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
       var atNotificationCallback = AtNotificationCallback.getInstance();
       atNotificationCallback.unregisterNotificationCallback(
-          NotificationType.received, processReceivedAtNotification);
+          NotificationType.received, processAtNotification);
     } else {
       notification
         ..id = atNotification.id
@@ -131,20 +138,20 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// Returns received notifications of the current atsign
   /// @param responseList : List to add the notifications
   /// @param Future<List> : Returns a list of received notifications of the current atsign.
-  Future<List<Notification>> _getReceivedNotificationsAfterEpoch(
-      int millisecondsEpoch) async {
-    // Get all received notifications
-    var allReceivedNotifications = <Notification>[];
+  Future<List<Notification>> _getNotificationsAfterEpoch(
+      int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
+    // Get all notifications
+    var allNotifications = <Notification>[];
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var keyList = await notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
-        (element) => _fetchNotificationEntry(
-            element, allReceivedNotifications, notificationKeyStore));
+        (element) => _fetchNotificationEntry(element, allNotifications,
+            notificationKeyStore, isSelfNotificationsEnabled));
 
     // Filter previous notifications than millisecondsEpoch
     var responseList = <Notification>[];
-    for (var notification in allReceivedNotifications) {
+    for (var notification in allNotifications) {
       if (notification.dateTime! > millisecondsEpoch) {
         responseList.add(notification);
       }
@@ -153,11 +160,16 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches a notification from the notificationKeyStore and adds it to responseList
-  void _fetchNotificationEntry(dynamic element, List<Notification> responseList,
-      AtNotificationKeystore notificationKeyStore) async {
+  void _fetchNotificationEntry(
+      dynamic element,
+      List<Notification> responseList,
+      AtNotificationKeystore notificationKeyStore,
+      bool isSelfNotificationsEnabled) async {
     var notificationEntry = await notificationKeyStore.get(element.id);
     if (notificationEntry != null &&
-        notificationEntry.type == NotificationType.received &&
+        (notificationEntry.type == NotificationType.received ||
+            (isSelfNotificationsEnabled &&
+                notificationEntry.type == NotificationType.self)) &&
         !notificationEntry.isExpired()) {
       responseList.add(Notification(element));
     }
