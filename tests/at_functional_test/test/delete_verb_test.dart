@@ -101,7 +101,6 @@ void main() {
     print('update verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    ;
 
     ///SCAN VERB in the first atsign
     await socket_writer(socketFirstAtsign!, 'scan');
