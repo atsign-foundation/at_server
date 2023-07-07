@@ -95,7 +95,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'success');
-      final enrollmentId = enrollJsonMap['enrollmentId'];
+      // final enrollmentId = enrollJsonMap['enrollmentId'];
       var totpRequest = 'totp:get\n';
       await socket_writer(socketFirstAtsign!, totpRequest);
       var totpResponse = await read();
@@ -109,7 +109,7 @@ void main() {
       //send second enroll request with totp
       var apkamPublicKey = apkamPublicKeyMap[firstAtsign];
       var secondEnrollRequest =
-          'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:${apkamPublicKey}\n';
+          'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:$apkamPublicKey\n';
       print(secondEnrollRequest);
       await socket_writer(socketFirstAtsign!, secondEnrollRequest);
 
