@@ -39,14 +39,14 @@ class AtNotificationCallback {
   }
 
   /// Method to invoke registered callbacks
-  void invokeCallbacks(AtNotification? atNotification) async {
+  Future<void> invokeCallbacks(AtNotification? atNotification) async {
     try {
       if (atNotification == null) {
         return;
       }
-      //Based on notification Entry type get callback function and invoke
-      if (atNotification.type == NotificationType.received
-      ||  atNotification.type == NotificationType.self) {
+      // Introduced self notification type for APKAM enrollment notifications.
+      if (atNotification.type == NotificationType.received ||
+          atNotification.type == NotificationType.self) {
         var callbacks = callbackMethods[atNotification.type!];
         if (callbacks == null || callbacks.isEmpty) {
           //logger.info('No callback registered for received notifications');
