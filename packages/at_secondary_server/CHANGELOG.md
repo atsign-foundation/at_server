@@ -1,6 +1,7 @@
 ## 3.0.33
 - feat: modified monitor verb handler to process self notification for apkam
-- chore: upgraded at_persistence_secondary_server to 3.0.53, at_commons to 3.0.50 and at_utils 3.0.14
+- chore: upgraded at_persistence_secondary_server to 3.0.54, at_server_spec to 3.0.13, at_commons to 3.0.50 and at_utils 3.0.14
+- feat: apkam enroll verb handler implementation
 ## 3.0.32
 - fix: Enhance stats verb to return latest commitEntry of each key
 - chore: Ignore melos files
