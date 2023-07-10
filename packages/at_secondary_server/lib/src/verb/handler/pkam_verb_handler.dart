@@ -12,7 +12,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_secondary/src/enroll/enroll_constants.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
@@ -44,7 +44,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
     var enrollId = verbParams[enrollApprovalId];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-
     var pkamAuthType = AuthType.pkamLegacy;
     var publicKey;
 
@@ -75,6 +74,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
       publicKey = publicKeyData.data;
     }
+
     // If there is no public key in the keystore then throw an exception
     if (publicKey == null || publicKey.isEmpty) {
       response.data = 'failure';
@@ -82,7 +82,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
       response.errorMessage = 'pkam publickey not found';
       throw UnAuthenticatedException('pkam publickey not found');
     }
-
     var isValidSignature = false;
 
     //retrieve stored secret using sessionid and atsign
@@ -116,7 +115,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
       hashingAlgoEnum = HashingAlgoType.sha512;
     }
     logger.finer('hashingAlgoEnum: $hashingAlgoEnum');
-    logger.finer('public key:$publicKey');
     final verificationInput = AtSigningVerificationInput(
         utf8.encode('$sessionID$atSign:$storedSecret') as Uint8List,
         inputSignature,

@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/enroll/enroll_constants.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
+/// Verb handler to process APKAM enroll requests
 class EnrollVerbHandler extends AbstractVerbHandler {
   static Enroll enrollVerb = Enroll();
 
@@ -41,7 +42,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             var totp = verbParams['totp'];
             if (totp == null ||
                 (await TotpVerbHandler.cache.get(totp)) == null) {
-              throw Exception('invalid totp. Cannot process enroll request');
+              throw AtEnrollmentException(
+                  'invalid totp. Cannot process enroll request');
             }
           }
           List<EnrollNamespace> enrollNamespaces =
@@ -58,7 +60,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           logger.finer('key: $key$currentAtSign');
 
           responseJson['enrollmentId'] = enrollmentId;
-          print('generating enroll value');
           final enrollmentValue = EnrollDataStoreValue(
               atConnection.getMetaData().sessionID!,
               verbParams['appName']!,
@@ -93,8 +94,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           var key =
               '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
           logger.finer('key: $key$currentAtSign');
-
-          var enrollData = await keyStore.get('$key$currentAtSign');
+          var enrollData;
+          try {
+            enrollData = await keyStore.get('$key$currentAtSign');
+          } on KeyNotFoundException {
+            throw AtEnrollmentException(
+                'enrollment id: $enrollmentId not found in keystore');
+          }
           if (enrollData != null) {
             final existingAtData = enrollData.data;
             var enrollDataStoreValue =
@@ -112,9 +118,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               ..data = jsonEncode(enrollDataStoreValue.toJson());
 
             await keyStore.put('$key$currentAtSign', updatedEnrollData);
-          } else {
-            throw Exception(
-                'enrollment id: $enrollmentId not found in keystore');
           }
 
           responseJson['enrollmentId'] = enrollmentId;
@@ -142,46 +145,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final notificationId =
           await NotificationUtil.storeNotification(atNotification);
       logger.finer('notification generated: $notificationId');
-      // for (String key in keyStore.getKeys(regex: keyPattern)) {
-      //   logger.finer('key**:$key');
-      //   var enrollData = await keyStore.get(key);
-      //   if (enrollData != null) {
-      //     final atData = enrollData.data;
-      //     final enrollDataStoreValue =
-      //         EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      //     for (EnrollNamespace namespace in enrollDataStoreValue.namespaces) {
-      //       if (namespace.name == enrollManageNamespace) {
-      //
-      //       }
-      //     }
-      //   }
-      //
-      // }
-      // logger.finer('done scanning');
-      // var enrollData = await keyStore.get(key);
-      // if (enrollData != null) {
-      //   final atData = enrollData.data;
-      //   final enrollDataStoreValue =
-      //       EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      //   logger.finer('namespaces: ${enrollDataStoreValue.namespaces}');
-      //   for (EnrollNamespace namespace in enrollDataStoreValue.namespaces) {
-      //     if (namespace.name == enrollManageNamespace) {
-      //       try {
-      //         final atNotification = (AtNotificationBuilder()
-      //           ..fromAtSign = atSign
-      //           ..toAtSign = atSign
-      //           ..ttl = 24 * 60 * 60 * 1000
-      //           ..type = NotificationType.self
-      //           ..atValue = enrollApprovalId
-      //           ..opType = OperationType.update).build();
-      //         await NotificationUtil.storeNotification(
-      //             atNotification);
     } on Exception catch (e, trace) {
-      print(e);
-      print(trace);
+      logger.severe(
+          'Exception while storing notification key $notificationKey. Exception $e. Trace $trace');
     } on Error catch (e, trace) {
-      print(e);
-      print(trace);
+      logger.severe(
+          'Error while storing notification key $notificationKey. Error $e. Trace $trace');
     }
   }
 }

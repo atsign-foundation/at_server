@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:convert/convert.dart';
+import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -12,8 +13,8 @@ import 'package:expire_cache/expire_cache.dart';
 
 class TotpVerbHandler extends AbstractVerbHandler {
   static Totp totpVerb = Totp();
-  //#TODO replace sharedSecret
-  static String sharedSecret = 'HelloTotp';
+  //#TODO replace sharedSecret with an agreed shared secret by first enrolled client
+  static String sharedSecret = Uuid().v4();
   static final expireDuration = Duration(seconds: 90);
   static ExpireCache<String, String> cache =
       ExpireCache<String, String>(expireDuration: expireDuration);

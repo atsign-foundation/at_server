@@ -2,6 +2,8 @@ import 'package:json_annotation/json_annotation.dart';
 part 'enroll_datastore_value.g.dart';
 
 @JsonSerializable()
+
+/// Represents attributes for APKAM enrollment data
 class EnrollDataStoreValue {
   late String sessionId;
   late String appName;

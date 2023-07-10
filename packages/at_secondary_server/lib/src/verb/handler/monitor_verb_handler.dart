@@ -11,8 +11,6 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
 
-  static const selfNotificationMinClientVersion = '3.0.62';
-
   late InboundConnection atConnection;
 
   String? regex;
@@ -41,13 +39,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated) {
       this.atConnection = atConnection;
       regex = verbParams[AT_REGEX];
-      final selfNotifications = verbParams[MONITOR_SELF_NOTIFICATIONS];
+      final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
 
       var atNotificationCallback = AtNotificationCallback.getInstance();
 
       atNotificationCallback.registerNotificationCallback(
           NotificationType.received, processAtNotification);
-      if (selfNotifications == MONITOR_SELF_NOTIFICATIONS) {
+      if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
         logger.finer('self notification callback registered');
         atNotificationCallback.registerNotificationCallback(
             NotificationType.self, processAtNotification);
@@ -57,10 +55,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           verbParams[EPOCH_MILLIS] != null) {
         // Send notifications that are already received after EPOCH_MILLIS first
         var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
-        var receivedNotifications =
-            await _getNotificationsAfterEpoch(fromEpochMillis);
+        var receivedNotifications = await _getNotificationsAfterEpoch(
+            fromEpochMillis,
+            selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
         for (var notification in receivedNotifications) {
-          processNotification(notification);
+          processReceivedNotification(notification);
         }
       }
     }
@@ -68,7 +67,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   }
 
   /// Writes [notification] to connection if the [notification] matches [monitor]'s [regex]
-  void processNotification(Notification notification) {
+  void processReceivedNotification(Notification notification) {
     var key = notification.notification;
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
@@ -110,8 +109,6 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       var atNotificationCallback = AtNotificationCallback.getInstance();
       atNotificationCallback.unregisterNotificationCallback(
           NotificationType.received, processAtNotification);
-      atNotificationCallback.unregisterNotificationCallback(
-          NotificationType.self, processAtNotification);
     } else {
       notification
         ..id = atNotification.id
@@ -134,27 +131,27 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
         };
-      processNotification(notification);
+      processReceivedNotification(notification);
     }
   }
 
   /// Returns received notifications of the current atsign
   /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received/self notifications of the current atsign.
+  /// @param Future<List> : Returns a list of received notifications of the current atsign.
   Future<List<Notification>> _getNotificationsAfterEpoch(
-      int millisecondsEpoch) async {
-    // Get all received/self notifications
-    var notifications = <Notification>[];
+      int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
+    // Get all notifications
+    var allNotifications = <Notification>[];
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var keyList = await notificationKeyStore.getValues();
     await Future.forEach(
         keyList,
-        (element) => _fetchNotificationEntry(
-            element, notifications, notificationKeyStore));
+        (element) => _fetchNotificationEntry(element, allNotifications,
+            notificationKeyStore, isSelfNotificationsEnabled));
 
     // Filter previous notifications than millisecondsEpoch
     var responseList = <Notification>[];
-    for (var notification in notifications) {
+    for (var notification in allNotifications) {
       if (notification.dateTime! > millisecondsEpoch) {
         responseList.add(notification);
       }
@@ -163,12 +160,16 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches a notification from the notificationKeyStore and adds it to responseList
-  void _fetchNotificationEntry(dynamic element, List<Notification> responseList,
-      AtNotificationKeystore notificationKeyStore) async {
+  void _fetchNotificationEntry(
+      dynamic element,
+      List<Notification> responseList,
+      AtNotificationKeystore notificationKeyStore,
+      bool isSelfNotificationsEnabled) async {
     var notificationEntry = await notificationKeyStore.get(element.id);
     if (notificationEntry != null &&
         (notificationEntry.type == NotificationType.received ||
-            notificationEntry.type == NotificationType.self) &&
+            (isSelfNotificationsEnabled &&
+                notificationEntry.type == NotificationType.self)) &&
         !notificationEntry.isExpired()) {
       responseList.add(Notification(element));
     }
