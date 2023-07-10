@@ -2,7 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/enroll/enroll_constants.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
@@ -83,7 +83,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<List<EnrollNamespace>> getEnrollmentNamespaces(
       String enrollmentId, String currentAtSign) async {
     final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    final enrollData = await keyStore.get('$key$currentAtSign');
+    var enrollData;
+    try {
+      enrollData = await keyStore.get('$key$currentAtSign');
+    } on KeyNotFoundException {
+      logger.warning('enrollment key not found in keystore $key');
+      return [];
+    }
     if (enrollData != null) {
       final atData = enrollData.data;
 

@@ -50,7 +50,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.sharedBy !=
             AtSecondaryServerImpl.getInstance().currentAtSign) {
       var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.formatAtSign(updateParams.sharedBy)}'
+          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
           ' should be same as current atsign'
           ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
       logger.warning(message);
@@ -64,6 +64,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final value = updateParams.value;
     final atData = AtData();
     atData.data = value;
+
     final enrollApprovalId =
         (atConnection.getMetaData() as InboundConnectionMetadata)
             .enrollApprovalId;
@@ -79,7 +80,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
           'Enrollment Id: $enrollApprovalId is not authorized for update operation');
     }
 
-    logger.finer('atKey from params: $atKey');
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -93,7 +93,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       atKey = 'public:$atKey';
     }
 
-    logger.finer('final atKey  $atKey');
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
     switch (keyType) {
       case KeyType.selfKey:

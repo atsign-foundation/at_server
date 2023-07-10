@@ -45,12 +45,12 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AT_SIGN];
     var key = verbParams[AT_KEY];
     var operation = verbParams[OPERATION];
-    atSign = AtUtils.formatAtSign(atSign);
+    atSign = AtUtils.fixAtSign(atSign!);
     var keyNamespace = key?.substring(key.lastIndexOf('.') + 1);
     key = '$key$atSign';
     bool isPublic = false;
     if (forAtSign != null) {
-      forAtSign = AtUtils.formatAtSign(forAtSign);
+      forAtSign = AtUtils.fixAtSign(forAtSign);
       key = '$forAtSign:$key';
     }
     if (verbParams.containsKey('isPublic')) {

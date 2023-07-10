@@ -84,7 +84,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
               await getEnrollmentNamespaces(enrollmentId, currentAtSign);
           logger.finer('scan namespaces: $enrollnamespaces');
         }
-
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {
