@@ -52,6 +52,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     // authenticate if retrieved secret is equal to the cram digest passed
     if ('$digest' == '$secret') {
       atConnectionMetadata.isAuthenticated = true;
+      atConnectionMetadata.authType = AuthType.cram;
       var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
           .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
       try {

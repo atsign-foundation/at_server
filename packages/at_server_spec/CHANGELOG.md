@@ -1,3 +1,6 @@
+## 3.0.13
+- feat: added keys verb
+- experimental: added totp verb
 ## 3.0.12
 - feat: added enroll verb
 - chore: upgraded at_commons version
