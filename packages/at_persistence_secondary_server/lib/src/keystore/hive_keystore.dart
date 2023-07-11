@@ -6,18 +6,23 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
-import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
 class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
+  final String expiresAt = 'expiresAt';
+  final String availableAt = 'availableAt';
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
   late AtCommitLog _commitLog;
-  final HashMap<String, AtMetaData?> _metaDataCache = HashMap();
+
+  /// A map-based cache that stores "expiresAt" and "availableAt" from AtMetadata
+  /// of keys with TTL or TTB set, to efficiently track the active or expired state
+  /// of each key based on their respective TTB or TTL values.
+  final HashMap<String, Map<String, DateTime?>> _expiryKeysCache = HashMap();
 
   HiveKeystore();
 
@@ -31,7 +36,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<void> initialize() async {
-    await _initMetaDataCache();
+    await _initExpiryKeysCache();
   }
 
   @Deprecated("Use [initialize]")
@@ -41,20 +46,19 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     await initialize();
   }
 
-  Future<void> _initMetaDataCache() async {
+  Future<void> _initExpiryKeysCache() async {
     if (persistenceManager == null || !persistenceManager!.getBox().isOpen) {
       logger.severe(
           'persistence manager not initialized. skipping metadata caching');
       return;
     }
-    logger.finest('Metadata cache initialization started');
-    var keys = _getKeysFromKeyStore();
-    await Future.forEach(
-        keys,
-        (key) => get(key.toString()).then((atData) {
-              _metaDataCache[key.toString()] = atData?.metaData;
-            }));
-    logger.finest('Metadata cache initialization complete');
+    logger.finest('Initializing _expiryKeysCache Map started');
+    for (int index = 0; index < persistenceManager!.getBox().length; index++) {
+      AtData atData =
+          await (persistenceManager!.getBox() as LazyBox).getAt(index);
+      _updateMetadataCache(atData.key, atData.metaData);
+    }
+    logger.finest('_expiryKeysCache initialization completed');
   }
 
   @override
@@ -182,7 +186,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
-        _metaDataCache[key] = hive_value.metaData!;
+        _updateMetadataCache(key, hive_value.metaData);
         result = await _commitLog.commit(hive_key, commitOp);
       }
     } on DataStoreException {
@@ -289,7 +293,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
-      _metaDataCache[key] = hive_data.metaData!;
+      _updateMetadataCache(key, hive_data.metaData);
       result = await _commitLog.commit(hive_key, commitOp);
       return result;
     } on Exception catch (exception) {
@@ -309,7 +313,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     int? result;
     try {
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
-      _removeKeyFromMetadataCache(key);
+      // On deleting the key, remove it from the expiryKeyCache.
+      _expiryKeysCache.remove(key);
       result = await _commitLog.commit(key, CommitOp.DELETE);
       return result;
     } on Exception catch (exception) {
@@ -322,28 +327,24 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
-  AtMetaData? _removeKeyFromMetadataCache(String key) {
-    final removeResult = _metaDataCache.remove(key);
-    logger.finer('remove result for key $key is $removeResult');
-    return removeResult;
-  }
-
   @override
   @server
   Future<bool> deleteExpiredKeys() async {
     bool result = true;
     try {
       List<String> expiredKeys = await getExpiredKeys();
-      if (expiredKeys.isNotEmpty) {
-        for (String element in expiredKeys) {
-          try {
-            await remove(element);
-          } on KeyNotFoundException {
-            continue;
-          }
-        }
-        result = true;
+      if (expiredKeys.isEmpty) {
+        return result;
       }
+
+      for (String element in expiredKeys) {
+        try {
+          await remove(element);
+        } on KeyNotFoundException {
+          continue;
+        }
+      }
+      result = true;
     } on Exception catch (e) {
       result = false;
       logger.severe('Exception in deleteExpired keys: ${e.toString()}');
@@ -361,7 +362,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @server
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
-    for (String key in _metaDataCache.keys) {
+    for (String key in _expiryKeysCache.keys) {
       if (_isExpired(key)) {
         expiredKeys.add(key);
       }
@@ -374,28 +375,31 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// @return - List<String> : List of keys from secondary storage.
   @override
   List<String> getKeys({String? regex}) {
+    if (persistenceManager == null ||
+        persistenceManager?.getBox().isOpen == false) {
+      throw DataStoreException(
+          'Failed to fetch keys. Hive Keystore is not initialized or opened');
+    }
     List<String> keys = <String>[];
-    // ignore: prefer_typing_uninitialized_variables
-    var keysFromKeystore;
+    regex ??= '.*';
+    RegExp regExp = RegExp(regex);
+    String key;
 
     try {
-      // ignore: unnecessary_null_comparison
-      if (persistenceManager!.getBox() != null) {
-        // If regular expression is not null or not empty, filter keys on regular expression.
-        if (regex != null && regex.isNotEmpty) {
-          keysFromKeystore = _getKeysFromKeyStore()
-              .where((element) => element.contains(RegExp(regex)));
-        } else {
-          keysFromKeystore = _getKeysFromKeyStore().toList();
+      for (int index = 0;
+          index < persistenceManager!.getBox().length;
+          index++) {
+        key = persistenceManager!.getBox().keyAt(index);
+        try {
+          if (_isKeyAvailable(key) == true && (regExp.hasMatch(key))) {
+            keys.add(key);
+          }
+        } on FormatException catch (exception) {
+          logger.severe('Invalid regular expression : $regex');
+          throw InvalidSyntaxException(
+              'Invalid syntax ${exception.toString()}');
         }
-        //if bool removeExpired is true, expired keys will not be added to the keys list
-        keysFromKeystore?.forEach((key) => {
-              if (_isKeyAvailable(key)) {keys.add(key)}
-            });
       }
-    } on FormatException catch (exception) {
-      logger.severe('Invalid regular expression : $regex');
-      throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
     } on Exception catch (exception) {
       logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
       throw DataStoreException('exception in getKeys: ${exception.toString()}');
@@ -409,8 +413,14 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   Future<AtMetaData?> getMeta(String key) async {
-    key = key.toLowerCase();
-    return _metaDataCache[key];
+    // The earlier version returns "null" when key is not present in the
+    // cache map. To preserve the existing behaviour, returning "null"
+    // when KeyNotFoundException is thrown.
+    try {
+      return (await get(key.toLowerCase()))?.metaData;
+    } on KeyNotFoundException {
+      return null;
+    }
   }
 
   @override
@@ -435,7 +445,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
               atSign: persistenceManager?.atsign)
           .build();
       await persistenceManager!.getBox().put(hive_key, value);
-      _metaDataCache[key] = value.metaData!;
+      _updateMetadataCache(key, value.metaData);
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
@@ -464,7 +474,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           .build();
 
       await persistenceManager!.getBox().put(hive_key, newData);
-      _metaDataCache[hive_key] = newData.metaData!;
+      _updateMetadataCache(key, newData.metaData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
     } on HiveError catch (error) {
@@ -494,35 +504,73 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
   }
 
-  /// hive keys are stored in utf7 encoded format. Decode the keys while fetching
-  Iterable<String> _getKeysFromKeyStore() {
-    return persistenceManager!.getBox().keys.map((e) => Utf7.decode(e));
-  }
-
+  /// If a key is expired, returns true; else returns false.
   bool _isExpired(key) {
-    if (_metaDataCache[key]?.expiresAt == null) {
+    // If key is not present in _expiryKeyCache, it implies that key does not
+    // have TTL set. So, the key will never expire. Return false.
+    if (!_expiryKeysCache.containsKey(key) ||
+        _expiryKeysCache[key]![expiresAt] == null) {
       return false;
     }
-    return _metaDataCache[key]!.expiresAt!.isBefore(DateTime.now().toUtc());
+    return _expiryKeysCache[key]![expiresAt]!.isBefore(DateTime.now().toUtc());
   }
 
+  /// Return true if the key is active
   bool _isBorn(key) {
-    if (_metaDataCache[key]!.availableAt == null) {
+    // If key is not present in _expiryKeyCache, it implies that key does not
+    // have TTB set. So, the key will be active. Return true.
+    if (!_expiryKeysCache.containsKey(key) ||
+        _expiryKeysCache[key]![availableAt] == null) {
       return true;
     }
-    return _metaDataCache[key]!.availableAt!.isBefore(DateTime.now().toUtc());
+    return _expiryKeysCache[key]![availableAt]!
+        .isBefore(DateTime.now().toUtc());
   }
 
+  /// Verifies if the given key is active.
+  /// If key is active, returns "true", else returns "false"
   bool _isKeyAvailable(key) {
-    if (_metaDataCache.containsKey(key)) {
-      return !_isExpired(key) && _isBorn(key);
-    } else {
-      return false;
+    // If _expiryKeyCache does not contain the key, then it implies
+    // that key does not have TTL or TTB set.
+    // So, the key never expires; return true.
+    if (!_expiryKeysCache.containsKey(key)) {
+      return true;
     }
+    return !_isExpired(key) && _isBorn(key);
+  }
+
+  /// Adds an entry where key is AtKey and value is Map containing the "expiresAt"
+  /// and "availableAt" into the [_expiryKeysCache] map.
+  ///
+  /// Adds only the keys whose TTL or TTB is set in the metadata; otherwise ignored.
+  void _updateMetadataCache(String key, AtMetaData? atMetaData) {
+    // If the metadata of a key does not have TTL or TTB set, then the key is active forever.
+    // Do not add it to _expiryKeyCache.
+    if (atMetaData == null ||
+        (atMetaData.ttb == null && atMetaData.ttl == null)) {
+      // On an existing key, if TTL or TTB is unset, then TTL/TTB value will be null.
+      // Therefore, the new metadata will not be updated in the _expiryKeyCache.
+      // To prevent the stale metadata being returned from getMeta, remove the entry from
+      // _expiryKeyCache
+      _expiryKeysCache.remove(key);
+      return;
+    }
+    // Setting TTL/TTB to 0 (Zero) implies to unset the metadata.
+    // Therefore, the key will be active forever. Hence remove the existing key
+    // (if any)from expiryKeyCache
+    if ((atMetaData.ttl == null && atMetaData.ttb == 0) ||
+        (atMetaData.ttb == null && atMetaData.ttl == 0)) {
+      _expiryKeysCache.remove(key);
+      return;
+    }
+    _expiryKeysCache[key] = {
+      availableAt: atMetaData.availableAt,
+      expiresAt: atMetaData.expiresAt
+    };
   }
 
   @visibleForTesting
-  HashMap<String, AtMetaData?> getMetaDataCache() {
-    return _metaDataCache;
+  HashMap<String, Map<String, DateTime?>> getExpiryKeysCache() {
+    return _expiryKeysCache;
   }
 }

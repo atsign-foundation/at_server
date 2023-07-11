@@ -1,3 +1,5 @@
+## 3.0.55
+- fix: Refactor Hive keystore to optimize memory usage
 ## 3.0.54
 - fix: Add NotificationType.Self in read and write methods of at_notification.dart
 ## 3.0.53
