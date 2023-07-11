@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
+import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
@@ -56,7 +57,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     for (int index = 0; index < persistenceManager!.getBox().length; index++) {
       AtData atData =
           await (persistenceManager!.getBox() as LazyBox).getAt(index);
-      _updateMetadataCache(atData.key, atData.metaData);
+      _updateMetadataCache(Utf7.decode(atData.key), atData.metaData);
     }
     logger.finest('_expiryKeysCache initialization completed');
   }
@@ -389,7 +390,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       for (int index = 0;
           index < persistenceManager!.getBox().length;
           index++) {
-        key = persistenceManager!.getBox().keyAt(index);
+        key = Utf7.decode(persistenceManager!.getBox().keyAt(index));
         try {
           if (_isKeyAvailable(key) == true && (regExp.hasMatch(key))) {
             keys.add(key);
