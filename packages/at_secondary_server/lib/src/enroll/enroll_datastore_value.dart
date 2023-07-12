@@ -53,6 +53,6 @@ class EnrollApproval {
   }
 }
 
-enum EnrollStatus { pending, approved, denied }
+enum EnrollStatus { pending, approved, denied, revoked }
 
 enum EnrollRequestType { newEnrollment, changeEnrollment }
