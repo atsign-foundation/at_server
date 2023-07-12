@@ -68,6 +68,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var enrollnamespaces = [];
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
@@ -75,13 +76,37 @@ class ScanVerbHandler extends AbstractVerbHandler {
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
+        List<String> filteredKeys = [];
+        final enrollmentId = atConnectionMetadata.enrollApprovalId;
+        logger.finer('inside scan: $enrollmentId');
+        if (enrollmentId != null && enrollmentId.isNotEmpty) {
+          enrollnamespaces =
+              await getEnrollmentNamespaces(enrollmentId, currentAtSign);
+          logger.finer('scan namespaces: $enrollnamespaces');
+        }
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
+        for (var key in keyString) {
+          for (var namespace in enrollnamespaces) {
+            var namespaceRegex = namespace.name;
+            if (!namespaceRegex.startsWith('.')) {
+              namespaceRegex = '.$namespaceRegex';
+            }
+            if (key.contains(RegExp(namespaceRegex)) ||
+                key.startsWith('public:')) {
+              filteredKeys.add(key);
+            }
+          }
+        }
         // Apply regex on keyString to remove unnecessary characters and spaces.
         logger.finer('response.data : $keyString');
         var keysArray = keyString;
         logger.finer('keysArray : $keysArray, ${keysArray.length}');
-        response.data = json.encode(keysArray);
+        if (enrollnamespaces.isNotEmpty) {
+          response.data = json.encode(filteredKeys);
+        } else {
+          response.data = json.encode(keysArray);
+        }
       }
     } on Exception catch (e) {
       response.isError = true;
