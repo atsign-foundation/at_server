@@ -115,7 +115,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
           if (namespace.access == 'r' || namespace.access == 'rw') {
             return true;
           }
-        } else if (getVerb() is Update || getVerb() is Delete) {
+        } else if (getVerb() is Update || getVerb() is Delete || getVerb() is Keys) {
           if (namespace.access == 'rw') {
             return true;
           }
