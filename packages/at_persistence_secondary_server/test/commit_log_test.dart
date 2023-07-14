@@ -432,6 +432,41 @@ void main() async {
       }
     });
 
+    test(
+        'A test to verify entries in commit cache map are sorted by commit-id in descending order',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      await commitLogInstance?.commit(
+          '@alice:key1.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key2.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key3.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key2.wavi@alice', CommitOp.DELETE);
+      await commitLogInstance?.commit(
+          '@alice:key1.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance!.commitLogKeyStore
+          .repairCommitLogAndCreateCachedMap();
+      Iterator<MapEntry<String, CommitEntry>> itr =
+          commitLogInstance.getEntries(-1);
+      while (itr.moveNext()) {
+        if (itr.current.key == '@alice:key3.wavi@alice') {
+          expect(itr.current.value.commitId, 2);
+          expect(itr.current.value.operation, CommitOp.UPDATE);
+        }
+        if (itr.current.key == '@alice:key2.wavi@alice') {
+          expect(itr.current.value.commitId, 3);
+          expect(itr.current.value.operation, CommitOp.DELETE);
+        }
+        if (itr.current.key == '@alice:key1.wavi@alice') {
+          expect(itr.current.value.commitId, 4);
+          expect(itr.current.value.operation, CommitOp.UPDATE);
+        }
+      }
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 

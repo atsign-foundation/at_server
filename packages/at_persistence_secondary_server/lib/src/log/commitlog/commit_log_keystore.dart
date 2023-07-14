@@ -1,6 +1,3 @@
-import 'dart:collection';
-import 'dart:math';
-
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
@@ -15,9 +12,14 @@ class CommitLogKeyStore
   bool enableCommitId = true;
   final String _currentAtSign;
   late String _boxName;
+
+  // A Map implementing a LinkedHashMap to preserve the insertion order.
+  // "{}" is collection literal to represent a LinkedHashMap.
+  // Stores AtKey and its corresponding commitEntry sorted by their commit-id's
   final _commitLogCacheMap = <String, CommitEntry>{};
 
   /// Contains the entries that are last synced by the client SDK.
+
   /// The key represents the regex and value represents the [CommitEntry]
   final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
 
@@ -349,8 +351,8 @@ class CommitLogKeyStore
       }
       // If keyMap contains the key, update the commitId in the map with greater commitId.
       if (keyMap.containsKey(value.atKey)) {
-        keyMap[value.atKey]!.commitId =
-            max(keyMap[value.atKey]!.commitId!, value.commitId);
+        keyMap.remove(value.atKey);
+        keyMap[value.atKey] = value;
       } else {
         keyMap[value.atKey] = value;
       }
@@ -364,6 +366,20 @@ class CommitLogKeyStore
 
   /// Updates the commitId of the key.
   void _updateCacheLog(String key, CommitEntry commitEntry) {
+    // The reason we remove and add is that, the map which is a LinkedHashMap
+    // should have data in the following format:
+    // {
+    //  {k1, v1},
+    //  {k2, v2},
+    //  {k3, v3}
+    // }
+    // such that v1 < v2 < v3
+    //
+    // If a key exist in the _commitLogCacheMap, updating the commit entry will
+    // overwrite the existing key resulting into unsorted map.
+    // Hence remove the key and insert at the last ensure the entry with highest commitEntry
+    // is always at the end of the map.
+    _commitLogCacheMap.remove(key);
     _commitLogCacheMap[key] = commitEntry;
   }
 
@@ -376,20 +392,18 @@ class CommitLogKeyStore
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
-  Iterator getEntries(int commitId, {String regex = '.*'}) {
-    // Sorts the keys by commitId in ascending order.
-    var sortedKeys = _commitLogCacheMap.keys.toList()
-      ..sort((k1, k2) => _commitLogCacheMap[k1]!
-          .commitId!
-          .compareTo(_commitLogCacheMap[k2]!.commitId!));
-
-    var sortedMap = LinkedHashMap.fromIterable(sortedKeys,
-        key: (k) => k, value: (k) => _commitLogCacheMap[k]);
-    // Remove the keys that does not match regex or commitId of the key
-    // less than the commitId specified in the argument.
-    sortedMap.removeWhere(
-        (key, value) => !_acceptKey(key, regex) || value!.commitId! < commitId);
-    return sortedMap.entries.iterator;
+  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
+      {String regex = '.*', int limit = 25}) {
+    Iterable<String> keys = _commitLogCacheMap.keys
+        .where((key) =>
+            _commitLogCacheMap[key]!.commitId! > commitId &&
+            _acceptKey(_commitLogCacheMap[key]!.atKey!, regex))
+        .take(limit);
+    var map = <String, CommitEntry>{};
+    for (var key in keys) {
+      map[key] = _commitLogCacheMap[key]!;
+    }
+    return map.entries.iterator;
   }
 
   Future<List> _getValues() async {
