@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -44,17 +45,31 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     var atSign = verbParams[AT_SIGN];
     var key = verbParams[AT_KEY];
     var operation = verbParams[OPERATION];
-    atSign = AtUtils.formatAtSign(atSign);
+    atSign = AtUtils.fixAtSign(atSign!);
+    var keyNamespace = key?.substring(key.lastIndexOf('.') + 1);
     key = '$key$atSign';
+    bool isPublic = false;
     if (forAtSign != null) {
-      forAtSign = AtUtils.formatAtSign(forAtSign);
+      forAtSign = AtUtils.fixAtSign(forAtSign);
       key = '$forAtSign:$key';
     }
     if (verbParams.containsKey('isPublic')) {
       key = 'public:$key';
+      isPublic = true;
     }
     if (verbParams.containsKey('isCached')) {
       key = 'cached:$key';
+    }
+    final enrollApprovalId =
+        (atConnection.getMetaData() as InboundConnectionMetadata)
+            .enrollApprovalId;
+    bool isAuthorized = true; // for legacy clients allow access by default
+    if (!isPublic && enrollApprovalId != null && keyNamespace != null) {
+      isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
+    }
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Enrollment Id: $enrollApprovalId is not authorized for local lookup operation');
     }
     AtData? atData = await keyStore.get(key);
     var isActive = false;

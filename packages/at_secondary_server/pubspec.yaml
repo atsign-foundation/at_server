@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.32
+version: 3.0.33
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
