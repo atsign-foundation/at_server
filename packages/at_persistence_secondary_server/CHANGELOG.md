@@ -1,3 +1,5 @@
+## 3.0.56
+- fix: Apply Utf7.decode function to decode the keys and atSigns containing emojis.
 ## 3.0.55
 - fix: Refactor Hive keystore to optimize memory usage
 ## 3.0.54
