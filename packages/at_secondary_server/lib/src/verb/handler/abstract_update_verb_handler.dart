@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -49,7 +50,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.sharedBy !=
             AtSecondaryServerImpl.getInstance().currentAtSign) {
       var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.formatAtSign(updateParams.sharedBy)}'
+          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
           ' should be same as current atsign'
           ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
       logger.warning(message);
@@ -63,6 +64,21 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final value = updateParams.value;
     final atData = AtData();
     atData.data = value;
+
+    final enrollApprovalId =
+        (atConnection.getMetaData() as InboundConnectionMetadata)
+            .enrollApprovalId;
+    bool isAuthorized = true; // for legacy clients allow access by default
+    if (enrollApprovalId != null) {
+      if (atKey.contains('.')) {
+        var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
+        isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
+      }
+    }
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Enrollment Id: $enrollApprovalId is not authorized for update operation');
+    }
 
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
