@@ -81,7 +81,8 @@ class AtNotificationKeystore
       String? encAlgo,
       String? ivNonce,
       String? skeEncKeyName,
-      String? skeEncAlgo}) async {
+      String? skeEncAlgo,
+      bool skipCommit = false}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -208,7 +209,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future remove(key) async {
+  Future remove(key, {bool skipCommit = false}) async {
     assert(key != null);
     await _getBox().delete(key);
   }

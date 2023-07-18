@@ -100,7 +100,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? encAlgo,
       String? ivNonce,
       String? skeEncKeyName,
-      String? skeEncAlgo}) async {
+      String? skeEncAlgo,
+      bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -157,7 +158,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             encAlgo: encAlgo,
             ivNonce: ivNonce,
             skeEncKeyName: skeEncKeyName,
-            skeEncAlgo: skeEncAlgo);
+            skeEncAlgo: skeEncAlgo,
+            skipCommit: skipCommit);
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
@@ -183,7 +185,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
         _metaDataCache[key] = hive_value.metaData!;
-        result = await _commitLog.commit(hive_key, commitOp);
+        if (skipCommit) {
+          result = -1;
+        } else {
+          result = await _commitLog.commit(hive_key, commitOp);
+        }
       }
     } on DataStoreException {
       rethrow;
@@ -216,7 +222,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       String? encAlgo,
       String? ivNonce,
       String? skeEncKeyName,
-      String? skeEncAlgo}) async {
+      String? skeEncAlgo,
+      bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -290,7 +297,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
       _metaDataCache[key] = hive_data.metaData!;
-      result = await _commitLog.commit(hive_key, commitOp);
+      if (skipCommit) {
+        result = -1;
+      } else {
+        result = await _commitLog.commit(hive_key, commitOp);
+      }
       return result;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore create exception: $exception');
@@ -304,14 +315,16 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   /// Returns an integer if the key to be deleted is present in keystore or cache.
   @override
-  Future<int?> remove(String key) async {
+  Future<int?> remove(String key, {bool skipCommit = false}) async {
     key = key.toLowerCase();
-    int? result;
     try {
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       _removeKeyFromMetadataCache(key);
-      result = await _commitLog.commit(key, CommitOp.DELETE);
-      return result;
+      if (skipCommit) {
+        return -1;
+      } else {
+        return await _commitLog.commit(key, CommitOp.DELETE);
+      }
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');

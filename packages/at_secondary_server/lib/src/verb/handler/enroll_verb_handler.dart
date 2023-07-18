@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -71,6 +72,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
             enrollmentValue.approval =
                 EnrollApproval(EnrollStatus.approved.name);
+            final inboundConnectionMetadata =
+                atConnection.getMetaData() as InboundConnectionMetadata;
+            inboundConnectionMetadata.enrollApprovalId = enrollmentId;
             responseJson['status'] = 'success';
           } else {
             enrollmentValue.approval =
