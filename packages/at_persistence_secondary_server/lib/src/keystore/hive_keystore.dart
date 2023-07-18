@@ -320,7 +320,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   Future<int?> remove(String key, {bool skipCommit = false}) async {
     key = key.toLowerCase();
-    int? result;
     try {
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
