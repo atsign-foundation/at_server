@@ -119,7 +119,6 @@ void main() {
           'keys:get:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtsign';
       await socket_writer(socketConnection1!, selfKeyGetCommand);
       var getselfKeyResponse = await read();
-      print('getselfKeyResponse : $getselfKeyResponse');
       getselfKeyResponse = getselfKeyResponse.replaceFirst('data:', '');
       var getselfKeyResponseJson = jsonDecode(getselfKeyResponse);
 
@@ -141,7 +140,6 @@ void main() {
           'keys:get:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtsign';
       await socket_writer(socketConnection1!, privateKeyGetCommand);
       var getprivateKeyResponse = await read();
-      print('getprivateKeyResponse : $getprivateKeyResponse');
       getprivateKeyResponse = getprivateKeyResponse.replaceFirst('data:', '');
       var getprivateKeyResponseJson = jsonDecode(getprivateKeyResponse);
 
@@ -187,7 +185,6 @@ void main() {
       var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
       var secondEnrollRequest =
           'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:$apkamPublicKey\n';
-      print(secondEnrollRequest);
       await socket_writer(socketConnection2!, secondEnrollRequest);
 
       var secondEnrollResponse = await read();
