@@ -123,7 +123,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
               }
             }
           }
-          response.data = filteredKeys.toString();
+          response.data = jsonEncode(filteredKeys);
         } else if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
           var value;
           try {
