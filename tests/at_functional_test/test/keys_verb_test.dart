@@ -147,6 +147,24 @@ void main() {
       expect(getprivateKeyResponseJson['keyType'], 'aes');
       expect(getprivateKeyResponseJson['enrollApprovalId'], enrollmentId);
       expect(getprivateKeyResponseJson['encryptionKeyName'], 'myAESkey');
+
+      // delete the public key and check if it is deleted
+      await socket_writer(socketConnection1!,
+          'keys:delete:keyName:public:encryption_$enrollmentId.__public_keys.__global$firstAtsign');
+      var deletePublicKeyResponse = await read();
+     expect(deletePublicKeyResponse, 'data:-1\n');
+
+      // delete the private key and check if it is deleted
+      await socket_writer(socketConnection1!,
+          'keys:delete:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtsign');
+      var deletePrivateKeyResponse = await read();
+      expect(deletePrivateKeyResponse, 'data:-1\n');
+
+      // delete the self key and check if it is deleted
+      await socket_writer(socketConnection1!,
+          'keys:delete:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtsign');
+      var deleteSelfKeyResponse = await read();
+      expect(deleteSelfKeyResponse, 'data:-1\n');
     });
 
     test(
@@ -164,7 +182,6 @@ void main() {
           'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
-      print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
@@ -174,7 +191,6 @@ void main() {
       await socket_writer(socketConnection1!, totpRequest);
       var totpResponse = await read();
       totpResponse = totpResponse.replaceFirst('data:', '');
-      print(totpResponse);
       totpResponse = totpResponse.trim();
 
       // connect to the second client
@@ -188,7 +204,6 @@ void main() {
       await socket_writer(socketConnection2!, secondEnrollRequest);
 
       var secondEnrollResponse = await read();
-      print(secondEnrollResponse);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
@@ -199,7 +214,6 @@ void main() {
       await socket_writer(
           socketConnection1!, 'enroll:approve:enrollmentId:$secondEnrollId\n');
       var approveResponse = await read();
-      print(approveResponse);
       approveResponse = approveResponse.replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
@@ -308,6 +322,24 @@ void main() {
       expect(getprivateKeyResponseJson['keyType'], 'aes');
       expect(getprivateKeyResponseJson['enrollApprovalId'], secondEnrollId);
       expect(getprivateKeyResponseJson['encryptionKeyName'], 'myAESkey');
+
+      // delete the public key and check if it is deleted
+      await socket_writer(socketConnection2!,
+          'keys:delete:keyName:public:encryption_$secondEnrollId.__public_keys.__global$firstAtsign');
+      var deletePublicKeyResponse = await read();
+      expect(deletePublicKeyResponse, 'data:-1\n');
+
+      // delete the private key and check if it is deleted
+      await socket_writer(socketConnection2!,
+          'keys:delete:keyName:private:wavi.pixel.myPrivateKey.__private_keys.__global$firstAtsign');
+      var deletePrivateKeyResponse = await read();
+      expect(deletePrivateKeyResponse, 'data:-1\n');
+
+      // delete the self key and check if it is deleted
+      await socket_writer(socketConnection2!,
+          'keys:delete:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtsign');
+      var deleteSelfKeyResponse = await read();
+      expect(deleteSelfKeyResponse, 'data:-1\n');
     });
   });
 }
