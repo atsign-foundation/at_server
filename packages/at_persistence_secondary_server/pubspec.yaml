@@ -16,7 +16,7 @@ dependencies:
   at_utf7: ^1.0.0
   at_commons: ^3.0.51
   at_utils: ^3.0.14
-  at_persistence_spec: ^2.0.13
+  at_persistence_spec: '>2.0.12 <=2.0.13'
   meta: ^1.8.0
 
 dev_dependencies:
