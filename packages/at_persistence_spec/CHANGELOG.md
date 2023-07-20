@@ -1,4 +1,4 @@
-## 2.0.13
+## 2.0.14
 - feat: add optional param skipCommit to keystore - put,create and remove methods
 ## 2.0.12
 - feat: Added new optional encryption metadata parameters to the WritableKeystore spec for `put` and `create`
