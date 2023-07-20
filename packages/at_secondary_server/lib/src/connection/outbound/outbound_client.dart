@@ -238,7 +238,7 @@ class OutboundClient {
             "pol handshake failed - handShakeResult was $handShakeResult");
         return false;
       }
-    } on ConnectionInvalidException catch(e){
+    } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } catch (e) {
@@ -272,7 +272,7 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException catch(e){
+    } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
@@ -301,7 +301,7 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException catch(e){
+    } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
@@ -347,8 +347,7 @@ class OutboundClient {
   Future<String?> notify(String notifyCommandBody,
       {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
-      throw UnAuthorizedException(
-          'Handshake failed. Cannot perform a lookup');
+      throw UnAuthorizedException('Handshake failed. Cannot perform a lookup');
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
@@ -357,7 +356,7 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException catch(e){
+    } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
@@ -389,7 +388,7 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException catch(e){
+    } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }

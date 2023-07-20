@@ -27,6 +27,7 @@ class InboundConnectionImpl extends BaseConnection
   /// As number of connections increases then the "allowable" idle time
   /// reduces from the 'max' towards the 'min' value.
   late int unauthenticatedMaxAllowableIdleTimeMillis;
+
   /// As number of connections increases then the "allowable" idle time
   /// reduces from the 'max' towards the 'min' value.
   late int unauthenticatedMinAllowableIdleTimeMillis;
@@ -34,6 +35,7 @@ class InboundConnectionImpl extends BaseConnection
   /// As number of connections increases then the "allowable" idle time
   /// reduces from the 'max' towards the 'min' value.
   late int authenticatedMaxAllowableIdleTimeMillis;
+
   /// As number of connections increases then the "allowable" idle time
   /// reduces from the 'max' towards the 'min' value.
   late int authenticatedMinAllowableIdleTimeMillis;
@@ -70,7 +72,6 @@ class InboundConnectionImpl extends BaseConnection
         secondaryContext.authenticatedInboundIdleTimeMillis;
     authenticatedMinAllowableIdleTimeMillis =
         secondaryContext.authenticatedMinAllowableIdleTimeMillis;
-
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -158,10 +159,8 @@ class InboundConnectionImpl extends BaseConnection
     }
   }
 
-  int calcAllowableIdleTime(
-          double idleTimeReductionFactor,
-      int minAllowableIdleTimeMillis,
-      int maxAllowableIdleTimeMillis) =>
+  int calcAllowableIdleTime(double idleTimeReductionFactor,
+          int minAllowableIdleTimeMillis, int maxAllowableIdleTimeMillis) =>
       (((maxAllowableIdleTimeMillis - minAllowableIdleTimeMillis) *
                   idleTimeReductionFactor) +
               minAllowableIdleTimeMillis)
