@@ -467,6 +467,36 @@ void main() async {
       }
     });
 
+    test(
+        'A test to verify the order of keys and values in commit log cache map',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      await commitLogInstance?.commit(
+          '@alice:key1.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key2.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key3.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance?.commit(
+          '@alice:key2.wavi@alice', CommitOp.DELETE);
+      await commitLogInstance?.commit(
+          '@alice:key1.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance!.commitLogKeyStore
+          .repairCommitLogAndCreateCachedMap();
+
+      List<MapEntry<String, CommitEntry>> commitEntriesList =
+          commitLogInstance.commitLogKeyStore.commitEntriesList();
+      expect(commitEntriesList[0].key, '@alice:key3.wavi@alice');
+      expect(commitEntriesList[0].value.commitId, 2);
+
+      expect(commitEntriesList[1].key, '@alice:key2.wavi@alice');
+      expect(commitEntriesList[1].value.commitId, 3);
+
+      expect(commitEntriesList[2].key, '@alice:key1.wavi@alice');
+      expect(commitEntriesList[2].value.commitId, 4);
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 
