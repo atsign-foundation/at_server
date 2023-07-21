@@ -32,7 +32,6 @@ dependencies:
   meta: 1.9.1
   mutex: 3.0.1
   yaml: 3.1.2
-  at_utf7: ^1.0.0
 
 dependency_overrides:
   at_commons:
