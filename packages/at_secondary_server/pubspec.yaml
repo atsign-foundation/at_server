@@ -23,8 +23,8 @@ dependencies:
   at_chops: 1.0.3
   at_lookup: 3.0.37
   at_server_spec: 3.0.13
-  at_persistence_spec: 2.0.12
-  at_persistence_secondary_server: 3.0.54
+  at_persistence_spec: 2.0.14
+  at_persistence_secondary_server: 3.0.56
   expire_cache: ^2.0.1
   intl: ^0.18.1
   json_annotation: ^4.8.0
@@ -32,23 +32,6 @@ dependencies:
   meta: 1.9.1
   mutex: 3.0.1
   yaml: 3.1.2
-
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_commons
-      ref: trunk
-  at_persistence_spec:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_spec
-      ref: apkam_keys_verb
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_secondary_server
-      ref: apkam_keys_verb
 
 dev_dependencies:
   test: ^1.24.4
