@@ -22,6 +22,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param value - Value to be associated with the specified key.
   /// @param time_to_live - Duration in milliseconds after which the key should expire automatically.
   /// @param time_to_born - Duration in milliseconds after which the key will become active.
+  /// @param skipCommit - if set to true, will skip adding entry to commit log for this update. Set to false by default.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> put(K key, V value,
@@ -48,6 +49,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param value - Value to be associated with the specified key
   /// @param time_to_live - Duration in milliseconds after which the key should expire automatically.
   /// @param time_to_born - Duration in milliseconds after which the key will become active.
+  /// @param skipCommit - if set to true, will skip adding entry to commit log for this create operation. Set to false by default.
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
   Future<dynamic> create(K key, V value,
@@ -65,11 +67,13 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
       String? encAlgo,
       String? ivNonce,
       String? skeEncKeyName,
-      String? skeEncAlgo});
+      String? skeEncAlgo,
+      bool skipCommit = false});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
   /// @param key - Key associated with a value.
+  /// @param skipCommit - if set to true, will skip adding entry to commit log for this remove operation. Set to false by default.
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
   Future<dynamic> remove(K key, {bool skipCommit = false});

@@ -103,7 +103,8 @@ class AtNotificationKeystore
       String? encAlgo,
       String? ivNonce,
       String? skeEncKeyName,
-      String? skeEncAlgo}) async {
+      String? skeEncAlgo,
+      bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 
