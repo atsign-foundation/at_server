@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:yaml/yaml.dart';
+
+import '../exception/global_exception_handler.dart';
 
 class AtSecondaryConfig {
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
@@ -673,6 +676,13 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _shouldRemoveMalformedKeys;
     }
+  }
+
+  static List<String> get protectedKeys {
+    YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+    List<String> protectedKeys = [];
+    for (var key in keys) { protectedKeys.add(key);}
+    return protectedKeys;
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
