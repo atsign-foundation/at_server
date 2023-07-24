@@ -5,8 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
 import 'package:yaml/yaml.dart';
 
-import '../exception/global_exception_handler.dart';
-
 class AtSecondaryConfig {
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
