@@ -148,7 +148,7 @@ class AtNotification {
 
 enum NotificationStatus { delivered, errored, queued, expired }
 
-enum NotificationType { sent, received }
+enum NotificationType { sent, received, self }
 
 enum OperationType { update, delete }
 
@@ -279,6 +279,8 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType?> {
         return NotificationType.sent;
       case 1:
         return NotificationType.received;
+      case 2:
+        return NotificationType.self;
       default:
         return null;
     }
@@ -292,6 +294,9 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType?> {
         break;
       case NotificationType.received:
         writer.writeByte(1);
+        break;
+      case NotificationType.self:
+        writer.writeByte(2);
         break;
       default:
         break;

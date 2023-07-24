@@ -1,6 +1,10 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
@@ -75,4 +79,49 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///@param atConnection - Requesting connection
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
+
+  Future<List<EnrollNamespace>> getEnrollmentNamespaces(
+      String enrollmentId, String currentAtSign) async {
+    final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    var enrollData;
+    try {
+      enrollData = await keyStore.get('$key$currentAtSign');
+    } on KeyNotFoundException {
+      logger.warning('enrollment key not found in keystore $key');
+      return [];
+    }
+    if (enrollData != null) {
+      final atData = enrollData.data;
+
+      final enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(atData));
+      logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
+      return enrollDataStoreValue.namespaces;
+    }
+    return [];
+  }
+
+  Future<bool> isAuthorized(
+      String enrollApprovalId, String keyNamespace) async {
+    final enrollNamespaces = await getEnrollmentNamespaces(
+        enrollApprovalId, AtSecondaryServerImpl.getInstance().currentAtSign);
+
+    logger.finer(
+        'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');
+    for (EnrollNamespace namespace in enrollNamespaces) {
+      if (namespace.name == keyNamespace) {
+        logger.finer('current verb: ${getVerb()}');
+        if (getVerb() is LocalLookup || getVerb() is Lookup) {
+          if (namespace.access == 'r' || namespace.access == 'rw') {
+            return true;
+          }
+        } else if (getVerb() is Update || getVerb() is Delete) {
+          if (namespace.access == 'rw') {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
 }

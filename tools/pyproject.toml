@@ -8,9 +8,9 @@ packages = [{include = "at_server_tools"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-"ruamel.yaml" = "0.17.31"
+"ruamel.yaml" = "0.17.32"
 requests = "2.31.0"
-dnspython = "2.3.0"
+dnspython = "2.4.0"
 
 
 [build-system]

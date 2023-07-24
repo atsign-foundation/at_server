@@ -11,8 +11,9 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
-  setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
     test('test update', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
@@ -133,18 +134,6 @@ void main() async {
       expect(() => keyStore.get('last_name.wavi@test_user_1'),
           throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
-
-    test('test remove non existent key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-      var updateData = AtData();
-      updateData.data = 'alice';
-      await keyStore.put('last_name.wavi@test_user_1', updateData);
-      await keyStore.remove('last_name.wavi@test_user_1');
-      expectLater(keyStore.remove('last_name.wavi@test_user_1'),
-          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
-    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
 
     test('get keys', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -302,41 +291,12 @@ void main() async {
       await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
-// tests commented for coverage. runs fine with pub run test or in IDE
-//    test('test expired keys - 1 key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(seconds: 5));
-//      expect(result, true);
-//      AtData expiredValue  = await Future.delayed(Duration(minutes: 1,seconds: 30), () => keyStoreManager.getKeyStore().get('last_name'));
-//      expect(expiredValue, isNull);
-//    }, timeout: Timeout(Duration(minutes: 3)));
-//
-//    test('test get expired keys - 1 key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(milliseconds: 10));
-//      expect(result, true);
-//      List<String> expiredKeys  = await Future.delayed(Duration(seconds: 1), () => keyStoreManager.getKeyStore().getExpiredKeys());
-//      print(expiredKeys);
-//      expect(expiredKeys[0], 'last_name');
-//    }, timeout: Timeout(Duration(minutes: 1)));
-//
-//    test('test get expired keys - no expired key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(minutes: 10));
-//      expect(result, true);
-//      List<String> expiredKeys  = await Future.delayed(Duration(seconds: 30), () => keyStoreManager.getKeyStore().getExpiredKeys());
-//      print(expiredKeys);
-//      expect(expiredKeys.length, 0);
-//    }, timeout: Timeout(Duration(minutes: 1)));
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
   group('A group of tests to verify compaction', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
     test('test to verify commit log compaction', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
@@ -357,203 +317,236 @@ void main() async {
       await keyStore.put('@bob:location.wavi@test_user_1', atData);
       expect(locationList?.getSize(), 1);
     });
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
-  group('Verify metadata cache', () {
-    test('test add to cache for keystore create', () async {
+  group('A group of tests to verify expiryKeysCache', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+    test(
+        'A test to verify key updated via put method without TTL and TTB is not added to metaDataCache',
+        () async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_create_1';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
+      AtData atData = AtData()
+        ..data = 'sample_data_create_1'
+        ..metaData = (AtMetaData()..isEncrypted = false);
       await keystore?.put('sample_create_key_1.wavi@test_user_1', atData);
-      final metaDataCache = keystore?.getMetaDataCache();
+      final metaDataCache = keystore?.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
       expect(metaDataCache!.containsKey('sample_create_key_1.wavi@test_user_1'),
-          true);
+          false);
     });
-    test('test add to cache for keystore create - emoji in key', () async {
+
+    test(
+        'A test to verify key updated via put method with TTL is added to metaDataCache',
+        () async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_create_1';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
+      AtData atData = AtData()
+        ..data = 'sample_data_create_1'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = false
+          ..ttl = 1000);
       await keystore?.put('sample_create_key_1🛠.wavi@test_user_1', atData);
-      final metaDataCache = keystore?.getMetaDataCache();
+      final metaDataCache = keystore?.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
       expect(
           metaDataCache!.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
           true);
     });
 
-    test('test add to cache for keystore put', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_put_1';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_data_put_1.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getMetaDataCache();
-      expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), true);
-    });
-    test('test add to cache for keystore put - emojis in key', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_put_2';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getMetaDataCache();
-      expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), true);
-    });
-
-    test('test remove from cache - emoji in key', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_remove_2';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_remove_key_2🛠.wavi@test_user_1';
-      await keystore?.put(testKey, atData);
-      final int? cacheEntriesCountBeforeRemove =
-          keystore?.getMetaDataCache().length;
-      final removeResult = await keystore?.remove(testKey);
-      expect(removeResult, isNotNull);
-      final metaDataCache = keystore?.getMetaDataCache();
-      expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
-      expect(metaDataCache.containsKey(testKey), false);
-    });
-    test('test remove from cache', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_remove_2';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_remove_key_2.wavi@test_user_1';
-      await keystore?.put(testKey, atData);
-      final int? cacheEntriesCountBeforeRemove =
-          keystore?.getMetaDataCache().length;
-      final removeResult = await keystore?.remove(testKey);
-      expect(removeResult, isNotNull);
-      final metaDataCache = keystore?.getMetaDataCache();
-      expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
-      expect(metaDataCache.containsKey(testKey), false);
-    });
-
-    test('test remove entry not in cache', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data_remove_4';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
-      final testKey = 'sample_remove_key_4🛠.wavi@test_user_1';
-      await keystore?.put(testKey, atData);
-      // add key without encoding to replicate old data
-      final int? cacheEntriesCountBeforeRemove =
-          keystore?.getMetaDataCache().length;
-      final nonExistentKey = 'sample_remove_key_abc🛠.wavi@abc';
-      final commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
-      int? lastCommittedSequenceBeforeRemove =
-          commitLogInstance?.lastCommittedSequenceNumber();
-      await keystore?.remove(nonExistentKey);
-      int? lastCommittedSequenceAfterRemove =
-          commitLogInstance?.lastCommittedSequenceNumber();
-      int? cacheEntriesCountAfterRemove = keystore?.getMetaDataCache().length;
-      expect(cacheEntriesCountAfterRemove, cacheEntriesCountBeforeRemove!);
-      expect(lastCommittedSequenceAfterRemove,
-          equals(lastCommittedSequenceBeforeRemove! + 1));
-    });
-    test('test to verify put and remove', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'value_test_1';
-      AtMetaData meta = AtMetaData();
-      meta.ttl = 11;
-      atData.metaData = meta;
-      await keystore?.put('key_test_1.wavi@test_user_1', atData);
-      AtMetaData? getMetaResult =
-          await keystore?.getMeta('key_test_1.wavi@test_user_1');
-      expect(getMetaResult?.ttl, 11);
-      await keystore?.remove('key_test_1.wavi@test_user_1');
-      AtMetaData? getMetaResult1 =
-          await keystore?.getMeta('key_test_1.wavi@test_user_1');
-      expect(getMetaResult1?.ttl, null);
-    });
-
-    test('test to verify putMeta', () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'value_test_2';
-      AtMetaData meta = AtMetaData();
-      meta.ttl = 112;
-      atData.metaData = meta;
-      await keystore?.put('key_test_2.wavi@test_user_1', atData);
-      meta.ttl = 131;
-      await keystore?.putMeta('key_test_2.wavi@test_user_1', meta);
-      AtMetaData? newMeta =
-          await keystore?.getMeta('key_test_2.wavi@test_user_1');
-      expect(newMeta?.ttl, 131);
-    });
-
     test(
-        'test sequence of put operations and delete operation - check cache and keystore entries',
+        'A test to verify key updated via put method with TTB is added to metaDataCache',
         () async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
+      AtData atData = AtData()
+        ..data = 'sample_data_create_1'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = false
+          ..ttb = 1000);
+      await keystore?.put('sample_create_key_1🛠.wavi@test_user_1', atData);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(
+          metaDataCache!.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
+          true);
+    });
 
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
+    test(
+        'A test to verify key created via create method without TTL and TTB is not added to metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_put_1'
+        ..metaData = (AtMetaData()..isEncrypted = false);
+      final testKey = 'sample_data_put_1.wavi@test_user_1';
+      await keystore?.create(testKey, atData);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(metaDataCache!.containsKey(testKey), false);
+    });
+
+    test(
+        'A test to verify key created via create method with TTL is added to metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_put_2'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = false
+          ..ttl = 10000);
+      final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
+      await keystore?.create(testKey, atData);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(metaDataCache!.containsKey(testKey), true);
+    });
+
+    test(
+        'A test to verify key created via create method with TTB is added to metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_put_2'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = false
+          ..ttb = 10000);
+      final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
+      await keystore?.create(testKey, atData);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(metaDataCache!.containsKey(testKey), true);
+    });
+
+    test(
+        'A test to verify key created via create method with TTB and TTL is added to metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_put_2'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = false
+          ..ttl = 10000
+          ..ttb = 10000);
+      final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
+      await keystore?.create(testKey, atData);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(metaDataCache!.containsKey(testKey), true);
+    });
+
+    test('A test to verify deleted key is removed from metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_remove_2'
+        ..metaData = (AtMetaData()
+          ..isEncrypted = true
+          ..ttl = 10000);
+      final testKey = 'sample_remove_key_2🛠.wavi@test_user_1';
+      await keystore?.put(testKey, atData);
+      final int? cacheEntriesCountBeforeRemove =
+          keystore?.getExpiryKeysCache().length;
+      final removeResult = await keystore?.remove(testKey);
+      expect(removeResult, isNotNull);
+      final metaDataCache = keystore?.getExpiryKeysCache();
+      expect(metaDataCache, isNotNull);
+      expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
+      expect(metaDataCache.containsKey(testKey), false);
+    });
+
+    test(
+        'A test to verify deleting a key which is not present in metaDataCache does not raise exception',
+        () async {
+      String atSign = '@test_user_1';
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'sample_data_remove_4'
+        ..metaData = (AtMetaData()..isEncrypted = false);
+      final testKey = 'non_existent_key.wavi$atSign';
+      await keystore?.put(testKey, atData);
+      await keystore?.remove(testKey);
+    });
+
+    test('A test to verify metaDataCache with put and remove operations',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_1'
+        ..metaData = (AtMetaData()..ttl = 10000);
+      // The key will be inserted into metadata cache
+      await keystore?.put('key_test_1.wavi@test_user_1', atData);
+      AtMetaData? getMetaResult =
+          await keystore?.getMeta('key_test_1.wavi@test_user_1');
+      expect(getMetaResult?.ttl, 10000);
+      await keystore?.remove('key_test_1.wavi@test_user_1');
+      expect(await keystore?.getMeta('key_test_1.wavi@test_user_1'), null);
+    });
+
+    test(
+        'A test to verify key updated via putMeta method is added to metaDataCache',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_2'
+        ..metaData = (AtMetaData()..ttl = 10000);
+      await keystore?.put('key_test_2.wavi@test_user_1', atData);
+      await keystore?.putMeta(
+          'key_test_2.wavi@test_user_1', AtMetaData()..ttl = 300000);
+      AtMetaData? newMeta =
+          await keystore?.getMeta('key_test_2.wavi@test_user_1');
+      expect(newMeta?.ttl, 300000);
+    });
+
+    test('A test to verify metaDataCache with sequence of put operation',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'dummy_data'
+        ..metaData = (AtMetaData()
+          ..ttl = 1000
+          ..ttb = 10000);
       for (int i = 1; i <= 5; i++) {
         final testKey = 'sample_data_put_$i.wavi@test_user_1';
         atData.data = 'sample_data_put_$i';
         await keystore?.create(testKey, atData);
       }
-      final metaDataCache = keystore?.getMetaDataCache();
+      final metaDataCache = keystore?.getExpiryKeysCache();
       for (int i = 1; i <= 5; i++) {
         final testKey = 'sample_data_put_$i.wavi@test_user_1';
         atData.data = 'sample_data_put_$i';
@@ -561,6 +554,7 @@ void main() async {
         expect(metaDataCache?.containsKey(testKey), true);
       }
     });
+
     test(
         'test random sequence of put operations and delete operation - check cache and keystore entries',
         () async {
@@ -568,11 +562,9 @@ void main() async {
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData();
-      atData.data = 'sample_data';
-      AtMetaData meta = AtMetaData();
-      meta.isEncrypted = false;
-      atData.metaData = meta;
+      AtData atData = AtData()
+        ..data = 'sample_data'
+        ..metaData = (AtMetaData()..ttl = 10000);
       // put 3 keys
       final testKey_1 = 'sample_data_put_1.wavi@test_user_1';
       await keystore?.create(testKey_1, atData);
@@ -584,7 +576,7 @@ void main() async {
       // delete 2 keys
       await keystore?.remove(testKey_3);
       await keystore?.remove(testKey_2);
-      final metaDataCache = keystore?.getMetaDataCache();
+      final metaDataCache = keystore?.getExpiryKeysCache();
       expect(keystore?.isKeyExists(testKey_1), true);
       expect(metaDataCache?.containsKey(testKey_1), true);
       expect(keystore?.isKeyExists(testKey_2), false);
@@ -592,81 +584,218 @@ void main() async {
       expect(keystore?.isKeyExists(testKey_3), false);
       expect(metaDataCache?.containsKey(testKey_3), false);
     });
-  });
 
-  test('test to verify if getKeys returns expired keys', () async {
-    SecondaryPersistenceStore? keyStoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-    AtData atData = AtData();
-    atData.data = 'value_test_4';
-    AtMetaData meta = AtMetaData();
-    meta.expiresAt =
-        DateTime.now().toUtc().subtract(const Duration(minutes: 100));
-    atData.metaData = meta;
-    await keystore?.put('key_test_4.wavi@test_user_1', atData);
-    List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('key_test_4.wavi@test_user_1'), false);
-  });
-
-  test('test to verify if getKeys returns unborn keys', () async {
-    SecondaryPersistenceStore? keyStoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-    AtData atData = AtData();
-    atData.data = 'value_test_3';
-    AtMetaData meta = AtMetaData();
-    meta.availableAt = DateTime.now().toUtc().add(const Duration(minutes: 100));
-    atData.metaData = meta;
-    await keystore?.put('key_test_3.wavi@test_user_1', atData);
-    List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('key_test_3.wavi@test_user_1'), false);
-  });
-
-  test('test to verify metadata of all keys is cached', () async {
-    SecondaryPersistenceStore? keystoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
-    AtData? atData = AtData();
-    AtMetaData? metaData;
-    //inserting sample keys
-    for (int i = 0; i < 30; i++) {
-      //inserting random metaData to induce variance in data
-      metaData = AtMetadataBuilder(
-              ttl: 12000 + i.toInt(),
-              ttb: i,
-              atSign: '@atsign_$i',
-              isBinary: true)
-          .build();
-
-      atData.data = 'value_test_$i';
-      atData.metaData = metaData;
-      await keystore?.put('key_test_$i.wavi@test_user_1', atData);
-    }
-
-    List<String>? keys = keystore?.getKeys();
-
-    keys?.forEach((String key) async {
-      atData = await keystore?.get(key);
-      metaData = atData?.metaData;
-
-      expect((await keystore?.getMeta(key)).toString(), metaData.toString());
+    test('A test to verify new metadata is returned when TTL is unset',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'dummy_value'
+        ..metaData = (AtMetaData()..ttl = 10000);
+      await keystore?.put('dummykey.wavi@test_user_1', atData);
+      AtData updatedAtData = AtData()
+        ..data = 'updated_value'
+        ..metaData = (AtMetaData()
+          ..ttl = 0
+          ..ttr = -1);
+      await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,
+          time_to_born: null);
+      AtMetaData? atMetaData =
+          await keystore?.getMeta('dummykey.wavi@test_user_1');
+      expect(atMetaData?.ttr, -1);
+      expect(atMetaData?.ttl, 0);
     });
+
+    test(
+        'A test to verify getExpiredKeys method returns the keys whose TTL is met eventually',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore('@test_user_1');
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'dummy_value'
+        ..metaData = (AtMetaData()..ttl = 1500);
+      await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
+      var expiredKeysList = await keystore?.getExpiredKeys();
+      expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
+          false);
+      await Future.delayed(Duration(milliseconds: 1700));
+      expiredKeysList = await keystore?.getExpiredKeys();
+      expect(
+          expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
-  try {
-    tearDown(() async => await tearDownFunc());
-  } on Exception catch (e) {
-    print('error in tear down:${e.toString()}');
-  }
+  group('A group of test related to getKeys method', () {
+    String atSign = '@emoji🛠️';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+    test('A test to verify getKeys does not return expired keys', () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_4'
+        // Adding TTL of 10 milliseconds
+        ..metaData = (AtMetaData()..ttl = 10);
+      await keystore?.put('expired_key.wavi$atSign', atData);
+      // Adding delay for the key to expire.
+      await Future.delayed(Duration(milliseconds: 20));
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList!.contains('expired_key.wavi$atSign'), false);
+    });
+
+    test('A test to verify getKeys does not return keys whose TTB is met',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttb = 300000);
+      await keystore?.put('key_test_3.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList!.contains('key_test_3.wavi$atSign'), false);
+    });
+
+    test('test to verify metadata of all keys is cached', () async {
+      SecondaryPersistenceStore? keystoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
+      AtData? atData = AtData();
+      AtMetaData? metaData;
+      //inserting sample keys
+      for (int i = 0; i < 30; i++) {
+        //inserting random metaData to induce variance in data
+        metaData = AtMetadataBuilder(
+                ttl: 12000 + i.toInt(),
+                ttb: i,
+                atSign: '@atsign_$i',
+                isBinary: true)
+            .build();
+
+        atData.data = 'value_test_$i';
+        atData.metaData = metaData;
+        await keystore?.put('key_test_$i.wavi$atSign', atData);
+      }
+
+      List<String>? keys = keystore?.getKeys();
+
+      for (var key in keys!) {
+        atData = await keystore?.get(key);
+        metaData = atData?.metaData;
+        expect((await keystore?.getMeta(key)).toString(), metaData.toString());
+      }
+    });
+
+    test('A test to verify getKeys return key with emoji', () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData());
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      print(keysList);
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+    });
+
+    test('A test to verify getKeys returns key with emoji when TTB is set',
+        () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttb = 1000);
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
+      await Future.delayed(Duration(milliseconds: 1000));
+      keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+    });
+
+    test(
+        'A test to verify getKeys does not return key with emoji when TTL is set',
+        () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttl = 1000);
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+      await Future.delayed(Duration(milliseconds: 1000));
+      keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
+    });
+
+    tearDown(() async => await tearDownFunc(atSign));
+  });
+
+  group('A group of tests to verify skip commit', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+    test('skip commit true in put', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result = await keyStore.put('phone.wavi@test_user_1', atData,
+          skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(commitLogInstance!.getLatestCommitEntry('phone.wavi@test_user_1'),
+          isNull);
+    });
+    test('skip commit true in create', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result = await keyStore.create('email.wavi@test_user_1', atData,
+          skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(commitLogInstance!.getLatestCommitEntry('email.wavi@test_user_1'),
+          isNull);
+    });
+    test('skip commit true in remove', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result =
+          await keyStore.remove('firstname.wavi@test_user_1', skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(
+          commitLogInstance!.getLatestCommitEntry('firstname.wavi@test_user_1'),
+          isNull);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
+  });
 }
 
-Future<void> tearDownFunc() async {
-  await Hive.deleteBoxFromDisk('commit_log_@test_user_1');
-  await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
+Future<void> tearDownFunc(String atSign) async {
+  await Hive.deleteBoxFromDisk('commit_log_$atSign');
+  await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
   await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
@@ -674,16 +803,16 @@ Future<void> tearDownFunc() async {
   }
 }
 
-Future<void> setUpFunc(storageDir) async {
+Future<void> setUpFunc(String storageDir, String atSign) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getCommitLog(atSign, commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
+      .getSecondaryPersistenceStore(atSign)!;
   await persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
 }
 
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
+String _getShaForAtSign(String atSign) {
+  var bytes = utf8.encode(atSign);
   return sha256.convert(bytes).toString();
 }

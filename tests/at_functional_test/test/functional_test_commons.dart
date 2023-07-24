@@ -1,3 +1,5 @@
+// ignore_for_file: non_constant_identifier_names
+
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
@@ -11,7 +13,7 @@ var maxRetryCount = 10;
 var retryCount = 1;
 
 ///Socket Connection
-Future<SecureSocket> socket_connection(host, port) async {
+Future<SecureSocket> socketConnection(host, port) async {
   var context = SecurityContext();
   print(Directory.current);
   context.setTrustedCertificates('lib/secondary/base/certs/cacert.pem');
@@ -27,6 +29,7 @@ void clear() {
 
 ///Secure Socket Connection
 Future<SecureSocket> secure_socket_connection(host, port) async {
+  // ignore: prefer_typing_uninitialized_variables
   var socket;
   while (true) {
     try {

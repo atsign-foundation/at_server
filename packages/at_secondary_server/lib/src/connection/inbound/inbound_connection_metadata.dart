@@ -23,4 +23,7 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// The platform on which the client(origin of connection) is running
   String? platform;
+
+  /// A unique identifier generated for a client's APKAM enroll request
+  String? enrollApprovalId;
 }

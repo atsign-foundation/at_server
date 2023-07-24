@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.0.32
+version: 3.0.33
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -9,29 +9,32 @@ environment:
   sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
-  args: 2.4.1
+  args: 2.4.2
   uuid: 3.0.7
   convert: 3.1.1
   cron: 0.5.1
-  crypto: 3.0.2
+  crypto: 3.0.3
   crypton: 2.1.0
-  collection: 1.17.0
-  basic_utils: 5.4.2
+  collection: 1.17.2
+  basic_utils: 5.6.0
   ecdsa: 0.0.4
-  at_commons: 3.0.47
-  at_utils: 3.0.13
+  at_commons: 3.0.51
+  at_utils: 3.0.14
   at_chops: 1.0.3
-  at_lookup: 3.0.36
-  at_server_spec: 3.0.11
+  at_lookup: 3.0.37
+  at_server_spec: 3.0.13
   at_persistence_spec: 2.0.12
-  at_persistence_secondary_server: 3.0.52
+  at_persistence_secondary_server: 3.0.54
+  expire_cache: ^2.0.1
+  intl: ^0.18.1
+  json_annotation: ^4.8.0
   version: 3.0.2
-  meta: 1.8.0
+  meta: 1.9.1
   mutex: 3.0.1
-  yaml: 3.1.1
+  yaml: 3.1.2
 
 dev_dependencies:
-  test: ^1.22.1
+  test: ^1.24.4
   coverage: ^1.6.1
-  lints: ^2.0.1
+  lints: ^2.1.1
   mocktail: ^0.3.0

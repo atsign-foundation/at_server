@@ -7,6 +7,7 @@ import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
@@ -26,6 +27,7 @@ import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stream_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -100,6 +102,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(NoOpVerbHandler(keyStore));
     _verbHandlers.add(NotifyRemoveVerbHandler(keyStore));
     _verbHandlers.add(NotifyFetchVerbHandler(keyStore));
+    _verbHandlers.add(EnrollVerbHandler(keyStore));
+    _verbHandlers.add(TotpVerbHandler(keyStore));
     return _verbHandlers;
   }
 }

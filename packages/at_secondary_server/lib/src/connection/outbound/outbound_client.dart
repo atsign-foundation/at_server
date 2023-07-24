@@ -75,7 +75,7 @@ class OutboundClient {
     var result = false;
     try {
       // 1. Find secondary url for the toAtSign
-      var secondaryUrl = await _findSecondary(toAtSign);
+      String secondaryUrl = await _findSecondary(toAtSign);
       var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
       String toHost = secondaryInfo[0];
       int toPort = int.parse(secondaryInfo[1]);
@@ -83,6 +83,7 @@ class OutboundClient {
       outboundConnection = await _outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
       isConnectionCreated = true;
+      logger.finer('Outbound connection created for $toHost $toPort $toAtSign');
 
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
@@ -97,15 +98,18 @@ class OutboundClient {
       }
     } on SecondaryNotFoundException catch (e) {
       logger
-          .severe('secondary server not found for $toAtSign: ${e.toString()}');
+          .finer('Secondary server not found for $toAtSign | ${e.toString()}');
       rethrow;
     } on SocketException catch (e) {
-      logger.severe(
-          'socket exception connecting to secondary $toAtSign: ${e.toString()}');
+      logger.finer(
+          'Socket exception connecting to secondary $toAtSign | ${e.toString()}');
       rethrow;
     } on HandShakeException catch (e) {
-      logger.severe(
-          'HandShakeException connecting to secondary $toAtSign: ${e.toString()}');
+      logger.finer(
+          'HandShakeException connecting to secondary $toAtSign | ${e.toString()}');
+      rethrow;
+    } on Exception catch (e) {
+      logger.finer('Exception creating an Outbound Connection: $e');
       rethrow;
     }
 
@@ -194,7 +198,7 @@ class OutboundClient {
       var fromResult = await messageListener.read();
       if (fromResult == '') {
         throw HandShakeException(
-            'no response received for From:$toAtSign command');
+            'No response received for From:$toAtSign command');
       }
 
       //3. Get the session ID and the pol challenge from the response
@@ -223,7 +227,8 @@ class OutboundClient {
             "pol handshake failed - handShakeResult was $handShakeResult");
         return false;
       }
-    } on ConnectionInvalidException {
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     } catch (e) {
       await outboundConnection!.close();
@@ -256,7 +261,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
@@ -284,7 +290,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
@@ -301,25 +308,35 @@ class OutboundClient {
   Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
     lastUsed = DateTime.now();
+    logger.finer('plookup result of the $key: $result');
     return result;
   }
 
   void close() {
     if (outboundConnection != null) {
       outboundConnection!.close();
+      logger.finer('Outbound connection closed');
     }
   }
 
   bool isInValid() {
-    return inboundConnection.isInValid() ||
-        (outboundConnection != null && outboundConnection!.isInValid());
+    bool isInvalid = false;
+    if (inboundConnection.isInValid()) {
+      logger.finer(
+          'InboundConnection from ${inboundConnection.initiatedBy} is invalid');
+      isInvalid = true;
+    }
+    if (outboundConnection != null && outboundConnection!.isInValid()) {
+      logger.finer('OutboundConnection to $toAtSign is invalid');
+      isInvalid = true;
+    }
+    return isInvalid;
   }
 
   Future<String?> notify(String notifyCommandBody,
       {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
-      throw UnAuthorizedException(
-          'Handshake did not succeed. Cannot perform a lookup');
+      throw UnAuthorizedException('Handshake failed. Cannot perform a lookup');
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
@@ -328,7 +345,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     // Setting maxWaitMilliSeconds to 30000 to wait 30 seconds for notification
@@ -359,7 +377,8 @@ class OutboundClient {
       await outboundConnection!.close();
       throw LookupException(
           'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException {
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
 
@@ -377,8 +396,8 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   @override
   Future<OutboundConnection> createOutboundConnection(
       String host, int port, String toAtSign) async {
-    var securityContext = AtSecurityContextImpl();
-    var secConConnect = SecurityContext();
+    AtSecurityContextImpl securityContext = AtSecurityContextImpl();
+    SecurityContext secConConnect = SecurityContext();
     secConConnect.useCertificateChain(securityContext.publicKeyPath());
     secConConnect.usePrivateKey(securityContext.privateKeyPath());
     secConConnect
