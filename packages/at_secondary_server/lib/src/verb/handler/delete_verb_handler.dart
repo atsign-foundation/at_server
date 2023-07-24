@@ -15,6 +15,7 @@ import 'package:at_utils/at_utils.dart';
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
+  List<String>? protectedKeys;
 
   DeleteVerbHandler(SecondaryKeyStore keyStore,
       StatsNotificationService statsNotificationService)
@@ -60,9 +61,15 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
     deleteKey = verbParams[AT_KEY];
+    protectedKeys ??= _getProtectedKeys(atSign!);
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
       deleteKey = '$deleteKey$atSign';
+    }
+    if (_isProtectedKey(deleteKey)) {
+      response.isError = true;
+      response.errorMessage = 'error: key is protected and cannot be deleted';
+      return;
     }
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
@@ -126,5 +133,32 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ..opType = OperationType.delete)
         .build();
     NotificationManager.getInstance().notify(atNotification);
+  }
+
+  List<String> _getProtectedKeys(String atsign) {
+    List<String> protectedKeys = [];
+    // fetch all protected private keys from config yaml
+    for (var key in AtSecondaryConfig.protectedKeys) {
+      // signing private key is store in secondary as @atsign:signing_privatekey:@atsign
+      // the following constructs the actual signing_privatekey using a generic key format
+      if (key.contains('<atsign>')) {
+        key.replaceAll('<atsign>', atsign);
+      }
+      // convert generic key name to actual public key
+      // of format: key:@atsign
+      protectedKeys.add('$key$atsign');
+    }
+    logger.shout('protectedKeys: $protectedKeys');
+    return protectedKeys;
+  }
+
+  bool _isProtectedKey(String key) {
+    logger.severe('isProtectedKey received $key');
+    print(protectedKeys.toString());
+    if (protectedKeys!.contains(key)) {
+      logger.severe('Cannot delete key. \'$key\' is a protected key');
+      return true;
+    }
+    return false;
   }
 }
