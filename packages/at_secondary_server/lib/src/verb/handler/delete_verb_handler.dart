@@ -154,22 +154,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     List<String> protectedKeys = [];
     // fetch all protected private keys from config yaml
     for (var key in AtSecondaryConfig.protectedKeys) {
-      // signing private key is store in secondary as @atsign:signing_privatekey:@atsign
-      // the following constructs the actual signing_privatekey using a generic key format
-      if (key.contains('<atsign>')) {
-        key.replaceAll('<atsign>', atsign);
-      }
       // convert generic key name to actual public key
       // of format: key:@atsign
       protectedKeys.add('$key$atsign');
     }
-    logger.shout('protectedKeys: $protectedKeys');
     return protectedKeys;
   }
 
   bool _isProtectedKey(String key) {
-    logger.severe('isProtectedKey received $key');
-    print(protectedKeys.toString());
     if (protectedKeys!.contains(key)) {
       logger.severe('Cannot delete key. \'$key\' is a protected key');
       return true;

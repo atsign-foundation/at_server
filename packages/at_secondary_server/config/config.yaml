@@ -25,7 +25,6 @@ security:
 # The atProtocol storage configurations
 hive:
   # The storage path for secondary storage.
-
   storagePath: 'storage/hive'
   # The storage path for commit log.
   commitLogPath: 'storage/commitLog'
@@ -33,7 +32,6 @@ hive:
   accessLogPath: 'storage/accessLog'
   # The storage path for notifications
   notificationStoragePath: 'storage/notificationLog.v1'
-
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
   expiringRunFrequencyMins: 12
   # List of malformed keys that will be deleted on server startup
@@ -42,7 +40,6 @@ hive:
   # This is set to true by default. To retain the malformed keys on server start-up,
   # set the flag to false.
   shouldRemoveMalformedKeys: true
-
   # List of keys are crucial for the server to function as expected
   # The following keys cannot be deleted
   protectedKeys: ['signing_publickey', 'signing_privatekey', 'publickey', 'at_pkam_publickey']
