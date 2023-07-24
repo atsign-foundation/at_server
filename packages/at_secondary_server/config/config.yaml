@@ -43,6 +43,10 @@ hive:
   # set the flag to false.
   shouldRemoveMalformedKeys: true
 
+  # List of keys are crucial for the server to function as expected
+  # The following keys cannot be deleted
+  protectedKeys: ['signing_publickey', 'signing_privatekey', 'publickey', 'at_pkam_publickey']
+
 # The atProtocol connection configurations.
 connection:
   # At any point, at most [inbound_max_limit] inbound connections are allowed. The inbound connection
