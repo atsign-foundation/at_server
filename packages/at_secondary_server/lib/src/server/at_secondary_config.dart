@@ -64,8 +64,10 @@ class AtSecondaryConfig {
   //Connection
   static const int _inboundMaxLimit = 200;
   static const int _outboundMaxLimit = 200;
-  static const int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
-  static const int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
+  static const int _unauthenticatedInboundIdleTimeMillis =
+      10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedInboundIdleTimeMillis =
+      30 * 24 * 60 * 60 * 1000; // 30 days
   static const int _outboundIdleTimeMillis = 600000;
 
   //Lookup
@@ -93,6 +95,13 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
+  // Protected Keys
+  static final List<String> _protectedKeys = [
+    'signing_publickey',
+    'signing_privatekey',
+    'publickey',
+    'at_pkam_publickey'
+  ];
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -416,7 +425,8 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+      return getConfigFromYaml(
+          ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
     }
@@ -677,10 +687,16 @@ class AtSecondaryConfig {
   }
 
   static List<String> get protectedKeys {
-    YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
-    List<String> protectedKeys = [];
-    for (var key in keys) { protectedKeys.add(key);}
-    return protectedKeys;
+    try {
+      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      List<String> protectedKeys = [];
+      for (var key in keys) {
+        protectedKeys.add(key);
+      }
+      return protectedKeys;
+    } on Exception {
+      return _protectedKeys;
+    }
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
