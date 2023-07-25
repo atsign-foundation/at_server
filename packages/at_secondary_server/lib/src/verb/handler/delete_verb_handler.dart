@@ -71,9 +71,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     protectedKeys ??= _getProtectedKeys(atSign!);
     // check to see if a key is protected. Cannot delete key if it's protected
     if (_isProtectedKey(deleteKey)) {
-      response.isError = true;
-      response.errorMessage = 'error: key is protected and cannot be deleted';
-      return;
+     throw UnAuthorizedException('Cannot delete protected key: \'$deleteKey\'');
     }
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
