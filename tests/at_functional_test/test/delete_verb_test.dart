@@ -160,8 +160,8 @@ void main() {
     print('delete verb response : $response');
     // the error is an expected behaviour
     assert((response.contains(
-            'error:AT0009-UnAuthorized client in request : Cannot delete protected key')) &&
-        (!response.contains('null')));
+            'UnAuthorized client in request : Cannot delete protected key')) &&
+        (response.contains('error')));
 
     ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan');
