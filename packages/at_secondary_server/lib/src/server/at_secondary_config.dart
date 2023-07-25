@@ -7,6 +7,7 @@ import 'package:at_secondary/src/conf/config_util.dart';
 class AtSecondaryConfig {
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
+
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
@@ -38,17 +39,22 @@ class AtSecondaryConfig {
 
   //Notification
   static const bool _autoNotify = true;
+
   // The maximum number of retries for a notification.
   static const int _maxNotificationRetries = 30;
+
   // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
   static const int _notificationQuarantineDuration = 10;
+
   // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
   // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
   // seconds have passed since the last queue-processing run completed.
   static const int _notificationJobFrequency = 11;
+
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static const int _statsNotificationJobTimeInterval = 15;
+
   // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
   static const int _notificationExpiresAfterMins = 1440;
 
@@ -63,8 +69,10 @@ class AtSecondaryConfig {
   //Connection
   static const int _inboundMaxLimit = 200;
   static const int _outboundMaxLimit = 200;
-  static const int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
-  static const int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
+  static const int _unauthenticatedInboundIdleTimeMillis =
+      10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedInboundIdleTimeMillis =
+      30 * 24 * 60 * 60 * 1000; // 30 days
   static const int _outboundIdleTimeMillis = 600000;
 
   //Lookup
@@ -99,9 +107,13 @@ class AtSecondaryConfig {
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
+  static final int _enrollmentExpiryInHours = 48;
+
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
+
+  static int get enrollmentExpiryInHours => _enrollmentExpiryInHours;
 
   // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
   //  allow for nulls. Should fix this as has been done for logLevel
@@ -415,7 +427,8 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+      return getConfigFromYaml(
+          ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
     }
