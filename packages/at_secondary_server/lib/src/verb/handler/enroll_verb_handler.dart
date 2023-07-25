@@ -66,6 +66,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['status'] = 'exception';
       responseJson['reason'] = e.toString();
       logger.severe('Exception: $e\n$stackTrace');
+      rethrow;
     }
     response.data = jsonEncode(responseJson);
   }

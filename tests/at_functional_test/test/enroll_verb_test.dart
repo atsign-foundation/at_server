@@ -58,11 +58,11 @@ void main() {
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      enrollResponse = enrollResponse.replaceFirst('error:', '');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
     test('enroll request on unauthenticated connection invalid totp', () async {
@@ -72,10 +72,10 @@ void main() {
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
     // Purpose of the tests
@@ -320,7 +320,8 @@ void main() {
           'enroll:revoke:enrollmentid:$enrollmentId';
       await socket_writer(socketConnection2!, revokeEnrollmentCommand);
       var revokeEnrollmentResponse = await read();
-      expect(revokeEnrollmentResponse.trim(), 'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
     });
   });
 }
