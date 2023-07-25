@@ -286,9 +286,12 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message == 'invalid totp. Cannot process enroll request')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -381,11 +384,12 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorMessage,
-          'Exception: enrollment id: 123 not found in keystore');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message == 'enrollment id: 123 not found in keystore')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
