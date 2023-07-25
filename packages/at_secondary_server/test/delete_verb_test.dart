@@ -1,17 +1,22 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
+class MockInboundConnection extends Mock implements InboundConnectionImpl {}
+
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  InboundConnection mockInboundConnection = MockInboundConnection();
 
   group('A group of delete verb tests', () {
     test('test delete key-value', () {
@@ -94,6 +99,56 @@ void main() {
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AT_KEY], 'privatekey:at_secret');
+    });
+  });
+
+  group('verify deletion of protected keys', () {
+    test('verify deletion of signing public key', () {
+      var command = 'delete:$AT_SIGNING_PUBLIC_KEY@alice';
+      var paramsMap = getVerbParam(Delete().syntax(), command);
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
+      expect(
+          () =>
+              handler.processVerb(Response(), paramsMap, mockInboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
+    });
+
+    test('verify deletion of signing private key', () {
+      var command = 'delete:@alice:$AT_SIGNING_PRIVATE_KEY@alice';
+      var paramsMap = getVerbParam(Delete().syntax(), command);
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
+      expect(
+          () =>
+              handler.processVerb(Response(), paramsMap, mockInboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
+    });
+
+    test('verify deletion of pkam public key', () {
+      var command = 'delete:public:at_pkam_publickey@alice';
+      var paramsMap = getVerbParam(Delete().syntax(), command);
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
+      expect(
+          () =>
+              handler.processVerb(Response(), paramsMap, mockInboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
+    });
+
+    test('verify deletion of encryption public key', () {
+      var command = 'delete:$AT_ENCRYPTION_PUBLIC_KEY@alice';
+      var paramsMap = getVerbParam(Delete().syntax(), command);
+      var handler = DeleteVerbHandler(
+          mockKeyStore, StatsNotificationService.getInstance());
+      expect(
+          () =>
+              handler.processVerb(Response(), paramsMap, mockInboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
     });
   });
 }
