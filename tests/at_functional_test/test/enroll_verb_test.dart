@@ -58,11 +58,11 @@ void main() {
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      enrollResponse = enrollResponse.replaceFirst('error:', '');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
     test('enroll request on unauthenticated connection invalid totp', () async {
@@ -72,13 +72,13 @@ void main() {
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
-   // Purpose of the tests
+    // Purpose of the tests
     // 1. Do a pkam authentication
     // 2. Send an enroll request
     //  3 . Get an otp from the first client
@@ -233,6 +233,95 @@ void main() {
       var apkamEnrollIdResponse = await read();
       print(apkamEnrollIdResponse);
       expect(apkamEnrollIdResponse, 'data:success\n');
+    });
+  });
+
+  group('A group of tests related to APKAM revoke operation', () {
+    test('A test to verify enrollment revoke operation', () async {
+      // Send an enrollment request on the authenticated connection
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      String enrollRequest =
+          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollmentResponse = await read();
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      //Create a new connection to login using the APKAM
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      String pkamCommand = 'pkam:enrollapprovalid:$enrollmentId:$pkamDigest';
+      await socket_writer(socketConnection2!, pkamCommand);
+      pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      socketConnection2?.close();
+
+      // Revoke the enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:enrollmentid:$enrollmentId';
+      await socket_writer(socketConnection1!, revokeEnrollmentCommand);
+      var revokeEnrollmentResponse = await read();
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      pkamCommand = 'pkam:enrollapprovalid:$enrollmentId:$pkamDigest';
+      await socket_writer(socketConnection2!, pkamCommand);
+      pkamResult = await read();
+      socketConnection2?.close();
+      expect(pkamResult.contains('$enrollmentId is not approved'), true);
+    });
+
+    test(
+        'A test to verify revoke operation cannot be performed on an unauthenticated connection',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      String enrollRequest =
+          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollmentResponse = await read();
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      String revokeEnrollmentCommand =
+          'enroll:revoke:enrollmentid:$enrollmentId';
+      await socket_writer(socketConnection2!, revokeEnrollmentCommand);
+      var revokeEnrollmentResponse = await read();
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
     });
   });
 }

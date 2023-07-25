@@ -69,7 +69,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     }
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for local lookup operation');
+          'Enrollment Id: $enrollApprovalId is not authorized for local lookup operation on the key: $key');
     }
     AtData? atData = await keyStore.get(key);
     var isActive = false;
