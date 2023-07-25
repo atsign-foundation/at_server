@@ -289,7 +289,7 @@ class CommitLogKeyStore
   Future<List<CommitEntry>> getChanges(int sequenceNumber,
       {String? regex, int? limit}) async {
     try {
-      if (_getBox().keys.isEmpty) {
+      if (_getBox().isEmpty) {
         return <CommitEntry>[];
       }
       var changes = <CommitEntry>[];
