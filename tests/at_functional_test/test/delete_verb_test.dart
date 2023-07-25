@@ -152,6 +152,25 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
   }, timeout: Timeout(Duration(seconds: 50)));
 
+  test('delete verb for an protected key', () async {
+    ///DELETE VERB
+    await socket_writer(
+        socketFirstAtsign!, 'delete:public:signing_publickey$firstAtsign');
+    var response = await read();
+    print('delete verb response : $response');
+    // the error is an expected behaviour
+    assert((response.contains(
+            'error:AT0009-UnAuthorized client in request : Cannot delete protected key')) &&
+        (!response.contains('null')));
+
+    ///SCAN VERB
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response is :$response');
+    // ensure that the signing_publickey is not deleted
+    assert(response.contains('signing_publickey'));
+  });
+
   tearDown(() {
     //Closing the client socket connection
     clear();
