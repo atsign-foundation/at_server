@@ -171,7 +171,7 @@ void main() {
       var llookupResponse = await read();
       print(llookupResponse);
       expect(llookupResponse,
-          'error:AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for local lookup operation\n');
+          'error:AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: firstcontact.atmosphere$firstAtsign\n');
     });
 
     // Prerequisite - create a public atmosphere key
@@ -544,7 +544,7 @@ void main() {
       var deleteResponse = await read();
       print(deleteResponse);
       expect(deleteResponse,
-          'error:AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for delete operation\n');
+          'error:AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for delete operation on the key: files.atmosphere$firstAtsign\n');
     });
   });
 

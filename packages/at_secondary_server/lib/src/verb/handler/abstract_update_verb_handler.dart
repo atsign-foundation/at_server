@@ -75,11 +75,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
       }
     }
-    if (!isAuthorized) {
-      throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for update operation');
-    }
-
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -91,6 +86,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic != null &&
         updateParams.metadata!.isPublic!) {
       atKey = 'public:$atKey';
+    }
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Enrollment Id: $enrollApprovalId is not authorized for update operation on the key: ${atKey.toString()}');
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
