@@ -180,7 +180,7 @@ void main() {
     //  3. Do a llookup for the atmosphere key
     //  4. Assert that the llookup returns a value without an exception
     test(
-        'enroll request on authenticated connection for wavi namespace and llookup for a atmosphere key',
+        'enroll request on authenticated connection for wavi namespace and llookup for a public atmosphere key',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
@@ -222,8 +222,8 @@ void main() {
 
       await socket_writer(socketConnection1!, 'llookup:$atmosphereKey');
       var llookupResponse = await read();
-      print(llookupResponse);
-      expect(llookupResponse, 'data:atmospherevalue\n');
+      expect(llookupResponse,
+          'error:AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $atmosphereKey\n');
     });
 
     // Prerequisite - create a wavi key
