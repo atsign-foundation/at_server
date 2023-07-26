@@ -83,26 +83,56 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<List<EnrollNamespace>> getEnrollmentNamespaces(
       String enrollmentId, String currentAtSign) async {
     final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    var enrollData;
+    EnrollDataStoreValue enrollDataStoreValue;
     try {
-      enrollData = await keyStore.get('$key$currentAtSign');
+      enrollDataStoreValue =
+          await getEnrollDataStoreValue('$key$currentAtSign');
     } on KeyNotFoundException {
       logger.warning('enrollment key not found in keystore $key');
       return [];
     }
-    if (enrollData != null) {
-      final atData = enrollData.data;
+    logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
+    return enrollDataStoreValue.namespaces;
+  }
 
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
-      return enrollDataStoreValue.namespaces;
+  /// Fetch for an enrollment key in the keystore.
+  /// If key is available returns [EnrollDataStoreValue],
+  /// else throws [KeyNotFoundException]
+  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
+      String enrollmentKey) async {
+    try {
+      AtData enrollData = await keyStore.get(enrollmentKey);
+      EnrollDataStoreValue enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+      return enrollDataStoreValue;
+    } on KeyNotFoundException {
+      logger.severe('$enrollmentKey does not exist in the keystore');
+      rethrow;
     }
-    return [];
   }
 
   Future<bool> isAuthorized(
       String enrollApprovalId, String keyNamespace) async {
+    // global namespace can be accessed only by keys: verb. Restrict other verbs access
+    if (keyNamespace == globalNamespace) {
+      return false;
+    }
+    EnrollDataStoreValue enrollDataStoreValue;
+    final enrollmentKey =
+        '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    try {
+      enrollDataStoreValue = await getEnrollDataStoreValue(
+          '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}');
+    } on KeyNotFoundException {
+      // When a key with enrollmentId is not found, atSign is not authorized to
+      // perform enrollment actions. Return false.
+      return false;
+    }
+
+    if (enrollDataStoreValue.approval?.state != EnrollStatus.approved.name) {
+      return false;
+    }
+
     final enrollNamespaces = await getEnrollmentNamespaces(
         enrollApprovalId, AtSecondaryServerImpl.getInstance().currentAtSign);
 
@@ -115,7 +145,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
           if (namespace.access == 'r' || namespace.access == 'rw') {
             return true;
           }
-        } else if (getVerb() is Update || getVerb() is Delete || getVerb() is Keys) {
+        } else if (getVerb() is Update ||
+            getVerb() is Delete ||
+            getVerb() is Keys) {
           if (namespace.access == 'rw') {
             return true;
           }

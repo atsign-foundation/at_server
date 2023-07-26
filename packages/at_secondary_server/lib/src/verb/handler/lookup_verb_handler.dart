@@ -74,7 +74,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         }
         if (!isAuthorized) {
           throw UnAuthorizedException(
-              'Enrollment Id: $enrollApprovalId is not authorized for lookup operation');
+              'Enrollment Id: $enrollApprovalId is not authorized for lookup operation on the key: $lookupKey');
         }
         var lookupValue = await keyStore.get(lookupKey);
         response.data =

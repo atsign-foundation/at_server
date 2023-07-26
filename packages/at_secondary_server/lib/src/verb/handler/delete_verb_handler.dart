@@ -89,7 +89,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for delete operation');
+          'Enrollment Id: $enrollApprovalId is not authorized for delete operation on the key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);
