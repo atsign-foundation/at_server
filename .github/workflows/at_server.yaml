@@ -167,7 +167,6 @@ jobs:
         run: |
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
           cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
-          cp packages/at_secondary_server/config/config.yaml tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/config/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR tools/build_virtual_environment/ve/*
 

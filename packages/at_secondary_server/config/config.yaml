@@ -5,11 +5,11 @@ root_server:
   # The atDirectory's port
   port: 64
   # The atDirectory's host
-  url: 'root.atsign.org'
+  url: 'vip.ve.atsign.zone'
 
 # Default logger settings
 log:
-  level: INFO
+  level: FINER
 
 # The atProtocol security configurations.
 security:
@@ -17,9 +17,9 @@ security:
   # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
   # [privateKeyLocation] should be populated with the path's to respective certificates.
   useTLS: true
-  certificateChainLocation: 'certs/fullchain.pem'
-  privateKeyLocation: 'certs/privkey.pem'
-  trustedCertificateLocation: '/etc/cacert/cacert.pem'
+  certificateChainLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/fullchain.pem'
+  privateKeyLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/privkey.pem'
+  trustedCertificateLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/cacert.pem'
   clientCertificateRequired: true
 
 # The atProtocol storage configurations
