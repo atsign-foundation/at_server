@@ -163,11 +163,14 @@ jobs:
         working-directory: ${{ env.secondary-working-directory }}
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
+      - name: Create directory for config in build_virtual_environment/ve
+        run: mkdir tools/build_virtual_environment/ve/contents/atsign/secondary/config/
+
       - name: copy secondary to tools/build_virtual_environment/ve
         run: |
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
           cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
-          cp packages/at_secondary_server/config/config.yaml tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/config/
+          cp packages/at_secondary_server/config/config.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/config/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR tools/build_virtual_environment/ve/*
 
