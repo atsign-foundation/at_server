@@ -369,15 +369,6 @@ jobs:
       - name: Checkout at_server repo
         uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
 
-      - name: Install Dart
-        uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        working-directory: ${{ env.e2etest-working-directory }}
-        run: dart pub get
-
       - name: Create atSigns
         id: atsign_names
         run: |
@@ -401,6 +392,29 @@ jobs:
             exit 1
           fi
 
+      - name: Install Dart
+        uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: ${{ env.e2etest-working-directory }}
+        run: dart pub get
+
+      - name: Cloning at_libraries
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+        with:
+          repository: atsign-foundation/at_libraries
+          path: at_libraries
+          ref: trunk
+
+      - name: Cloning at_tools
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+        with:
+          repository: atsign-foundation/at_tools
+          path: at_tools
+          ref: trunk
+
       - name: Fetch Cram Keys
         id: cram_keys
         env:
@@ -422,7 +436,7 @@ jobs:
               break
             else
               echo "Error fetching Cram Keys on attempt ${try}"
-              if [ $try -eq 5]; then
+              if [ $try -eq 5 ]; then
                 echo "Tried 5 times. Quitting."
                 exit 1
               fi
@@ -430,7 +444,6 @@ jobs:
             sleep 20
           done  
 
-      # Get hostname and port from root server for above atsign
       - name: Fetch atSign Hostname
         id: atsign_hosts
         env:
@@ -455,7 +468,7 @@ jobs:
               echo "AT_SIGN_2_PORT=$(echo $AT_SIGN_2_PORT)" >> $GITHUB_OUTPUT                                            
             else
               echo "Error fetching atSigns Hostname and Port on attempt ${try}"
-              if [ $try -eq 5]; then
+              if [ $try -eq 5 ]; then
                 echo "Tried 5 times. Quitting."
                 exit 1
               fi
@@ -463,7 +476,6 @@ jobs:
             sleep 20
           done
       
-      # Check hostname and port connectivity 
       - name: Check Connection 
         env:   
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
@@ -472,7 +484,8 @@ jobs:
           AT_SIGN_1_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_PORT }}
           AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
-        run: |                    
+        run: |
+          pwd               
           for try in {1..5}; do
             HOST_1_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
             HOST_2_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
@@ -488,7 +501,7 @@ jobs:
               echo "Connection successfull"
             else
               echo "Connection error on attempt ${try}"
-              if [ $try -eq 5]; then
+              if [ $try -eq 5 ]; then
                 echo "Tried 5 times. Quitting."
                 exit 1
               fi
@@ -496,14 +509,6 @@ jobs:
             sleep 20
           done
   
-      - name: cloning at_libraries
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
-        with:
-          repository: atsign-foundation/at_libraries
-          path: at_libraries
-          ref: trunk
-
-      # Activate atSign
       - name: Activating atsign    
         env:
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
@@ -515,16 +520,9 @@ jobs:
           ls -lrth at_libraries
           cd at_libraries/packages/at_onboarding_cli/
           dart pub get
-          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r  root.atsign.wtf
-          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r  root.atsign.wtf
+          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
+          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
 
-      - name: cloning at_tools
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
-        with:
-          repository: atsign-foundation/at_tools
-          path: at_tools
-          ref: trunk
-      
       - name: Generate the at_demo_data.dart    
         run: |
           cd at_tools/packages/at_dump_atKeys/
@@ -532,8 +530,7 @@ jobs:
           dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/ -p pkam   
           cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
 
-      # Run end-to-end test
-      - name: end-to-end test
+      - name: End-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1               
         
