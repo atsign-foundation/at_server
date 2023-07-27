@@ -680,16 +680,12 @@ class AtSecondaryConfig {
   }
 
   static List<String> get protectedKeys {
-    try {
-      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
-      List<String> protectedKeys = [];
-      for (var key in keys) {
-        protectedKeys.add(key);
-      }
-      return protectedKeys;
-    } on Exception {
-      return _protectedKeys;
+    YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+    List<String> protectedKeys = [];
+    for (var key in keys) {
+      protectedKeys.add(key);
     }
+    return protectedKeys;
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
