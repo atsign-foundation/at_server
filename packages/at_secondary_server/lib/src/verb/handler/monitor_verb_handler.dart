@@ -3,6 +3,10 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -13,7 +17,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
   late InboundConnection atConnection;
 
-  String? regex;
+  late String regex;
 
   MonitorVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -36,74 +40,144 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    if (atConnection.getMetaData().isAuthenticated) {
-      this.atConnection = atConnection;
-      regex = verbParams[AT_REGEX];
-      final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
+    if (!atConnection.getMetaData().isAuthenticated) {
+      throw UnAuthenticatedException(
+          'Failed to execute verb. monitor requires authentication');
+    }
+    this.atConnection = atConnection;
+    // If regex is not provided by user, set regex to ".*" to match all the possibilities
+    // else set regex to the value given by the user.
+    (verbParams[AT_REGEX] == null)
+        ? regex = '.*'
+        : regex = verbParams[AT_REGEX]!;
+    final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
+    AtNotificationCallback.getInstance().registerNotificationCallback(
+        NotificationType.received, processAtNotification);
+    if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
+      logger.finer('self notification callback registered');
+      AtNotificationCallback.getInstance().registerNotificationCallback(
+          NotificationType.self, processAtNotification);
+    }
 
-      var atNotificationCallback = AtNotificationCallback.getInstance();
-
-      atNotificationCallback.registerNotificationCallback(
-          NotificationType.received, processAtNotification);
-      if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
-        logger.finer('self notification callback registered');
-        atNotificationCallback.registerNotificationCallback(
-            NotificationType.self, processAtNotification);
-      }
-
-      if (verbParams.containsKey(EPOCH_MILLIS) &&
-          verbParams[EPOCH_MILLIS] != null) {
-        // Send notifications that are already received after EPOCH_MILLIS first
-        var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
-        var receivedNotifications = await _getNotificationsAfterEpoch(
-            fromEpochMillis,
-            selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
-        for (var notification in receivedNotifications) {
-          processReceivedNotification(notification);
-        }
+    if (verbParams.containsKey(EPOCH_MILLIS) &&
+        verbParams[EPOCH_MILLIS] != null) {
+      // Send notifications that are already received after EPOCH_MILLIS first
+      List<Notification> receivedNotificationsAfterEpochMills =
+          await _getNotificationsAfterEpoch(
+              int.parse(verbParams[EPOCH_MILLIS]!),
+              selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
+      for (Notification receivedNotification
+          in receivedNotificationsAfterEpochMills) {
+        await _sendNotificationToClient(receivedNotification);
       }
     }
     atConnection.isMonitor = true;
   }
 
-  /// Writes [notification] to connection if the [notification] matches [monitor]'s [regex]
-  void processReceivedNotification(Notification notification) {
-    var key = notification.notification;
+  /// Writes [notification] on authenticated connection
+  /// * If connection is authenticate via PKAM
+  ///    - Writes all the notifications on the connection.
+  ///    - Optionally, if regex is supplied, write only the notifications that
+  ///      matches the pattern.
+  ///
+  /// * If connection is authenticated via APKAM
+  ///    - Writes the notifications only if the namespace in the notification key
+  ///      matches the namespace in the enrollment.
+  ///    - Optionally if regex is supplied, write only the notifications that
+  ///      matches the pattern.
+  Future<void> _sendNotificationToClient(Notification notification) async {
+    // If enrollmentId is null, then connection is authenticated via PKAM
+    if ((atConnection.getMetaData() as InboundConnectionMetadata)
+            .enrollmentId ==
+        null) {
+      _sendLegacyNotification(notification);
+    } else {
+      // If enrollmentId is populated, then connection is authenticated via APKAM
+      await _sendNotificationByEnrollmentNamespaceAccess(notification);
+    }
+  }
+
+  /// If connection is authenticate via PKAM
+  ///    - Writes all the notifications on the connection.
+  ///    - Optionally, if regex is supplied, write only the notifications that
+  ///      matches the pattern.
+  void _sendLegacyNotification(Notification notification) {
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
       fromAtSign = fromAtSign.replaceAll('@', '');
     }
-
-    // If monitor verb contains a regular expression,
-    // push only if the notification matches regex
-    if (regex != null) {
-      logger.finer('regex is not null:$regex');
-      logger.finer('key: $key');
-      try {
-        // if key matches the regular expression, push notification.
-        // else if fromAtSign matches the regular expression, push notification.
-        if (key!.contains(RegExp(regex!))) {
-          logger.finer('key matches regex');
-          atConnection
-              .write('notification: ${jsonEncode(notification.toJson())}\n');
-        } else if (fromAtSign != null && fromAtSign.contains(RegExp(regex!))) {
-          logger.finer('fromAtSign matches regex');
-          atConnection
-              .write('notification: ${jsonEncode(notification.toJson())}\n');
-        } else {
-          logger.finer('no regex match');
-        }
-      } on FormatException {
-        logger.severe('Invalid regular expression : $regex');
-        throw InvalidSyntaxException('Invalid regular expression syntax');
+    try {
+      // If the user does not provide regex, defaults to ".*" to match all notifications.
+      if (notification.notification!.contains(RegExp(regex)) ||
+          (fromAtSign != null && fromAtSign.contains(RegExp(regex)))) {
+        atConnection
+            .write('notification: ${jsonEncode(notification.toJson())}\n');
       }
-    } else {
-      atConnection
-          .write('notification: ${jsonEncode(notification.toJson())}\n');
+    } on FormatException {
+      logger.severe('Invalid regular expression : $regex');
+      throw InvalidSyntaxException(
+          'Invalid regular expression. $regex is not a valid regex');
     }
   }
 
-  void processAtNotification(AtNotification atNotification) {
+  /// If connection is authenticated via APKAM
+  ///    - Writes the notifications only if the namespace in the notification key
+  ///      matches the namespace in the enrollment.
+  ///    - Optionally if regex is supplied, write only the notifications that
+  ///      matches the pattern.
+  Future<void> _sendNotificationByEnrollmentNamespaceAccess(
+      Notification notification) async {
+    // Fetch namespaces that are associated with the enrollmentId.
+    var enrollmentKey =
+        '${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    EnrollDataStoreValue enrollDataStoreValue =
+        await getEnrollDataStoreValue(enrollmentKey);
+    // When an enrollment is revoked, avoid sending notifications to the
+    // existing monitor connection.
+    if (enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
+      logger.info('Enrollment is not approved. Failed to send notifications');
+      return;
+    }
+    if (enrollDataStoreValue.namespaces.isEmpty) {
+      logger.info('No namespaces are enrolled for the enrollmentId:'
+          ' ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}');
+      return;
+    }
+    // separate namespace from the notification key
+    String namespaceFromKey = notification.notification!
+        .substring(notification.notification!.indexOf('.') + 1);
+
+    try {
+      // - If the namespace in the notification key matches the namespace in the
+      //   enrollment, it indicates that the client has successfully enrolled for
+      //   that namespace, thereby granting authorization to receive notifications.
+      //
+      // - If namespace is enrollManageNamespace (__manage) or allNamespace (.*),
+      //   then all enrollments should be written to client to perform action
+      //   (approve/deny)on an enrollment.
+      //
+      // - Optionally, if regex is provided, send only the notifications which match
+      //   the regex patten by notification key or fromAtSign of the notification.
+      // - If the user does not provide regex, defaults to ".*" to match all notifications.
+      //   match the exact namespace
+      if ((enrollDataStoreValue.namespaces.containsKey(allNamespaces) ||
+              enrollDataStoreValue.namespaces
+                  .containsKey(enrollManageNamespace) ||
+              enrollDataStoreValue.namespaces.containsKey(namespaceFromKey)) &&
+          (notification.notification!.contains(RegExp(regex)) ||
+              (notification.fromAtSign != null &&
+                  notification.fromAtSign!.contains(RegExp(regex))))) {
+        atConnection
+            .write('notification: ${jsonEncode(notification.toJson())}\n');
+      }
+    } on FormatException {
+      logger.severe('Invalid regular expression : $regex');
+      throw InvalidSyntaxException(
+          'Invalid regular expression. $regex is not a valid regex');
+    }
+  }
+
+  Future<void> processAtNotification(AtNotification atNotification) async {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
       var atNotificationCallback = AtNotificationCallback.getInstance();
@@ -131,13 +205,13 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
         };
-      processReceivedNotification(notification);
+      await _sendNotificationToClient(notification);
     }
   }
 
-  /// Returns received notifications of the current atsign
+  /// Returns received notifications of the current atSign
   /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atsign.
+  /// @param Future<List> : Returns a list of received notifications of the current atSign.
   Future<List<Notification>> _getNotificationsAfterEpoch(
       int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
     // Get all notifications
