@@ -43,6 +43,7 @@ class MockSecureSocket extends Mock implements SecureSocket {}
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 String alice = '@alice';
+String aliceEmoji = '@alice🛠';
 String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
