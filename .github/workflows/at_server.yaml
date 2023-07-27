@@ -485,7 +485,7 @@ jobs:
           AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
         run: |
-          pwd               
+          ls -la          
           for try in {1..5}; do
             HOST_1_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
             HOST_2_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
