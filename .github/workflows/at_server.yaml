@@ -465,7 +465,8 @@ jobs:
               echo "AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST)" >> $GITHUB_OUTPUT
               echo "AT_SIGN_1_PORT=$(echo $AT_SIGN_1_PORT)" >> $GITHUB_OUTPUT   
               echo "AT_SIGN_2_HOST=$(echo $AT_SIGN_2_HOST)" >> $GITHUB_OUTPUT
-              echo "AT_SIGN_2_PORT=$(echo $AT_SIGN_2_PORT)" >> $GITHUB_OUTPUT                                            
+              echo "AT_SIGN_2_PORT=$(echo $AT_SIGN_2_PORT)" >> $GITHUB_OUTPUT
+              break                                        
             else
               echo "Error fetching atSigns Hostname and Port on attempt ${try}"
               if [ $try -eq 5 ]; then
@@ -484,8 +485,7 @@ jobs:
           AT_SIGN_1_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_PORT }}
           AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
-        run: |
-          ls -la          
+        run: |      
           for try in {1..5}; do
             HOST_1_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
             HOST_2_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
@@ -499,6 +499,7 @@ jobs:
               mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
               cat tests/at_end2end_test/config/config.yaml 
               echo "Connection successfull"
+              break
             else
               echo "Connection error on attempt ${try}"
               if [ $try -eq 5 ]; then
