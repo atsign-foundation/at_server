@@ -95,13 +95,6 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
-  // Protected Keys
-  static final List<String> _protectedKeys = [
-    'signing_publickey',
-    'signing_privatekey',
-    'publickey',
-    'at_pkam_publickey'
-  ];
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
