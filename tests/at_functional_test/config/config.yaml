@@ -8,7 +8,4 @@ first_atsign_server:
 
 second_atsign_server:
   second_atsign_name: "@bob🛠"
-
-hive:
-  protectedKeys: ['signing_publickey', 'signing_privatekey', 'publickey', 'at_pkam_publickey']
   
