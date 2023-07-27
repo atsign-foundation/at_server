@@ -95,6 +95,14 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
+  // Protected Keys
+  static final List<String> _protectedKeys = [
+    'signing_publickey',
+    'signing_privatekey',
+    'publickey',
+    'at_pkam_publickey'
+  ];
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -680,12 +688,16 @@ class AtSecondaryConfig {
   }
 
   static List<String> get protectedKeys {
-    YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
-    List<String> protectedKeys = [];
-    for (var key in keys) {
-      protectedKeys.add(key);
+    try {
+      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      List<String> protectedKeys = [];
+      for (var key in keys) {
+        protectedKeys.add(key);
+      }
+      return protectedKeys;
+    } on Exception {
+      return _protectedKeys;
     }
-    return protectedKeys;
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
