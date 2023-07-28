@@ -58,6 +58,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
+    // the following snippet is to ensure that when atsign is 'null', null
+    // is not appended to the key
+    atSign = atSign != 'null' ? atSign : '';
     var deleteKey = verbParams[AT_KEY];
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
