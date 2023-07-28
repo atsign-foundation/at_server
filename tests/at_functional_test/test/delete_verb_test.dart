@@ -22,6 +22,7 @@ void main() {
     // socket connection for first atsign
     socketFirstAtsign =
         await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    print('socket created: ${socketFirstAtsign == null ? false : true}');
     socket_listener(socketFirstAtsign!);
     await prepare(socketFirstAtsign!, firstAtsign);
   });

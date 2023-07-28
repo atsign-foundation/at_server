@@ -158,12 +158,13 @@ class AtCommitLog implements AtLogType<int, CommitEntry> {
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
   @server
-  Iterator getEntries(int commitId, {String? regex}) {
+  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
+      {String? regex, int limit = 25}) {
     // If regex is null or isEmpty set regex to match all keys
     if (regex == null || regex.isEmpty) {
       regex = '.*';
     }
-    return _commitLogKeyStore.getEntries(commitId, regex: regex);
+    return _commitLogKeyStore.getEntries(commitId, regex: regex, limit: limit);
   }
 
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {

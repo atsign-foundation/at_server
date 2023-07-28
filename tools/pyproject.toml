@@ -10,7 +10,7 @@ packages = [{include = "at_server_tools"}]
 python = "^3.8"
 "ruamel.yaml" = "0.17.32"
 requests = "2.31.0"
-dnspython = "2.4.0"
+dnspython = "2.4.1"
 
 
 [build-system]
