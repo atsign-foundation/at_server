@@ -451,8 +451,8 @@ jobs:
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
         run: |  
           for try in {1..5}; do
-            AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -brief -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
-            AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -brief -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
+            AT_SIGN_1_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
+            AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1))
             if [ ! -z "$AT_SIGN_1_HOST_RESP" ] && [ ! -z "$AT_SIGN_2_HOST_RESP" ]; then
               AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f1)
               AT_SIGN_1_PORT=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
@@ -487,9 +487,9 @@ jobs:
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
         run: |      
           for try in {1..5}; do
-            HOST_1_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
-            HOST_2_STATUS=$((echo info; sleep 1) | openssl s_client -brief -connect $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
-            if [ ! "$HOST_1_STATUS" == *"error"* ] && [ ! "$HOST_2_STATUS" == *"error"* ]; then
+            HOST_1_STATUS=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT))
+            HOST_2_STATUS=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT))
+            if [ ! -z "$HOST_1_STATUS" ] && [ ! -z "$HOST_2_STATUS" ]; then
               sed -i "s/ATSIGN_1_NAME/@$AT_SIGN_1/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_1_PORT/$AT_SIGN_1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_1_HOST/$AT_SIGN_1_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
