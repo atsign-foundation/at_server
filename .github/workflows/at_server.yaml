@@ -487,8 +487,10 @@ jobs:
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
         run: |      
           for try in {1..5}; do
-            HOST_1_STATUS=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
-            HOST_2_STATUS=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
+            HOST_1_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
+            HOST_2_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
+            echo $HOST_1_STATUS
+            echo $HOST_2_STATUS
             if [ ! -z "$HOST_1_STATUS" ] && [ ! -z "$HOST_2_STATUS" ]; then
               sed -i "s/ATSIGN_1_NAME/@$AT_SIGN_1/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_1_PORT/$AT_SIGN_1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
