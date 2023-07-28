@@ -96,12 +96,14 @@ class AtSecondaryConfig {
   static const bool _shouldRemoveMalformedKeys = true;
 
   // Protected Keys
+  // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
   static final List<String> _protectedKeys = [
-    'signing_publickey',
-    'signing_privatekey',
-    'publickey',
+    'signing_publickey<@atsign>',
+    'signing_privatekey<@atsign>',
+    'publickey<@atsign>',
     'at_pkam_publickey'
   ];
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -693,7 +695,7 @@ class AtSecondaryConfig {
       for (var key in keys) {
         protectedKeys.add(key);
       }
-      return protectedKeys;
+      return protectedKeys.isEmpty ? _protectedKeys : protectedKeys;
     } on Exception {
       return _protectedKeys;
     }

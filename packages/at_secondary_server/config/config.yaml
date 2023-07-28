@@ -42,7 +42,8 @@ hive:
   shouldRemoveMalformedKeys: true
   # List of keys are crucial for the server to function as expected
   # The following keys cannot be deleted
-  protectedKeys: ['signing_publickey', 'signing_privatekey', 'publickey', 'at_pkam_publickey']
+  # The list provided here will override the list of server's protected keys
+  protectedKeys: []
 
 # The atProtocol connection configurations.
 connection:
