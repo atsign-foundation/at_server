@@ -175,7 +175,7 @@ void main() {
   test('delete verb for an protected key - pkam_publickey', () async {
     ///DELETE VERB
     await socket_writer(
-        socketFirstAtsign!, 'delete:privatekey:at_pkam_publickey');
+        socketFirstAtsign!, 'delete:at_pkam_publickey');
     var response = await read();
     print('delete verb response : $response');
     // the error is an expected behaviour
