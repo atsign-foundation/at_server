@@ -153,7 +153,7 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
   }, timeout: Timeout(Duration(seconds: 50)));
 
-  test('delete verb for an protected key', () async {
+  test('delete verb for an protected key - signing_publickey', () async {
     ///DELETE VERB
     await socket_writer(
         socketFirstAtsign!, 'delete:public:signing_publickey$firstAtsign');
@@ -170,6 +170,25 @@ void main() {
     print('scan verb response is :$response');
     // ensure that the signing_publickey is not deleted
     assert(response.contains('signing_publickey'));
+  });
+
+  test('delete verb for an protected key - pkam_publickey', () async {
+    ///DELETE VERB
+    await socket_writer(
+        socketFirstAtsign!, 'delete:privatekey:at_pkam_publickey');
+    var response = await read();
+    print('delete verb response : $response');
+    // the error is an expected behaviour
+    assert((response.contains(
+        'UnAuthorized client in request : Cannot delete protected key')) &&
+        (response.contains('error')));
+
+    ///SCAN VERB
+    await socket_writer(socketFirstAtsign!, 'scan:showhidden:true');
+    response = await read();
+    print('scan verb response is :$response');
+    // ensure that the signing_publickey is not deleted
+    assert(response.contains('at_pkam_publickey'));
   });
 
   tearDown(() {

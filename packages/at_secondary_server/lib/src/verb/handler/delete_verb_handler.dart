@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -63,7 +64,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       deleteKey = '$deleteKey$atSign';
     }
     // fetch protected keys listed in config.yaml
-    protectedKeys ??= _getProtectedKeys(atSign!);
+    protectedKeys ??= _getProtectedKeys(atSign);
     // check to see if a key is protected. Cannot delete key if it's protected
     if (_isProtectedKey(deleteKey!)) {
       throw UnAuthorizedException(
@@ -147,13 +148,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     NotificationManager.getInstance().notify(atNotification);
   }
 
-  List<String> _getProtectedKeys(String atsign) {
+  List<String> _getProtectedKeys(String? atsign) {
+    atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
     List<String> protectedKeys = [];
     // fetch all protected private keys from config yaml
     for (var key in AtSecondaryConfig.protectedKeys) {
       // protected keys are stored as 'signing_publickey<@atsign>'
       // replace <@atsign> with actual atsign during runtime
-      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
+      protectedKeys.add(key.replaceFirst('<@atsign>', atsign!));
     }
     return protectedKeys;
   }

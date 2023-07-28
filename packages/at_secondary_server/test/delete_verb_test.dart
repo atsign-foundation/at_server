@@ -127,16 +127,6 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    test('verify deletion of pkam public key', () {
-      var command = 'delete:public:at_pkam_publickey';
-      var paramsMap = getVerbParam(Delete().syntax(), command);
-      expect(
-          () =>
-              handler.processVerb(Response(), paramsMap, mockInboundConnection),
-          throwsA(
-              predicate((exception) => exception is UnAuthorizedException)));
-    });
-
     test('verify deletion of encryption public key', () {
       var command = 'delete:$AT_ENCRYPTION_PUBLIC_KEY@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
