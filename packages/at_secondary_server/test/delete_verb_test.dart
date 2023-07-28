@@ -103,11 +103,13 @@ void main() {
   });
 
   group('verify deletion of protected keys', () {
+    var handler =
+        DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
+
     test('verify deletion of signing public key', () {
       var command = 'delete:$AT_SIGNING_PUBLIC_KEY@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
-      var handler = DeleteVerbHandler(
-          mockKeyStore, StatsNotificationService.getInstance());
+
       expect(
           () =>
               handler.processVerb(Response(), paramsMap, mockInboundConnection),
@@ -118,8 +120,6 @@ void main() {
     test('verify deletion of signing private key', () {
       var command = 'delete:@alice:$AT_SIGNING_PRIVATE_KEY@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
-      var handler = DeleteVerbHandler(
-          mockKeyStore, StatsNotificationService.getInstance());
       expect(
           () =>
               handler.processVerb(Response(), paramsMap, mockInboundConnection),
@@ -128,10 +128,8 @@ void main() {
     });
 
     test('verify deletion of pkam public key', () {
-      var command = 'delete:public:at_pkam_publickey@alice';
+      var command = 'delete:public:at_pkam_publickey';
       var paramsMap = getVerbParam(Delete().syntax(), command);
-      var handler = DeleteVerbHandler(
-          mockKeyStore, StatsNotificationService.getInstance());
       expect(
           () =>
               handler.processVerb(Response(), paramsMap, mockInboundConnection),
@@ -142,8 +140,6 @@ void main() {
     test('verify deletion of encryption public key', () {
       var command = 'delete:$AT_ENCRYPTION_PUBLIC_KEY@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
-      var handler = DeleteVerbHandler(
-          mockKeyStore, StatsNotificationService.getInstance());
       expect(
           () =>
               handler.processVerb(Response(), paramsMap, mockInboundConnection),

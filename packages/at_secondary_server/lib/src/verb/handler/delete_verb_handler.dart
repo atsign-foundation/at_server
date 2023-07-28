@@ -56,13 +56,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    // Sets Response bean to the response bean in ChangeVerbHandler
-    await super.processVerb(response, verbParams, atConnection);
-    // ignore: prefer_typing_uninitialized_variables
-    var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    deleteKey = verbParams[AT_KEY];
-    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
+    var deleteKey = verbParams[AT_KEY];
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
       deleteKey = '$deleteKey$atSign';
@@ -70,9 +65,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign!);
     // check to see if a key is protected. Cannot delete key if it's protected
-    if (_isProtectedKey(deleteKey)) {
-     throw UnAuthorizedException('Cannot delete protected key: \'$deleteKey\'');
+    if (_isProtectedKey(deleteKey!)) {
+      throw UnAuthorizedException(
+          'Cannot delete protected key: \'$deleteKey\'');
     }
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
+    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
     }
@@ -96,7 +95,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for delete operation');
+          'Enrollment Id: $enrollApprovalId is not authorized for delete operation on the key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);
@@ -154,7 +153,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     for (var key in AtSecondaryConfig.protectedKeys) {
       // convert generic key name to actual public key
       // of format: key:@atsign
-      protectedKeys.add('$key$atsign');
+      key.replaceFirst('<@atsign>', atsign);
+      protectedKeys.add(key);
     }
     return protectedKeys;
   }
