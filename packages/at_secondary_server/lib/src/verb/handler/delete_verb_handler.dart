@@ -151,10 +151,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     List<String> protectedKeys = [];
     // fetch all protected private keys from config yaml
     for (var key in AtSecondaryConfig.protectedKeys) {
-      // convert generic key name to actual public key
-      // of format: key:@atsign
-      key.replaceFirst('<@atsign>', atsign);
-      protectedKeys.add(key);
+      // protected keys are stored as 'signing_publickey<@atsign>'
+      // replace <@atsign> with actual atsign during runtime
+      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
     }
     return protectedKeys;
   }
