@@ -452,7 +452,7 @@ jobs:
         run: |  
           for try in {1..5}; do
             AT_SIGN_1_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
-            AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
+            AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2)
             if [ ! -z "$AT_SIGN_1_HOST_RESP" ] && [ ! -z "$AT_SIGN_2_HOST_RESP" ]; then
               AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f1)
               AT_SIGN_1_PORT=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
