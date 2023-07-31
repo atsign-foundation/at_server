@@ -55,14 +55,14 @@ class KeysVerbHandler extends AbstractVerbHandler {
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data));
       if (enrollDataStoreValue.approval!.state != 'approved') {
         throw AtEnrollmentException(
-            'Enrollment Id $enrollApprovalId is not approved. current state :${enrollDataStoreValue.approval!.state}');
+            'Enrollment Id $enrollmentId is not approved. current state :${enrollDataStoreValue.approval!.state}');
       }
     }
     final value = verbParams[keyValue];
     final valueJson = {};
     valueJson['value'] = value;
     valueJson['keyType'] = verbParams[keyType];
-    valueJson[enrollApprovalId] = enrollIdFromMetadata;
+    valueJson[enrollmentId] = enrollIdFromMetadata;
     final operation = verbParams[AT_OPERATION];
     switch (operation) {
       case 'put':
@@ -118,7 +118,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
             final value = await keyStore.get(key);
             if (value != null && value.data != null) {
               final valueJson = jsonDecode(value.data);
-              if (valueJson[enrollApprovalId] == enrollIdFromMetadata) {
+              if (valueJson[enrollmentId] == enrollIdFromMetadata) {
                 filteredKeys.add(key);
               }
             }
@@ -134,7 +134,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
           }
           if (value != null && value.data != null) {
             final valueJson = jsonDecode(value.data);
-            if (valueJson[enrollApprovalId] == enrollIdFromMetadata) {
+            if (valueJson[enrollmentId] == enrollIdFromMetadata) {
               response.data = value.data;
             } else {
               throw AtEnrollmentException(
