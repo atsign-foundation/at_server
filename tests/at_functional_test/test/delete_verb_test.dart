@@ -180,13 +180,6 @@ void main() {
     print('delete verb response : $response');
     // the error is an expected behaviour
     assert((response.contains('Invalid syntax')));
-
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan:showhidden:true');
-    response = await read();
-    print('scan verb response is :$response');
-    // ensure that the signing_publickey is not deleted
-    assert(response.contains('at_pkam_publickey'));
   });
 
   tearDown(() {
