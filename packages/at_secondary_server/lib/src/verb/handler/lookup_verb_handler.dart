@@ -64,7 +64,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
         var lookupKey = '$thisServersAtSign:$keyAtAtSign';
         final enrollApprovalId =
             (atConnection.getMetaData() as InboundConnectionMetadata)
-                .enrollApprovalId;
+                .enrollmentId;
         bool isAuthorized = true; // for legacy clients allow access by default
         if (enrollApprovalId != null) {
           var keyNamespace =

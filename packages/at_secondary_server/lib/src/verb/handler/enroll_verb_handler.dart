@@ -26,6 +26,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => enrollVerb;
 
+  final _uuid = Uuid();
+
   @override
   Future<void> processVerb(
       Response response,
@@ -40,19 +42,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
-
     try {
+      var enrollVerbParams;
+      if (verbParams[enrollParams] != null) {
+        enrollVerbParams =
+            EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
+      }
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
-              verbParams, currentAtSign, responseJson, atConnection);
+              enrollVerbParams, currentAtSign, responseJson, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
           await _handleEnrollmentPermissions(
-              verbParams, currentAtSign, operation, responseJson);
+              enrollVerbParams, currentAtSign, operation, responseJson);
           break;
 
         case 'list':
@@ -72,43 +78,50 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handleEnrollmentRequest(
-      HashMap<String, String?> verbParams,
+      EnrollParams enrollParams,
       currentAtSign,
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
     if (!atConnection.getMetaData().isAuthenticated) {
-      var totp = verbParams['totp'];
-      if (totp == null || (await TotpVerbHandler.cache.get(totp)) == null) {
+      var totp = enrollParams.totp;
+      if (totp == null ||
+          (await TotpVerbHandler.cache.get(totp.toString()) == null)) {
         throw AtEnrollmentException(
             'invalid totp. Cannot process enroll request');
       }
     }
-    List<EnrollNamespace> enrollNamespaces = (verbParams['namespaces'] ?? '')
-        .split(';')
-        .map((namespace) =>
-            EnrollNamespace(namespace.split(',')[0], namespace.split(',')[1]))
-        .toList();
-    logger.finer('enrollNamespaces: $enrollNamespaces');
-
-    var enrollmentId = Uuid().v4();
-    var key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    var enrollNamespaces = enrollParams.namespaces!;
+    var newEnrollmentId = _uuid.v4();
+    var key =
+        '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
 
-    responseJson['enrollmentId'] = enrollmentId;
+    responseJson['enrollmentId'] = newEnrollmentId;
     final enrollmentValue = EnrollDataStoreValue(
         atConnection.getMetaData().sessionID!,
-        verbParams['appName']!,
-        verbParams['deviceName']!,
-        verbParams['apkamPublicKey']!);
+        enrollParams.appName!,
+        enrollParams.deviceName!,
+        enrollParams.apkamPublicKey!);
 
-    if (atConnection.getMetaData().isAuthenticated) {
-      // approve request from connection that are authenticated. This connection may be cram or legacyPkam authenticated
-      enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
+    if (atConnection.getMetaData().authType != null &&
+        atConnection.getMetaData().authType == AuthType.cram) {
+      // auto approve request from connection that is CRAM authenticated.
+      enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
+      final inboundConnectionMetadata =
+      atConnection.getMetaData() as InboundConnectionMetadata;
+      inboundConnectionMetadata.enrollmentId = newEnrollmentId;
+      // Store default encryption private key and self encryption key(both encrypted)
+      // for future retrieval
+      await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
+      // store this apkam as default pkam public key for old clients
+      // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
+      await keyStore.put(
+          AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
-      await _storeNotification(key, currentAtSign);
+      await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
     }
 
@@ -116,24 +129,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
     AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     logger.finer('enrollData: $enrollData');
-
-    await keyStore.put('$key$currentAtSign', enrollData);
+    await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
   }
 
   Future<void> _handleEnrollmentPermissions(
-      HashMap<String, String?> verbParams,
+      EnrollParams enrollParams,
       currentAtSign,
       String? operation,
       Map<dynamic, dynamic> responseJson) async {
-    final enrollmentId = verbParams['enrollmentId'];
-    var key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    final enrollmentIdFromParams = enrollParams.enrollmentId;
+    var key =
+        '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
     var enrollData;
     try {
       enrollData = await keyStore.get('$key$currentAtSign');
     } on KeyNotFoundException {
       throw AtEnrollmentException(
-          'enrollment id: $enrollmentId not found in keystore');
+          'enrollment id: $enrollmentIdFromParams not found in keystore');
     }
     if (enrollData != null) {
       final existingAtData = enrollData.data;
@@ -143,13 +156,39 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollDataStoreValue.approval!.state =
           _getEnrollStatusEnum(operation).name;
       responseJson['status'] = _getEnrollStatusEnum(operation).name;
-
       AtData updatedEnrollData = AtData()
         ..data = jsonEncode(enrollDataStoreValue.toJson());
-
-      await keyStore.put('$key$currentAtSign', updatedEnrollData);
+      await keyStore.put('$key$currentAtSign', updatedEnrollData,
+          skipCommit: true);
+      // when enrollment is approved store the apkamPublicKey of the enrollment
+      if (operation == 'approve') {
+        var apkamPublicKeyInKeyStore =
+            'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
+        var valueJson = {};
+        valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
+        var atData = AtData()..data = jsonEncode(valueJson);
+        await keyStore.put(apkamPublicKeyInKeyStore, atData);
+        await _storeEncryptionKeys(
+            enrollmentIdFromParams!, enrollParams, currentAtSign);
+      }
     }
-    responseJson['enrollmentId'] = enrollmentId;
+    responseJson['enrollmentId'] = enrollmentIdFromParams;
+  }
+
+  Future<void> _storeEncryptionKeys(
+      String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
+    var privKeyJson = {};
+    privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
+    await keyStore.put(
+        '$newEnrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+        AtData()..data = jsonEncode(privKeyJson),
+        skipCommit: true);
+    var selfKeyJson = {};
+    selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
+    await keyStore.put(
+        '$newEnrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+        AtData()..data = jsonEncode(selfKeyJson),
+        skipCommit: true);
   }
 
   EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -172,7 +211,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
         (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollApprovalId;
+            .enrollmentId;
     List<String> enrollmentKeysList =
         keyStore.getKeys(regex: newEnrollmentKeyPattern) as List<String>;
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
@@ -217,33 +256,34 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
-    for (var enrollmentNamespace in enrollDataStoreValue.namespaces) {
-      if (enrollmentNamespace.name == enrollManageNamespace) {
-        return true;
-      }
-    }
-    return false;
+    return enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace);
   }
 
-  Future<void> _storeNotification(String notificationKey, String atSign) async {
+  Future<void> _storeNotification(
+      String key, EnrollParams enrollParams, String atSign) async {
     try {
+      var notificationValue = {};
+      notificationValue[apkamEncryptedSymmetricKey] =
+          enrollParams.encryptedAPKAMSymmetricKey;
+      logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
-            ..notification = notificationKey
+            ..notification = key
             ..fromAtSign = atSign
             ..toAtSign = atSign
             ..ttl = 24 * 60 * 60 * 1000
             ..type = NotificationType.self
-            ..opType = OperationType.update)
+            ..opType = OperationType.update
+            ..atValue = jsonEncode(notificationValue))
           .build();
       final notificationId =
           await NotificationUtil.storeNotification(atNotification);
       logger.finer('notification generated: $notificationId');
     } on Exception catch (e, trace) {
       logger.severe(
-          'Exception while storing notification key $notificationKey. Exception $e. Trace $trace');
+          'Exception while storing notification key $enrollmentId. Exception $e. Trace $trace');
     } on Error catch (e, trace) {
       logger.severe(
-          'Error while storing notification key $notificationKey. Error $e. Trace $trace');
+          'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
     }
   }
 }

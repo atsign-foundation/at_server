@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -68,7 +69,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var enrollnamespaces = [];
+      var enrollnamespaces = {};
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
@@ -77,7 +78,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
         List<String> filteredKeys = [];
-        final enrollmentId = atConnectionMetadata.enrollApprovalId;
+        final enrollmentId = atConnectionMetadata.enrollmentId;
         logger.finer('inside scan: $enrollmentId');
         if (enrollmentId != null && enrollmentId.isNotEmpty) {
           enrollnamespaces =
@@ -87,8 +88,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {
-          for (var namespace in enrollnamespaces) {
-            var namespaceRegex = namespace.name;
+          for (var namespace in enrollnamespaces.keys) {
+            // do not show keys in __manage namespace
+            if (namespace == enrollManageNamespace) {
+              continue;
+            }
+            var namespaceRegex = namespace;
             if (!namespaceRegex.startsWith('.')) {
               namespaceRegex = '.$namespaceRegex';
             }

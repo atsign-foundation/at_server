@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -10,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -30,30 +32,12 @@ void main() {
       expect(enrollApprovalJson['state'], 'requested');
     });
 
-    test('enroll namespace object fromJson', () {
-      final enrollNamespaceJson = {'name': 'buzz', 'access': 'r'};
-      final enrollNamespaceObject =
-          EnrollNamespace.fromJson(enrollNamespaceJson);
-      expect(enrollNamespaceObject, isA<EnrollNamespace>());
-      expect(enrollNamespaceObject.name, 'buzz');
-      expect(enrollNamespaceObject.access, 'r');
-    });
-
-    test('enroll namespace object toJson', () {
-      final enrollNamespace = EnrollNamespace('wavi', 'rw');
-      final enrollNamespaceJson = enrollNamespace.toJson();
-      expect(enrollNamespaceJson['name'], 'wavi');
-      expect(enrollNamespaceJson['access'], 'rw');
-    });
-
     test('enroll data store value object toJson', () {
-      final enrollNamespace1 = EnrollNamespace('wavi', 'rw');
-      final enrollNamespace2 = EnrollNamespace('buzz', 'r');
+      var namespaceMap = {'wavi': 'rw', 'buzz': 'r'};
       final enrollApproval = EnrollApproval('requested');
-      final namespaceList = [enrollNamespace1, enrollNamespace2];
       final enrollDataStoreValue =
           EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
-            ..namespaces = namespaceList
+            ..namespaces = namespaceMap
             ..approval = enrollApproval
             ..requestType = EnrollRequestType.newEnrollment;
       final enrollJson = enrollDataStoreValue.toJson();
@@ -62,8 +46,8 @@ void main() {
       expect(enrollJson['deviceName'], 'iphone');
       expect(enrollJson['apkamPublicKey'], 'mykey');
       expect(enrollJson['requestType'], 'newEnrollment');
-      expect(enrollJson['namespaces'][0], enrollNamespace1);
-      expect(enrollJson['namespaces'][1], enrollNamespace2);
+      expect(enrollJson['namespaces']['wavi'], 'rw');
+      expect(enrollJson['namespaces']['buzz'], 'r');
       expect(enrollJson['approval'], enrollApproval);
     });
     test('enroll data store value object fromJson', () {
@@ -71,10 +55,7 @@ void main() {
         'sessionId': '123',
         'appName': 'testclient',
         'deviceName': 'iphone',
-        'namespaces': [
-          {'name': 'wavi', 'access': 'rw'},
-          {'name': 'buzz', 'access': 'r'}
-        ],
+        'namespaces': {'wavi': 'rw', 'buzz': 'r'},
         'apkamPublicKey': 'mykey',
         'requestType': 'newEnrollment',
         'approval': {'state': 'requested'}
@@ -82,7 +63,7 @@ void main() {
       final enrollValueObject = EnrollDataStoreValue.fromJson(enrollJson);
       expect(enrollValueObject, isA<EnrollDataStoreValue>());
       expect(enrollValueObject.approval, isA<EnrollApproval>());
-      expect(enrollValueObject.namespaces, isA<List<EnrollNamespace>>());
+      expect(enrollValueObject.namespaces, isA<Map<String, String>>());
       expect(enrollValueObject.sessionId, '123');
       expect(enrollValueObject.appName, 'testclient');
       expect(enrollValueObject.deviceName, 'iphone');
@@ -98,10 +79,11 @@ void main() {
 
     test('A test to verify enrollment list', () async {
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
@@ -120,7 +102,7 @@ void main() {
     test('A test to verify enrollment list with enrollApprovalId is populated',
         () async {
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -134,7 +116,7 @@ void main() {
 
       String enrollmentList = 'enroll:list';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
       verbParams = getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
@@ -149,7 +131,7 @@ void main() {
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       // Enroll request
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -165,10 +147,9 @@ void main() {
       await totpVerbHandler.processVerb(
           response, totpVerbParams, inboundConnection);
       print('TOTP: ${response.data}');
-
       // Enroll request
       enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:totp:${response.data}:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -176,21 +157,19 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
-
       //Approve enrollment
       String approveEnrollmentRequest =
-          'enroll:approve:enrollmentId:$enrollmentId';
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, approveEnrollmentVerbParams, inboundConnection);
-
       // Enroll list
       String enrollmentList = 'enroll:list';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
@@ -198,10 +177,10 @@ void main() {
       Map<String, dynamic> enrollListResponse = jsonDecode(response.data!);
       var responseTest = enrollListResponse[
           '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'];
+      print(responseTest);
       expect(responseTest['appName'], 'wavi');
       expect(responseTest['deviceName'], 'mydevice');
-      expect(responseTest['namespace'][0]['name'], 'wavi');
-      expect(responseTest['namespace'][0]['access'], 'r');
+      expect(responseTest['namespace']['wavi'], 'r');
       expect(
           enrollListResponse.containsKey(
               '$enrollmentIdOne.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'),
@@ -278,7 +257,7 @@ void main() {
     test('A test to verify enrollment request without totp throws exception',
         () async {
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appname":"wavi","devicename":"mydevice","namespaces":{"wavi":"r"},"apkampublickey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -305,7 +284,7 @@ void main() {
         'A test to verify delete verb is not allowed when enrollment is not authorized for write operations',
         () async {
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -317,8 +296,7 @@ void main() {
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
-
+          .enrollmentId = enrollmentId;
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -337,7 +315,7 @@ void main() {
         'A test to verify update verb is not allowed when enrollment is not authorized for write operations',
         () async {
       String enrollmentRequest =
-          'enroll:request:appname:wavi:devicename:mydevice:namespaces:[wavi,r]:apkampublickey:dummy_apkam_public_key';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -349,7 +327,7 @@ void main() {
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
 
       String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
       HashMap<String, String?> updateVerbParams =
@@ -374,13 +352,13 @@ void main() {
     test(
         'A test to verify revoke operations thrown exception when given enrollmentId is not in keystore',
         () async {
-      String enrollmentRequest = 'enroll:revoke:enrollmentid:123';
+      String enrollmentRequest = 'enroll:revoke:{"enrollmentId":"123"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = '123';
+          .enrollmentId = '123';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -390,6 +368,110 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message == 'enrollment id: 123 not found in keystore')));
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of hive related test to ensure enrollment keys are not updated in commit log keystore',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test('A test to ensure new enrollment key is not added to commit log',
+        () async {
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = '123';
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      expect(enrollmentResponse['status'], 'success');
+      // Commit log
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      expect(iterator.moveNext(), false);
+    });
+
+    test(
+        'A test to ensure new enrollment key on CRAM authenticated connection is not added to commit log',
+        () async {
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = '123';
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      expect(enrollmentResponse['status'], 'success');
+      // Commit log
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      expect(iterator.moveNext(), false);
+    });
+
+    test('A test to ensure enroll approval is not added to commit log',
+        () async {
+      Response response = Response();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      // GET TOTP
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.totp, 'totp:get');
+      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
+      await totpVerbHandler.processVerb(
+          response, totpVerbParams, inboundConnection);
+      // Send enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"buzz":"rw"},"encryptedAPKAMSymmetricKey":"dummy_apkam_symmetric_key","apkamPublicKey":"dummy_apkam_public_key","totp":"${response.data}"}';
+      HashMap<String, String?> enrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentVerbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      String enrollmentId = enrollmentResponse['enrollmentId'];
+      // Approve enrollment
+      String approveEnrollmentRequest =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
+      enrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      await enrollVerbHandler.processVerb(
+          response, enrollmentVerbParams, inboundConnection);
+      var approveEnrollmentResponse = jsonDecode(response.data!);
+      expect(approveEnrollmentResponse['enrollmentId'], enrollmentId);
+      expect(approveEnrollmentResponse['status'], 'approved');
+      // Verify Commit log does not contain keys with __manage namespace
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      iterator.moveNext();
+      expect(iterator.current.key,
+          'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');
+      expect(iterator.moveNext(), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });

@@ -80,7 +80,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  Future<List<EnrollNamespace>> getEnrollmentNamespaces(
+  Future<Map<String, String>> getEnrollmentNamespaces(
       String enrollmentId, String currentAtSign) async {
     final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     EnrollDataStoreValue enrollDataStoreValue;
@@ -89,7 +89,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
           await getEnrollDataStoreValue('$key$currentAtSign');
     } on KeyNotFoundException {
       logger.warning('enrollment key not found in keystore $key');
-      return [];
+      return {};
     }
     logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
     return enrollDataStoreValue.namespaces;
@@ -114,6 +114,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<bool> isAuthorized(
       String enrollApprovalId, String keyNamespace) async {
     EnrollDataStoreValue enrollDataStoreValue;
+    // global/manage namespace can be accessed only by keys: verb.
+    // Restrict other verbs access
+    if (keyNamespace == globalNamespace ||
+        keyNamespace == enrollManageNamespace) {
+      return false;
+    }
     final enrollmentKey =
         '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     try {
@@ -134,17 +140,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     logger.finer(
         'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');
-    for (EnrollNamespace namespace in enrollNamespaces) {
-      if (namespace.name == keyNamespace) {
-        logger.finer('current verb: ${getVerb()}');
-        if (getVerb() is LocalLookup || getVerb() is Lookup) {
-          if (namespace.access == 'r' || namespace.access == 'rw') {
-            return true;
-          }
-        } else if (getVerb() is Update || getVerb() is Delete) {
-          if (namespace.access == 'rw') {
-            return true;
-          }
+    // keys in __manage namespace should not be accessible
+    if (keyNamespace != enrollManageNamespace &&
+        enrollNamespaces.containsKey(keyNamespace)) {
+      var access = enrollNamespaces[keyNamespace];
+      logger.finer('current verb: ${getVerb()}');
+      if (getVerb() is LocalLookup || getVerb() is Lookup) {
+        if (access == 'r' || access == 'rw') {
+          return true;
+        }
+      } else if (getVerb() is Update || getVerb() is Delete) {
+        if (access == 'rw') {
+          return true;
         }
       }
     }
