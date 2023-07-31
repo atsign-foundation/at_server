@@ -691,11 +691,13 @@ class AtSecondaryConfig {
   static List<String> get protectedKeys {
     try {
       YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
-      List<String> protectedKeys = [];
+      List<String> protectedKeysFromConfig = [];
       for (var key in keys) {
-        protectedKeys.add(key);
+        protectedKeysFromConfig.add(key);
       }
-      return protectedKeys.isNotEmpty ? protectedKeys : _protectedKeys;
+      return protectedKeys.isNotEmpty
+          ? protectedKeysFromConfig
+          : _protectedKeys;
     } on Exception {
       return _protectedKeys;
     }
