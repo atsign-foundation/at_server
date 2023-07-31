@@ -695,7 +695,7 @@ class AtSecondaryConfig {
       for (var key in keys) {
         protectedKeys.add(key);
       }
-      return protectedKeys.isEmpty ? _protectedKeys : protectedKeys;
+      return protectedKeys.isNotEmpty ? protectedKeys : _protectedKeys;
     } on Exception {
       return _protectedKeys;
     }
