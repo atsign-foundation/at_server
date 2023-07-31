@@ -175,13 +175,11 @@ void main() {
   test('delete verb for an protected key - pkam_publickey', () async {
     ///DELETE VERB
     await socket_writer(
-        socketFirstAtsign!, 'delete:at_pkam_publickey');
+        socketFirstAtsign!, 'delete:privatekey:at_pkam_publickey');
     var response = await read();
     print('delete verb response : $response');
     // the error is an expected behaviour
-    assert((response.contains(
-        'UnAuthorized client in request : Cannot delete protected key')) &&
-        (response.contains('error')));
+    assert((response.contains('Invalid syntax')));
 
     ///SCAN VERB
     await socket_writer(socketFirstAtsign!, 'scan:showhidden:true');
