@@ -33,8 +33,20 @@ dependencies:
   mutex: 3.0.1
   yaml: 3.1.2
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      path: packages/at_commons
+      branch: apkam_enc_dec_changes
+
 dev_dependencies:
-  test: ^1.24.4
+  build_runner: ^2.3.3
   coverage: ^1.6.1
+  json_serializable: ^6.6.0
   lints: ^2.1.1
   mocktail: ^0.3.0
+  test: ^1.24.4
+
+
+

@@ -30,30 +30,12 @@ void main() {
       expect(enrollApprovalJson['state'], 'requested');
     });
 
-    test('enroll namespace object fromJson', () {
-      final enrollNamespaceJson = {'name': 'buzz', 'access': 'r'};
-      final enrollNamespaceObject =
-          EnrollNamespace.fromJson(enrollNamespaceJson);
-      expect(enrollNamespaceObject, isA<EnrollNamespace>());
-      expect(enrollNamespaceObject.name, 'buzz');
-      expect(enrollNamespaceObject.access, 'r');
-    });
-
-    test('enroll namespace object toJson', () {
-      final enrollNamespace = EnrollNamespace('wavi', 'rw');
-      final enrollNamespaceJson = enrollNamespace.toJson();
-      expect(enrollNamespaceJson['name'], 'wavi');
-      expect(enrollNamespaceJson['access'], 'rw');
-    });
-
     test('enroll data store value object toJson', () {
-      final enrollNamespace1 = EnrollNamespace('wavi', 'rw');
-      final enrollNamespace2 = EnrollNamespace('buzz', 'r');
+      var namespaceMap = {'wavi': 'rw', 'buzz': 'r'};
       final enrollApproval = EnrollApproval('requested');
-      final namespaceList = [enrollNamespace1, enrollNamespace2];
       final enrollDataStoreValue =
           EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
-            ..namespaces = namespaceList
+            ..namespaces = namespaceMap
             ..approval = enrollApproval
             ..requestType = EnrollRequestType.newEnrollment;
       final enrollJson = enrollDataStoreValue.toJson();
@@ -62,8 +44,8 @@ void main() {
       expect(enrollJson['deviceName'], 'iphone');
       expect(enrollJson['apkamPublicKey'], 'mykey');
       expect(enrollJson['requestType'], 'newEnrollment');
-      expect(enrollJson['namespaces'][0], enrollNamespace1);
-      expect(enrollJson['namespaces'][1], enrollNamespace2);
+      expect(enrollJson['namespaces']['wavi'], 'rw');
+      expect(enrollJson['namespaces']['buzz'], 'r');
       expect(enrollJson['approval'], enrollApproval);
     });
     test('enroll data store value object fromJson', () {
@@ -71,10 +53,7 @@ void main() {
         'sessionId': '123',
         'appName': 'testclient',
         'deviceName': 'iphone',
-        'namespaces': [
-          {'name': 'wavi', 'access': 'rw'},
-          {'name': 'buzz', 'access': 'r'}
-        ],
+        'namespaces': {'wavi': 'rw', 'buzz': 'r'},
         'apkamPublicKey': 'mykey',
         'requestType': 'newEnrollment',
         'approval': {'state': 'requested'}
@@ -82,7 +61,7 @@ void main() {
       final enrollValueObject = EnrollDataStoreValue.fromJson(enrollJson);
       expect(enrollValueObject, isA<EnrollDataStoreValue>());
       expect(enrollValueObject.approval, isA<EnrollApproval>());
-      expect(enrollValueObject.namespaces, isA<List<EnrollNamespace>>());
+      expect(enrollValueObject.namespaces, isA<Map<String, String>>());
       expect(enrollValueObject.sessionId, '123');
       expect(enrollValueObject.appName, 'testclient');
       expect(enrollValueObject.deviceName, 'iphone');
@@ -198,10 +177,10 @@ void main() {
       Map<String, dynamic> enrollListResponse = jsonDecode(response.data!);
       var responseTest = enrollListResponse[
           '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'];
+      print(responseTest);
       expect(responseTest['appName'], 'wavi');
       expect(responseTest['deviceName'], 'mydevice');
-      expect(responseTest['namespace'][0]['name'], 'wavi');
-      expect(responseTest['namespace'][0]['access'], 'r');
+      expect(responseTest['namespace']['wavi'], 'r');
       expect(
           enrollListResponse.containsKey(
               '$enrollmentIdOne.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'),

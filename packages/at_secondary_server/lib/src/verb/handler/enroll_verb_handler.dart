@@ -83,12 +83,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'invalid totp. Cannot process enroll request');
       }
     }
-    List<EnrollNamespace> enrollNamespaces = (verbParams['namespaces'] ?? '')
-        .split(';')
-        .map((namespace) =>
-            EnrollNamespace(namespace.split(',')[0], namespace.split(',')[1]))
-        .toList();
-    logger.finer('enrollNamespaces: $enrollNamespaces');
+    Map<String, String> enrollNamespaces = {};
+    for (var namespace in (verbParams['namespaces'] ?? '').split(';')) {
+      enrollNamespaces[namespace.split(',')[0]] = namespace.split(',')[1];
+    }
 
     var enrollmentId = Uuid().v4();
     var key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
@@ -101,11 +99,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         verbParams['deviceName']!,
         verbParams['apkamPublicKey']!);
 
-    if (atConnection.getMetaData().isAuthenticated) {
-      // approve request from connection that are authenticated. This connection may be cram or legacyPkam authenticated
-      enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
+    var encryptedDefaultPrivateKey =
+        verbParams[apkamEncryptedDefaultPrivateKey];
+    var encryptedDefaultSelfEncryptionKey =
+        verbParams[apkamEncryptedDefaultSelfEncryptionKey];
+
+    if (atConnection.getMetaData().authType != null &&
+        atConnection.getMetaData().authType == AuthType.cram) {
+      // auto approve request from connection that is CRAM authenticated.
+      // enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
+      // Store default encryption private key and self encryption key(both encrypted)
+      // for future retrieval during approval flow
+      await keyStore.put(
+          '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$currentAtSign',
+          AtData()..data = defaultEncryptionPrivateKey);
+      await keyStore.put(
+          '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$currentAtSign',
+          AtData()..data = defaultSelfEncryptionKey);
+      //#TODO store apkam public key in public:appName.deviceName.pkam.__pkams.__public_keys
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
       await _storeNotification(key, currentAtSign);
@@ -150,6 +163,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await keyStore.put('$key$currentAtSign', updatedEnrollData);
     }
     responseJson['enrollmentId'] = enrollmentId;
+
+    //#TODO if approved , store apkam public key in public:appName.deviceName.pkam.__pkams.__public_keys
   }
 
   EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -217,12 +232,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
-    for (var enrollmentNamespace in enrollDataStoreValue.namespaces) {
-      if (enrollmentNamespace.name == enrollManageNamespace) {
-        return true;
-      }
-    }
-    return false;
+    return enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace);
   }
 
   Future<void> _storeNotification(String notificationKey, String atSign) async {

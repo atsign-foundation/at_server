@@ -68,7 +68,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var enrollnamespaces = [];
+      var enrollnamespaces = {};
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
@@ -87,7 +87,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {
-          for (var namespace in enrollnamespaces) {
+          for (var namespace in enrollnamespaces.keys) {
             var namespaceRegex = namespace.name;
             if (!namespaceRegex.startsWith('.')) {
               namespaceRegex = '.$namespaceRegex';

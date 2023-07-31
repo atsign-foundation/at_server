@@ -42,7 +42,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var signature = verbParams[AT_PKAM_SIGNATURE]!;
     var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
     var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
-    var enrollId = verbParams[enrollApprovalId];
+    var enrollId = verbParams[enrollmentId];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var pkamAuthType = AuthType.pkamLegacy;
     var publicKey;
