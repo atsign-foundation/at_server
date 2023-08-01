@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
+import 'package:hive/hive.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -25,14 +26,9 @@ void main() async {
       var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-      var key_2 =
-          await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-
+      await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
       await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
       expect(commitLogInstance?.lastCommittedSequenceNumber(), 2);
-      var committedEntry = await (commitLogInstance?.getEntry(key_2));
-      expect(committedEntry?.atKey, 'location@alice');
-      expect(committedEntry?.operation, CommitOp.UPDATE);
     });
 
     test('test get entry ', () async {
@@ -252,6 +248,104 @@ void main() async {
       var countryList = compactionService.getEntries('country@alice');
       expect(locationList!.getSize(), 1);
       expect(countryList!.getSize(), 1);
+    });
+
+    test('A test to verify old commit entry is removed when a key is updated',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      for (int i = 0; i < 5; i++) {
+        await commitLogInstance!.commit('location.wavi@alice', CommitOp.UPDATE);
+      }
+      Iterator iterator =
+          commitLogInstance!.getEntries(-1, regex: 'location.wavi');
+      iterator.moveNext();
+      expect(iterator.current.value.commitId, 4);
+      expect(iterator.current.value.atKey, 'location.wavi@alice');
+      expect(iterator.current.value.operation, CommitOp.UPDATE);
+    });
+
+    test('A test to verify old commit entry is removed when a key is delete',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      await commitLogInstance!.commit('location.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
+      // Fetch the commit entry using the lastSyncedCommitEntry
+      Iterator iterator =
+          commitLogInstance.getEntries(-1, regex: 'location.wavi');
+      iterator.moveNext();
+      expect(iterator.current.value.commitId, 1);
+      expect(iterator.current.value.atKey, 'location.wavi@alice');
+      expect(iterator.current.value.operation, CommitOp.DELETE);
+    });
+
+    test(
+        'A test to verify if size of commit log matches length of commit log cache map then commit log keystore is compacted',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      // Add 5 distinct keys
+      await commitLogInstance!.commit('firstname.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('lastName.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('country.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('location.wavi@alice', CommitOp.UPDATE);
+      // Update the keys
+      await commitLogInstance.commit(
+          'location.wavi@alice', CommitOp.UPDATE_ALL);
+      await commitLogInstance.commit(
+          'lastName.wavi@alice', CommitOp.UPDATE_ALL);
+      await commitLogInstance.commit('firstname.wavi@alice', CommitOp.UPDATE);
+      await commitLogInstance.commit('country.wavi@alice', CommitOp.UPDATE);
+      // Add a new key which is NOT in commit log keystore
+      await commitLogInstance.commit('city.wavi@alice', CommitOp.UPDATE);
+      // Delete the existing key
+      await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
+      // Verify size of commit log keystore and commit log cache map are equal
+      expect(commitLogInstance.commitLogKeyStore.getBox().keys.length,
+          commitLogInstance.commitLogKeyStore.commitEntriesList().length);
+      // Get all entries from the commit log keystore.
+      Iterator itr = commitLogInstance.commitLogKeyStore.getBox().keys.iterator;
+      itr.moveNext();
+      CommitEntry commitEntry =
+          (commitLogInstance.commitLogKeyStore.getBox() as Box)
+              .get(itr.current);
+      expect(commitEntry.atKey, 'phone.wavi@alice');
+      expect(commitEntry.commitId, 3);
+      expect(commitEntry.operation, CommitOp.UPDATE);
+      itr.moveNext();
+      commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
+          .get(itr.current);
+      expect(commitEntry.atKey, 'lastName.wavi@alice');
+      expect(commitEntry.commitId, 6);
+      expect(commitEntry.operation, CommitOp.UPDATE_ALL);
+      itr.moveNext();
+      commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
+          .get(itr.current);
+      expect(commitEntry.atKey, 'firstname.wavi@alice');
+      expect(commitEntry.commitId, 7);
+      expect(commitEntry.operation, CommitOp.UPDATE);
+      itr.moveNext();
+      commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
+          .get(itr.current);
+      expect(commitEntry.atKey, 'country.wavi@alice');
+      expect(commitEntry.commitId, 8);
+      expect(commitEntry.operation, CommitOp.UPDATE);
+      itr.moveNext();
+      commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
+          .get(itr.current);
+      expect(commitEntry.atKey, 'city.wavi@alice');
+      expect(commitEntry.commitId, 9);
+      expect(commitEntry.operation, CommitOp.UPDATE);
+      itr.moveNext();
+      commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
+          .get(itr.current);
+      expect(commitEntry.atKey, 'location.wavi@alice');
+      expect(commitEntry.commitId, 10);
+      expect(commitEntry.operation, CommitOp.DELETE);
+      // To ensure there are no more keys in iterator.
+      expect(itr.moveNext(), false);
     });
     tearDown(() async => await tearDownFunc());
   });
