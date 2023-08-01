@@ -58,11 +58,11 @@ void main() {
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      enrollResponse = enrollResponse.replaceFirst('error:', '');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
     test('enroll request on unauthenticated connection invalid totp', () async {
@@ -72,13 +72,22 @@ void main() {
       var enrollResponse = await read();
       print(enrollResponse);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['status'], 'exception');
-      expect(enrollJsonMap['reason'],
-          'Exception: invalid totp. Cannot process enroll request');
+      expect(
+          enrollResponse
+              .contains('invalid totp. Cannot process enroll request'),
+          true);
     });
 
-    test('second enroll request using totp', () async {
+    // Purpose of the tests
+    // 1. Do a pkam authentication
+    // 2. Send an enroll request
+    //  3 . Get an otp from the first client
+    //  4. Send an enroll request with otp from the second client
+    //  5. First client doesn't approve the enroll request
+    //  6. Second client should get an exception as the enroll request is not approved
+    test(
+        'second enroll request using totp and client did not approved enrollment request',
+        () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       print('from verb response : $fromResponse');
@@ -96,7 +105,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'success');
-      // final enrollmentId = enrollJsonMap['enrollmentId'];
+
       var totpRequest = 'totp:get\n';
       await socket_writer(socketConnection1!, totpRequest);
       var totpResponse = await read();
@@ -109,8 +118,8 @@ void main() {
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
 
-      //send second enroll request with totp and new apkam public key
-      var apkamPublicKey = apkamPublicKeyMap[firstAtsign];
+      //send second enroll request with totp
+      var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
       var secondEnrollRequest =
           'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:$apkamPublicKey\n';
       print(secondEnrollRequest);
@@ -122,6 +131,197 @@ void main() {
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
+
+      var secondEnrollId = enrollJson['enrollmentId'];
+
+      // deny the enroll request from the first client
+      var denyEnrollCommand = 'enroll:deny:enrollmentId:$secondEnrollId\n';
+      await socket_writer(socketConnection1!, denyEnrollCommand);
+      var denyEnrollResponse = await read();
+      print(denyEnrollResponse);
+      denyEnrollResponse = denyEnrollResponse.replaceFirst('data:', '');
+      var approveJson = jsonDecode(denyEnrollResponse);
+      expect(approveJson['status'], 'denied');
+      expect(approveJson['enrollmentId'], secondEnrollId);
+
+      // now do the apkam using the enrollment id
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollApprovalId:$secondEnrollId:$pkamDigest\n';
+
+      await socket_writer(socketConnection2!, apkamEnrollId);
+      var apkamEnrollIdResponse = await read();
+      print(apkamEnrollIdResponse);
+      expect(apkamEnrollIdResponse,
+          'error:AT0401-Exception: enrollment id: $secondEnrollId is not approved\n');
+    });
+
+    // Purpose of the tests
+    // 1. Do a pkam authentication
+    // 2. Send an enroll request
+    //  3 . Get an otp from the first client
+    //  4. Send an enroll request with otp from the second client
+    //  5. First client approves the enroll request
+    test(
+        'second enroll request using totp and client approves enrollment request',
+        () async {
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      var enrollRequest =
+          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollResponse = await read();
+      print(enrollResponse);
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'success');
+
+      var totpRequest = 'totp:get\n';
+      await socket_writer(socketConnection1!, totpRequest);
+      var totpResponse = await read();
+      totpResponse = totpResponse.replaceFirst('data:', '');
+      print(totpResponse);
+      totpResponse = totpResponse.trim();
+
+      // connect to the second client
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      //send second enroll request with totp
+      var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
+      var secondEnrollRequest =
+          'enroll:request:appName:buzz:deviceName:pixel:namespaces:[buzz,rw]:totp:$totpResponse:apkamPublicKey:$apkamPublicKey\n';
+      print(secondEnrollRequest);
+      await socket_writer(socketConnection2!, secondEnrollRequest);
+
+      var secondEnrollResponse = await read();
+      print(secondEnrollResponse);
+      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
+      var secondEnrollId = enrollJson['enrollmentId'];
+
+      // connect to the first client to approve the enroll request
+      await socket_writer(
+          socketConnection1!, 'enroll:approve:enrollmentId:$secondEnrollId\n');
+      var approveResponse = await read();
+      print(approveResponse);
+      approveResponse = approveResponse.replaceFirst('data:', '');
+      var approveJson = jsonDecode(approveResponse);
+      expect(approveJson['status'], 'approved');
+      expect(approveJson['enrollmentId'], secondEnrollId);
+
+      // connect to the second client to do an apkam
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      // now do the apkam using the enrollment id
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollApprovalId:$secondEnrollId:$pkamDigest\n';
+
+      await socket_writer(socketConnection2!, apkamEnrollId);
+      var apkamEnrollIdResponse = await read();
+      print(apkamEnrollIdResponse);
+      expect(apkamEnrollIdResponse, 'data:success\n');
+    });
+  });
+
+  group('A group of tests related to APKAM revoke operation', () {
+    test('A test to verify enrollment revoke operation', () async {
+      // Send an enrollment request on the authenticated connection
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      String enrollRequest =
+          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollmentResponse = await read();
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      //Create a new connection to login using the APKAM
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      String pkamCommand = 'pkam:enrollapprovalid:$enrollmentId:$pkamDigest';
+      await socket_writer(socketConnection2!, pkamCommand);
+      pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      socketConnection2?.close();
+
+      // Revoke the enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:enrollmentid:$enrollmentId';
+      await socket_writer(socketConnection1!, revokeEnrollmentCommand);
+      var revokeEnrollmentResponse = await read();
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      await socket_writer(socketConnection2!, 'from:$firstAtsign');
+      fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      pkamCommand = 'pkam:enrollapprovalid:$enrollmentId:$pkamDigest';
+      await socket_writer(socketConnection2!, pkamCommand);
+      pkamResult = await read();
+      socketConnection2?.close();
+      expect(pkamResult.contains('$enrollmentId is not approved'), true);
+    });
+
+    test(
+        'A test to verify revoke operation cannot be performed on an unauthenticated connection',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      print('from verb response : $fromResponse');
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var pkamResult = await read();
+      expect(pkamResult, 'data:success\n');
+      String enrollRequest =
+          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollmentResponse = await read();
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      String revokeEnrollmentCommand =
+          'enroll:revoke:enrollmentid:$enrollmentId';
+      await socket_writer(socketConnection2!, revokeEnrollmentCommand);
+      var revokeEnrollmentResponse = await read();
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
     });
   });
 }

@@ -11,8 +11,9 @@ import 'package:test/test.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
-  setUp(() async => await setUpFunc(storageDir));
   group('A group of hive keystore impl tests', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
     test('test update', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
@@ -290,41 +291,12 @@ void main() async {
       await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
-// tests commented for coverage. runs fine with pub run test or in IDE
-//    test('test expired keys - 1 key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(seconds: 5));
-//      expect(result, true);
-//      AtData expiredValue  = await Future.delayed(Duration(minutes: 1,seconds: 30), () => keyStoreManager.getKeyStore().get('last_name'));
-//      expect(expiredValue, isNull);
-//    }, timeout: Timeout(Duration(minutes: 3)));
-//
-//    test('test get expired keys - 1 key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(milliseconds: 10));
-//      expect(result, true);
-//      List<String> expiredKeys  = await Future.delayed(Duration(seconds: 1), () => keyStoreManager.getKeyStore().getExpiredKeys());
-//      print(expiredKeys);
-//      expect(expiredKeys[0], 'last_name');
-//    }, timeout: Timeout(Duration(minutes: 1)));
-//
-//    test('test get expired keys - no expired key', ()  async {
-//      var keyStore = keyStoreManager.getKeyStore();
-//      AtData updateData = new AtData();
-//      updateData.data = 'alice';
-//      bool result = await keyStore.put('last_name', updateData,expiry:Duration(minutes: 10));
-//      expect(result, true);
-//      List<String> expiredKeys  = await Future.delayed(Duration(seconds: 30), () => keyStoreManager.getKeyStore().getExpiredKeys());
-//      print(expiredKeys);
-//      expect(expiredKeys.length, 0);
-//    }, timeout: Timeout(Duration(minutes: 1)));
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
   group('A group of tests to verify compaction', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
     test('test to verify commit log compaction', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1')!;
@@ -345,9 +317,12 @@ void main() async {
       await keyStore.put('@bob:location.wavi@test_user_1', atData);
       expect(locationList?.getSize(), 1);
     });
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
   group('A group of tests to verify expiryKeysCache', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
     test(
         'A test to verify key updated via put method without TTL and TTB is not added to metaDataCache',
         () async {
@@ -652,79 +627,175 @@ void main() async {
       expect(
           expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
     });
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
-  test('A test to verify getKeys does not return expired keys', () async {
-    SecondaryPersistenceStore? keyStoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-    AtData atData = AtData()
-      ..data = 'value_test_4'
-      // Adding TTL of 10 milliseconds
-      ..metaData = (AtMetaData()..ttl = 10);
-    await keystore?.put('expired_key.wavi@test_user_1', atData);
-    // Adding delay for the key to expire.
-    await Future.delayed(Duration(milliseconds: 20));
-    List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('expired_key.wavi@test_user_1'), false);
+  group('A group of test related to getKeys method', () {
+    String atSign = '@emoji🛠️';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+    test('A test to verify getKeys does not return expired keys', () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_4'
+        // Adding TTL of 10 milliseconds
+        ..metaData = (AtMetaData()..ttl = 10);
+      await keystore?.put('expired_key.wavi$atSign', atData);
+      // Adding delay for the key to expire.
+      await Future.delayed(Duration(milliseconds: 20));
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList!.contains('expired_key.wavi$atSign'), false);
+    });
+
+    test('A test to verify getKeys does not return keys whose TTB is met',
+        () async {
+      SecondaryPersistenceStore? keyStoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttb = 300000);
+      await keystore?.put('key_test_3.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList!.contains('key_test_3.wavi$atSign'), false);
+    });
+
+    test('test to verify metadata of all keys is cached', () async {
+      SecondaryPersistenceStore? keystoreManager =
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign);
+      HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
+      AtData? atData = AtData();
+      AtMetaData? metaData;
+      //inserting sample keys
+      for (int i = 0; i < 30; i++) {
+        //inserting random metaData to induce variance in data
+        metaData = AtMetadataBuilder(
+                ttl: 12000 + i.toInt(),
+                ttb: i,
+                atSign: '@atsign_$i',
+                isBinary: true)
+            .build();
+
+        atData.data = 'value_test_$i';
+        atData.metaData = metaData;
+        await keystore?.put('key_test_$i.wavi$atSign', atData);
+      }
+
+      List<String>? keys = keystore?.getKeys();
+
+      for (var key in keys!) {
+        atData = await keystore?.get(key);
+        metaData = atData?.metaData;
+        expect((await keystore?.getMeta(key)).toString(), metaData.toString());
+      }
+    });
+
+    test('A test to verify getKeys return key with emoji', () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData());
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      print(keysList);
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+    });
+
+    test('A test to verify getKeys returns key with emoji when TTB is set',
+        () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttb = 1000);
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
+      await Future.delayed(Duration(milliseconds: 1000));
+      keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+    });
+
+    test(
+        'A test to verify getKeys does not return key with emoji when TTL is set',
+        () async {
+      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)
+          ?.getSecondaryKeyStore();
+      AtData atData = AtData()
+        ..data = 'value_test_3'
+        ..metaData = (AtMetaData()..ttl = 1000);
+      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
+      List<String>? keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+      await Future.delayed(Duration(milliseconds: 1000));
+      keysList = keystore?.getKeys();
+      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
+    });
+
+    tearDown(() async => await tearDownFunc(atSign));
   });
 
-  test('A test to verify getKeys does not return keys whose TTB is met',
-      () async {
-    SecondaryPersistenceStore? keyStoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-    AtData atData = AtData()
-      ..data = 'value_test_3'
-      ..metaData = (AtMetaData()..ttb = 300000);
-    await keystore?.put('key_test_3.wavi@test_user_1', atData);
-    List<String>? keysList = keystore?.getKeys();
-    expect(keysList!.contains('key_test_3.wavi@test_user_1'), false);
+  group('A group of tests to verify skip commit', () {
+    String atSign = '@test_user_1';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+    test('skip commit true in put', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result = await keyStore.put('phone.wavi@test_user_1', atData,
+          skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(commitLogInstance!.getLatestCommitEntry('phone.wavi@test_user_1'),
+          isNull);
+    });
+    test('skip commit true in create', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result = await keyStore.create('email.wavi@test_user_1', atData,
+          skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(commitLogInstance!.getLatestCommitEntry('email.wavi@test_user_1'),
+          isNull);
+    });
+    test('skip commit true in remove', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var result =
+          await keyStore.remove('firstname.wavi@test_user_1', skipCommit: true);
+      expect(result, -1);
+      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+          .getCommitLog('@test_user_1'));
+      expect(
+          commitLogInstance!.getLatestCommitEntry('firstname.wavi@test_user_1'),
+          isNull);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
   });
-
-  test('test to verify metadata of all keys is cached', () async {
-    SecondaryPersistenceStore? keystoreManager =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore('@test_user_1');
-    HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
-    AtData? atData = AtData();
-    AtMetaData? metaData;
-    //inserting sample keys
-    for (int i = 0; i < 30; i++) {
-      //inserting random metaData to induce variance in data
-      metaData = AtMetadataBuilder(
-              ttl: 12000 + i.toInt(),
-              ttb: i,
-              atSign: '@atsign_$i',
-              isBinary: true)
-          .build();
-
-      atData.data = 'value_test_$i';
-      atData.metaData = metaData;
-      await keystore?.put('key_test_$i.wavi@test_user_1', atData);
-    }
-
-    List<String>? keys = keystore?.getKeys();
-
-    for (var key in keys!) {
-      atData = await keystore?.get(key);
-      metaData = atData?.metaData;
-      expect((await keystore?.getMeta(key)).toString(), metaData.toString());
-    }
-  });
-
-  try {
-    tearDown(() async => await tearDownFunc());
-  } on Exception catch (e) {
-    print('error in tear down:${e.toString()}');
-  }
 }
 
-Future<void> tearDownFunc() async {
-  await Hive.deleteBoxFromDisk('commit_log_@test_user_1');
-  await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
+Future<void> tearDownFunc(String atSign) async {
+  await Hive.deleteBoxFromDisk('commit_log_$atSign');
+  await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
   await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
@@ -732,16 +803,16 @@ Future<void> tearDownFunc() async {
   }
 }
 
-Future<void> setUpFunc(storageDir) async {
+Future<void> setUpFunc(String storageDir, String atSign) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+      .getCommitLog(atSign, commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
+      .getSecondaryPersistenceStore(atSign)!;
   await persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
 }
 
-String _getShaForAtsign(String atsign) {
-  var bytes = utf8.encode(atsign);
+String _getShaForAtSign(String atSign) {
+  var bytes = utf8.encode(atSign);
   return sha256.convert(bytes).toString();
 }

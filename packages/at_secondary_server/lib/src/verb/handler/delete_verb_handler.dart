@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -60,6 +61,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     var deleteKey;
     var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
     deleteKey = verbParams[AT_KEY];
+    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
       deleteKey = '$deleteKey$atSign';
@@ -77,6 +79,17 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
     if (deleteKey == AT_CRAM_SECRET) {
       await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
+    }
+    final enrollApprovalId =
+        (atConnection.getMetaData() as InboundConnectionMetadata)
+            .enrollApprovalId;
+    bool isAuthorized = true; // for legacy clients allow access by default
+    if (enrollApprovalId != null) {
+      isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
+    }
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Enrollment Id: $enrollApprovalId is not authorized for delete operation on the key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);
