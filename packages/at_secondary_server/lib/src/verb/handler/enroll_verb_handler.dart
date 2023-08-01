@@ -42,17 +42,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     try {
+      var enrollVerbParams =
+          EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
-              verbParams, currentAtSign, responseJson, atConnection);
+              enrollVerbParams, currentAtSign, responseJson, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
           await _handleEnrollmentPermissions(
-              verbParams, currentAtSign, operation, responseJson);
+              enrollVerbParams, currentAtSign, operation, responseJson);
           break;
 
         case 'list':
@@ -72,22 +74,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handleEnrollmentRequest(
-      HashMap<String, String?> verbParams,
+      EnrollParams enrollParams,
       currentAtSign,
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
     if (!atConnection.getMetaData().isAuthenticated) {
-      var totp = verbParams['totp'];
-      if (totp == null || (await TotpVerbHandler.cache.get(totp)) == null) {
+      var totp = enrollParams.totp;
+      if (totp == null ||
+          (await TotpVerbHandler.cache.get(totp.toString()) == null)) {
         throw AtEnrollmentException(
             'invalid totp. Cannot process enroll request');
       }
     }
-    Map<String, String> enrollNamespaces = {};
-    for (var namespace in (verbParams['namespaces'] ?? '').split(';')) {
-      enrollNamespaces[namespace.split(',')[0]] = namespace.split(',')[1];
-    }
-
+    var enrollNamespaces = enrollParams.namespaces!;
     var enrollmentId = Uuid().v4();
     var key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
@@ -95,14 +94,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enrollmentId;
     final enrollmentValue = EnrollDataStoreValue(
         atConnection.getMetaData().sessionID!,
-        verbParams['appName']!,
-        verbParams['deviceName']!,
-        verbParams['apkamPublicKey']!);
-
-    var encryptedDefaultPrivateKey =
-        verbParams[apkamEncryptedDefaultPrivateKey];
-    var encryptedDefaultSelfEncryptionKey =
-        verbParams[apkamEncryptedDefaultSelfEncryptionKey];
+        enrollParams.appName!,
+        enrollParams.deviceName!,
+        enrollParams.apkamPublicKey!);
 
     if (atConnection.getMetaData().authType != null &&
         atConnection.getMetaData().authType == AuthType.cram) {
@@ -114,13 +108,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // for future retrieval during approval flow
       await keyStore.put(
           '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = encryptedDefaultPrivateKey,
+          AtData()..data = enrollParams.encryptedDefaultEncryptedPrivateKey,
           skipCommit: true);
       await keyStore.put(
           '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = encryptedDefaultSelfEncryptionKey,
+          AtData()..data = enrollParams.encryptedDefaultSelfEncryptionKey,
           skipCommit: true);
-      //#TODO store apkam public key in public:appName.deviceName.pkam.__pkams.__public_keys
+      // store this apkam as default pkam public key for old clients
+      await keyStore.put(
+          AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
       await _storeNotification(key, currentAtSign);
@@ -136,11 +132,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handleEnrollmentPermissions(
-      HashMap<String, String?> verbParams,
+      EnrollParams enrollParams,
       currentAtSign,
       String? operation,
       Map<dynamic, dynamic> responseJson) async {
-    final enrollmentId = verbParams['enrollmentId'];
+    final enrollmentId = enrollParams.enrollmentId;
     var key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
     var enrollData;
@@ -166,7 +162,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // when enrollment is approved store the apkamPublicKey of the enrollment
       if (operation == 'approve') {
         var apkamPublicKeyInKeyStore =
-            'public:${verbParams[APP_NAME]}.${verbParams[deviceName]}.pkam.$pkamNamespace.__public_keys';
+            'public:${enrollParams.appName}.${enrollParams.deviceName}.pkam.$pkamNamespace.__public_keys';
         var valueJson = {};
         valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
         var atData = AtData()..data = jsonEncode(valueJson);

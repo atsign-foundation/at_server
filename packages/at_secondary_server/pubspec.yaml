@@ -35,10 +35,11 @@ dependencies:
 
 dependency_overrides:
   at_commons:
+#    path: ../../../at_libraries/packages/at_commons
     git:
       url: https://github.com/atsign-foundation/at_libraries
       path: packages/at_commons
-      branch: apkam_enc_dec_changes
+      ref: apkam_enc_dec_changes
 
 dev_dependencies:
   build_runner: ^2.3.3
