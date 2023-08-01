@@ -134,7 +134,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     logger.finer(
         'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');
-    if (enrollNamespaces.containsKey(keyNamespace)) {
+    // keys in __manage namespace should not be accessible
+    if (keyNamespace != enrollManageNamespace &&
+        enrollNamespaces.containsKey(keyNamespace)) {
       var access = enrollNamespaces[keyNamespace];
       logger.finer('current verb: ${getVerb()}');
       if (getVerb() is LocalLookup || getVerb() is Lookup) {

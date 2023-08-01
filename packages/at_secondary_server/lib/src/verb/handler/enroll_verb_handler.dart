@@ -107,17 +107,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().authType != null &&
         atConnection.getMetaData().authType == AuthType.cram) {
       // auto approve request from connection that is CRAM authenticated.
-      // enrollNamespaces.add(EnrollNamespace(enrollManageNamespace, 'rw'));
+      enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval during approval flow
       await keyStore.put(
           '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = defaultEncryptionPrivateKey);
+          AtData()..data = encryptedDefaultPrivateKey,
+          skipCommit: true);
       await keyStore.put(
           '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = defaultSelfEncryptionKey);
+          AtData()..data = encryptedDefaultSelfEncryptionKey,
+          skipCommit: true);
       //#TODO store apkam public key in public:appName.deviceName.pkam.__pkams.__public_keys
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
@@ -161,10 +163,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         ..data = jsonEncode(enrollDataStoreValue.toJson());
 
       await keyStore.put('$key$currentAtSign', updatedEnrollData);
+      // when enrollment is approved store the apkamPublicKey of the enrollment
+      if (operation == 'approve') {
+        var apkamPublicKeyInKeyStore =
+            'public:${verbParams[APP_NAME]}.${verbParams[deviceName]}.pkam.$pkamNamespace.__public_keys';
+        var valueJson = {};
+        valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
+        var atData = AtData()..data = jsonEncode(valueJson);
+        await keyStore.put(apkamPublicKeyInKeyStore, atData);
+      }
     }
     responseJson['enrollmentId'] = enrollmentId;
-
-    //#TODO if approved , store apkam public key in public:appName.deviceName.pkam.__pkams.__public_keys
   }
 
   EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {

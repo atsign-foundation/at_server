@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -88,7 +89,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {
           for (var namespace in enrollnamespaces.keys) {
-            var namespaceRegex = namespace.name;
+            // do not show keys in __manage namespace
+            if (namespace == enrollManageNamespace) {
+              continue;
+            }
+            var namespaceRegex = namespace;
             if (!namespaceRegex.startsWith('.')) {
               namespaceRegex = '.$namespaceRegex';
             }
