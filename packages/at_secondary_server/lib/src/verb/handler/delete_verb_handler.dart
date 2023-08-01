@@ -17,7 +17,7 @@ import 'package:at_utils/at_utils.dart';
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
-  List<String>? protectedKeys;
+  Set<String>? protectedKeys;
 
   DeleteVerbHandler(SecondaryKeyStore keyStore,
       StatsNotificationService statsNotificationService)
@@ -148,9 +148,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     NotificationManager.getInstance().notify(atNotification);
   }
 
-  List<String> _getProtectedKeys(String? atsign) {
+  Set<String> _getProtectedKeys(String? atsign) {
     atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
-    List<String> protectedKeys = [];
+    Set<String> protectedKeys = {};
     // fetch all protected private keys from config yaml
     for (var key in AtSecondaryConfig.protectedKeys) {
       // protected keys are stored as 'signing_publickey<@atsign>'

@@ -97,12 +97,12 @@ class AtSecondaryConfig {
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
-  static final List<String> _protectedKeys = [
+  static final Set<String> _protectedKeys = {
     'signing_publickey<@atsign>',
     'signing_privatekey<@atsign>',
     'publickey<@atsign>',
     'at_pkam_publickey'
-  ];
+  };
 
   //version
   static final String? _secondaryServerVersion =
@@ -688,16 +688,15 @@ class AtSecondaryConfig {
     }
   }
 
-  static List<String> get protectedKeys {
+  static Set<String> get protectedKeys {
     try {
       YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
-      List<String> protectedKeysFromConfig = [];
+      Set<String> protectedKeysFromConfig = {};
       for (var key in keys) {
         protectedKeysFromConfig.add(key);
       }
-      return protectedKeysFromConfig.isNotEmpty
-          ? protectedKeysFromConfig
-          : _protectedKeys;
+      _protectedKeys.addAll(protectedKeysFromConfig);
+      return _protectedKeys;
     } on Exception {
       return _protectedKeys;
     }
