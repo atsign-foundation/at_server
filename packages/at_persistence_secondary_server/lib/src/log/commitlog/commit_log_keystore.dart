@@ -73,7 +73,8 @@ class CommitLogKeyStore
         // Eventually, after the compaction kicks in all of the old entries would be deleted.
         // Subsequently, we can then disable the compaction job.
         // When commitLogCacheMap.keys.length == getBox().length then we have fully compacted it
-        if (_commitLogCacheMap[commitEntry.atKey!] != null) {
+        if (_commitLogCacheMap[commitEntry.atKey!] != null &&
+            _commitLogCacheMap[commitEntry.atKey!]?.commitId != null) {
           await _getBox()
               .delete(_commitLogCacheMap[commitEntry.atKey!]?.commitId);
         }
