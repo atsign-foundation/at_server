@@ -106,13 +106,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['status'] = 'success';
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval during approval flow
+      var privKeyJson = {};
+      privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
       await keyStore.put(
           '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = enrollParams.encryptedDefaultEncryptedPrivateKey,
+          AtData()..data = jsonEncode(privKeyJson),
           skipCommit: true);
+      var selfKeyJson = {};
+      selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
       await keyStore.put(
           '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = enrollParams.encryptedDefaultSelfEncryptionKey,
+          AtData()..data = jsonEncode(selfKeyJson),
           skipCommit: true);
       // store this apkam as default pkam public key for old clients
       await keyStore.put(

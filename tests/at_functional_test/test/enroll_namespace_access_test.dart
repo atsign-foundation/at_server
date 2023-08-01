@@ -43,12 +43,12 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -60,8 +60,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -89,12 +89,12 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -106,8 +106,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -124,17 +124,17 @@ void main() {
     // Prerequisite - create a atmosphere key
     //  1. Authenticate and send the enroll request for wavi namespace
     //  2. pkam using the enroll id
-    //  3. Do a llookup for the atmosphere key
+    //  3. Do a llookup for a self atmosphere key
     //  4. Assert that the llookup throws an exception
     test(
-        'enroll request on authenticated connection for wavi namespace and llookup for a atmosphere key',
+        'enroll request on authenticated connection for wavi namespace and llookup for a self atmosphere key',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
       var pkamResult = await read();
       expect(pkamResult, 'data:success\n');
 
@@ -148,7 +148,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -160,8 +160,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -177,19 +177,19 @@ void main() {
     // Prerequisite - create a public atmosphere key
     //  1. Authenticate and send the enroll request for wavi namespace
     //  2. pkam using the enroll id
-    //  3. Do a llookup for the atmosphere key
+    //  3. Do a llookup for a public atmosphere key
     //  4. Assert that the llookup returns a value without an exception
     test(
-        'enroll request on authenticated connection for wavi namespace and llookup for a atmosphere key',
+        'enroll request on authenticated connection for wavi namespace and llookup for a public atmosphere key',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -201,7 +201,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -213,8 +213,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -238,10 +238,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -253,7 +253,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -265,8 +265,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -290,10 +290,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -306,7 +306,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -318,8 +318,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -343,10 +343,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -359,7 +359,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -371,8 +371,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -396,10 +396,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -413,7 +413,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -425,8 +425,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -450,10 +450,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // create a wavi key
       String waviKey = 'public:email.wavi$firstAtsign';
@@ -465,7 +465,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -477,8 +477,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
@@ -504,10 +504,10 @@ void main() {
       var fromResponse = await read();
       print('from verb response : $fromResponse');
       fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      var cramDigest = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramDigest');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
 
       // create a wavi key
       String atmosphereKey = 'files.atmosphere$firstAtsign';
@@ -520,7 +520,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       print(enrollResponse);
@@ -532,8 +532,8 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
       // now do the apkam using the enrollment id
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollApprovalId:$enrollmentId:$pkamDigest\n';
+      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
 
       await socket_writer(socketConnection1!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();

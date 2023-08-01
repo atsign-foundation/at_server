@@ -40,6 +40,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     var connectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     final enrollIdFromMetadata = connectionMetadata.enrollApprovalId;
+    logger.finer('enrollIdFromMetadata:$enrollIdFromMetadata');
     final key =
         '$enrollIdFromMetadata.$newEnrollmentKeyPattern.$enrollManageNamespace';
     var enrollData;
@@ -139,20 +140,11 @@ class KeysVerbHandler extends AbstractVerbHandler {
           var value;
           try {
             value = await keyStore.get(keyNameFromParams);
+            response.data = value.data;
           } on KeyNotFoundException {
             throw KeyNotFoundException(
                 'key $keyNameFromParams not found in keystore');
           }
-          if (value != null && value.data != null) {
-            final valueJson = jsonDecode(value.data);
-            if (valueJson[enrollmentId] == enrollIdFromMetadata) {
-              response.data = value.data;
-            } else {
-              throw AtEnrollmentException(
-                  'Enrollment Id for key $keyNameFromParams does not match the current APKAM enrollmentId');
-            }
-          }
-          logger.finer('get key result: $result');
         }
         break;
       case 'delete':
