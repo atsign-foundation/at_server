@@ -1,3 +1,6 @@
+## 3.0.34
+- chore: Upgraded at_persistence_spec to 2.0.14
+- chore: Upgraded at_persistence_secondary_server to 3.0.56
 ## 3.0.33
 - feat: Modified monitor verb handler to process self notification for APKAM
 - chore: Upgraded at_persistence_secondary_server to 3.0.55 for memory optimization
