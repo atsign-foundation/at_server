@@ -108,19 +108,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
       // Store default encryption private key and self encryption key(both encrypted)
-      // for future retrieval during approval flow
-      var privKeyJson = {};
-      privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
-      await keyStore.put(
-          '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = jsonEncode(privKeyJson),
-          skipCommit: true);
-      var selfKeyJson = {};
-      selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
-      await keyStore.put(
-          '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$currentAtSign',
-          AtData()..data = jsonEncode(selfKeyJson),
-          skipCommit: true);
+      // for future retrieval
+      await _storeEncryptionKeys(enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
       await keyStore.put(
           AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
@@ -169,14 +158,31 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // when enrollment is approved store the apkamPublicKey of the enrollment
       if (operation == 'approve') {
         var apkamPublicKeyInKeyStore =
-            'public:${enrollParams.appName}.${enrollParams.deviceName}.pkam.$pkamNamespace.__public_keys';
+            'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
         var valueJson = {};
         valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
         var atData = AtData()..data = jsonEncode(valueJson);
         await keyStore.put(apkamPublicKeyInKeyStore, atData);
+        await _storeEncryptionKeys(enrollParams, currentAtSign);
       }
     }
     responseJson['enrollmentId'] = enrollmentId;
+  }
+
+  Future<void> _storeEncryptionKeys(
+      EnrollParams enrollParams, String atSign) async {
+    var privKeyJson = {};
+    privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
+    await keyStore.put(
+        '$enrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+        AtData()..data = jsonEncode(privKeyJson),
+        skipCommit: true);
+    var selfKeyJson = {};
+    selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
+    await keyStore.put(
+        '$enrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+        AtData()..data = jsonEncode(selfKeyJson),
+        skipCommit: true);
   }
 
   EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {
