@@ -42,8 +42,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     try {
-      var enrollVerbParams =
-          EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
+      var enrollVerbParams;
+      if (verbParams[enrollParams] != null) {
+        enrollVerbParams =
+            EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
+      }
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
@@ -123,7 +126,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
-      await _storeNotification(key, currentAtSign);
+      await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
     }
 
@@ -244,25 +247,31 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace);
   }
 
-  Future<void> _storeNotification(String notificationKey, String atSign) async {
+  Future<void> _storeNotification(
+      String key, EnrollParams enrollParams, String atSign) async {
     try {
+      var notificationValue = {};
+      notificationValue[apkamEncryptedSymmetricKey] =
+          enrollParams.encryptedAPKAMSymmetricKey;
+      logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
-            ..notification = notificationKey
+            ..notification = key
             ..fromAtSign = atSign
             ..toAtSign = atSign
             ..ttl = 24 * 60 * 60 * 1000
             ..type = NotificationType.self
-            ..opType = OperationType.update)
+            ..opType = OperationType.update
+            ..atValue = jsonEncode(notificationValue))
           .build();
       final notificationId =
           await NotificationUtil.storeNotification(atNotification);
       logger.finer('notification generated: $notificationId');
     } on Exception catch (e, trace) {
       logger.severe(
-          'Exception while storing notification key $notificationKey. Exception $e. Trace $trace');
+          'Exception while storing notification key $enrollmentId. Exception $e. Trace $trace');
     } on Error catch (e, trace) {
       logger.severe(
-          'Error while storing notification key $notificationKey. Error $e. Trace $trace');
+          'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
     }
   }
 }
