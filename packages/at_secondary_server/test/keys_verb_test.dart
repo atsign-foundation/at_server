@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
@@ -644,6 +645,42 @@ void main() {
               e.message == 'key $privateKeyName not found in keystore')));
     });
 
+    test(
+        'keys verb  - put default self encryption key and verify keys:get:self',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      var encryptedSelfEncryptionKey =
+          'N0bmvnW1k5oKL+/6X3HresMyG/z6yBmxzgtrn8CMEofWgxJo8RSBXIqvdNj9ZOHO';
+      var valueJson = {};
+      valueJson['value'] = encryptedSelfEncryptionKey;
+      await secondaryKeyStore.put(
+          '$enrollId.$defaultSelfEncryptionKey.$enrollManageNamespace@alice',
+          AtData()..data = jsonEncode(valueJson));
+
+      var keysGetCommand = 'keys:get:self';
+      await keysVerbHandler.process(keysGetCommand, inboundConnection);
+      var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
+      expect(keysList, isNotEmpty);
+      expect(keysList[0],
+          '$enrollId.$defaultSelfEncryptionKey.$enrollManageNamespace@alice');
+    });
+
     test('keys verb invalid syntax - invalid operation', () {
       var verb = Keys();
       var command = 'keys:update:hello';
@@ -665,6 +702,73 @@ void main() {
           () => getVerbParam(regex, command),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException && e.message == 'Syntax Exception')));
+    });
+
+    test(
+        'keys verb  - put default  encryption private key and verify keys:get:private',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      var encryptedDefaultEncryptionPrivateKey =
+          'DF2EjCyIouE6AtreMkGyIPg/NMOh1UyhwmJ4veCUBrfsj0dz7iqRYJr4RqS4D6yIn+'
+          'gU3JqiMBQYSS1dmQPis9xIvoj5Fs2e+9jyoGBAneAoq45W9Jjk3t9kKje008gLZNkwz'
+          'KzMWD16R78dObIeR4nwA+1RXsXh6VdbVsV8tgjrG8+t6kVq95P7XaMqMjH8CI+dm3vL'
+          'UQ9/M+1Q/URfeUdufPciNsa/uaSI/VbLf9vOkYYJ/dpdIDnQXluWwugdaT3Y2ty56Xf'
+          'mTyGh4P0HrA96IW+5sGz8dAPqrcO4GMFBcK+RNuvVEI9V34VUDzDcI1GDw5fu3da1ud0'
+          'HLKU5pGKIn5aTvRfJqtbqzTLGV6M+XwphAJtryziz8Dsf2mEjGTMpXaIOlrPiCgMktk1'
+          '661O5gNc+ovgik/PzjNdcDHvIXqscLX1Q40dhrWrlbTB1U3Hzu4++ovBSH2QO6JWyOMj'
+          '99svKF1JvdZ5FQDLJR5d1FHuDCKGzNW6zxen/Dfnpoq/GmFDKpRZ8JEmRqrA4NI2kxDT'
+          'VzfSuXcrX4hveFet8FBqaAfYAhbpT5VR6zI0/w6LbTXu+RVdhUzQF+QX18LHyajesKy9'
+          'D7JdKZz9e+BdFF8pBbh+q13g0/rd1sZZgE/N5hH3LGu+3szGDPWRjTIt8If70S9fcz2R'
+          'ldYSQ6dwdhgYZsXwQct01nkGgaUaXZVUEib1hpD7jzliZmr5yg2sCh5942PclmHYWefx'
+          'fJ9J/1+675fsTTI7rhfw0kyUTkKzqnwGWfz3ybDleqVlMcCxhpM3vi86HeeiHEtM0Mi5s'
+          '6/K7EgwthOcFNUFeNeIiSD20KVkwXLtKBd7yJJCIm6649aSZsq5QGFFu3NM6PSNF19eYh7'
+          'z2wa6YyaStQxqMdGupJ1UP8leBVUg1gd5GqIoU1O30A/Bj2h39piKRimoD44fre1QbhG/9'
+          'D5y2qPviBIg7nbUqCXWnkpx8V874rqhPVKkixkIOUYQF6Gk5c2qejmlJRzjad+0yJvXorA'
+          '+6mujBVjdhbVfktRjDGFsQlEVBF1A0w+wkDsPnblGAXGHYRJHAZ6Rxwdev47TRO0XjoEVm'
+          'gZvHpAZUxY5OB9LT9qx4zZHbcIVjJM1WAS48xc3TF4G94FVULcQ0pBq3ssVDBH9EzyQIFM'
+          'CaMnZrcBDYZCTA9DJZBpbfTJxI8xQQCHXAbdzvCgfGC7YUWUlWtJUx6O/3gh4e/bcknfeWk'
+          '224JamOasGe54JyjmmewiwVaSPUvU/QXbv3WC3pO984YiV8rEm6FM494wywzq796InClqa5'
+          'BY9iPbaz69y5P3MV4GeosESRgpdANv7s1reWuCIn36IxtJTsCgrIKtwpQ5KKTiWQCrhSsD4'
+          'KlfoNIgssId86asuLNVYNVX6uiHRmOQKWeqyQFo/sLDlpmIxd3nHYAIK8bkJMVWRvT1L2sLo'
+          'FobcKAiKbU41BqNBTMZAHOEISpY3CB5kc2ocmX3RERF7jNjqJoCNNZqnVFtFagGgjRe5OMTJ'
+          'SA6am7uTr3k2GMqg3jGP+fyKIgx0o5SwADJBDwRHLs//Q67+ehN9n4Yp65JBCJSJjg4Yb/co'
+          '3Gep0YBB/z33TcTwGL65ChwL467gGxXhN/9OYPgqXzrTidNcskUCS4chw9RaGSgndO3zNKO2'
+          '+3SMtbLjJ58DMsMfuUiHTwHzkC/eWR0kHidubTOa1J5h9P/N6Lh1DAhpZN9V5TXuyDAc9fZK'
+          'aA1FWnFBwK8fCA3qBvypJ5abZyPgAR/Q7s0sAis6F9GFeVXGKMMigq81mLFhDuZf6vwM3qXP'
+          'yuEw2YUUQs+wVdk1B9sdTSTrVQcnRtOKEgeJuHXLlb0SXbFk/KpaZ5TOYdVetzkjIYUD2Gbw'
+          'kiOdv4mlfRHgrMcH5B5CmBxXqX+vytDAMkjjYJTbCuSiFqwZVGjmBHnCTebnFK3r7uVh5n7Y'
+          'z8hvctKNLD3rpKLNd1bBnnAsHZBq9ZobwuL4u9BYNt6uYa5JOlkMMMEUIlAMxpaEqiIp5PFZ'
+          'JKGduHt8jtoP/QkbcSKEwJxyTw4b1dFXhG2Pur8RGOg5nICaJrcCANKQzATud4O2jl+uf1Cqo'
+          'OAJ1utpupj6XFm3heoMdBF2udI2XQYNVQy+S1Q3ayAC2yIBuxitmLHqe2KliszXYBJtPqtTun'
+          'gryzmuA';
+      var valueJson = {};
+      valueJson['value'] = encryptedDefaultEncryptionPrivateKey;
+      await secondaryKeyStore.put(
+          '$enrollId.$defaultEncryptionPrivateKey.$enrollManageNamespace@alice',
+          AtData()..data = jsonEncode(valueJson));
+
+      var keysGetCommand = 'keys:get:private';
+      await keysVerbHandler.process(keysGetCommand, inboundConnection);
+      var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
+      expect(keysList, isNotEmpty);
+      expect(keysList[0],
+          '$enrollId.$defaultEncryptionPrivateKey.$enrollManageNamespace@alice');
     });
 
     test('keys:put verb without auth', () {
