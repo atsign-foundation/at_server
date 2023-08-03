@@ -109,6 +109,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
                 'key $keyNameFromParams not found in keystore');
           }
         }
+        logger.finer('hasManageAccess: $hasManageAccess');
         if (keyVisibility != null && keyVisibility.isNotEmpty) {
           if (hasManageAccess) {
             result = keyStore.getKeys(
@@ -117,31 +118,31 @@ class KeysVerbHandler extends AbstractVerbHandler {
           } else {
             result = keyStore.getKeys(
                 regex: '.*__${keyVisibility}_keys.__global$atSign\$');
+          }
+          for (String key in result) {
+            await _addKeyIfEnrollmentIdMatches(
+                filteredKeys, key, enrollIdFromMetadata!);
+          }
+          var keyMap = {
+            'private':
+                '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+            'self':
+                '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+          };
 
-            for (String key in result) {
-              await _addKeyIfEnrollmentIdMatches(
-                  filteredKeys, key, enrollIdFromMetadata!);
+          var keyString = keyMap[keyVisibility];
+          if (keyString != null) {
+            dynamic value;
+            try {
+              value = await keyStore.get(keyString);
+            } on KeyNotFoundException {
+              logger.warning('key $keyString not found');
             }
-            var keyMap = {
-              'private':
-                  '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
-              'self':
-                  '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
-            };
-
-            var keyString = keyMap[keyVisibility];
-            if (keyString != null) {
-              dynamic value;
-              try {
-                value = await keyStore.get(keyString);
-              } on KeyNotFoundException {
-                logger.warning('key $keyString not found');
-              }
-              if (value != null && value.data != null) {
-                filteredKeys.add(keyString);
-              }
+            if (value != null && value.data != null) {
+              filteredKeys.add(keyString);
             }
           }
+
           response.data = jsonEncode(filteredKeys);
         }
         break;
