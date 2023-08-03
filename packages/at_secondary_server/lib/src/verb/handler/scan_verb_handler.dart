@@ -78,7 +78,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
         List<String> filteredKeys = [];
-        final enrollmentId = atConnectionMetadata.enrollApprovalId;
+        final enrollmentId = atConnectionMetadata.enrollmentId;
         logger.finer('inside scan: $enrollmentId');
         if (enrollmentId != null && enrollmentId.isNotEmpty) {
           enrollnamespaces =

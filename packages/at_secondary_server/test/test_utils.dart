@@ -43,6 +43,7 @@ class MockSecureSocket extends Mock implements SecureSocket {}
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 String alice = '@alice';
+String aliceEmoji = '@alice🛠';
 String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -104,9 +105,8 @@ verbTestsSetUp() async {
 
   mockOutboundConnection = MockOutboundConnection();
   mockOutboundConnectionFactory = MockOutboundConnectionFactory();
-  when(() =>
-      mockOutboundConnectionFactory.createOutboundConnection(
-          bobHost, bobPort, bob)).thenAnswer((invocation) async {
+  when(() => mockOutboundConnectionFactory.createOutboundConnection(
+      bobHost, bobPort, bob)).thenAnswer((invocation) async {
     return mockOutboundConnection;
   });
 
@@ -136,13 +136,13 @@ verbTestsSetUp() async {
     return outboundClientWithHandshake;
   });
   when(() =>
-      mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
+          mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
       .thenAnswer((_) {
     return outboundClientWithoutHandshake;
   });
 
   AtConnectionMetaData outboundConnectionMetadata =
-  OutboundConnectionMetadata();
+      OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
   when(() => mockOutboundConnection.getMetaData())
       .thenReturn(outboundConnectionMetadata);
@@ -154,10 +154,9 @@ verbTestsSetUp() async {
       .thenAnswer((_) => mockSecureSocket);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 
-  when(() =>
-      mockSecureSocket.listen(any(),
-          onError: any(named: "onError"),
-          onDone: any(named: "onDone"))).thenAnswer((Invocation invocation) {
+  when(() => mockSecureSocket.listen(any(),
+      onError: any(named: "onError"),
+      onDone: any(named: "onDone"))).thenAnswer((Invocation invocation) {
     socketOnDataFn = invocation.positionalArguments[0];
     socketOnDoneFn = invocation.namedArguments[#onDone];
     socketOnErrorFn = invocation.namedArguments[#onError];
@@ -168,22 +167,12 @@ verbTestsSetUp() async {
   cacheManager =
       AtCacheManager(alice, secondaryKeyStore, mockOutboundClientManager);
 
-  AtSecondaryServerImpl
-      .getInstance()
-      .cacheManager = cacheManager;
-  AtSecondaryServerImpl
-      .getInstance()
-      .secondaryKeyStore = secondaryKeyStore;
-  AtSecondaryServerImpl
-      .getInstance()
-      .outboundClientManager =
+  AtSecondaryServerImpl.getInstance().cacheManager = cacheManager;
+  AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
+  AtSecondaryServerImpl.getInstance().outboundClientManager =
       mockOutboundClientManager;
-  AtSecondaryServerImpl
-      .getInstance()
-      .currentAtSign = alice;
-  AtSecondaryServerImpl
-      .getInstance()
-      .signingKey =
+  AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+  AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
@@ -203,8 +192,8 @@ verbTestsSetUp() async {
   when(() => mockOutboundConnection.write(any()))
       .thenAnswer((Invocation invocation) async {
     socketOnDataFn('error:AT0001-Mock exception : '
-        'No mock response defined for request '
-        '[${invocation.positionalArguments[0]}]\n$alice@'
+            'No mock response defined for request '
+            '[${invocation.positionalArguments[0]}]\n$alice@'
         .codeUnits);
   });
   when(() => mockOutboundConnection.write('from:$alice\n'))
@@ -360,6 +349,6 @@ const String characters =
 String createRandomString(int length) {
   return String.fromCharCodes(Iterable.generate(
       length,
-          (index) =>
+      (index) =>
           characters.codeUnitAt(testUtilsRandom.nextInt(characters.length))));
 }
