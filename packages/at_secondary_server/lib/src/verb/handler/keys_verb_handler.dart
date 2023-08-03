@@ -124,9 +124,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
             }
             var keyMap = {
               'private':
-                  '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace\$atSign',
+                  '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
               'self':
-                  '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace\$atSign',
+                  '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
             };
 
             var keyString = keyMap[keyVisibility];

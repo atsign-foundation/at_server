@@ -236,6 +236,11 @@ Map decodeResponse(String sentToClient) {
       sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
 }
 
+List decodeResponseAsList(String serverResponse) {
+  return List<String>.from(jsonDecode(
+      serverResponse.substring('data:'.length, serverResponse.indexOf('\n'))));
+}
+
 Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
     SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
     {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
