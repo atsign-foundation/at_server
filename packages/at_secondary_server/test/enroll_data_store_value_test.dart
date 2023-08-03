@@ -115,7 +115,7 @@ void main() {
 
       String enrollmentList = 'enroll:list';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
       verbParams = getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
@@ -168,7 +168,7 @@ void main() {
       // Enroll list
       String enrollmentList = 'enroll:list';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
@@ -295,7 +295,7 @@ void main() {
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -326,7 +326,7 @@ void main() {
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = enrollmentId;
+          .enrollmentId = enrollmentId;
 
       String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
       HashMap<String, String?> updateVerbParams =
@@ -357,7 +357,7 @@ void main() {
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollApprovalId = '123';
+          .enrollmentId = '123';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);

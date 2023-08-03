@@ -109,7 +109,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['status'] = 'success';
       final inboundConnectionMetadata =
       atConnection.getMetaData() as InboundConnectionMetadata;
-      inboundConnectionMetadata.enrollApprovalId = newEnrollmentId;
+      inboundConnectionMetadata.enrollmentId = newEnrollmentId;
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
       await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
@@ -208,7 +208,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
         (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollApprovalId;
+            .enrollmentId;
     List<String> enrollmentKeysList =
         keyStore.getKeys(regex: newEnrollmentKeyPattern) as List<String>;
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.

@@ -135,7 +135,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     if (isValidSignature) {
       atConnectionMetadata.isAuthenticated = true;
       atConnectionMetadata.authType = pkamAuthType;
-      atConnectionMetadata.enrollApprovalId = enrollId;
+      atConnectionMetadata.enrollmentId = enrollId;
       response.data = 'success';
     } else {
       atConnectionMetadata.isAuthenticated = false;

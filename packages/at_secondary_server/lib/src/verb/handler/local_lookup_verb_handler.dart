@@ -62,7 +62,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     }
     final enrollApprovalId =
         (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollApprovalId;
+            .enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (!isPublic && enrollApprovalId != null && keyNamespace != null) {
       isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
