@@ -107,6 +107,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
+      final inboundConnectionMetadata =
+      atConnection.getMetaData() as InboundConnectionMetadata;
+      inboundConnectionMetadata.enrollApprovalId = newEnrollmentId;
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
       await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
