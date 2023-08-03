@@ -114,6 +114,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<bool> isAuthorized(
       String enrollApprovalId, String keyNamespace) async {
     EnrollDataStoreValue enrollDataStoreValue;
+    // global/manage namespace can be accessed only by keys: verb.
+    // Restrict other verbs access
+    if (keyNamespace == globalNamespace ||
+        keyNamespace == enrollManageNamespace) {
+      return false;
+    }
     final enrollmentKey =
         '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     try {

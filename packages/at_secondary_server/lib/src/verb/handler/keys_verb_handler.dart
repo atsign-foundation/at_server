@@ -115,6 +115,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
           try {
             value = await keyStore.get(keyNameFromParams);
             response.data = value.data;
+            break;
           } on KeyNotFoundException {
             throw KeyNotFoundException(
                 'key $keyNameFromParams not found in keystore');
