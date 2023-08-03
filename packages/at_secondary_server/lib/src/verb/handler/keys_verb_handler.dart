@@ -37,6 +37,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     final keyVisibility = verbParams[visibility];
     final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    bool hasManageAccess = false;
     var connectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
     final enrollIdFromMetadata = connectionMetadata.enrollApprovalId;
@@ -58,6 +59,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
         throw AtEnrollmentException(
             'Enrollment Id $enrollmentId is not approved. current state :${enrollDataStoreValue.approval!.state}');
       }
+      hasManageAccess =
+          enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace) &&
+              enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
     }
     final value = verbParams[keyValue];
     final valueJson = {};
@@ -105,21 +109,28 @@ class KeysVerbHandler extends AbstractVerbHandler {
         logger.finer('keyVisibility: $keyVisibility');
         logger.finer('keyNameFromParams: $keyNameFromParams');
         var result;
-        if (keyVisibility != null && keyVisibility.isNotEmpty) {
-          result = await keyStore.getKeys(
-              regex: '.*$keyVisibility.*__global$atSign\$');
-          logger.finer('get keys result:$result');
-          final filteredKeys = [];
-          // filter values by enrollmentId
-          for (String key in result) {
-            final value = await keyStore.get(key);
-            if (value != null && value.data != null) {
-              final valueJson = jsonDecode(value.data);
-              if (valueJson[enrollmentId] == enrollIdFromMetadata) {
-                filteredKeys.add(key);
-              }
-            }
+        final filteredKeys = [];
+        if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
+          var value;
+          try {
+            value = await keyStore.get(keyNameFromParams);
+            response.data = value.data;
+          } on KeyNotFoundException {
+            throw KeyNotFoundException(
+                'key $keyNameFromParams not found in keystore');
           }
+        }
+        if (hasManageAccess) {
+          result = await keyStore.getKeys(
+              regex:
+                  '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$');
+          logger.finer('get keys result:$result');
+
+          for (String key in result) {
+            filteredKeys.add(key);
+          }
+          response.data = jsonEncode(filteredKeys);
+        } else {
           if (keyVisibility == 'private') {
             final value = await keyStore.get(
                 '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign');
@@ -136,15 +147,6 @@ class KeysVerbHandler extends AbstractVerbHandler {
             }
           }
           response.data = jsonEncode(filteredKeys);
-        } else if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
-          var value;
-          try {
-            value = await keyStore.get(keyNameFromParams);
-            response.data = value.data;
-          } on KeyNotFoundException {
-            throw KeyNotFoundException(
-                'key $keyNameFromParams not found in keystore');
-          }
         }
         break;
       case 'delete':
