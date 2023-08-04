@@ -18,7 +18,7 @@ dependencies:
   collection: 1.17.2
   basic_utils: 5.6.0
   ecdsa: 0.0.4
-  at_commons: 3.0.52
+  at_commons: 3.0.53
   at_utils: 3.0.14
   at_chops: 1.0.3
   at_lookup: 3.0.37
@@ -33,13 +33,6 @@ dependencies:
   mutex: 3.0.1
   yaml: 3.1.2
 
-dependency_overrides:
-  at_commons:
-#    path: ../../../at_libraries/packages/at_commons
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      path: packages/at_commons
-      ref: apkam_enc_dec_changes
 
 dev_dependencies:
   build_runner: ^2.3.3

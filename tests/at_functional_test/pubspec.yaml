@@ -13,23 +13,12 @@ dependencies:
     git:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
-      ref: add_apkam_symm_keys
+      ref: trunk
   at_chops: ^1.0.1
   at_lookup: ^3.0.32
+  at_commons: ^3.0.53
   uuid: ^3.0.7
   elliptic: ^0.3.8
-
-dependency_overrides: 
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      path: packages/at_commons
-      ref: apkam_enc_dec_changes
-  at_client:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk
-      path: packages/at_client
-      ref: trunk
 
 dev_dependencies:
   lints: ^1.0.1

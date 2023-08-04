@@ -3,7 +3,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:at_client/src/util/encryption_util.dart';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
@@ -12,6 +11,7 @@ import 'package:encrypt/encrypt.dart';
 import 'package:test/test.dart';
 
 // import 'at_demo_data.dart' as demo;
+import 'encryption_util.dart';
 import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
@@ -367,7 +367,7 @@ void main() {
       await socket_writer(socketConnection1!, 'keys:get:self');
       var getResponse = await read();
       expect(getResponse,
-          'error:AT0401-Exception: Command cannot be executed without auth');
+          'error:AT0401-Exception: Command cannot be executed without auth\n');
     });
 
     test('check keys verb put operation - without authentication', () async {

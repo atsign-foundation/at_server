@@ -3,12 +3,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:at_client/src/util/encryption_util.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
 
 import 'at_demo_data.dart';
+import 'encryption_util.dart';
 import 'functional_test_commons.dart';
 import 'pkam_utils.dart';
 
