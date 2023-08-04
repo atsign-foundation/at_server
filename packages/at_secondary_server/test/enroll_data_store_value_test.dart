@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -367,6 +368,110 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message == 'enrollment id: 123 not found in keystore')));
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of hive related test to ensure enrollment keys are not updated in commit log keystore',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test('A test to ensure new enrollment key is not added to commit log',
+        () async {
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = '123';
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      expect(enrollmentResponse['status'], 'success');
+      // Commit log
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      expect(iterator.moveNext(), false);
+    });
+
+    test(
+        'A test to ensure new enrollment key on CRAM authenticated connection is not added to commit log',
+        () async {
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = '123';
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      expect(enrollmentResponse['status'], 'success');
+      // Commit log
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      expect(iterator.moveNext(), false);
+    });
+
+    test('A test to ensure enroll approval is not added to commit log',
+        () async {
+      Response response = Response();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      // GET TOTP
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.totp, 'totp:get');
+      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
+      await totpVerbHandler.processVerb(
+          response, totpVerbParams, inboundConnection);
+      // Send enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"buzz":"rw"},"encryptedAPKAMSymmetricKey":"dummy_apkam_symmetric_key","apkamPublicKey":"dummy_apkam_public_key","totp":"${response.data}"}';
+      HashMap<String, String?> enrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentVerbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      String enrollmentId = enrollmentResponse['enrollmentId'];
+      // Approve enrollment
+      String approveEnrollmentRequest =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
+      enrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      await enrollVerbHandler.processVerb(
+          response, enrollmentVerbParams, inboundConnection);
+      var approveEnrollmentResponse = jsonDecode(response.data!);
+      expect(approveEnrollmentResponse['enrollmentId'], enrollmentId);
+      expect(approveEnrollmentResponse['status'], 'approved');
+      // Verify Commit log does not contain keys with __manage namespace
+      Iterator iterator =
+          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+      iterator.moveNext();
+      expect(iterator.current.key,
+          'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');
+      expect(iterator.moveNext(), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });

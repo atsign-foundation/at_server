@@ -26,6 +26,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => enrollVerb;
 
+  final _uuid = Uuid();
+
   @override
   Future<void> processVerb(
       Response response,
@@ -40,7 +42,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
-
     try {
       var enrollVerbParams;
       if (verbParams[enrollParams] != null) {
@@ -90,8 +91,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
     var enrollNamespaces = enrollParams.namespaces!;
-    var newEnrollmentId = Uuid().v4();
-    var key = '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    var newEnrollmentId = _uuid.v4();
+    var key =
+        '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
 
     responseJson['enrollmentId'] = newEnrollmentId;
@@ -114,6 +116,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // for future retrieval
       await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
+      // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(
           AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
     } else {
@@ -126,8 +129,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
     AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     logger.finer('enrollData: $enrollData');
-
-    await keyStore.put('$key$currentAtSign', enrollData);
+    await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
   }
 
   Future<void> _handleEnrollmentPermissions(
@@ -136,7 +138,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String? operation,
       Map<dynamic, dynamic> responseJson) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
-    var key = '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    var key =
+        '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
     var enrollData;
     try {
@@ -153,11 +156,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollDataStoreValue.approval!.state =
           _getEnrollStatusEnum(operation).name;
       responseJson['status'] = _getEnrollStatusEnum(operation).name;
-
       AtData updatedEnrollData = AtData()
         ..data = jsonEncode(enrollDataStoreValue.toJson());
-
-      await keyStore.put('$key$currentAtSign', updatedEnrollData);
+      await keyStore.put('$key$currentAtSign', updatedEnrollData,
+          skipCommit: true);
       // when enrollment is approved store the apkamPublicKey of the enrollment
       if (operation == 'approve') {
         var apkamPublicKeyInKeyStore =
@@ -166,14 +168,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
         var atData = AtData()..data = jsonEncode(valueJson);
         await keyStore.put(apkamPublicKeyInKeyStore, atData);
-        await _storeEncryptionKeys(enrollmentIdFromParams!, enrollParams, currentAtSign);
+        await _storeEncryptionKeys(
+            enrollmentIdFromParams!, enrollParams, currentAtSign);
       }
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
 
-  Future<void> _storeEncryptionKeys(String newEnrollmentId,
-      EnrollParams enrollParams, String atSign) async {
+  Future<void> _storeEncryptionKeys(
+      String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privKeyJson = {};
     privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
     await keyStore.put(
