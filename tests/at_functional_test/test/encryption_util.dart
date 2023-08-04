@@ -1,10 +1,8 @@
 
 import 'package:crypton/crypton.dart';
 import 'package:encrypt/encrypt.dart';
-import 'package:at_utils/at_logger.dart';
 
 class EncryptionUtil {
-  static final _logger = AtSignLogger('EncryptionUtil');
 
   static IV getIV(String? ivBase64) {
     if (ivBase64 == null) {
