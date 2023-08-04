@@ -200,7 +200,7 @@ void main() {
       var cramResult = await read();
       expect(cramResult, 'data:success\n');
 
-       var enrollRequest =
+      var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
@@ -232,8 +232,8 @@ void main() {
       var secondEnrollId = enrollJson['enrollmentId'];
 
       // connect to the first client to approve the enroll request
-      await socket_writer(
-          socketConnection1!, 'enroll:approve:{"enrollmentId":"$secondEnrollId"}\n');
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$secondEnrollId"}\n');
       var approveResponse = await read();
       approveResponse = approveResponse.replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
@@ -361,6 +361,22 @@ void main() {
           'keys:delete:keyName:wavi.pixel.myaesKey.__self_keys.__global$firstAtsign');
       var deleteSelfKeyResponse = await read();
       expect(deleteSelfKeyResponse, 'data:-1\n');
+    });
+
+    test('check keys verb get operation - without authentication', () async {
+      await socket_writer(socketConnection1!, 'keys:get:self');
+      var getResponse = await read();
+      expect(getResponse,
+          'error:AT0401-Exception: Command cannot be executed without auth');
+    });
+
+    test('check keys verb put operation - without authentication', () async {
+      var putCommand =
+          'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_12344444 testPublicKeyValue';
+      await socket_writer(socketConnection1!, putCommand);
+      var putResponse = await read();
+      expect(putResponse,
+          'error:AT0401-Exception: Command cannot be executed without auth\n');
     });
   });
 }
