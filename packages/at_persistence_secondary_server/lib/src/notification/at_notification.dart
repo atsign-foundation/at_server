@@ -427,7 +427,7 @@ class AtNotificationBuilder {
 
   String? fromAtSign;
 
-  DateTime? notificationDateTime = DateTime.now();
+  DateTime? notificationDateTime = DateTime.now().toUtc();
 
   String? toAtSign;
 

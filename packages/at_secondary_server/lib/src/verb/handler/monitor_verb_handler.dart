@@ -55,11 +55,17 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           verbParams[EPOCH_MILLIS] != null) {
         // Send notifications that are already received after EPOCH_MILLIS first
         var fromEpochMillis = int.parse(verbParams[EPOCH_MILLIS]!);
-        var receivedNotifications = await _getNotificationsAfterEpoch(
-            fromEpochMillis,
-            selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
-        for (var notification in receivedNotifications) {
-          processReceivedNotification(notification);
+        List<NotificationType> notificationTypesToFetch = [
+          NotificationType.received
+        ];
+        if (verbParams[MONITOR_SELF_NOTIFICATIONS] != null) {
+          notificationTypesToFetch.add(NotificationType.self);
+        }
+        List notificationsList = await AtNotificationKeystore.getInstance()
+            .getNotificationsAfterTimestamp(
+                fromEpochMillis, notificationTypesToFetch);
+        for (var atNotification in notificationsList) {
+          processAtNotification(atNotification);
         }
       }
     }

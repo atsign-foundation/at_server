@@ -240,6 +240,51 @@ class AtNotificationKeystore
     return _getBox().keys.length;
   }
 
+  Future<List<AtNotification>> getNotificationsAfterTimestamp(
+      int timestamp, List<NotificationType> notificationTypeList) async {
+    int firstMatchingNotificationIndex = 0;
+    int start = 0;
+    int end = _getBox().length;
+    while (start <= end) {
+      var midIndex = (start + end) ~/ 2;
+      late AtNotification atNotification;
+      try {
+        atNotification = await (_getBox() as LazyBox).getAt(midIndex);
+      } on IndexError {
+        /* TODO: Think on what to do when a notification is not found
+            in the index. Fow now, returning empty list.
+         */
+        _logger.severe('Notification not found in the given index');
+        return [];
+      }
+      if (atNotification.notificationDateTime!.millisecondsSinceEpoch <=
+          timestamp) {
+        // If the notificationDateTime is less than the timestamp, all the
+        // notifications preceding this particular notification can be ignored
+        // So set start to midIndex + 1
+        start = midIndex + 1;
+        // If the provided timestamp does not correspond to any notification in
+        // the notification keystore, retrieve the first notification with a
+        // DateTime greater than the given timestamp.
+        firstMatchingNotificationIndex = start;
+      } else {
+        end = midIndex - 1;
+      }
+    }
+    LazyBox lazyBox = (_getBox() as LazyBox);
+    var responseList = <AtNotification>[];
+    while (firstMatchingNotificationIndex < _getBox().length) {
+      AtNotification atNotification =
+          await lazyBox.getAt(firstMatchingNotificationIndex);
+      if (notificationTypeList.contains(atNotification.type) &&
+          !atNotification.isExpired()) {
+        responseList.add(atNotification);
+      }
+      firstMatchingNotificationIndex = firstMatchingNotificationIndex + 1;
+    }
+    return responseList;
+  }
+
   @override
   Future getMeta(key) {
     throw UnimplementedError();

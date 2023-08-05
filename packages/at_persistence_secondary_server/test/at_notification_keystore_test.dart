@@ -137,6 +137,333 @@ void main() async {
       expect(0, expiredKeys.length);
     });
   });
+
+  group(
+      'A group of tests to verify notification getNotificationsAfterTimestamp optimization',
+      () {
+    setUp(() async => await setUpFunc(storageDir));
+    test(
+        'A test to verify getNotificationsAfterTimestamp when given timestamp matches the notification',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+      var notificationsFromTimestamp =
+          firstNotification.notificationDateTime!.millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..id = '222'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+      var atNotification_3 = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(atNotification_3.id, atNotification_3);
+      var notificationsList = await keyStore.getNotificationsAfterTimestamp(
+          notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationsList.length, 2);
+      AtNotification atNotification = notificationsList[0];
+      expect(atNotification.id, '222');
+      expect(atNotification.toAtSign, '@charlie');
+      expect(atNotification.fromAtSign, '@alice');
+
+      atNotification = notificationsList[1];
+      expect(atNotification.id, '333');
+      expect(atNotification.toAtSign, '@dave');
+      expect(atNotification.fromAtSign, '@alice');
+    });
+
+    test(
+        'A test to verify getNotificationsAfterTimestamp when given timestamp does not match with notifications in the keystore',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..ttl = 4000
+            ..id = '222'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+      var thirdNotification = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..ttl = 5000
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(thirdNotification.id, thirdNotification);
+      var notificationsList = await keyStore.getNotificationsAfterTimestamp(
+          notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationsList.length, 2);
+      AtNotification atNotification = notificationsList[0];
+      expect(atNotification.id, '222');
+      expect(atNotification.toAtSign, '@charlie');
+      expect(atNotification.fromAtSign, '@alice');
+
+      atNotification = notificationsList[1];
+      expect(atNotification.id, '333');
+      expect(atNotification.toAtSign, '@dave');
+      expect(atNotification.fromAtSign, '@alice');
+    });
+
+    test(
+        'A test to verify getNotificationsAfterTimestamp when in-between notifications are deleted',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..ttl = 4000
+            ..id = '222'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+      var thirdNotification = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..ttl = 5000
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(thirdNotification.id, thirdNotification);
+      await keyStore.remove('222');
+      var notificationResponseList = await keyStore
+          .getNotificationsAfterTimestamp(
+              notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationResponseList.length, 1);
+      expect(notificationResponseList.first.id, '333');
+    });
+
+    test(
+        'A test to verify getNotificationsAfterTimestamp returns empty list when there are no matching notification',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var notificationResponseList = await keyStore
+          .getNotificationsAfterTimestamp(
+              notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationResponseList.length, 0);
+    });
+
+    test(
+        'A test to verify getNotificationAfterTimestamp when timestamp matches all notifications',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..ttl = 4000
+            ..id = '222'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+
+      var thirdNotification = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..ttl = 5000
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(thirdNotification.id, thirdNotification);
+
+      var notificationsList = await keyStore.getNotificationsAfterTimestamp(
+          notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationsList.length, 3);
+      AtNotification atNotification = notificationsList[0];
+      expect(atNotification.id, '111');
+      expect(atNotification.toAtSign, '@bob');
+      expect(atNotification.fromAtSign, '@alice');
+
+      atNotification = notificationsList[1];
+      expect(atNotification.id, '222');
+      expect(atNotification.toAtSign, '@charlie');
+      expect(atNotification.fromAtSign, '@alice');
+
+      atNotification = notificationsList[2];
+      expect(atNotification.id, '333');
+      expect(atNotification.toAtSign, '@dave');
+      expect(atNotification.fromAtSign, '@alice');
+    });
+
+    test(
+        'A test to verify getNotificationAfterTimestamp when timestamp matches the last notifications',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..ttl = 4000
+            ..id = '222'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(seconds: 2));
+      var thirdNotification = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..ttl = 5000
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(thirdNotification.id, thirdNotification);
+
+      var notificationsList = await keyStore.getNotificationsAfterTimestamp(
+          notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationsList.length, 1);
+      AtNotification atNotification = notificationsList[0];
+      expect(atNotification.id, '333');
+      expect(atNotification.toAtSign, '@dave');
+      expect(atNotification.fromAtSign, '@alice');
+    });
+
+    test(
+        'A test to verify empty list is returned when notification keystore is empty',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var list = await keyStore.getNotificationsAfterTimestamp(
+          DateTime.now().toUtc().millisecondsSinceEpoch,
+          [NotificationType.received]);
+      expect(list, isEmpty);
+    });
+
+    test(
+        'A test to verify when only one matching entry exists in notification keystore',
+        () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      int timeStamp = DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(milliseconds: 100));
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+      var notificationsList = await keyStore.getNotificationsAfterTimestamp(
+          timeStamp, [NotificationType.received]);
+      expect(notificationsList.length, 1);
+      AtNotification atNotification = notificationsList[0];
+      expect(atNotification.id, '111');
+      expect(atNotification.toAtSign, '@bob');
+      expect(atNotification.fromAtSign, '@alice');
+    });
+
+    test('A test to verify expired notifications are not returned', () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var notificationsFromTimestamp =
+          DateTime.now().toUtc().millisecondsSinceEpoch;
+      await Future.delayed(Duration(milliseconds: 1));
+      var firstNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..ttl = 3000
+            ..id = '111'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(firstNotification.id, firstNotification);
+
+      var secondNotification = (AtNotificationBuilder()
+            ..toAtSign = '@charlie'
+            ..fromAtSign = '@alice'
+            ..ttl = 4000
+            ..id = '222'
+            ..ttl = 1
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(secondNotification.id, secondNotification);
+      await Future.delayed(Duration(milliseconds: 2));
+      var thirdNotification = (AtNotificationBuilder()
+            ..toAtSign = '@dave'
+            ..fromAtSign = '@alice'
+            ..ttl = 5000
+            ..id = '333'
+            ..type = NotificationType.received)
+          .build();
+      await keyStore.put(thirdNotification.id, thirdNotification);
+
+      var notificationResponseList = await keyStore
+          .getNotificationsAfterTimestamp(
+              notificationsFromTimestamp, [NotificationType.received]);
+      expect(notificationResponseList.length, 2);
+      expect(notificationResponseList[0].id, '111');
+      expect(notificationResponseList[0].fromAtSign, '@alice');
+      expect(notificationResponseList[0].toAtSign, '@bob');
+      expect(notificationResponseList[1].id, '333');
+      expect(notificationResponseList[1].fromAtSign, '@alice');
+      expect(notificationResponseList[1].toAtSign, '@dave');
+    });
+  });
   try {
     tearDown(() async => await tearDownFunc());
   } on Exception catch (e) {
