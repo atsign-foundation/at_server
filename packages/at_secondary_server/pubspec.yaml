@@ -37,6 +37,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.3.3
   coverage: ^1.6.1
+  encrypt: ^5.0.1
   json_serializable: ^6.6.0
   lints: ^2.1.1
   mocktail: ^0.3.0
