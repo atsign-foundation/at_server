@@ -26,8 +26,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => enrollVerb;
 
-  final _uuid = Uuid();
-
   @override
   Future<void> processVerb(
       Response response,
@@ -77,6 +75,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     response.data = jsonEncode(responseJson);
   }
 
+  /// If [atConnection] is cram authenticated, the enrollment is auto approved and given rw to access __manage namespace.
+  /// If [atConnection] is unauthenticated, the enrollment will be marked pending.
+  /// If [atConnection] is unauthenticated, valid otp(retrieved from already enrolled app) has to be passed in the enrollment request.
+  /// enrollmentId and [EnrollStatus] will set in the response json
+  /// [EnrollDataStoreValue] will be stored for the current enrollment with key <enrollmentId>.new.enrollments.__manage@<atsign> in keystore
+  /// For cram authenticated connection, default encryption private key and default self encryption key will be stored in encrypted format
   Future<void> _handleEnrollmentRequest(
       EnrollParams enrollParams,
       currentAtSign,
@@ -91,7 +95,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
     var enrollNamespaces = enrollParams.namespaces!;
-    var newEnrollmentId = _uuid.v4();
+    var newEnrollmentId = Uuid().v4();
     var key =
         '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer('key: $key$currentAtSign');
@@ -110,7 +114,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
       final inboundConnectionMetadata =
-      atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.getMetaData() as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
@@ -132,6 +136,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
   }
 
+  /// Handles enrollment approve, deny and revoke requests.
+  /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
+  /// If [operation] is approve, store the public key in public:appName.deviceName.pkam.__pkams.__public_keys
+  /// and also store default encryption private key and default self encryption key in encrypted format.
   Future<void> _handleEnrollmentPermissions(
       EnrollParams enrollParams,
       currentAtSign,
@@ -175,6 +183,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
 
+  /// Stores the encrypted default encryption private key in <enrollmentId>.default_enc_private_key.__manage@<atsign>
+  /// and the encrypted self encryption key in <enrollmentId>.default_self_enc_key.__manage@<atsign>
+  /// These keys will be stored only on server and will not be synced to the client
+  /// Encrypted keys will be used later on by the approving app to send the keys to a new enrolling app
   Future<void> _storeEncryptionKeys(
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privKeyJson = {};
@@ -192,16 +204,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {
-    switch (enrollmentOperation) {
-      case 'approve':
-        return EnrollStatus.approved;
-      case 'deny':
-        return EnrollStatus.denied;
-      case 'revoke':
-        return EnrollStatus.revoked;
-      default:
-        return EnrollStatus.pending;
-    }
+    enrollmentOperation = enrollmentOperation?.toLowerCase();
+    final operationMap = {
+      'approve': EnrollStatus.approved,
+      'deny': EnrollStatus.denied,
+      'revoke': EnrollStatus.revoked
+    };
+
+    return operationMap[enrollmentOperation] ?? EnrollStatus.pending;
   }
 
   /// Returns a Map where key is an enrollment key and value is a
@@ -210,8 +220,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       AtConnection atConnection, String currentAtSign) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId;
+        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
     List<String> enrollmentKeysList =
         keyStore.getKeys(regex: newEnrollmentKeyPattern) as List<String>;
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
@@ -259,6 +268,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace);
   }
 
+  /// Pending enrollments have to be notified to clients with __manage namespace - rw access
+  /// So store a self notification with key  <enrollmentId>.new.enrollments.__manage and value containing encrypted APKAM symmetric key
   Future<void> _storeNotification(
       String key, EnrollParams enrollParams, String atSign) async {
     try {

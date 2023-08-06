@@ -80,21 +80,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  Future<Map<String, String>> getEnrollmentNamespaces(
-      String enrollmentId, String currentAtSign) async {
-    final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    EnrollDataStoreValue enrollDataStoreValue;
-    try {
-      enrollDataStoreValue =
-          await getEnrollDataStoreValue('$key$currentAtSign');
-    } on KeyNotFoundException {
-      logger.warning('enrollment key not found in keystore $key');
-      return {};
-    }
-    logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
-    return enrollDataStoreValue.namespaces;
-  }
-
   /// Fetch for an enrollment key in the keystore.
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
@@ -111,8 +96,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
-  Future<bool> isAuthorized(
-      String enrollApprovalId, String keyNamespace) async {
+  /// Check whether the given client enrollment with [enrollmentId] is authorized to access [keyNamespace]
+  /// Global(__global) and manage(__manage) namespaces are accessible only by keys verb. Access to these namespaces to other verbs is not allowed.
+  /// This method retrieves the list of enrollment data namespaces from keystore for the enrollment [enrollmentId] and compares with the passed [namespace]
+  /// Returns true if passed [keyNamespace] is in the list of namespaces from keystore and has required access to [keyNamespace]
+  /// Returns false if passed [keyNamespace] is not in the list of namespaces from keystore or doesn't have required access to [keyNamespace]
+  /// Returns false if approval state of [enrollmentId] is not [EnrollStatus.approved]
+  Future<bool> isAuthorized(String enrollmentId, String keyNamespace) async {
     EnrollDataStoreValue enrollDataStoreValue;
     // global/manage namespace can be accessed only by keys: verb.
     // Restrict other verbs access
@@ -121,7 +111,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
     final enrollmentKey =
-        '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
     try {
       enrollDataStoreValue = await getEnrollDataStoreValue(
           '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}');
@@ -135,8 +125,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
 
-    final enrollNamespaces = await getEnrollmentNamespaces(
-        enrollApprovalId, AtSecondaryServerImpl.getInstance().currentAtSign);
+    final enrollNamespaces = enrollDataStoreValue.namespaces;
 
     logger.finer(
         'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');

@@ -69,7 +69,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
       // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var enrollnamespaces = {};
+      var enrollNamespaces = {};
       if (forAtSign != null &&
           atConnectionMetadata.isAuthenticated &&
           forAtSign != currentAtSign) {
@@ -78,17 +78,20 @@ class ScanVerbHandler extends AbstractVerbHandler {
       } else {
         List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
         List<String> filteredKeys = [];
-        final enrollmentId = atConnectionMetadata.enrollmentId;
-        logger.finer('inside scan: $enrollmentId');
-        if (enrollmentId != null && enrollmentId.isNotEmpty) {
-          enrollnamespaces =
-              await getEnrollmentNamespaces(enrollmentId, currentAtSign);
-          logger.finer('scan namespaces: $enrollnamespaces');
+        final enrollmentIdFromMetadata = atConnectionMetadata.enrollmentId;
+        logger.finer('enrollmentIdFromMetadata: $enrollmentIdFromMetadata');
+        if (enrollmentIdFromMetadata != null &&
+            enrollmentIdFromMetadata.isNotEmpty) {
+          var enrollmentKey =
+              '$enrollmentIdFromMetadata.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
+          enrollNamespaces =
+              (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+          logger.finer('enroll namespaces: $enrollNamespaces');
         }
         List<String> keyString =
             _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
         for (var key in keyString) {
-          for (var namespace in enrollnamespaces.keys) {
+          for (var namespace in enrollNamespaces.keys) {
             // do not show keys in __manage namespace
             if (namespace == enrollManageNamespace) {
               continue;
@@ -107,7 +110,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         logger.finer('response.data : $keyString');
         var keysArray = keyString;
         logger.finer('keysArray : $keysArray, ${keysArray.length}');
-        if (enrollnamespaces.isNotEmpty) {
+        if (enrollNamespaces.isNotEmpty) {
           response.data = json.encode(filteredKeys);
         } else {
           response.data = json.encode(keysArray);
