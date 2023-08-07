@@ -96,12 +96,23 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
-  /// Check whether the given client enrollment with [enrollmentId] is authorized to access [keyNamespace]
-  /// Global(__global) and manage(__manage) namespaces are accessible only by keys verb. Access to these namespaces to other verbs is not allowed.
-  /// This method retrieves the list of enrollment data namespaces from keystore for the enrollment [enrollmentId] and compares with the passed [namespace]
-  /// Returns true if passed [keyNamespace] is in the list of namespaces from keystore and has required access to [keyNamespace]
-  /// Returns false if passed [keyNamespace] is not in the list of namespaces from keystore or doesn't have required access to [keyNamespace]
-  /// Returns false if approval state of [enrollmentId] is not [EnrollStatus.approved]
+  /// Verifies whether the enrollment namespace for the enrollment
+  /// ID has the necessary permissions to modify, delete, or retrieve the data.
+  /// The enrollment should be in an approved state.
+  ///
+  /// To execute a data retrieval (lookup or local lookup), the namespace must have
+  /// "r" (read) privileges within the namespace.
+  /// For update or delete actions, the namespace must have "rw" (read-write) privileges.
+  ///
+  /// Returns true, if the namespace has the required read or read-write
+  /// permissions to execute lookup/local-lookup or update/delete operations
+  /// respectively
+  ///
+  /// Returns false
+  ///  - If the enrollment key is not present in the keystore.
+  ///  - If the enrollment is not in "approved" state
+  ///  - If the namespace does not have necessary permissions to perform the operation
+  ///  - If enrollment is a part of "global" or "manage" namespace
   Future<bool> isAuthorized(String enrollmentId, String keyNamespace) async {
     EnrollDataStoreValue enrollDataStoreValue;
     // global/manage namespace can be accessed only by keys: verb.

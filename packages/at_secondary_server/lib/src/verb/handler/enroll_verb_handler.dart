@@ -75,12 +75,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     response.data = jsonEncode(responseJson);
   }
 
-  /// If [atConnection] is cram authenticated, the enrollment is auto approved and given rw to access __manage namespace.
-  /// If [atConnection] is unauthenticated, the enrollment will be marked pending.
-  /// If [atConnection] is unauthenticated, valid otp(retrieved from already enrolled app) has to be passed in the enrollment request.
-  /// enrollmentId and [EnrollStatus] will set in the response json
-  /// [EnrollDataStoreValue] will be stored for the current enrollment with key <enrollmentId>.new.enrollments.__manage@<atsign> in keystore
-  /// For cram authenticated connection, default encryption private key and default self encryption key will be stored in encrypted format
+  /// Enrollment requests details are persisted in the keystore and are excluded from
+  /// adding to the commit log to prevent the synchronization of enrollment
+  /// keys with clients.
+  ///
+  /// If the enrollment request originates from a CRAM authenticated connection:
+  ///
+  /// The enrollment is automatically approved and given privilege to the "__manage"
+  /// namespace group with "rw" access.
+  /// The default encryption private key and default self-encryption key are
+  /// securely stored in encrypted format within the keystore.
+  ///
+  /// If the enrollment request originates from an unauthenticated connection and
+  /// includes a valid OTP (One-Time Password), it is marked as pending.
+  ///
+  ///
+  /// The function returns a JSON-encoded string containing the enrollmentId
+  /// and its corresponding state.
+  ///
+  /// Throws "AtEnrollmentException", if the OTP provided is invalid.
   Future<void> _handleEnrollmentRequest(
       EnrollParams enrollParams,
       currentAtSign,
