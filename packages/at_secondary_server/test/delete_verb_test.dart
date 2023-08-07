@@ -2,6 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -9,6 +10,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+
+import 'assets/test_config_util.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -136,5 +139,15 @@ void main() {
           throwsA(
               predicate((exception) => exception is UnAuthorizedException)));
     });
+
+    test(
+        'Verify protectedKeys from configYaml being appended to the list of protectedKeys in AtSecondaryConfig',
+        () {
+          TestConfigUtil.setTestConfig(1);
+          expect(AtSecondaryConfig.protectedKeys.length, 7);
+          TestConfigUtil.setTestConfig(2);
+          expect(AtSecondaryConfig.protectedKeys.length, 6);
+          TestConfigUtil.resetTestConfig();
+        });
   });
 }

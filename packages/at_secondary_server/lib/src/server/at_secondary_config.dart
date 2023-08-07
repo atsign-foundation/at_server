@@ -3,11 +3,16 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:meta/meta.dart';
 import 'package:yaml/yaml.dart';
 
 class AtSecondaryConfig {
+  // Config
+  @visibleForTesting
+  static YamlMap? configYamlMap = ConfigUtil.getYaml();
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
+
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
@@ -695,8 +700,8 @@ class AtSecondaryConfig {
       for (var key in keys) {
         protectedKeysFromConfig.add(key);
       }
-      _protectedKeys.addAll(protectedKeysFromConfig);
-      return _protectedKeys;
+      protectedKeysFromConfig.addAll(_protectedKeys);
+      return protectedKeysFromConfig;
     } on Exception {
       return _protectedKeys;
     }
@@ -798,7 +803,7 @@ class AtSecondaryConfig {
 }
 
 dynamic getConfigFromYaml(List<String> args) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
@@ -821,7 +826,7 @@ dynamic getConfigFromYaml(List<String> args) {
 }
 
 String? getStringValueFromYaml(List<String> keyParts) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
