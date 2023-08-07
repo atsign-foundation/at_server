@@ -97,25 +97,24 @@ void main() async {
       expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
     });
 
-    test('test to verify commitId does not increment for signing public key',
-        () async {
+    test('test to verify commitId increments for signing public key', () async {
       var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       var commitId = await commitLogInstance?.commit(
           'public:signing_publickey@alice', CommitOp.UPDATE);
-      expect(commitId, -1);
-      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
-    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
+      expect(commitId, 0);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+    });
 
-    test('test to verify commitId does not increment for signing private key',
+    test('test to verify commitId increments for signing private key',
         () async {
       var commitLogInstance =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       var commitId = await commitLogInstance?.commit(
           '@alice:signing_privatekey@alice', CommitOp.UPDATE);
-      expect(commitId, -1);
-      expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
-    }, skip: 'Reverting the changes temporarily. Hence skipping the test');
+      expect(commitId, 0);
+      expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+    });
 
     test(
         'test to verify commitId does not increment for key starting with private:',
