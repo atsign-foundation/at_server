@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -10,9 +11,11 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
+import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -21,6 +24,9 @@ import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
+
+import 'test_utils.dart';
 
 // Global variable to assert the scan responses from the mock response handlers
 String scanResponse = '';
@@ -180,5 +186,119 @@ void main() {
       expect(scanResponseList.contains('public:__phone.wavi@alice'), false);
       expect(scanResponseList.contains('_mobile.wavi@alice'), false);
     });
+  });
+
+  group('A group of APKAM enrollment tests', () {
+    late ScanVerbHandler scanVerbHandler;
+    late ResponseHandlerManager mockResponseHandlerManager;
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify scan does not return the enrollment keys when enrollment namespace has __manage',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'__manage': 'r', 'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      await secondaryKeyStore.put(
+          'public:firstName.wavi$alice', AtData()..data = 'alice');
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      // Set enrollmentId to the inboundConnection to mimic the APKAM auth
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(scanResponseList, isNotEmpty);
+      expect(
+          scanResponseList
+              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+          false);
+    });
+
+    test(
+        'A test to verify scan returns only the keys whose namespaces are authorized in enrollment request',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'__manage': 'r', 'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Insert key with wavi and buzz namespace
+      await secondaryKeyStore.put(
+          'firstName.wavi$alice', AtData()..data = 'alice');
+      await secondaryKeyStore.put(
+          'mobileNumber.buzz$alice', AtData()..data = '+1 434 543 3232');
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      // Set enrollmentId to the inboundConnection to mimic the APKAM auth
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(scanResponseList.length, 1);
+      expect(scanResponseList[0], 'firstname.wavi$alice');
+    });
+
+    test(
+        'A test to verify scan returns enrollment keys on a CRAM authenticated connection',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'__manage': 'r', 'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(scanResponseList.length, 1);
+      expect(scanResponseList[0],
+          '$enrollmentId.new.enrollments.__manage$alice');
+    });
+    tearDown(() async => await verbTestsTearDown());
   });
 }

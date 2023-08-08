@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -113,7 +112,11 @@ void main() {
 
       setUp(() async {
         await verbTestsSetUp();
+      });
 
+      test(
+          'A test to verify delete verb is allowed in all namespace when access is *:rw',
+          () async {
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
         enrollmentId = Uuid().v4();
@@ -130,23 +133,18 @@ void main() {
         var keyName = '$enrollmentId.new.enrollments.__manage@alice';
         await secondaryKeyStore.put(
             keyName, AtData()..data = jsonEncode(enrollJson));
-      });
-
-      test(
-          'A test to verify delete verb is allowed in all namespace when access is *:rw',
-          () async {
         // Delete a key with wavi namespace
-        String deleteCommand = 'delete:$alice:phone.wavi$alice 123';
+        String deleteCommand = 'delete:$alice:phone.wavi$alice';
         HashMap<String, String?> deleteVerbParams =
-            getVerbParam(VerbSyntax.update, deleteCommand);
+            getVerbParam(VerbSyntax.delete, deleteCommand);
         DeleteVerbHandler deleteVerbHandler =
             DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
         await deleteVerbHandler.processVerb(
             response, deleteVerbParams, inboundConnection);
         expect(response.data, isNotNull);
         // Delete a key with buzz namespace
-        deleteCommand = 'delete:$alice:phone.buzz$alice 123';
-        deleteVerbParams = getVerbParam(VerbSyntax.update, deleteCommand);
+        deleteCommand = 'delete:$alice:phone.buzz$alice';
+        deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
         deleteVerbHandler =
             DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
         await deleteVerbHandler.processVerb(
@@ -159,7 +157,11 @@ void main() {
         () {
       setUp(() async {
         await verbTestsSetUp();
+      });
 
+      test(
+          'A test to verify delete verb is not allowed when enrollment is not authorized for write operations',
+          () async {
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
         String enrollmentId = Uuid().v4();
@@ -176,10 +178,7 @@ void main() {
         var keyName = '$enrollmentId.new.enrollments.__manage@alice';
         await secondaryKeyStore.put(
             keyName, AtData()..data = jsonEncode(enrollJson));
-      });
-      test(
-          'A test to verify delete verb is not allowed when enrollment is not authorized for write operations',
-          () async {
+
         String deleteCommand = 'delete:dummykey.wavi$alice';
         HashMap<String, String?> deleteVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
