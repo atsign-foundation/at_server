@@ -154,14 +154,32 @@ void main() {
   }, timeout: Timeout(Duration(seconds: 50)));
 
   test('delete verb for an protected key - signing_publickey', () async {
-    ///DELETE VERB
+    // attempt to delete the key
     await socket_writer(
         socketFirstAtsign!, 'delete:public:signing_publickey$firstAtsign');
     var response = await read();
     print('delete verb response : $response');
-    // the error is an expected behaviour
+    // error is an expected behaviour
     assert((response.contains(
             'UnAuthorized client in request : Cannot delete protected key')) &&
+        (response.contains('error')));
+
+    // verify that the key is not deleted
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response is :$response');
+    assert(response.contains('public:signing_publickey$firstAtsign'));
+  });
+
+  test('delete verb for an protected key - signing_privatekey', () async {
+    // attempt to delete the key
+    await socket_writer(
+        socketFirstAtsign!, 'delete:$firstAtsign:signing_privatekey$firstAtsign');
+    var response = await read();
+    print('delete verb response : $response');
+    // the error is an expected behaviour
+    assert((response.contains(
+        'UnAuthorized client in request : Cannot delete protected key')) &&
         (response.contains('error')));
 
     ///SCAN VERB
@@ -169,11 +187,29 @@ void main() {
     response = await read();
     print('scan verb response is :$response');
     // ensure that the signing_publickey is not deleted
-    assert(response.contains('signing_publickey'));
+    assert(response.contains('$firstAtsign:signing_privatekey$firstAtsign'));
+  });
+
+  test('delete verb for an protected key - encryption_publickey', () async {
+    // attempt to delete the key
+    await socket_writer(
+        socketFirstAtsign!, 'delete:public:publickey$firstAtsign');
+    var response = await read();
+    print('delete verb response : $response');
+    // error is an expected behaviour
+    assert((response.contains(
+        'UnAuthorized client in request : Cannot delete protected key')) &&
+        (response.contains('error')));
+
+    // verify that the key is not deleted
+    await socket_writer(socketFirstAtsign!, 'scan');
+    response = await read();
+    print('scan verb response is :$response');
+    assert(response.contains('public:publickey$firstAtsign'));
   });
 
   test('delete verb for an protected key - pkam_publickey', () async {
-    ///DELETE VERB
+    // attempt to delete the key
     await socket_writer(
         socketFirstAtsign!, 'delete:privatekey:at_pkam_publickey');
     var response = await read();
