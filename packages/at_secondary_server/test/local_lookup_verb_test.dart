@@ -18,6 +18,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
+
+import 'test_utils.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -246,6 +249,54 @@ void main() {
       expect(localLookUpResponse.data, 'India');
     });
     tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of tests related APKAM enrollment', () {
+    Response response = Response();
+    String enrollmentId = Uuid().v4();
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+    });
+
+    test(
+        'A test to verify llookup verb is allowed in all namespace when access is *:r',
+        () async {
+      // Update a key with wavi namespace
+      String updateCommand = 'update:$alice:phone.wavi$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Since the namespace have only read access, setting the
+      // enrollmentId to connection after update
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      // Local Lookup a key with wavi namespace
+      String llookupCommand = 'llookup:$alice:phone.wavi$alice';
+      HashMap<String, String?> llookupVerbParams =
+          getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, '123');
+    });
   });
 }
 

@@ -142,7 +142,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
           return true;
         }
       }
-
       return false;
     } on KeyNotFoundException {
       return false;

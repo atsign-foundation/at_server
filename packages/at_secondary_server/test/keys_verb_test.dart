@@ -46,7 +46,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -92,7 +92,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'publicKeyTest',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -135,7 +135,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -180,7 +180,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -223,7 +223,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -267,7 +267,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -310,7 +310,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -356,7 +356,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -400,7 +400,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -445,7 +445,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -487,7 +487,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -534,7 +534,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -581,7 +581,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -627,7 +627,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -658,7 +658,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -717,7 +717,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -795,7 +795,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'namespaces': {'wavi': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'pending'}
