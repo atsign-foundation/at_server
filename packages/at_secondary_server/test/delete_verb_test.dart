@@ -105,6 +105,7 @@ void main() {
     });
   });
 
+  // The following group of tests are to ensure that the protected keys cannot be deleted
   group('verify deletion of protected keys', () {
     var handler =
         DeleteVerbHandler(mockKeyStore, StatsNotificationService.getInstance());
@@ -140,13 +141,51 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
+    // the following test throws a syntax exception since delete verb handler
+    // expects a key to contain its atsign; but at_pkam_publickey does not
+    test('verify deletion of pkam public key', () {
+      var command = 'delete:$AT_PKAM_PUBLIC_KEY';
+      try {
+        var paramsMap = getVerbParam(Delete().syntax(), command);
+        handler.processVerb(Response(), paramsMap, mockInboundConnection);
+      } on Exception catch (exception) {
+        assert(exception.toString().contains('Syntax Exception'));
+      }
+    });
+  });
+
+  group('Tests to verify if protected keys from config.yaml augment the server list of protected keys', (){
+    final Set<String> serverProtectedKeys = {
+      'signing_publickey<@atsign>',
+      'signing_privatekey<@atsign>',
+      'publickey<@atsign>',
+      'at_pkam_publickey'
+    };
+
     test(
-        'Verify protectedKeys from configYaml being appended to the list of protectedKeys in AtSecondaryConfig',
-        () {
+        'Verify with test_config_yaml1 that has 3 additional protected keys',
+            () {
           TestConfigUtil.setTestConfig(1);
           expect(AtSecondaryConfig.protectedKeys.length, 7);
+          assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
+          TestConfigUtil.resetTestConfig();
+        });
+
+    test(
+        'Verify with test_config_yaml2 that has 2 additional protected keys',
+            () {
           TestConfigUtil.setTestConfig(2);
           expect(AtSecondaryConfig.protectedKeys.length, 6);
+          assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
+          TestConfigUtil.resetTestConfig();
+        });
+
+    test(
+        'Verify with test_config_yaml3 that has 0 additional protected keys',
+            () {
+          TestConfigUtil.setTestConfig(3);
+          expect(AtSecondaryConfig.protectedKeys.length, 4);
+          assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
           TestConfigUtil.resetTestConfig();
         });
   });
