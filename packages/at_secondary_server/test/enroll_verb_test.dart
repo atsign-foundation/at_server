@@ -3,23 +3,56 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
+import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
+import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
+String scanResponse = '';
+
+class MockResponseHandlerManager extends Mock
+    implements ResponseHandlerManager {
+  @override
+  ResponseHandler getResponseHandler(Verb verb) {
+    return MockResponseHandler();
+  }
+}
+
+class MockResponseHandler extends Mock implements DefaultResponseHandler {
+  // Assigning the response the global variable 'scanResponse'.
+  @override
+  Future<void> process(AtConnection connection, Response response) async {
+    scanResponse = getResponseMessage(response.data, '@');
+  }
+
+  @override
+  String getResponseMessage(String? verbResult, String promptKey) {
+    return verbResult!;
+  }
+}
+
 void main() {
   group('A group of tests to verify enroll request operation', () {
+    late ScanVerbHandler scanVerbHandler;
+    late ResponseHandlerManager mockResponseHandlerManager;
+
     setUp(() async {
       await verbTestsSetUp();
     });
+
     test('A test to verify enroll requests get different enrollment ids',
         () async {
       Response response = Response();
@@ -57,6 +90,88 @@ void main() {
       expect(enrollmentId_1, isNotEmpty);
       expect(enrollmentId_2, isNotEmpty);
       expect(enrollmentId_1 == enrollmentId_2, false);
+    });
+
+    test(
+        'A test to verify scan returns the enrollment keys for an enrolled request',
+        () async {
+      Response response = Response();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan __manage', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(
+          scanResponseList
+              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+          true);
+    });
+
+    test(
+        'A test to verify scan does not return the enrollment keys for an second connection',
+        () async {
+      Response response = Response();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'session_1';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      // TOTP Verb
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.totp, 'totp:get');
+      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
+      await totpVerbHandler.processVerb(
+          response, totpVerbParams, inboundConnection);
+      print('TOTP: ${response.data}');
+      //  Second connection
+      await inboundConnection.close();
+      inboundConnection = DummyInboundConnection();
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metadata.sessionID = 'session_2';
+
+      // Enroll request 2
+      enrollmentRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"buzz":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId_2 = jsonDecode(response.data!)['enrollmentId'];
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan __manage', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(
+          scanResponseList
+              .contains('$enrollmentId_2.new.enrollments.__manage@alice'),
+          false);
     });
     tearDown(() async => await verbTestsTearDown());
   });
