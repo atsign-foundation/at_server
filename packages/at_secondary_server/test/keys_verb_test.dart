@@ -771,5 +771,45 @@ void main() {
           () async => await keysVerbHandler.process(command, inboundConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
     });
+
+    test('keys verb on an authenticated connection without enrollmentId',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var keysGetCommand = 'keys:get:self';
+      expect(
+          () async =>
+              await keysVerbHandler.process(keysGetCommand, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Keys verb cannot be accessed without an enrollmentId')));
+    });
+
+    test('keys verb on enrollment which is not approved', () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var keysGetCommand = 'keys:get:self';
+      var enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'pending'}
+      };
+      var keyName = '$enrollId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      expect(
+          () async =>
+              await keysVerbHandler.process(keysGetCommand, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Enrollment Id $enrollId is not approved. current state: pending')));
+    });
   });
 }

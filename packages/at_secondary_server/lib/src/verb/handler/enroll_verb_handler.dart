@@ -124,6 +124,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         atConnection.getMetaData().authType == AuthType.cram) {
       // auto approve request from connection that is CRAM authenticated.
       enrollNamespaces[enrollManageNamespace] = 'rw';
+      enrollNamespaces[allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
       responseJson['status'] = 'success';
       final inboundConnectionMetadata =

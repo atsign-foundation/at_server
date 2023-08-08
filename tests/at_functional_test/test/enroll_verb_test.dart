@@ -101,10 +101,10 @@ void main() {
     // Purpose of the tests
     // 1. Do a pkam authentication
     // 2. Send an enroll request
-    //  3 . Get an otp from the first client
-    //  4. Send an enroll request with otp from the second client
-    //  5. First client doesn't approve the enroll request
-    //  6. Second client should get an exception as the enroll request is not approved
+    // 3 . Get an otp from the first client
+    // 4. Send an enroll request with otp from the second client
+    // 5. First client doesn't approve the enroll request
+    // 6. Second client should get an exception as the enroll request is not approved
     test(
         'second enroll request using totp and client did not approved enrollment request',
         () async {
@@ -178,7 +178,7 @@ void main() {
     // 6. Connect to the second client
     // 7. Send an apkam request with the enrollment id from step 4
     // 8. Assert that the apkam request is successful
-    // 9. Assert that the scan verb doesn't return the key with __manage namespace
+    // 9. Assert that the scan verb returns the key with __manage namespace
     // 10. Assert that the enroll:list verb returns the enrollment key
     // 11. Assert that the llookup verb on the enrollment key fails
     // 12. Assert that the keys:get:self verb returns the default self encryption key
@@ -224,11 +224,11 @@ void main() {
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse, 'data:success\n');
 
-      // check if scan verb doesn't return apkam namespace
+      // check if scan verb returns apkam namespace
       await socket_writer(socketConnection2!, 'scan\n');
       var scanResponse = await read();
       // assert that scan doesn't return key with __manage namespace
-      expect(scanResponse.contains('__manage'), false);
+      expect(scanResponse.contains('__manage'), true);
 
       // enroll:list
       await socket_writer(socketConnection2!, 'enroll:list\n');

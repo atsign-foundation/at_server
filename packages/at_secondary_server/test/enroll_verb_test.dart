@@ -329,6 +329,41 @@ void main() {
               e.message ==
                   'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
     });
+    // test(
+    //     'A test to verify update/delete/llookup verb is allowed in all namespace when access is *:rw',
+    //     () async {
+    //   String enrollmentRequest =
+    //       'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"*":"rw"},"apkamPublicKey":"dummy_apkam_public_key"}';
+    //   HashMap<String, String?> verbParams =
+    //       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+    //   inboundConnection.getMetaData().isAuthenticated = true;
+    //   inboundConnection.getMetaData().sessionID = 'dummy_session';
+    //   Response response = Response();
+    //   EnrollVerbHandler enrollVerbHandler =
+    //       EnrollVerbHandler(secondaryKeyStore);
+    //   await enrollVerbHandler.processVerb(
+    //       response, verbParams, inboundConnection);
+    //   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+    //   (inboundConnection.getMetaData() as InboundConnectionMetadata)
+    //       .enrollmentId = enrollmentId;
+    //   // update key in wavi namespace
+    //   String updateCommand = 'update:$alice:phone.wavi$alice 123';
+    //   HashMap<String, String?> updateVerbParams =
+    //       getVerbParam(VerbSyntax.update, updateCommand);
+    //   UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+    //       secondaryKeyStore, statsNotificationService, notificationManager);
+    //   await updateVerbHandler.processVerb(
+    //       response, updateVerbParams, inboundConnection);
+    //   print('update response: $response');
+    //   String deleteCommand = 'delete:phone.wavi$alice';
+    //   HashMap<String, String?> deleteVerbParams =
+    //       getVerbParam(VerbSyntax.delete, deleteCommand);
+    //   DeleteVerbHandler deleteVerbHandler =
+    //       DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+    //   await deleteVerbHandler.processVerb(
+    //       response, deleteVerbParams, inboundConnection);
+    //   print('delete response: $response');
+    // });
     tearDown(() async => await verbTestsTearDown());
   });
 
