@@ -18,6 +18,7 @@ import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
@@ -128,39 +129,48 @@ void main() {
       Response response = Response();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'session_1';
-      // Enroll request
-      String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
-      HashMap<String, String?> enrollmentRequestVerbParams =
-          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, enrollmentRequestVerbParams, inboundConnection);
+      var enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      var enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
       // TOTP Verb
       HashMap<String, String?> totpVerbParams =
           getVerbParam(VerbSyntax.totp, 'totp:get');
       TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
       await totpVerbHandler.processVerb(
           response, totpVerbParams, inboundConnection);
-      print('TOTP: ${response.data}');
       //  Second connection
       await inboundConnection.close();
       inboundConnection = DummyInboundConnection();
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.metadata.sessionID = 'session_2';
 
       // Enroll request 2
-      enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"buzz":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
-      enrollmentRequestVerbParams =
-          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, enrollmentRequestVerbParams, inboundConnection);
-      String enrollmentId_2 = jsonDecode(response.data!)['enrollmentId'];
+      enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'name': 'wavi', 'access': 'rw'},
+        "totp": "${response.data}",
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      keyName = '$enrollId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       mockResponseHandlerManager = MockResponseHandlerManager();
@@ -168,10 +178,7 @@ void main() {
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan __manage', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
-      expect(
-          scanResponseList
-              .contains('$enrollmentId_2.new.enrollments.__manage@alice'),
-          false);
+      expect(scanResponseList.contains(keyName), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });
