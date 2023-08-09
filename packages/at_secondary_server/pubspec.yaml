@@ -14,7 +14,7 @@ dependencies:
   convert: 3.1.1
   cron: 0.5.1
   crypto: 3.0.3
-  crypton: 2.1.0
+  crypton: 2.2.0
   collection: 1.18.0
   basic_utils: 5.6.1
   ecdsa: 0.0.4
