@@ -68,6 +68,16 @@ class CommitLogKeyStore
         commitEntry!.commitId = internalKey;
         // update entry with commitId
         await _getBox().put(internalKey, commitEntry);
+        // Delete old commit entry for the same key from the commit log
+        // For now, just delete the previous entry from _commitLogCacheMap
+        // Eventually, after the compaction kicks in all of the old entries would be deleted.
+        // Subsequently, we can then disable the compaction job.
+        // When commitLogCacheMap.keys.length == getBox().length then we have fully compacted it
+        if (_commitLogCacheMap[commitEntry.atKey!] != null &&
+            _commitLogCacheMap[commitEntry.atKey!]?.commitId != null) {
+          await _getBox()
+              .delete(_commitLogCacheMap[commitEntry.atKey!]?.commitId);
+        }
         // update the commitId in cache commitMap.
         _updateCacheLog(commitEntry.atKey!, commitEntry);
         if (commitEntry.commitId != null &&

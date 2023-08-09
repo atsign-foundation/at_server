@@ -57,7 +57,7 @@ Future<void> main() async {
           DateTime.now().toUtc().microsecondsSinceEpoch;
 
       // Assertions
-      expect(atCompactionStats.preCompactionEntriesCount, 2);
+      expect(atCompactionStats.preCompactionEntriesCount, 1);
       expect(atCompactionStats.postCompactionEntriesCount, 1);
       expect(atCompactionStats.compactionDurationInMills > 0, true);
       expect(
@@ -80,9 +80,9 @@ Future<void> main() async {
 
       // Assert Compaction Stats
       var decodedData = jsonDecode(atData!.data!) as Map;
-      expect(decodedData['deletedKeysCount'], '1');
+      expect(decodedData['deletedKeysCount'], '0');
       expect(decodedData['postCompactionEntriesCount'], '1');
-      expect(decodedData['preCompactionEntriesCount'], '2');
+      expect(decodedData['preCompactionEntriesCount'], '1');
       expect(decodedData['atCompactionType'], 'AtCommitLog');
     });
 
