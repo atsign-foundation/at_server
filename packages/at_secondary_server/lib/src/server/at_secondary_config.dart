@@ -3,10 +3,16 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:meta/meta.dart';
+import 'package:yaml/yaml.dart';
 
 class AtSecondaryConfig {
+  // Config
+  @visibleForTesting
+  static YamlMap? configYamlMap = ConfigUtil.getYaml();
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
+
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
@@ -63,8 +69,10 @@ class AtSecondaryConfig {
   //Connection
   static const int _inboundMaxLimit = 200;
   static const int _outboundMaxLimit = 200;
-  static const int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
-  static const int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
+  static const int _unauthenticatedInboundIdleTimeMillis =
+      10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedInboundIdleTimeMillis =
+      30 * 24 * 60 * 60 * 1000; // 30 days
   static const int _outboundIdleTimeMillis = 600000;
 
   //Lookup
@@ -91,6 +99,15 @@ class AtSecondaryConfig {
   // Malformed Keys
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
+
+  // Protected Keys
+  // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+  static final Set<String> _protectedKeys = {
+    'signing_publickey<@atsign>',
+    'signing_privatekey<@atsign>',
+    'publickey<@atsign>',
+    'at_pkam_publickey'
+  };
 
   //version
   static final String? _secondaryServerVersion =
@@ -415,7 +432,8 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+      return getConfigFromYaml(
+          ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
     }
@@ -675,6 +693,20 @@ class AtSecondaryConfig {
     }
   }
 
+  static Set<String> get protectedKeys {
+    try {
+      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      Set<String> protectedKeysFromConfig = {};
+      for (var key in keys) {
+        protectedKeysFromConfig.add(key);
+      }
+      protectedKeysFromConfig.addAll(_protectedKeys);
+      return protectedKeysFromConfig;
+    } on Exception {
+      return _protectedKeys;
+    }
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
@@ -771,7 +803,7 @@ class AtSecondaryConfig {
 }
 
 dynamic getConfigFromYaml(List<String> args) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
@@ -794,7 +826,7 @@ dynamic getConfigFromYaml(List<String> args) {
 }
 
 String? getStringValueFromYaml(List<String> keyParts) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
