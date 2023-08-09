@@ -296,6 +296,74 @@ void main() {
       expect(
           scanResponseList[0], '$enrollmentId.new.enrollments.__manage$alice');
     });
+
+    test('A test to verify enrollment has *:rw access', () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(scanResponseList[0].toString().startsWith(enrollmentId), true);
+    });
+
+    test(
+        'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'r', 'wavi': 'rw', 'atmosphere': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Inserting wavi
+      await secondaryKeyStore.put(
+          'phone.wavi$alice', AtData()..data = '+455 677 8789');
+      // Inserting buzz
+      await secondaryKeyStore.put(
+          'mobile.buzz$alice', AtData()..data = '+544 545 4545');
+      // Inserting atmosphere
+      await secondaryKeyStore.put(
+          'firstname.atmosphere$alice', AtData()..data = 'alice');
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(scanResponseList[0].toString().startsWith(enrollmentId), true);
+      expect(scanResponseList[1], 'firstname.atmosphere$alice');
+      expect(scanResponseList[2], 'mobile.buzz$alice');
+      expect(scanResponseList[3], 'phone.wavi$alice');
+    });
     tearDown(() async => await verbTestsTearDown());
   });
 }

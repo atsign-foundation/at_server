@@ -8,8 +8,8 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
@@ -105,93 +105,169 @@ void main() {
 
   group('A group of tests related to APKAM enrollment', () {
     Response response = Response();
+    String enrollmentId;
 
-    group('A group of tests when enrollment have *:rw in namespace', () {
-      Response response = Response();
-      late String enrollmentId;
+    setUp(() async {
+      await verbTestsSetUp();
+    });
 
-      setUp(() async {
-        await verbTestsSetUp();
-      });
+    test(
+        'A test to verify delete verb is allowed in all namespace when access is *:rw',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Delete a key with wavi namespace
+      String deleteCommand = 'delete:$alice:phone.wavi$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Delete a key with buzz namespace
+      deleteCommand = 'delete:$alice:phone.buzz$alice';
+      deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
+      deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+    });
 
+    test(
+        'A test to verify delete verb is not allowed when enrollment is not authorized for write operations',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String deleteCommand = 'delete:dummykey.wavi$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      expect(
+          () async => await deleteVerbHandler.processVerb(
+              response, deleteVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.wavi@alice')));
+    });
+
+    test('A test to verify keys with unauthorized namespace are not deleted',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String deleteCommand = 'delete:dummykey.wavi$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+
+      deleteCommand = 'delete:dummykey.buzz$alice';
+      deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
+      expect(
+          () async => await deleteVerbHandler.processVerb(
+              response, deleteVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.buzz@alice')));
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A of tests to verify delete a key when enrollment is pending/revoke/denied state throws exception',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    Response response = Response();
+    String enrollmentId;
+    List operationList = ['pending', 'revoked', 'denied'];
+
+    for (var operation in operationList) {
       test(
-          'A test to verify delete verb is allowed in all namespace when access is *:rw',
+          'A test to verify when enrollment is $operation throws exception when deleting a key',
           () async {
-        inboundConnection.metadata.isAuthenticated =
-            true; // owner connection, authenticated
+        inboundConnection.metadata.isAuthenticated = true;
         enrollmentId = Uuid().v4();
         inboundConnection.metadata.enrollmentId = enrollmentId;
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
           'deviceName': 'pixel',
-          'namespaces': {'*': 'rw'},
+          'namespaces': {'wavi': 'rw'},
           'apkamPublicKey': 'testPublicKeyValue',
           'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
+          'approval': {'state': operation}
         };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
         await secondaryKeyStore.put(
-            keyName, AtData()..data = jsonEncode(enrollJson));
-        // Delete a key with wavi namespace
-        String deleteCommand = 'delete:$alice:phone.wavi$alice';
-        HashMap<String, String?> deleteVerbParams =
-            getVerbParam(VerbSyntax.delete, deleteCommand);
-        DeleteVerbHandler deleteVerbHandler =
-            DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
-        await deleteVerbHandler.processVerb(
-            response, deleteVerbParams, inboundConnection);
-        expect(response.data, isNotNull);
-        // Delete a key with buzz namespace
-        deleteCommand = 'delete:$alice:phone.buzz$alice';
-        deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
-        deleteVerbHandler =
-            DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
-        await deleteVerbHandler.processVerb(
-            response, deleteVerbParams, inboundConnection);
-        expect(response.data, isNotNull);
-      });
-    });
-
-    group('A group of tests when enrollment namespace have only read access',
-        () {
-      setUp(() async {
-        await verbTestsSetUp();
-      });
-
-      test(
-          'A test to verify delete verb is not allowed when enrollment is not authorized for write operations',
-          () async {
-        inboundConnection.metadata.isAuthenticated =
-            true; // owner connection, authenticated
-        String enrollmentId = Uuid().v4();
+            '$enrollmentId.new.enrollments.__manage@alice',
+            AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'wavi': 'r'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-        await secondaryKeyStore.put(
-            keyName, AtData()..data = jsonEncode(enrollJson));
-
-        String deleteCommand = 'delete:dummykey.wavi$alice';
-        HashMap<String, String?> deleteVerbParams =
+        String deleteCommand = 'delete:$alice:dummykey.wavi$alice';
+        HashMap<String, String?> updateVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
         DeleteVerbHandler deleteVerbHandler =
             DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
         expect(
             () async => await deleteVerbHandler.processVerb(
-                response, deleteVerbParams, inboundConnection),
+                response, updateVerbParams, inboundConnection),
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.wavi@alice')));
+                    'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: @alice:dummykey.wavi@alice')));
       });
-    });
+    }
+    tearDown(() async => await verbTestsTearDown());
   });
 }

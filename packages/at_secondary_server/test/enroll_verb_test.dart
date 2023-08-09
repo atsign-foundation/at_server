@@ -6,10 +6,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
-
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
-
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 
@@ -58,6 +56,30 @@ void main() {
       expect(enrollmentId_1, isNotEmpty);
       expect(enrollmentId_2, isNotEmpty);
       expect(enrollmentId_1 == enrollmentId_2, false);
+    });
+
+    test(
+        'A test to verify enrollment of CRAM auth connection have __manage and * namespaces added to enrollment value',
+        () async {
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      String enrollmentKey =
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      var enrollmentValue =
+          await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+      expect(enrollmentValue.namespaces.containsKey('__manage'), true);
+      expect(enrollmentValue.namespaces.containsKey('*'), true);
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -146,11 +168,10 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
-      //Approve enrollment
-      String approveEnrollmentRequest =
+      String approveEnrollment =
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> approveEnrollmentVerbParams =
-          getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
+          getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.getMetaData().isAuthenticated = true;
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
@@ -216,11 +237,10 @@ void main() {
             response, enrollmentRequestVerbParams, inboundConnection);
         enrollmentId = jsonDecode(response.data!)['enrollmentId'];
         expect(jsonDecode(response.data!)['status'], 'pending');
-        //Approve enrollment
-        String approveEnrollmentRequest =
+        String approveEnrollment =
             'enroll:$operation:{"enrollmentId":"$enrollmentId"}';
         HashMap<String, String?> approveEnrollmentVerbParams =
-            getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
+            getVerbParam(VerbSyntax.enroll, approveEnrollment);
         inboundConnection.getMetaData().isAuthenticated = true;
         enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
         await enrollVerbHandler.processVerb(
@@ -423,11 +443,9 @@ void main() {
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       String enrollmentId = enrollmentResponse['enrollmentId'];
-      // Approve enrollment
-      String approveEnrollmentRequest =
+      String approveEnrollment =
           'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
-      enrollmentVerbParams =
-          getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
+      enrollmentVerbParams = getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       await enrollVerbHandler.processVerb(

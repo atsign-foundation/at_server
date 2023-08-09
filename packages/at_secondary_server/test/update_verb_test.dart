@@ -18,8 +18,8 @@ import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
@@ -988,51 +988,81 @@ void main() {
   group('A group of tests related to APKAM enrollment', () {
     Response response = Response();
     late String enrollmentId;
-
-    group('A group of tests when enrollment namespace have *:rw access', () {
-      setUp(() async {
-        await verbTestsSetUp();
-
-        inboundConnection.metadata.isAuthenticated =
-            true; // owner connection, authenticated
-        enrollmentId = Uuid().v4();
-        inboundConnection.metadata.enrollmentId = enrollmentId;
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'*': 'rw'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-        await secondaryKeyStore.put(
-            keyName, AtData()..data = jsonEncode(enrollJson));
-      });
-
-      test(
-          'A test to verify update verb is allowed in all namespace when access is *:rw',
-          () async {
-        // Update a key with wavi namespace
-        String updateCommand = 'update:$alice:phone.wavi$alice 123';
-        HashMap<String, String?> updateVerbParams =
-            getVerbParam(VerbSyntax.update, updateCommand);
-        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        await updateVerbHandler.processVerb(
-            response, updateVerbParams, inboundConnection);
-        expect(response.data, isNotNull);
-        // Update a key with buzz namespace
-        updateCommand = 'update:$alice:phone.buzz$alice 123';
-        updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
-        updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        await updateVerbHandler.processVerb(
-            response, updateVerbParams, inboundConnection);
-        expect(response.data, isNotNull);
-      });
+    setUp(() async {
+      await verbTestsSetUp();
     });
+
+    test(
+        'A test to verify update verb is allowed in all namespace when access is *:rw',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with wavi namespace
+      String updateCommand = 'update:$alice:phone.wavi$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Update a key with buzz namespace
+      updateCommand = 'update:$alice:phone.buzz$alice 123';
+      updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
+      updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+    });
+
+    test('A test to verify key with unauthorized namespace throws exception',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with buzz namespace
+      String updateCommand = 'update:$alice:phone.buzz$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:phone.buzz@alice')));
+    });
+
     group('A group of tests when "*" namespace have only read access', () {
       setUp(() async {
         await verbTestsSetUp();
@@ -1092,6 +1122,51 @@ void main() {
                 e.message ==
                     'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
       });
+      tearDown(() async => await verbTestsTearDown());
+    });
+
+    group(
+        'A of tests to verify updating a key when enrollment is pending/revoke/denied state throws exception',
+        () {
+      List operationList = ['pending', 'revoked', 'denied'];
+
+      for (var operation in operationList) {
+        test(
+            'A test to verify when enrollment is $operation does not update a key',
+            () async {
+          inboundConnection.metadata.isAuthenticated =
+              true; // owner connection, authenticated
+          enrollmentId = Uuid().v4();
+          inboundConnection.metadata.enrollmentId = enrollmentId;
+          final enrollJson = {
+            'sessionId': '123',
+            'appName': 'wavi',
+            'deviceName': 'pixel',
+            'namespaces': {'wavi': 'rw'},
+            'apkamPublicKey': 'testPublicKeyValue',
+            'requestType': 'newEnrollment',
+            'approval': {'state': operation}
+          };
+          var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+          await secondaryKeyStore.put(
+              keyName, AtData()..data = jsonEncode(enrollJson));
+          inboundConnection.metadata.enrollmentId = enrollmentId;
+
+          String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+          HashMap<String, String?> updateVerbParams =
+              getVerbParam(VerbSyntax.update, updateCommand);
+          UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+              secondaryKeyStore, statsNotificationService, notificationManager);
+          expect(
+              () async => await updateVerbHandler.processVerb(
+                  response, updateVerbParams, inboundConnection),
+              throwsA(predicate((dynamic e) =>
+                  e is UnAuthorizedException &&
+                  e.message ==
+                      'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
+        });
+      }
+      tearDown(() async => await verbTestsTearDown());
     });
   });
 }
