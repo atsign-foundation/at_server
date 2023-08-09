@@ -75,7 +75,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -125,7 +125,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -179,7 +179,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -230,7 +230,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -282,7 +282,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -335,7 +335,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -382,7 +382,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       print('enrollJsonMap: $enrollJsonMap');
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var totpRequest = 'totp:get\n';
       await socket_writer(socketConnection1!, totpRequest);
@@ -495,7 +495,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 
@@ -547,7 +547,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
 

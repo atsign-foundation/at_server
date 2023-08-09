@@ -386,7 +386,7 @@ void main() {
           response, verbParams, inboundConnection);
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
       expect(enrollmentResponse['enrollmentId'], isNotNull);
-      expect(enrollmentResponse['status'], 'success');
+      expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
           (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
@@ -412,7 +412,7 @@ void main() {
           response, verbParams, inboundConnection);
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
       expect(enrollmentResponse['enrollmentId'], isNotNull);
-      expect(enrollmentResponse['status'], 'success');
+      expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
           (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);

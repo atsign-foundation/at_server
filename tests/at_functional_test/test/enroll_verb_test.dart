@@ -71,7 +71,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
     });
 
     test('enroll request on unauthenticated connection without totp', () async {
@@ -124,7 +124,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var totpRequest = 'totp:get\n';
       await socket_writer(socketConnection1!, totpRequest);
@@ -205,7 +205,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       // destroy the first connection
       socketConnection1!.close();
@@ -294,7 +294,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var totpRequest = 'totp:get\n';
       await socket_writer(socketConnection1!, totpRequest);
@@ -440,7 +440,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
       socketConnection1?.close();
       // PKAM Auth
       socketConnection1 =

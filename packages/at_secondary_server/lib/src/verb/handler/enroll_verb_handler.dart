@@ -107,7 +107,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'invalid totp. Cannot process enroll request');
       }
     }
-    var enrollNamespaces = enrollParams.namespaces!;
+    var enrollNamespaces = enrollParams.namespaces ?? {};
     var newEnrollmentId = Uuid().v4();
     var key =
         '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
@@ -126,7 +126,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollNamespaces[allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
-      responseJson['status'] = 'success';
+      responseJson['status'] = 'approved';
       final inboundConnectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
