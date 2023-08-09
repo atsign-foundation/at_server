@@ -354,89 +354,229 @@ void main() {
       var privateKeyResponse = await read();
       expect(privateKeyResponse.contains(privateKey), true);
     });
-  });
 
-  group('A group of tests related to APKAM revoke operation', () {
-    test('A test to verify enrollment revoke operation', () async {
-      // Send an enrollment request on the authenticated connection
+    test(
+        'A test to verify pending enrollment is stored and written on to a monitor connection',
+        () async {
+      // Fetch notification from this timestamp
+      var timeStamp = DateTime.now().toUtc().millisecondsSinceEpoch;
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       fromResponse = fromResponse.replaceAll('data:', '');
-      String cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
-      String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollmentResponse = await read();
-      String enrollmentId = jsonDecode(
-          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
-      //Create a new connection to login using the APKAM
+      var cramSecret = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramSecret');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      // Get a TOTP
+      var totpRequest = 'totp:get\n';
+      await socket_writer(socketConnection1!, totpRequest);
+      var totpResponse = await read();
+      totpResponse = totpResponse.replaceFirst('data:', '');
+      totpResponse = totpResponse.trim();
+      socketConnection1?.close();
+      // Connect to unauthenticated socket to send an enrollment request
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      String pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      String pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
-      await socket_writer(socketConnection2!, pkamCommand);
-      pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
-      socketConnection2?.close();
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"totp":"$totpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(socketConnection2!, secondEnrollRequest);
+      var secondEnrollResponse = await read();
+      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
 
-      // Revoke the enrollment
-      String revokeEnrollmentCommand =
-          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
-      await socket_writer(socketConnection1!, revokeEnrollmentCommand);
-      var revokeEnrollmentResponse = await read();
-      var revokeEnrollmentMap =
-          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
-      expect(revokeEnrollmentMap['status'], 'revoked');
-      expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
-
-      socketConnection2 =
+      var monitorSocket =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
-      await socket_writer(socketConnection2!, pkamCommand);
-      pkamResult = await read();
-      socketConnection2?.close();
-      expect(pkamResult.contains('$enrollmentId is not approved'), true);
+
+      monitorSocket.listen(expectAsync1((data) {
+        String serverResponse = utf8.decode(data);
+        serverResponse = serverResponse.trim();
+        // From response starts with "data:_"
+        if (serverResponse.startsWith('data:_')) {
+          serverResponse = serverResponse.replaceAll('data:', '');
+          serverResponse =
+              serverResponse.substring(0, serverResponse.indexOf('\n'));
+          var cramSecret = getDigest(firstAtsign, serverResponse.trim());
+          monitorSocket.write('cram:$cramSecret\n');
+        }
+        // CRAM Response starts-with "data:success"
+        else if (serverResponse.startsWith('data:success')) {
+          monitorSocket.write('monitor:selfNotifications:$timeStamp\n');
+        }
+        // Response on monitor starts with "notification:"
+        else if (serverResponse.startsWith('notification:')) {
+          expect(
+              serverResponse.contains(
+                  '${enrollJson['enrollmentId']}.new.enrollments.__manage'),
+              true);
+          monitorSocket.close();
+        }
+        /* Setting count to 4 to wait until server returns 4 responses
+      1. On creating a connection, server returns "@"
+      2. On sending from request, server returns from challenge
+      3. On sending a cram request, server returns "data:success"
+      4. On sending monitor request, server returns enrollment request
+        */
+      }, count: 4));
+      monitorSocket.write('from:${firstAtsign.toString().trim()}\n');
     });
 
-    test(
-        'A test to verify revoke operation cannot be performed on an unauthenticated connection',
-        () async {
-      // Send an enrollment request on the authenticated connection
+    test('A test to verify enrolled client can do legacy pkam auth', () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
       fromResponse = fromResponse.replaceAll('data:', '');
       var cramResponse = getDigest(firstAtsign, fromResponse);
       await socket_writer(socketConnection1!, 'cram:$cramResponse');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      // send an enroll request with the keys from the setEncryptionKeys method
+      var enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(socketConnection1!, enrollRequest);
+      var enrollResponse = await read();
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      var enrollmentId = enrollJsonMap['enrollmentId'];
+      expect(enrollmentId, isNotEmpty);
+      expect(enrollJsonMap['status'], 'success');
+      socketConnection1?.close();
+      // PKAM Auth
+      socketConnection1 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection1!);
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var pkamResponse = generatePKAMDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'pkam:$pkamResponse');
       var pkamResult = await read();
       expect(pkamResult, 'data:success\n');
-      String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollmentResponse = await read();
-      String enrollmentId = jsonDecode(
-          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+    });
 
+    test('A test to verify pkam public key is stored in __pkams namespace',
+        () async {
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var cramResponse = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramResponse');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      // Get totp
+      await socket_writer(socketConnection1!, 'totp:get');
+      var totp = (await read()).replaceAll('data:', '').trim();
+      // send an enroll request
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
-      String revokeEnrollmentCommand =
-          'enroll:revoke:enrollmentid:$enrollmentId';
-      await socket_writer(socketConnection2!, revokeEnrollmentCommand);
-      var revokeEnrollmentResponse = await read();
-      expect(revokeEnrollmentResponse.trim(),
-          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+      var enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"totp":"$totp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(socketConnection2!, enrollRequest);
+      var enrollResponse = await read();
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      var enrollmentId = enrollJsonMap['enrollmentId'];
+      expect(enrollmentId, isNotEmpty);
+      expect(enrollJsonMap['status'], 'pending');
+      // Approve enrollment
+      String approveEnrollment =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      await socket_writer(socketConnection1!, approveEnrollment);
+      var enrollmentResponse = await read();
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(enrollmentResponse)['status'], 'approved');
+      await socket_writer(socketConnection1!,
+          'llookup:public:wavi.pixel.pkam.__pkams.__public_keys@alice🛠');
+      var llookupResponse = await read();
+      llookupResponse = llookupResponse.replaceAll('data:', '');
+      var apkamPublicKey = jsonDecode(llookupResponse)['apkamPublicKey'];
+      expect(apkamPublicKey, pkamPublicKeyMap[firstAtsign]!);
+    });
+
+    group('A group of tests related to APKAM revoke operation', () {
+      test('A test to verify enrollment revoke operation', () async {
+        // Send an enrollment request on the authenticated connection
+        await socket_writer(socketConnection1!, 'from:$firstAtsign');
+        var fromResponse = await read();
+        fromResponse = fromResponse.replaceAll('data:', '');
+        String cramResponse = getDigest(firstAtsign, fromResponse);
+        await socket_writer(socketConnection1!, 'cram:$cramResponse');
+        var pkamResult = await read();
+        expect(pkamResult, 'data:success\n');
+        String enrollRequest =
+            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
+        await socket_writer(socketConnection1!, enrollRequest);
+        var enrollmentResponse = await read();
+        String enrollmentId = jsonDecode(
+            enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+        //Create a new connection to login using the APKAM
+        socketConnection2 =
+            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+        socket_listener(socketConnection2!);
+        await socket_writer(socketConnection2!, 'from:$firstAtsign');
+        fromResponse = await read();
+        fromResponse = fromResponse.replaceAll('data:', '');
+        String pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+        String pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
+        await socket_writer(socketConnection2!, pkamCommand);
+        pkamResult = await read();
+        expect(pkamResult, 'data:success\n');
+        socketConnection2?.close();
+
+        // Revoke the enrollment
+        String revokeEnrollmentCommand =
+            'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+        await socket_writer(socketConnection1!, revokeEnrollmentCommand);
+        var revokeEnrollmentResponse = await read();
+        var revokeEnrollmentMap =
+            jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+        expect(revokeEnrollmentMap['status'], 'revoked');
+        expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+
+        socketConnection2 =
+            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+        socket_listener(socketConnection2!);
+        await socket_writer(socketConnection2!, 'from:$firstAtsign');
+        fromResponse = await read();
+        fromResponse = fromResponse.replaceAll('data:', '');
+        pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
+        pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
+        await socket_writer(socketConnection2!, pkamCommand);
+        pkamResult = await read();
+        socketConnection2?.close();
+        expect(pkamResult.contains('$enrollmentId is not approved'), true);
+      });
+
+      test(
+          'A test to verify revoke operation cannot be performed on an unauthenticated connection',
+          () async {
+        // Send an enrollment request on the authenticated connection
+        await socket_writer(socketConnection1!, 'from:$firstAtsign');
+        var fromResponse = await read();
+        fromResponse = fromResponse.replaceAll('data:', '');
+        var cramResponse = getDigest(firstAtsign, fromResponse);
+        await socket_writer(socketConnection1!, 'cram:$cramResponse');
+        var pkamResult = await read();
+        expect(pkamResult, 'data:success\n');
+        String enrollRequest =
+            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
+        await socket_writer(socketConnection1!, enrollRequest);
+        var enrollmentResponse = await read();
+        String enrollmentId = jsonDecode(
+            enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+        socketConnection2 =
+            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+        socket_listener(socketConnection2!);
+        String revokeEnrollmentCommand =
+            'enroll:revoke:enrollmentid:$enrollmentId';
+        await socket_writer(socketConnection2!, revokeEnrollmentCommand);
+        var revokeEnrollmentResponse = await read();
+        expect(revokeEnrollmentResponse.trim(),
+            'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+      });
     });
   });
 }
