@@ -77,7 +77,7 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
       var encryptionPublicKey = encryptionPublicKeyMap[firstAtsign];
 
       //1. put encryption public key
@@ -207,7 +207,7 @@ void main() {
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'success');
+      expect(enrollJsonMap['status'], 'approved');
 
       var totpRequest = 'totp:get\n';
       await socket_writer(socketConnection1!, totpRequest);
