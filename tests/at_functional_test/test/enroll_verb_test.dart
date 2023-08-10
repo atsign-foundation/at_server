@@ -75,7 +75,6 @@ void main() {
     });
 
     test('denial of enroll request on an unauthenticated connection should throw an error', () async {
-      // send an enroll request with the keys from the setEncryptionKeys method
      var denyEnrollCommand =
           'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
       await socket_writer(socketConnection1!, denyEnrollCommand);
@@ -94,6 +93,50 @@ void main() {
       expect(
           approveEnrollResponse
               .contains('Cannot approve enrollment without authentication'),
+          true);
+    });
+
+    test(
+        'Approval of an invalid enrollmentId on an authenticated connection should throw an error',
+        () async {
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var cramResponse = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramResponse');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      var dummyEnrollmentId = 'feay891281821899090eye';
+      var approveEnrollCommand =
+          'enroll:approve:{"enrollmentId":"$dummyEnrollmentId"}\n';
+      await socket_writer(socketConnection1!, approveEnrollCommand);
+      var approveEnrollResponse = await read();
+      approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
+      expect(
+          approveEnrollResponse
+              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
+          true);
+    });
+
+     test(
+        'Denial of an invalid enrollmentId on an authenticated connection should throw an error',
+        () async {
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var cramResponse = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramResponse');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      var dummyEnrollmentId = 'feay891281821899090eye';
+      var denyEnrollCommand =
+          'enroll:deny:{"enrollmentId":"$dummyEnrollmentId"}\n';
+      await socket_writer(socketConnection1!, denyEnrollCommand);
+      var denyEnrollResponse = await read();
+      denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
+      expect(
+          denyEnrollResponse
+              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
           true);
     });
 
