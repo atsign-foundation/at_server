@@ -74,6 +74,29 @@ void main() {
       expect(enrollJsonMap['status'], 'approved');
     });
 
+    test('denial of enroll request on an unauthenticated connection should throw an error', () async {
+      // send an enroll request with the keys from the setEncryptionKeys method
+     var denyEnrollCommand =
+          'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
+      await socket_writer(socketConnection1!, denyEnrollCommand);
+      var denyEnrollResponse = await read();
+      denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
+      expect(denyEnrollResponse.contains('Cannot deny enrollment without authentication'), true);
+    });
+
+    test(
+        'approval of an enroll request on an unauthenticated connection should throw an error',
+        () async {
+      var approveEnrollCommand = 'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
+      await socket_writer(socketConnection1!, approveEnrollCommand);
+      var approveEnrollResponse = await read();
+      approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
+      expect(
+          approveEnrollResponse
+              .contains('Cannot approve enrollment without authentication'),
+          true);
+    });
+
     test('enroll request on unauthenticated connection without totp', () async {
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
