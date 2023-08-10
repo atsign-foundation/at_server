@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -16,6 +17,7 @@ import 'package:at_utils/at_utils.dart';
 class DeleteVerbHandler extends ChangeVerbHandler {
   static Delete delete = Delete();
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
+  Set<String>? protectedKeys;
 
   DeleteVerbHandler(SecondaryKeyStore keyStore,
       StatsNotificationService statsNotificationService)
@@ -55,17 +57,22 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    // Sets Response bean to the response bean in ChangeVerbHandler
-    await super.processVerb(response, verbParams, atConnection);
-    // ignore: prefer_typing_uninitialized_variables
-    var deleteKey;
-    var atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    deleteKey = verbParams[AT_KEY];
-    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
+    String? atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
+    var deleteKey = verbParams[AT_KEY];
     // If key is cram secret do not append atsign.
     if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
       deleteKey = '$deleteKey$atSign';
     }
+    // fetch protected keys listed in config.yaml
+    protectedKeys ??= _getProtectedKeys(atSign);
+    // check to see if a key is protected. Cannot delete key if it's protected
+    if (_isProtectedKey(deleteKey!)) {
+      throw UnAuthorizedException(
+          'Cannot delete protected key: \'$deleteKey\'');
+    }
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
+    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
     }
@@ -139,5 +146,25 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ..opType = OperationType.delete)
         .build();
     NotificationManager.getInstance().notify(atNotification);
+  }
+
+  Set<String> _getProtectedKeys(String? atsign) {
+    atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
+    Set<String> protectedKeys = {};
+    // fetch all protected private keys from config yaml
+    for (var key in AtSecondaryConfig.protectedKeys) {
+      // protected keys are stored as 'signing_publickey<@atsign>'
+      // replace <@atsign> with actual atsign during runtime
+      protectedKeys.add(key.replaceFirst('<@atsign>', atsign!));
+    }
+    return protectedKeys;
+  }
+
+  bool _isProtectedKey(String key) {
+    if (protectedKeys!.contains(key)) {
+      logger.severe('Cannot delete key. \'$key\' is a protected key');
+      return true;
+    }
+    return false;
   }
 }
