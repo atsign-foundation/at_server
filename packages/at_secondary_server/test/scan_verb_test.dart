@@ -325,6 +325,50 @@ void main() {
     });
 
     test(
+        'A test to verify scan returns all keys when enrollment has *:rw access',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      var enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      await secondaryKeyStore.put(
+          'public:phone.wavi@alice', AtData()..data = '+455 675 6765');
+      await secondaryKeyStore.put(
+          '@bob:firstName.atmosphere@alice', AtData()..data = 'Alice');
+      await secondaryKeyStore.put(
+          'mobile.buzz@alice', AtData()..data = '+878 787 7679');
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(
+          scanResponseList
+              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+          true);
+      expect(
+          scanResponseList.contains('@bob:firstname.atmosphere@alice'), true);
+
+      expect(scanResponseList.contains('mobile.buzz@alice'), true);
+      expect(scanResponseList.contains('public:phone.wavi@alice'), true);
+    });
+
+    test(
         'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
         () async {
       inboundConnection.getMetaData().isAuthenticated = true;
