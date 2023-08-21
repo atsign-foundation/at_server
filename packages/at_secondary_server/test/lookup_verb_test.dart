@@ -928,4 +928,56 @@ void main() {
       });
     }
   });
+
+  group('A group of tests to verify lookup of reserved keys', () {
+    setUpAll(() async {
+      await verbTestsSetUpAll();
+    });
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test(
+        'A test to verify shared key is fetched when connection authenticated via APKAM',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentKey = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          enrollmentKey, AtData()..data = jsonEncode(enrollJson));
+
+      String sharedKey = 'shared_key$bob';
+      AtData bobWaviData = createRandomAtData(bob);
+      bobWaviData.metaData!.ttr = 100;
+      bobWaviData.metaData!.ttb = null;
+      bobWaviData.metaData!.ttl = null;
+      String bobWaviDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobWaviData,
+          key: '$alice:$sharedKey')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$sharedKey\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobWaviDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      Map mapSentToClient;
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      await lookupVerbHandler.process(
+          'lookup:all:$sharedKey', inboundConnection);
+      mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
+      expect(mapSentToClient['data'], bobWaviData.data);
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
 }

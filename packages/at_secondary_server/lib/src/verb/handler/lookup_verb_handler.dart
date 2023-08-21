@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -46,7 +47,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(thisServersAtSign);
-    var fromAtSign = atConnectionMetadata.fromAtSign;
     String keyOwnersAtSign = verbParams[AT_SIGN]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
     var entity = verbParams[AT_KEY];
@@ -55,7 +55,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     String? byPassCacheStr = verbParams[bypassCache];
 
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
+        'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
     if (atConnectionMetadata.isAuthenticated) {
       await _handleAuthenticatedConnection(
           keyOwnersAtSign,
@@ -66,9 +66,12 @@ class LookupVerbHandler extends AbstractVerbHandler {
           operation,
           atAccessLog,
           byPassCacheStr);
+    } else if (atConnectionMetadata.isPolAuthenticated) {
+      await _handlePolAuthConnection(atConnectionMetadata, keyAtAtSign,
+          response, operation, atAccessLog, keyOwnersAtSign);
     } else {
-      await _handleUnAuthAndPolAuthConnection(atConnectionMetadata, fromAtSign,
-          keyAtAtSign, response, operation, atAccessLog, keyOwnersAtSign);
+      await _handleUnAuthenticatedConnection(
+          keyAtAtSign, response, atAccessLog, keyOwnersAtSign, operation);
     }
   }
 
@@ -110,40 +113,27 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Handles requests from unauthenticated or pol-authenticated connections.
-  ///
-  ///   - In the case of an unauthenticated connection,  the "lookup" verb is used
-  ///     to fetch public keys from the storage associated with the current "atSign".
-  ///
-  ///     For instance, if the current atSign is "alice", then using "lookup:phone.wavi@alice"
-  ///     yields the corresponding value of the key "public:phone.wavi@alice".
-  ///
+  /// Handles requests from pol-authenticated connections.
   ///   - In cases where the 'atSign' does not possess ownership of the data,
   ///     a pol authentication is initiated towards the 'atSign' that does own the data.
-  ///
   ///     For instance, when the current "atSign" is "alice" and the request is
   ///     "lookup:phone.wavi@bob"(from an authenticated connection), an interaction
   ///     occurs where Alice proves identity to Bob, who subsequently returns the
   ///     value of the key "@alice:phone.wavi@bob".
-  Future<void> _handleUnAuthAndPolAuthConnection(
+  Future<void> _handlePolAuthConnection(
       InboundConnectionMetadata atConnectionMetadata,
-      String? fromAtSign,
       String keyAtAtSign,
       Response response,
       String? operation,
       AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
-    var keyPrefix = '';
-    // When a connection is not authenticated, two scenarios arise:
-    //  1. An unauthenticated connection, wherein only public keys are accessible.
-    //     In this scenario, set the keyPrefix to "public:".
-    //  2. A pol authenticated connection, where request originates from a different
-    //     'atSign'. In this scenario, set the keyPrefix to the requesting 'atSign'.
-    if (!(atConnectionMetadata.isAuthenticated)) {
-      keyPrefix =
-          (fromAtSign == null || fromAtSign == '') ? 'public:' : '$fromAtSign:';
+    if (atConnectionMetadata.fromAtSign == null ||
+        atConnectionMetadata.fromAtSign!.isEmpty) {
+      throw AtLookUpException('AT0013', 'fromAtSign cannot be null or empty');
     }
-    var lookupKey = keyPrefix + keyAtAtSign;
+    // In case of a pol authenticated connection, the request originates from a different
+    // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
+    var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
     var lookupData = await keyStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
@@ -154,7 +144,46 @@ class LookupVerbHandler extends AbstractVerbHandler {
     response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
     //Resolving value references to correct values
     if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
-      response.data = await resolveValueReference(response.data!, keyPrefix);
+      response.data = await resolveValueReference(
+          response.data!, atConnectionMetadata.fromAtSign!);
+    }
+    //Omit all keys starting with '_' to record in access log
+    if (!keyAtAtSign.startsWith('_')) {
+      try {
+        await atAccessLog!
+            .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+      } on DataStoreException catch (e) {
+        logger.severe('Hive error adding to access log:${e.toString()}');
+      }
+    }
+  }
+
+  /// Handles requests from unauthenticated connections.
+  ///
+  ///   - In the case of an unauthenticated connection,  the "lookup" verb is used
+  ///     to fetch public keys from the storage associated with the current "atSign".
+  ///     For instance, if the current atSign is "alice", then using "lookup:phone.wavi@alice"
+  ///     yields the corresponding value of the key "public:phone.wavi@alice".
+  _handleUnAuthenticatedConnection(
+      String keyAtAtSign,
+      Response response,
+      AtAccessLog? atAccessLog,
+      String keyOwnersAtSign,
+      String? operation) async {
+    // In the case of an unauthenticated connection, only public keys are accessible.
+    // so, set the lookupKey prefix to "public:".
+    var lookupKey = 'public:$keyAtAtSign';
+    logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+    var lookupData = await keyStore.get(lookupKey);
+    var isActive = SecondaryUtil.isActiveKey(lookupData);
+    if (!isActive) {
+      response.data = null;
+      return;
+    }
+    response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
+    //Resolving value references to correct values
+    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+      response.data = await resolveValueReference(response.data!, 'public:');
     }
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
@@ -230,13 +259,18 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// otherwise, returns false.
   Future<bool> _isAuthorizedToViewData(
       InboundConnection atConnection, String lookupKey) async {
+    // If a key does not have namespace then the client is authorized
+    // Therefore, absence of "." indicates lack of namespace in the key. Return true.
+    if (!lookupKey.contains('.')) {
+      return true;
+    }
     final enrollmentId =
         (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollmentId != null) {
       // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
       // is the namespace.
-      var keyNamespace = lookupKey.substring(
+      String keyNamespace = lookupKey.substring(
           lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
       isAuthorized = await super.isAuthorized(enrollmentId, keyNamespace);
     }
