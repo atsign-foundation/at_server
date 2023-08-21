@@ -52,13 +52,17 @@ class PkamVerbHandler extends AbstractVerbHandler {
     if (enrollId != null && enrollId.isNotEmpty) {
       var key =
           '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
-      response = await handleEnrollment(key, enrollId, response);
+      response = await fetchApkamPublicKey(key, enrollId, response);
+      if(response.isError){
+        return;
+      }
       // fetch publicKey from response
       // _handleEnrollment store publicKey as response.data
+      // This part of the code will only be triggered if enrollment for this id has been approved
       publicKey = response.data;
       pkamAuthType = AuthType.apkam;
-      // set response.data to success which will be sent as the verb response
-      response.data = 'success';
+      // reset response.data to remove the publicKey stored
+      response.data = '';
     } else {
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
       publicKey = publicKeyData.data;
@@ -135,7 +139,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<Response> handleEnrollment(
+  Future<Response> fetchApkamPublicKey(
       String key, String enrollId, Response response) async {
     var enrollData = await keyStore.get(key);
     if (enrollData != null) {
@@ -143,24 +147,32 @@ class PkamVerbHandler extends AbstractVerbHandler {
       logger.finer('enrollData: $atData');
       final enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      if (enrollDataStoreValue.approval != null &&
-          (enrollDataStoreValue.approval!.state == EnrollStatus.denied.name ||
-              enrollDataStoreValue.approval!.state ==
-                  EnrollStatus.revoked.name)) {
+      if (enrollDataStoreValue.approval == null) {
         response.isError = true;
+        response.errorCode = 'AT0026';
         response.errorMessage =
-            'enrollment_id: $enrollId has been denied access |'
-            ' Status: ${enrollDataStoreValue.approval?.state}';
-        throw UnAuthorizedException(response.errorMessage);
-      } else if (enrollDataStoreValue.approval != null &&
-          enrollDataStoreValue.approval!.state == EnrollStatus.approved.name) {
+            'Could not fetch enrollment status for enrollment_id: $enrollId';
+      } else if (enrollDataStoreValue.approval!.state ==
+          EnrollStatus.denied.name) {
+        response.isError = true;
+        response.errorCode = 'AT0025';
+        response.errorMessage =
+            'enrollment_id: $enrollId has been denied access';
+      } else if (enrollDataStoreValue.approval!.state ==
+          EnrollStatus.revoked.name) {
+        response.isError = true;
+        response.errorCode = 'AT0027';
+        response.errorMessage =
+            'Access has been revoked for enrollment_id: $enrollId';
+      } else if (enrollDataStoreValue.approval!.state ==
+          EnrollStatus.approved.name) {
         // public key will be stored as response.data for internal use
         response.data = enrollDataStoreValue.apkamPublicKey;
       } else {
         response.isError = true;
+        response.errorCode = 'AT0026';
         response.errorMessage = 'enrollment_id: $enrollId is not approved |'
             ' Status: ${enrollDataStoreValue.approval?.state}';
-        throw UnAuthenticatedException(response.errorMessage);
       }
     }
     return response;
