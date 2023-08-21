@@ -84,7 +84,7 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
       Response response = Response();
-      response = await pkamVerbHandler.handleEnrollment('dummy_key', 'enrollId', response);
+      response = await pkamVerbHandler.fetchApkamPublicKey('dummy_key', 'enrollId', response);
       expect(response.isError, false);
       expect(response.data, 'dummy_public_key');
     });
@@ -95,15 +95,34 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
       Response response = Response();
-      try {
-        response = await pkamVerbHandler.handleEnrollment(
+        response = await pkamVerbHandler.fetchApkamPublicKey(
             'dummy_key', 'enrollId', response);
-      } on Exception catch(e){
-        assert(e is UnAuthorizedException);
-      }
       expect(response.isError, true);
-      assert(response.errorMessage!.contains('denied access') &&
-          response.errorMessage!.contains('revoked'));
+      expect(response.errorCode, 'AT0027');
+    });
+
+    test('verify verb response - case: enrollment denied', () async {
+      enrollData.approval = EnrollApproval('denied');
+      AtData data = AtData()..data = jsonEncode(enrollData);
+      when(() => mockKeyStore.get(any()))
+          .thenAnswer((invocation) async => data);
+      Response response = Response();
+        response = await pkamVerbHandler.fetchApkamPublicKey(
+            'dummy_key', 'enrollId', response);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0025');
+    });
+
+    test('verify verb response - case: enrollment pending', () async {
+      enrollData.approval = EnrollApproval('pending');
+      AtData data = AtData()..data = jsonEncode(enrollData);
+      when(() => mockKeyStore.get(any()))
+          .thenAnswer((invocation) async => data);
+      Response response = Response();
+        response = await pkamVerbHandler.fetchApkamPublicKey(
+            'dummy_key', 'enrollId', response);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0026');
     });
     tearDownAll(() async => await tearDownFunc());
   });
