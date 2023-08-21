@@ -13,7 +13,6 @@ import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
-import 'package:meta/meta.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
@@ -46,19 +45,31 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var enrollId = verbParams[enrollmentId];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var pkamAuthType = AuthType.pkamLegacy;
-    String? publicKey;
+    var publicKey;
 
     // Use APKAM public key for verification if enrollId is passed. Otherwise use legacy pkam public key.
     if (enrollId != null && enrollId.isNotEmpty) {
       var key =
           '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
-      response = await handleEnrollment(key, enrollId, response);
-      // fetch publicKey from response
-      // _handleEnrollment() stores publicKey as response.data
-      publicKey = response.data;
-      pkamAuthType = AuthType.apkam;
-      // set response.data to success which will be sent as the verb response
-      response.data = 'success';
+      var enrollData = await keyStore.get(key);
+      if (enrollData != null) {
+        final atData = enrollData.data;
+        logger.finer('enrollData: $atData');
+        final enrollDataStoreValue =
+            EnrollDataStoreValue.fromJson(jsonDecode(atData));
+        if (enrollDataStoreValue.approval != null &&
+            enrollDataStoreValue.approval!.state ==
+                EnrollStatus.approved.name) {
+          publicKey =
+              EnrollDataStoreValue.fromJson(jsonDecode(atData)).apkamPublicKey;
+          pkamAuthType = AuthType.apkam;
+        } else {
+          response.data = 'failure';
+          response.isError = true;
+          response.errorMessage = 'enrollment id: $enrollId is not approved';
+          throw UnAuthenticatedException(response.errorMessage);
+        }
+      }
     } else {
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
       publicKey = publicKeyData.data;
@@ -73,7 +84,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
     var isValidSignature = false;
 
-    //retrieve stored secret using session_id and atsign
+    //retrieve stored secret using sessionid and atsign
     var storedSecret = await keyStore.get('private:$sessionID$atSign');
     storedSecret = storedSecret?.data;
 
@@ -132,37 +143,5 @@ class PkamVerbHandler extends AbstractVerbHandler {
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
     }
-  }
-
-  @visibleForTesting
-  Future<Response> handleEnrollment(
-      String key, String enrollId, Response response) async {
-    var enrollData = await keyStore.get(key);
-    if (enrollData != null) {
-      final atData = enrollData.data;
-      logger.finer('enrollData: $atData');
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      if (enrollDataStoreValue.approval != null &&
-          (enrollDataStoreValue.approval!.state == EnrollStatus.denied.name ||
-              enrollDataStoreValue.approval!.state ==
-                  EnrollStatus.revoked.name)) {
-        response.isError = true;
-        response.errorMessage =
-            'enrollment_id: $enrollId has been denied access |'
-            ' Status: ${enrollDataStoreValue.approval?.state}';
-        throw UnAuthorizedException(response.errorMessage);
-      } else if (enrollDataStoreValue.approval != null &&
-          enrollDataStoreValue.approval!.state == EnrollStatus.approved.name) {
-        // public key will be stored as response.data for internal use
-        response.data = enrollDataStoreValue.apkamPublicKey;
-      } else {
-        response.isError = true;
-        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-            ' Status: ${enrollDataStoreValue.approval?.state}';
-        throw UnAuthenticatedException(response.errorMessage);
-      }
-    }
-    return response;
   }
 }
