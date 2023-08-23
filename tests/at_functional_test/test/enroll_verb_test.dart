@@ -231,7 +231,7 @@ void main() {
       await socket_writer(socketConnection2!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse,
-          'error:AT0401-Exception: enrollment id: $secondEnrollId is not approved\n');
+          'error:AT0025-Exception: enrollment id: $secondEnrollId is not approved\n');
     });
 
     // enroll request with only first client
@@ -612,7 +612,8 @@ void main() {
         await socket_writer(socketConnection2!, pkamCommand);
         pkamResult = await read();
         socketConnection2?.close();
-        expect(pkamResult.contains('$enrollmentId is not approved'), true);
+        print(pkamResult);
+        expect(pkamResult.contains('Access has been revoked for enrollment_id: $enrollmentId'), true);
       });
 
       test(
