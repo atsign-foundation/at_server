@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -46,7 +47,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(thisServersAtSign);
-    var fromAtSign = atConnectionMetadata.fromAtSign;
     String keyOwnersAtSign = verbParams[AT_SIGN]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
     var entity = verbParams[AT_KEY];
@@ -55,104 +55,229 @@ class LookupVerbHandler extends AbstractVerbHandler {
     String? byPassCacheStr = verbParams[bypassCache];
 
     logger.finer(
-        'fromAtSign : $fromAtSign \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
-    // Connection is authenticated and the currentAtSign is not atSign
-    // lookUp secondary of atSign for the key
+        'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
     if (atConnectionMetadata.isAuthenticated) {
-      if (keyOwnersAtSign == thisServersAtSign) {
-        // We're looking up data owned by this server's atSign
-        var lookupKey = '$thisServersAtSign:$keyAtAtSign';
-        final enrollApprovalId =
-            (atConnection.getMetaData() as InboundConnectionMetadata)
-                .enrollmentId;
-        bool isAuthorized = true; // for legacy clients allow access by default
-        if (enrollApprovalId != null) {
-          var keyNamespace =
-              lookupKey.substring(lookupKey.lastIndexOf('.') + 1);
-          isAuthorized =
-              await super.isAuthorized(enrollApprovalId, keyNamespace);
-        }
-        if (!isAuthorized) {
-          throw UnAuthorizedException(
-              'Enrollment Id: $enrollApprovalId is not authorized for lookup operation on the key: $lookupKey');
-        }
-        var lookupValue = await keyStore.get(lookupKey);
-        response.data =
-            SecondaryUtil.prepareResponseData(operation, lookupValue);
-
-        //Resolving value references to correct value
-        if (response.data != null &&
-            response.data!.contains(AT_VALUE_REFERENCE)) {
-          response.data = await resolveValueReference(
-              response.data.toString(), thisServersAtSign);
-        }
-        try {
-          await atAccessLog!
-              .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
-        } on DataStoreException catch (e) {
-          logger.severe('Hive error adding to access log:${e.toString()}');
-        }
-      } else {
-        // keyOwnersAtSign != thisServersAtSign
-        // We're looking up data owned by another atSign.
-        String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
-        //Get cached value.
-        AtData? cachedValue =
-            await cacheManager.get(cachedKeyName, applyMetadataRules: true);
-        response.data =
-            SecondaryUtil.prepareResponseData(operation, cachedValue);
-
-        //If cached value is null or byPassCache is true, do a remote lookUp
-        if (response.data == null ||
-            response.data == '' ||
-            byPassCacheStr == 'true') {
-          AtData? atData = await cacheManager.remoteLookUp(cachedKeyName,
-              maintainCache: true);
-          if (atData != null) {
-            response.data = SecondaryUtil.prepareResponseData(operation, atData,
-                key: '$thisServersAtSign:$keyAtAtSign');
-          }
-        }
-      }
-      return;
+      await _handleAuthenticatedConnection(
+          keyOwnersAtSign,
+          thisServersAtSign,
+          keyAtAtSign,
+          atConnection,
+          response,
+          operation,
+          atAccessLog,
+          byPassCacheStr);
+    } else if (atConnectionMetadata.isPolAuthenticated) {
+      await _handlePolAuthConnection(atConnectionMetadata, keyAtAtSign,
+          response, operation, atAccessLog, keyOwnersAtSign);
     } else {
-      // isAuthenticated is false
-      // If the Connection is unauthenticated form the key based on presence of "fromAtSign"
-      var keyPrefix = '';
-      if (!(atConnectionMetadata.isAuthenticated)) {
-        keyPrefix = (fromAtSign == null || fromAtSign == '')
-            ? 'public:'
-            : '$fromAtSign:';
-      }
-      // Form the look up key
-      var lookupKey = keyPrefix + keyAtAtSign;
-      logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-      // Find the value for the key from the data store
-      var lookupData = await keyStore.get(lookupKey);
-      var isActive = SecondaryUtil.isActiveKey(lookupData);
-      if (isActive) {
-        response.data =
-            SecondaryUtil.prepareResponseData(operation, lookupData);
-        //Resolving value references to correct values
-        if (response.data != null &&
-            response.data!.contains(AT_VALUE_REFERENCE)) {
-          response.data =
-              await resolveValueReference(response.data!, keyPrefix);
-        }
-        //Omit all keys starting with '_' to record in access log
-        if (!keyAtAtSign.startsWith('_')) {
-          try {
-            await atAccessLog!
-                .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
-          } on DataStoreException catch (e) {
-            logger.severe('Hive error adding to access log:${e.toString()}');
-          }
-        }
-        return;
-      } else {
-        response.data = null;
+      await _handleUnAuthenticatedConnection(
+          keyAtAtSign, response, atAccessLog, keyOwnersAtSign, operation);
+    }
+  }
+
+  /// Handles the Authenticated connection requests
+  ///   - If the [keyOwnersAtSign] corresponds to the [thisServersAtSign], retrieves data
+  ///     from the keystore.
+  ///   - If the [keyOwnersAtSign] differs from the [thisServersAtSign], a network call
+  ///     is initiated to the [keyOwnersAtSign] to acquire the data.
+  ///
+  ///   - If the user is authenticated using the legacy PKAM, the data is returned.
+  ///   - If the user is authenticated using the APKAM, the function fetches the
+  ///     enrollmentId from metadata. Data is only returned if the atSign has
+  ///     permission to access the key's namespace.
+  ///   - If permissions are not met, [UnAuthorizedException] is thrown.
+  Future<void> _handleAuthenticatedConnection(
+      String keyOwnersAtSign,
+      String thisServersAtSign,
+      String keyAtAtSign,
+      InboundConnection atConnection,
+      Response response,
+      String? operation,
+      AtAccessLog? atAccessLog,
+      String? byPassCacheStr) async {
+    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    bool isAuthorized = await _isAuthorizedToViewData(atConnection, lookupKey);
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Enrollment Id: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not authorized for lookup operation on the key: $lookupKey');
+    }
+    if (keyOwnersAtSign == thisServersAtSign) {
+      // We're looking up data owned by this server's atSign
+      await _fetchDataOwnedByThisAtSign(thisServersAtSign, keyAtAtSign,
+          atConnection, response, operation, atAccessLog, keyOwnersAtSign);
+    } else {
+      // keyOwnersAtSign != thisServersAtSign
+      // We're looking up data owned by another atSign.
+      await _fetchDataOwnedByOtherAtSign(
+          thisServersAtSign, keyAtAtSign, response, operation, byPassCacheStr);
+    }
+  }
+
+  /// Handles requests from pol-authenticated connections.
+  ///   - In cases where the 'atSign' does not possess ownership of the data,
+  ///     a pol authentication is initiated towards the 'atSign' that does own the data.
+  ///     For instance, when the current "atSign" is "alice" and the request is
+  ///     "lookup:phone.wavi@bob"(from an authenticated connection), an interaction
+  ///     occurs where Alice proves identity to Bob, who subsequently returns the
+  ///     value of the key "@alice:phone.wavi@bob".
+  Future<void> _handlePolAuthConnection(
+      InboundConnectionMetadata atConnectionMetadata,
+      String keyAtAtSign,
+      Response response,
+      String? operation,
+      AtAccessLog? atAccessLog,
+      String keyOwnersAtSign) async {
+    if (atConnectionMetadata.fromAtSign == null ||
+        atConnectionMetadata.fromAtSign!.isEmpty) {
+      throw AtLookUpException('AT0013', 'fromAtSign cannot be null or empty');
+    }
+    // In case of a pol authenticated connection, the request originates from a different
+    // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
+    var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
+    logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+    var lookupData = await keyStore.get(lookupKey);
+    var isActive = SecondaryUtil.isActiveKey(lookupData);
+    if (!isActive) {
+      response.data = null;
+      return;
+    }
+    response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
+    //Resolving value references to correct values
+    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+      response.data = await resolveValueReference(
+          response.data!, atConnectionMetadata.fromAtSign!);
+    }
+    //Omit all keys starting with '_' to record in access log
+    if (!keyAtAtSign.startsWith('_')) {
+      try {
+        await atAccessLog!
+            .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+      } on DataStoreException catch (e) {
+        logger.severe('Hive error adding to access log:${e.toString()}');
       }
     }
+  }
+
+  /// Handles requests from unauthenticated connections.
+  ///
+  ///   - In the case of an unauthenticated connection,  the "lookup" verb is used
+  ///     to fetch public keys from the storage associated with the current "atSign".
+  ///     For instance, if the current atSign is "alice", then using "lookup:phone.wavi@alice"
+  ///     yields the corresponding value of the key "public:phone.wavi@alice".
+  _handleUnAuthenticatedConnection(
+      String keyAtAtSign,
+      Response response,
+      AtAccessLog? atAccessLog,
+      String keyOwnersAtSign,
+      String? operation) async {
+    // In the case of an unauthenticated connection, only public keys are accessible.
+    // so, set the lookupKey prefix to "public:".
+    var lookupKey = 'public:$keyAtAtSign';
+    logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+    var lookupData = await keyStore.get(lookupKey);
+    var isActive = SecondaryUtil.isActiveKey(lookupData);
+    if (!isActive) {
+      response.data = null;
+      return;
+    }
+    response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
+    //Resolving value references to correct values
+    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+      response.data = await resolveValueReference(response.data!, 'public:');
+    }
+    //Omit all keys starting with '_' to record in access log
+    if (!keyAtAtSign.startsWith('_')) {
+      try {
+        await atAccessLog!
+            .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+      } on DataStoreException catch (e) {
+        logger.severe('Hive error adding to access log:${e.toString()}');
+      }
+    }
+  }
+
+  /// Retrieve data owned by a different 'atSign':
+  ///
+  ///  - If a cached key is available, fetch data from the cache. However,
+  ///    if [byPassCacheStr] is set to true, the value from cached key is ignored.
+  ///    Initiates a network call to the "atSign" who owns the data and returns the value.
+  ///  - If cached key does not exist, fetches data from the "atSign" that owns the data.
+  Future<void> _fetchDataOwnedByOtherAtSign(
+      String thisServersAtSign,
+      String keyAtAtSign,
+      Response response,
+      String? operation,
+      String? byPassCacheStr) async {
+    String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
+    //Get cached value.
+    AtData? cachedValue =
+        await cacheManager.get(cachedKeyName, applyMetadataRules: true);
+    response.data = SecondaryUtil.prepareResponseData(operation, cachedValue);
+
+    //If cached value is null or byPassCache is true, do a remote lookUp
+    if (response.data == null ||
+        response.data == '' ||
+        byPassCacheStr == 'true') {
+      AtData? atData =
+          await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
+      if (atData != null) {
+        response.data = SecondaryUtil.prepareResponseData(operation, atData,
+            key: '$thisServersAtSign:$keyAtAtSign');
+      }
+    }
+  }
+
+  /// Retrieve data owned by [thisServersAtSign].
+  Future<void> _fetchDataOwnedByThisAtSign(
+      String thisServersAtSign,
+      String keyAtAtSign,
+      InboundConnection atConnection,
+      Response response,
+      String? operation,
+      AtAccessLog? atAccessLog,
+      String keyOwnersAtSign) async {
+    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    var lookupValue = await keyStore.get(lookupKey);
+    response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
+    //Resolving value references to correct value
+    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+      response.data = await resolveValueReference(
+          response.data.toString(), thisServersAtSign);
+    }
+    try {
+      await atAccessLog!
+          .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+    } on DataStoreException catch (e) {
+      logger.severe('Hive error adding to access log:${e.toString()}');
+    }
+  }
+
+  /// When an 'atSign' is authenticated via APKAM, retrieves enrollment data based
+  /// on the enrollmentId.
+  ///
+  /// If the user possesses authorization for the [lookupKey] namespace, returns true;
+  /// otherwise, returns false.
+  Future<bool> _isAuthorizedToViewData(
+      InboundConnection atConnection, String lookupKey) async {
+    // When a connection is authenticated via APKAM, only keys with namespaces that are authorized
+    // are allowed to fetch the data. However, the keys that do not have namespaces (for example
+    // reserved keys) the client is authorized and are allowed to fetch the data.
+    //
+    // Therefore, absence of "." indicates lack of namespace in the key. Return true.
+    if (!lookupKey.contains('.')) {
+      return true;
+    }
+    final enrollmentId =
+        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
+    bool isAuthorized = true; // for legacy clients allow access by default
+    if (enrollmentId != null) {
+      // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
+      // is the namespace.
+      String keyNamespace = lookupKey.substring(
+          lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
+      isAuthorized = await super.isAuthorized(enrollmentId, keyNamespace);
+    }
+    return isAuthorized;
   }
 
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.
