@@ -409,7 +409,6 @@ void main() {
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
-      print(scanResponseList);
       expect(scanResponseList[0], 'firstname.atmosphere$alice');
       expect(scanResponseList[1], 'mobile.buzz$alice');
       expect(scanResponseList[2], 'phone.wavi$alice');
