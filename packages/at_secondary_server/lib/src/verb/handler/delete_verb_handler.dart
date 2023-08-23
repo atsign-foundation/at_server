@@ -72,7 +72,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    var keyNamespace = deleteKey.substring(deleteKey.lastIndexOf('.') + 1);
+    var keyNamespace =
+        verbParams[AT_KEY]!.substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[FOR_AT_SIGN] != null) {
       deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
     }
@@ -88,8 +89,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
     }
     final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollApprovalId;
+        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollApprovalId != null) {
       isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);

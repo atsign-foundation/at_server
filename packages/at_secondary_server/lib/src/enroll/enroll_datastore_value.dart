@@ -8,7 +8,9 @@ class EnrollDataStoreValue {
   late String sessionId;
   late String appName;
   late String deviceName;
-  List<EnrollNamespace> namespaces = [];
+  // map for representing namespace access. key will be the namespace, value will be the access
+  // e.g {'wavi':'r', 'buzz':'rw'}
+  Map<String, String> namespaces = {};
   late String apkamPublicKey;
   EnrollRequestType? requestType;
   EnrollApproval? approval;
@@ -19,24 +21,6 @@ class EnrollDataStoreValue {
       _$EnrollDataStoreValueFromJson(json);
 
   Map<String, dynamic> toJson() => _$EnrollDataStoreValueToJson(this);
-}
-
-class EnrollNamespace {
-  String name;
-  String access;
-  EnrollNamespace(this.name, this.access);
-  EnrollNamespace.fromJson(Map<String, dynamic> json)
-      : name = json['name'],
-        access = json['access'];
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'access': access,
-      };
-
-  @override
-  String toString() {
-    return '{name: $name, access: $access}';
-  }
 }
 
 class EnrollApproval {

@@ -80,21 +80,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  Future<List<EnrollNamespace>> getEnrollmentNamespaces(
-      String enrollmentId, String currentAtSign) async {
-    final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    EnrollDataStoreValue enrollDataStoreValue;
-    try {
-      enrollDataStoreValue =
-          await getEnrollDataStoreValue('$key$currentAtSign');
-    } on KeyNotFoundException {
-      logger.warning('enrollment key not found in keystore $key');
-      return [];
-    }
-    logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
-    return enrollDataStoreValue.namespaces;
-  }
-
   /// Fetch for an enrollment key in the keystore.
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
@@ -111,43 +96,55 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
-  Future<bool> isAuthorized(
-      String enrollApprovalId, String keyNamespace) async {
-    EnrollDataStoreValue enrollDataStoreValue;
-    final enrollmentKey =
-        '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+  /// Verifies whether the enrollment namespace for the enrollment
+  /// ID has the necessary permissions to modify, delete, or retrieve the data.
+  /// The enrollment should be in an approved state.
+  ///
+  /// To execute a data retrieval (lookup or local lookup), the namespace must have
+  /// "r" (read) privileges within the namespace.
+  /// For update or delete actions, the namespace must have "rw" (read-write) privileges.
+  ///
+  /// Returns true, if the namespace has the required read or read-write
+  /// permissions to execute lookup/local-lookup or update/delete operations
+  /// respectively
+  ///
+  /// Returns false
+  ///  - If the enrollment key is not present in the keystore.
+  ///  - If the enrollment is not in "approved" state
+  ///  - If the namespace does not have necessary permissions to perform the operation
+  ///  - If enrollment is a part of "global" or "manage" namespace
+  Future<bool> isAuthorized(String enrollmentId, String keyNamespace) async {
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(
-          '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}');
-    } on KeyNotFoundException {
-      // When a key with enrollmentId is not found, atSign is not authorized to
-      // perform enrollment actions. Return false.
-      return false;
-    }
+      final enrollmentKey =
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+      final fullKey =
+          '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
-    if (enrollDataStoreValue.approval?.state != EnrollStatus.approved.name) {
-      return false;
-    }
+      final enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
 
-    final enrollNamespaces = await getEnrollmentNamespaces(
-        enrollApprovalId, AtSecondaryServerImpl.getInstance().currentAtSign);
+      if (enrollDataStoreValue.approval?.state != EnrollStatus.approved.name) {
+        return false;
+      }
 
-    logger.finer(
-        'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');
-    for (EnrollNamespace namespace in enrollNamespaces) {
-      if (namespace.name == keyNamespace) {
-        logger.finer('current verb: ${getVerb()}');
-        if (getVerb() is LocalLookup || getVerb() is Lookup) {
-          if (namespace.access == 'r' || namespace.access == 'rw') {
-            return true;
-          }
-        } else if (getVerb() is Update || getVerb() is Delete) {
-          if (namespace.access == 'rw') {
-            return true;
-          }
+      final enrollNamespaces = enrollDataStoreValue.namespaces;
+      logger.finer('enrollNamespaces:$enrollNamespaces');
+      logger.finer('keyNamespace:$keyNamespace');
+      final access = enrollNamespaces.containsKey(allNamespaces)
+          ? enrollNamespaces[allNamespaces]
+          : enrollNamespaces[keyNamespace];
+      logger.finer('access:$access');
+      if (keyNamespace != enrollManageNamespace && access != null) {
+        final verb = getVerb();
+        if ((verb is LocalLookup || verb is Lookup) &&
+            (access == 'r' || access == 'rw')) {
+          return true;
+        } else if ((verb is Update || verb is Delete) && access == 'rw') {
+          return true;
         }
       }
+      return false;
+    } on KeyNotFoundException {
+      return false;
     }
-    return false;
   }
 }
