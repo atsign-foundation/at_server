@@ -39,31 +39,30 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var sessionID = atConnectionMetadata.sessionID;
-    var signature = verbParams[AT_PKAM_SIGNATURE]!;
-    var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
-    var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
     var enrollId = verbParams[enrollmentId];
+    var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var pkamAuthType = AuthType.pkamLegacy;
+    AuthType pkamAuthType;
     String? publicKey;
 
-    // Use APKAM public key for verification if enrollId is passed. Otherwise use legacy pkam public key.
+    // Use APKAM public key for verification if enrollId is passed.
+    // Otherwise use legacy pkam public key.
     if (enrollId != null && enrollId.isNotEmpty) {
-      var key =
-          '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
-      response = await fetchApkamPublicKey(key, enrollId, response);
-      if(response.isError){
+      pkamAuthType = AuthType.apkam;
+      dynamic apkamVerificationResponse =
+          await handleApkamVerification(enrollId, atSign, response);
+      // apkamVerificationResponse will contain a \'Response\' type object if the
+      // enrollment is not approved. The following condition returns appropriate
+      // errorCode and errorMessage that will be displayed to the user
+      if (apkamVerificationResponse.runtimeType is Response &&
+          apkamVerificationResponse.isError) {
         return;
       }
-      // fetch publicKey from response
-      // _handleEnrollment store publicKey as response.data
-      // This part of the code will only be triggered if enrollment for this id has been approved
-      publicKey = response.data;
-      pkamAuthType = AuthType.apkam;
-      // reset response.data to remove the publicKey stored
-      response.data = '';
+      // apkamVerificationResponse will contain the pkam_public_key if the
+      // enrollment_id is approved.
+      publicKey = apkamVerificationResponse;
     } else {
+      pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
       publicKey = publicKeyData.data;
     }
@@ -75,14 +74,99 @@ class PkamVerbHandler extends AbstractVerbHandler {
       response.errorMessage = 'pkam publickey not found';
       throw UnAuthenticatedException('pkam publickey not found');
     }
-    var isValidSignature = false;
+    var isValidSignature =
+        await _validateSignature(verbParams, sessionID, atSign, publicKey);
+    // authenticate if signature is valid
+    if (isValidSignature) {
+      atConnectionMetadata.isAuthenticated = true;
+      atConnectionMetadata.authType = pkamAuthType;
+      atConnectionMetadata.enrollmentId = enrollId;
+      response.data = 'success';
+    } else {
+      atConnectionMetadata.isAuthenticated = false;
+      response.data = 'failure';
+      logger.severe('pkam authentication failed');
+      throw UnAuthenticatedException('pkam authentication failed');
+    }
+  }
 
-    //retrieve stored secret using session_id and atsign
-    var storedSecret = await keyStore.get('private:$sessionID$atSign');
-    storedSecret = storedSecret?.data;
+  /// Performs operations required for apkam authentication
+  /// Returns pkamPublicKey if the [enrollId] is [EnrollStatus.approved]
+  /// Otherwise returns [Response] with appropriate [Response.errorCode] and [Response.errorMessage]
+  /// Throws [KeyNotFoundException] if the key for provided [enrollId] does not exist
+  @visibleForTesting
+  Future<dynamic> handleApkamVerification(
+      String enrollId, String atSign, Response response) async {
+    String enrollmentKey =
+        '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
+    var enrollData = await keyStore.get(enrollmentKey);
+    final atData = enrollData.data;
+    logger.finer('handleApkamVerification() fetched enrollData: $atData');
+    final enrollDataStoreValue =
+        EnrollDataStoreValue.fromJson(jsonDecode(atData));
+    response = verifyEnrollApproval(
+        enrollDataStoreValue.approval!.state, enrollId, response);
+    // If response.isError is true, return the response object as it contains
+    // appropriate errorCode and errorMessage that need to be displayed to the user
+    if (response.isError) {
+      return response;
+    }
+    // If response.isError is NOT true, return the public key to continue authentication
+    // using apkam public key
+    // This means that the enrollmentId provided is APPROVED
+    return enrollDataStoreValue.apkamPublicKey;
+  }
 
+  @visibleForTesting
+  Response verifyEnrollApproval(
+      String approvalState, String enrollId, Response response) {
+    // the following is a function that based on the EnrollStatus sets
+    // appropriate error codes and messages
+    Response getApprovalStatus(EnrollStatus enrollStatus) {
+      switch (enrollStatus) {
+        case EnrollStatus.denied:
+          response.isError = true;
+          response.errorCode = 'AT0025';
+          response.errorMessage =
+              'enrollment_id: $enrollId has been denied access';
+          return response;
+        case EnrollStatus.pending:
+          response.isError = true;
+          response.errorCode = 'AT0026';
+          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+              ' Status: $approvalState';
+          return response;
+        case EnrollStatus.approved:
+          return response;
+        case EnrollStatus.revoked:
+          response.isError = true;
+          response.errorCode = 'AT0027';
+          response.errorMessage =
+              'Access has been revoked for enrollment_id: $enrollId';
+          return response;
+        default:
+          response.isError = true;
+          response.errorCode = 'AT0026';
+          response.errorMessage =
+              'Could not fetch enrollment status for enrollment_id: $enrollId';
+          return response;
+      }
+    }
+
+    EnrollStatus enrollStatus = EnrollStatus.values.byName(approvalState);
+    return getApprovalStatus(enrollStatus);
+  }
+
+  Future<bool> _validateSignature(
+      var verbParams, var sessionId, String atSign, String publicKey) async {
+    var signature = verbParams[AT_PKAM_SIGNATURE]!;
+    var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
+    var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
     var signingAlgoEnum;
     var inputSignature;
+    bool isValidSignature = false;
+    var storedSecret = await keyStore.get('private:$sessionId$atSign');
+    storedSecret = storedSecret?.data;
     // if no signature algorithm is passed, default to RSA verification. This preserves
     // backward compatibility for old pkam messages without signing algo.
     logger.finer('signingAlgo: $signingAlgo');
@@ -109,10 +193,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
     logger.finer('hashingAlgoEnum: $hashingAlgoEnum');
     final verificationInput = AtSigningVerificationInput(
-        utf8.encode('$sessionID$atSign:$storedSecret') as Uint8List,
+        utf8.encode('$sessionId$atSign:$storedSecret') as Uint8List,
         inputSignature,
         publicKey);
-    //
     verificationInput.signingAlgoType = signingAlgoEnum;
     verificationInput.hashingAlgoType = hashingAlgoEnum;
     verificationInput.signingMode = AtSigningMode.pkam;
@@ -124,57 +207,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
       logger.finer('Exception in pkam signature verification: ${e.toString()}');
     }
     logger.finer('pkam auth:$isValidSignature');
-    // authenticate if signature is valid
-    if (isValidSignature) {
-      atConnectionMetadata.isAuthenticated = true;
-      atConnectionMetadata.authType = pkamAuthType;
-      atConnectionMetadata.enrollmentId = enrollId;
-      response.data = 'success';
-    } else {
-      atConnectionMetadata.isAuthenticated = false;
-      response.data = 'failure';
-      logger.severe('pkam authentication failed');
-      throw UnAuthenticatedException('pkam authentication failed');
-    }
-  }
-
-  @visibleForTesting
-  Future<Response> fetchApkamPublicKey(
-      String key, String enrollId, Response response) async {
-    var enrollData = await keyStore.get(key);
-    if (enrollData != null) {
-      final atData = enrollData.data;
-      logger.finer('enrollData: $atData');
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      if (enrollDataStoreValue.approval == null) {
-        response.isError = true;
-        response.errorCode = 'AT0026';
-        response.errorMessage =
-            'Could not fetch enrollment status for enrollment_id: $enrollId';
-      } else if (enrollDataStoreValue.approval!.state ==
-          EnrollStatus.denied.name) {
-        response.isError = true;
-        response.errorCode = 'AT0025';
-        response.errorMessage =
-            'enrollment_id: $enrollId has been denied access';
-      } else if (enrollDataStoreValue.approval!.state ==
-          EnrollStatus.revoked.name) {
-        response.isError = true;
-        response.errorCode = 'AT0027';
-        response.errorMessage =
-            'Access has been revoked for enrollment_id: $enrollId';
-      } else if (enrollDataStoreValue.approval!.state ==
-          EnrollStatus.approved.name) {
-        // public key will be stored as response.data for internal use
-        response.data = enrollDataStoreValue.apkamPublicKey;
-      } else {
-        response.isError = true;
-        response.errorCode = 'AT0026';
-        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-            ' Status: ${enrollDataStoreValue.approval?.state}';
-      }
-    }
-    return response;
+    return isValidSignature;
   }
 }

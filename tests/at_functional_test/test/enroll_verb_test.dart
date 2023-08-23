@@ -232,7 +232,7 @@ void main() {
       var apkamEnrollIdResponse = await read();
       print(apkamEnrollIdResponse);
       expect(apkamEnrollIdResponse,
-          'error:AT0025:enrollment_id: $secondEnrollId has been denied access');
+          'error:AT0025:enrollment_id: $secondEnrollId has been denied access\n');
     });
 
     // enroll request with only first client
