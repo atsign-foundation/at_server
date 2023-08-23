@@ -1,3 +1,5 @@
+## 3.0.35
+- chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
 ## 3.0.34
 - chore: Upgraded at_persistence_spec to 2.0.14
 - chore: Upgraded at_persistence_secondary_server to 3.0.56
