@@ -1,5 +1,8 @@
 ## 3.0.35
 - chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
+- feat: APKAM keys verb implementation
+- feat: Implementation changes for APKAM latest specification
+- Allow lookup verb for only authorized namespaces when authenticated via APKAM
 ## 3.0.34
 - chore: Upgraded at_persistence_spec to 2.0.14
 - chore: Upgraded at_persistence_secondary_server to 3.0.56
