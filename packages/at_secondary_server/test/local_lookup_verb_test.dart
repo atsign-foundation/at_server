@@ -384,13 +384,13 @@ void main() {
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String llookupCommand = 'llookup:$alice:dummykey.wavi$alice';
-        HashMap<String, String?> updateVerbParams =
+        HashMap<String, String?> localLookupVerbParams =
             getVerbParam(VerbSyntax.llookup, llookupCommand);
         LocalLookupVerbHandler localLookupVerbHandler =
             LocalLookupVerbHandler(secondaryKeyStore);
         expect(
             () async => await localLookupVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
+                response, localLookupVerbParams, inboundConnection),
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==

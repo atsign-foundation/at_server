@@ -298,10 +298,12 @@ void main() {
     });
 
     test('A test to verify enrollment has *:rw access', () async {
+      var enrollmentId = Uuid().v4();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      var enrollmentId = Uuid().v4();
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -325,12 +327,60 @@ void main() {
     });
 
     test(
-        'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
+        'A test to verify scan returns all keys when enrollment has *:rw access',
         () async {
+      var enrollmentId = Uuid().v4();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      await secondaryKeyStore.put(
+          'public:phone.wavi@alice', AtData()..data = '+455 675 6765');
+      await secondaryKeyStore.put(
+          '@bob:firstName.atmosphere@alice', AtData()..data = 'Alice');
+      await secondaryKeyStore.put(
+          'mobile.buzz@alice', AtData()..data = '+878 787 7679');
+
+      scanVerbHandler = ScanVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      mockResponseHandlerManager = MockResponseHandlerManager();
+      scanVerbHandler.responseManager = mockResponseHandlerManager;
+      await scanVerbHandler.process('scan', inboundConnection);
+      List scanResponseList = jsonDecode(scanResponse);
+      expect(
+          scanResponseList
+              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+          true);
+      expect(
+          scanResponseList.contains('@bob:firstname.atmosphere@alice'), true);
+
+      expect(scanResponseList.contains('mobile.buzz@alice'), true);
+      expect(scanResponseList.contains('public:phone.wavi@alice'), true);
+    });
+
+    test(
+        'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
+        () async {
       var enrollmentId = Uuid().v4();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -359,10 +409,9 @@ void main() {
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
-      expect(scanResponseList[0].toString().startsWith(enrollmentId), true);
-      expect(scanResponseList[1], 'firstname.atmosphere$alice');
-      expect(scanResponseList[2], 'mobile.buzz$alice');
-      expect(scanResponseList[3], 'phone.wavi$alice');
+      expect(scanResponseList[0], 'firstname.atmosphere$alice');
+      expect(scanResponseList[1], 'mobile.buzz$alice');
+      expect(scanResponseList[2], 'phone.wavi$alice');
     });
     tearDown(() async => await verbTestsTearDown());
   });
