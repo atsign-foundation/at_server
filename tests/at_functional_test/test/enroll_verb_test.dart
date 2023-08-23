@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
@@ -172,7 +173,7 @@ void main() {
     // 5. First client doesn't approve the enroll request
     // 6. Second client should get an exception as the enroll request is not approved
     test(
-        'second enroll request using totp and client did not approved enrollment request',
+        'second enroll request using totp and client denied enrollment request',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
@@ -231,7 +232,7 @@ void main() {
       await socket_writer(socketConnection2!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse,
-          'error:AT0025-Exception: enrollment id: $secondEnrollId is not approved\n');
+          'error:AT0025:enrollment_id: $enrollmentId has been denied access');
     });
 
     // enroll request with only first client
