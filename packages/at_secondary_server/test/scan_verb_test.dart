@@ -298,10 +298,12 @@ void main() {
     });
 
     test('A test to verify enrollment has *:rw access', () async {
+      var enrollmentId = Uuid().v4();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      var enrollmentId = Uuid().v4();
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -327,10 +329,12 @@ void main() {
     test(
         'A test to verify scan returns all keys when enrollment has *:rw access',
         () async {
+      var enrollmentId = Uuid().v4();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      var enrollmentId = Uuid().v4();
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -371,10 +375,12 @@ void main() {
     test(
         'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
         () async {
+      var enrollmentId = Uuid().v4();
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      var enrollmentId = Uuid().v4();
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -403,10 +409,10 @@ void main() {
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
-      expect(scanResponseList[0].toString().startsWith(enrollmentId), true);
-      expect(scanResponseList[1], 'firstname.atmosphere$alice');
-      expect(scanResponseList[2], 'mobile.buzz$alice');
-      expect(scanResponseList[3], 'phone.wavi$alice');
+      print(scanResponseList);
+      expect(scanResponseList[0], 'firstname.atmosphere$alice');
+      expect(scanResponseList[1], 'mobile.buzz$alice');
+      expect(scanResponseList[2], 'phone.wavi$alice');
     });
     tearDown(() async => await verbTestsTearDown());
   });
