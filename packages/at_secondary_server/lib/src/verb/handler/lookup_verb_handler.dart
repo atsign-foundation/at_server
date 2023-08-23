@@ -259,7 +259,10 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// otherwise, returns false.
   Future<bool> _isAuthorizedToViewData(
       InboundConnection atConnection, String lookupKey) async {
-    // If a key does not have namespace then the client is authorized
+    // When a connection is authenticated via APKAM, only keys with namespaces that are authorized
+    // are allowed to fetch the data. However, the keys that do not have namespaces (for example
+    // reserved keys) the client is authorized and are allowed to fetch the data.
+    //
     // Therefore, absence of "." indicates lack of namespace in the key. Return true.
     if (!lookupKey.contains('.')) {
       return true;
