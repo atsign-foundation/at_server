@@ -49,29 +49,20 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // Otherwise use legacy pkam public key.
     if (enrollId != null && enrollId.isNotEmpty) {
       pkamAuthType = AuthType.apkam;
-      dynamic apkamVerificationResponse =
-          await handleApkamVerification(enrollId, atSign, response);
-      // apkamVerificationResponse will contain a \'Response\' type object if the
-      // enrollment is not approved. The following condition returns appropriate
-      // errorCode and errorMessage that will be displayed to the user
-      if (apkamVerificationResponse.runtimeType is Response &&
-          apkamVerificationResponse.isError) {
+      ApkamVerificationResult apkamResult =
+          await handleApkamVerification(enrollId, atSign);
+      if (apkamResult.response.isError) {
+        response = apkamResult.response;
         return;
       }
-      // apkamVerificationResponse will contain the pkam_public_key if the
-      // enrollment_id is approved.
-      publicKey = apkamVerificationResponse;
+      publicKey = apkamResult.publicKey;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
       publicKey = publicKeyData.data;
     }
 
-    // If there is no public key in the keystore then throw an exception
     if (publicKey == null || publicKey.isEmpty) {
-      response.data = 'failure';
-      response.isError = true;
-      response.errorMessage = 'pkam publickey not found';
       throw UnAuthenticatedException('pkam publickey not found');
     }
     var isValidSignature =
@@ -84,77 +75,71 @@ class PkamVerbHandler extends AbstractVerbHandler {
       response.data = 'success';
     } else {
       atConnectionMetadata.isAuthenticated = false;
-      response.data = 'failure';
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
     }
   }
 
-  /// Performs operations required for apkam authentication
-  /// Returns pkamPublicKey if the [enrollId] is [EnrollStatus.approved]
-  /// Otherwise returns [Response] with appropriate [Response.errorCode] and [Response.errorMessage]
-  /// Throws [KeyNotFoundException] if the key for provided [enrollId] does not exist
   @visibleForTesting
-  Future<dynamic> handleApkamVerification(
-      String enrollId, String atSign, Response response) async {
+  Future<ApkamVerificationResult> handleApkamVerification(
+      String enrollId, String atSign) async {
     String enrollmentKey =
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     var enrollData = await keyStore.get(enrollmentKey);
     final atData = enrollData.data;
-    logger.finer('handleApkamVerification() fetched enrollData: $atData');
+    logger.finer('fetched enrollData: $atData');
     final enrollDataStoreValue =
         EnrollDataStoreValue.fromJson(jsonDecode(atData));
-    response = verifyEnrollApproval(
-        enrollDataStoreValue.approval!.state, enrollId, response);
-    // If response.isError is true, return the response object as it contains
-    // appropriate errorCode and errorMessage that need to be displayed to the user
-    if (response.isError) {
-      return response;
+    ApkamVerificationResult apkamResult = ApkamVerificationResult();
+    apkamResult.response = verifyEnrollApproval(
+        enrollDataStoreValue.approval!.state, enrollId);
+    if(!apkamResult.response.isError) {
+      apkamResult.publicKey = enrollDataStoreValue.apkamPublicKey;
     }
-    // If response.isError is NOT true, return the public key to continue authentication
-    // using apkam public key
-    // This means that the enrollmentId provided is APPROVED
-    return enrollDataStoreValue.apkamPublicKey;
+    return apkamResult;
   }
 
   @visibleForTesting
   Response verifyEnrollApproval(
-      String approvalState, String enrollId, Response response) {
+      String approvalState, String enrollId) {
+    Response response = Response();
     // the following is a function that based on the EnrollStatus sets
     // appropriate error codes and messages
-    Response getApprovalStatus(EnrollStatus enrollStatus) {
+    void getApprovalStatus(EnrollStatus enrollStatus) {
       switch (enrollStatus) {
         case EnrollStatus.denied:
           response.isError = true;
           response.errorCode = 'AT0025';
           response.errorMessage =
               'enrollment_id: $enrollId has been denied access';
-          return response;
+          break;
         case EnrollStatus.pending:
           response.isError = true;
           response.errorCode = 'AT0026';
           response.errorMessage = 'enrollment_id: $enrollId is not approved |'
               ' Status: $approvalState';
-          return response;
+          break;
         case EnrollStatus.approved:
-          return response;
+          // do nothing when enrollment is approved
+          break;
         case EnrollStatus.revoked:
           response.isError = true;
           response.errorCode = 'AT0027';
           response.errorMessage =
               'Access has been revoked for enrollment_id: $enrollId';
-          return response;
+          break;
         default:
           response.isError = true;
           response.errorCode = 'AT0026';
           response.errorMessage =
               'Could not fetch enrollment status for enrollment_id: $enrollId';
-          return response;
+          break;
       }
     }
 
     EnrollStatus enrollStatus = EnrollStatus.values.byName(approvalState);
-    return getApprovalStatus(enrollStatus);
+    getApprovalStatus(enrollStatus);
+    return response;
   }
 
   Future<bool> _validateSignature(
@@ -209,4 +194,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     logger.finer('pkam auth:$isValidSignature');
     return isValidSignature;
   }
+}
+
+class ApkamVerificationResult{
+  late Response response;
+  String? publicKey;
 }

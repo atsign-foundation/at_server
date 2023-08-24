@@ -84,11 +84,9 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      Response response = Response();
       var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice', response);
-      expect(apkamResult.runtimeType, String);
-      expect(apkamResult, 'dummy_public_key');
+          'enrollId', '@alice');
+      expect(apkamResult.publicKey, 'dummy_public_key');
     });
 
     test('verify apkam behaviour - case: enrollment revoked ', () async {
@@ -97,12 +95,10 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      Response response = Response();
       var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice', response);
-      expect(apkamResult.isError, true);
-      expect(apkamResult.errorCode, 'AT0027');
-      expect(apkamResult.runtimeType, Response);
+          'enrollId', '@alice');
+      expect(apkamResult.response.isError, true);
+      expect(apkamResult.response.errorCode, 'AT0027');
     });
 
     test('verify apkam behaviour - case: enrollment pending ', () async {
@@ -111,12 +107,10 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      Response response = Response();
       var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice', response);
-      expect(apkamResult.isError, true);
-      expect(apkamResult.errorCode, 'AT0026');
-      expect(apkamResult.runtimeType, Response);
+          'enrollId', '@alice');
+      expect(apkamResult.response.isError, true);
+      expect(apkamResult.response.errorCode, 'AT0026');
     });
 
     test('verify apkam behaviour - case: enrollment denied ', () async {
@@ -124,25 +118,24 @@ void main() {
       AtData data = AtData()..data = jsonEncode(enrollData.toJson());
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
-      Response response = Response();
+
       var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice', response);
-      expect(apkamResult.isError, true);
-      expect(apkamResult.errorCode, 'AT0025');
-      expect(apkamResult.runtimeType, Response);
+          'enrollId', '@alice');
+      expect(apkamResult.response.isError, true);
+      expect(apkamResult.response.errorCode, 'AT0025');
     });
 
     test('verify verifyEnrollApproval() - case: enrollment approved', () async {
       Response response = Response();
       response = pkamVerbHandler.verifyEnrollApproval(
-          'approved', 'enrollId', response);
+          'approved', 'enrollId');
       expect(response.isError, false);
     });
 
     test('verify verifyEnrollApproval() - case: enrollment revoked', () async {
       Response response = Response();
       response =
-          pkamVerbHandler.verifyEnrollApproval('revoked', 'enrollId', response);
+          pkamVerbHandler.verifyEnrollApproval('revoked', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0027');
       expect(response.errorMessage,
@@ -152,7 +145,7 @@ void main() {
     test('verify verifyEnrollApproval() - case: enrollment denied', () async {
       Response response = Response();
       response =
-          pkamVerbHandler.verifyEnrollApproval('denied', 'enrollId', response);
+          pkamVerbHandler.verifyEnrollApproval('denied', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0025');
       expect(response.errorMessage,
@@ -162,7 +155,7 @@ void main() {
     test('verify verifyEnrollApproval() - case: enrollment pending', () async {
       Response response = Response();
       response =
-          pkamVerbHandler.verifyEnrollApproval('pending', 'enrollId', response);
+          pkamVerbHandler.verifyEnrollApproval('pending', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0026');
       expect(response.errorMessage,
