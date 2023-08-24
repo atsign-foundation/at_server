@@ -74,19 +74,25 @@ void main() {
       expect(enrollJsonMap['status'], 'approved');
     });
 
-    test('denial of enroll request on an unauthenticated connection should throw an error', () async {
-     var denyEnrollCommand =
+    test(
+        'denial of enroll request on an unauthenticated connection should throw an error',
+        () async {
+      var denyEnrollCommand =
           'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(denyEnrollResponse.contains('Cannot deny enrollment without authentication'), true);
+      expect(
+          denyEnrollResponse
+              .contains('Cannot deny enrollment without authentication'),
+          true);
     });
 
     test(
         'approval of an enroll request on an unauthenticated connection should throw an error',
         () async {
-      var approveEnrollCommand = 'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
+      var approveEnrollCommand =
+          'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
@@ -113,12 +119,12 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(
-          approveEnrollResponse
-              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
+          approveEnrollResponse.contains(
+              'enrollment id: $dummyEnrollmentId not found in keystore'),
           true);
     });
 
-     test(
+    test(
         'Denial of an invalid enrollmentId on an authenticated connection should throw an error',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
@@ -135,8 +141,8 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(
-          denyEnrollResponse
-              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
+          denyEnrollResponse.contains(
+              'enrollment id: $dummyEnrollmentId not found in keystore'),
           true);
     });
 
@@ -232,7 +238,7 @@ void main() {
       var apkamEnrollIdResponse = await read();
       print(apkamEnrollIdResponse);
       expect(apkamEnrollIdResponse,
-          'error:AT0025:enrollment_id: $secondEnrollId has been denied access\n');
+          'error:AT0025:enrollment_id: $secondEnrollId is not approved | Status: denied\n');
     });
 
     // enroll request with only first client
@@ -614,7 +620,8 @@ void main() {
         pkamResult = await read();
         socketConnection2?.close();
         print(pkamResult);
-        expect(pkamResult.contains('Access has been revoked for enrollment_id: $enrollmentId'), true);
+        assert(pkamResult.contains(
+            'enrollment_id: $enrollmentId is not approved | Status: revoked'));
       });
 
       test(

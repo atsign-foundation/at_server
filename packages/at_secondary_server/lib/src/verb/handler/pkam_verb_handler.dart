@@ -52,7 +52,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
       ApkamVerificationResult apkamResult =
           await handleApkamVerification(enrollId, atSign);
       if (apkamResult.response.isError) {
-        response = apkamResult.response;
+        response.isError = apkamResult.response.isError;
+        response.errorCode = apkamResult.response.errorCode;
+        response.errorMessage = apkamResult.response.errorMessage;
         return;
       }
       publicKey = apkamResult.publicKey;
@@ -91,17 +93,18 @@ class PkamVerbHandler extends AbstractVerbHandler {
     final enrollDataStoreValue =
         EnrollDataStoreValue.fromJson(jsonDecode(atData));
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    apkamResult.response = verifyEnrollApproval(
-        enrollDataStoreValue.approval!.state, enrollId);
-    if(!apkamResult.response.isError) {
-      apkamResult.publicKey = enrollDataStoreValue.apkamPublicKey;
+    Response response =
+        verifyEnrollApproval(enrollDataStoreValue.approval!.state, enrollId);
+    if (response.isError) {
+      apkamResult.response = response;
+      return apkamResult;
     }
+    apkamResult.publicKey = enrollDataStoreValue.apkamPublicKey;
     return apkamResult;
   }
 
   @visibleForTesting
-  Response verifyEnrollApproval(
-      String approvalState, String enrollId) {
+  Response verifyEnrollApproval(String approvalState, String enrollId) {
     Response response = Response();
     // the following is a function that based on the EnrollStatus sets
     // appropriate error codes and messages
@@ -110,8 +113,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
         case EnrollStatus.denied:
           response.isError = true;
           response.errorCode = 'AT0025';
-          response.errorMessage =
-              'enrollment_id: $enrollId has been denied access';
+          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+              ' Status: $approvalState';
           break;
         case EnrollStatus.pending:
           response.isError = true;
@@ -125,8 +128,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
         case EnrollStatus.revoked:
           response.isError = true;
           response.errorCode = 'AT0027';
-          response.errorMessage =
-              'Access has been revoked for enrollment_id: $enrollId';
+          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+              ' Status: $approvalState';
           break;
         default:
           response.isError = true;
@@ -196,7 +199,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 }
 
-class ApkamVerificationResult{
-  late Response response;
+class ApkamVerificationResult {
+  Response response = Response();
   String? publicKey;
 }

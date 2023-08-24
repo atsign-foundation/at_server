@@ -84,8 +84,8 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice');
+      var apkamResult =
+          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.publicKey, 'dummy_public_key');
     });
 
@@ -95,8 +95,8 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice');
+      var apkamResult =
+          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
     });
@@ -107,8 +107,8 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice');
+      var apkamResult =
+          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
     });
@@ -119,42 +119,37 @@ void main() {
       when(() => mockKeyStore.get(any()))
           .thenAnswer((invocation) async => data);
 
-      var apkamResult = await pkamVerbHandler.handleApkamVerification(
-          'enrollId', '@alice');
+      var apkamResult =
+          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
     });
 
     test('verify verifyEnrollApproval() - case: enrollment approved', () async {
-      Response response = Response();
-      response = pkamVerbHandler.verifyEnrollApproval(
-          'approved', 'enrollId');
+      var response =
+          pkamVerbHandler.verifyEnrollApproval('approved', 'enrollId');
       expect(response.isError, false);
     });
 
     test('verify verifyEnrollApproval() - case: enrollment revoked', () async {
-      Response response = Response();
-      response =
+      var response =
           pkamVerbHandler.verifyEnrollApproval('revoked', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0027');
       expect(response.errorMessage,
-          'Access has been revoked for enrollment_id: enrollId');
+          'enrollment_id: enrollId is not approved | Status: revoked');
     });
 
     test('verify verifyEnrollApproval() - case: enrollment denied', () async {
-      Response response = Response();
-      response =
-          pkamVerbHandler.verifyEnrollApproval('denied', 'enrollId');
+      var response = pkamVerbHandler.verifyEnrollApproval('denied', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0025');
       expect(response.errorMessage,
-          'enrollment_id: enrollId has been denied access');
+          'enrollment_id: enrollId is not approved | Status: denied');
     });
 
     test('verify verifyEnrollApproval() - case: enrollment pending', () async {
-      Response response = Response();
-      response =
+      var response =
           pkamVerbHandler.verifyEnrollApproval('pending', 'enrollId');
       expect(response.isError, true);
       expect(response.errorCode, 'AT0026');
