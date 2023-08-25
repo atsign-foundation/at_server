@@ -89,7 +89,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     var enrollData = await keyStore.get(enrollmentKey);
     final atData = enrollData.data;
-    logger.finer('fetched enrollData: $atData');
     final enrollDataStoreValue =
         EnrollDataStoreValue.fromJson(jsonDecode(atData));
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
@@ -103,46 +102,45 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return apkamResult;
   }
 
+  Response _getApprovalStatus(
+      EnrollStatus enrollStatus, enrollId, approvalState) {
+    Response response = Response();
+    switch (enrollStatus) {
+      case EnrollStatus.denied:
+        response.isError = true;
+        response.errorCode = 'AT0025';
+        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+            ' Status: $approvalState';
+        break;
+      case EnrollStatus.pending:
+        response.isError = true;
+        response.errorCode = 'AT0026';
+        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+            ' Status: $approvalState';
+        break;
+      case EnrollStatus.approved:
+        // do nothing when enrollment is approved
+        break;
+      case EnrollStatus.revoked:
+        response.isError = true;
+        response.errorCode = 'AT0027';
+        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
+            ' Status: $approvalState';
+        break;
+      default:
+        response.isError = true;
+        response.errorCode = 'AT0026';
+        response.errorMessage =
+            'Could not fetch enrollment status for enrollment_id: $enrollId';
+        break;
+    }
+    return response;
+  }
+
   @visibleForTesting
   Response verifyEnrollApproval(String approvalState, String enrollId) {
-    Response response = Response();
-    // the following is a function that based on the EnrollStatus sets
-    // appropriate error codes and messages
-    void getApprovalStatus(EnrollStatus enrollStatus) {
-      switch (enrollStatus) {
-        case EnrollStatus.denied:
-          response.isError = true;
-          response.errorCode = 'AT0025';
-          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-              ' Status: $approvalState';
-          break;
-        case EnrollStatus.pending:
-          response.isError = true;
-          response.errorCode = 'AT0026';
-          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-              ' Status: $approvalState';
-          break;
-        case EnrollStatus.approved:
-          // do nothing when enrollment is approved
-          break;
-        case EnrollStatus.revoked:
-          response.isError = true;
-          response.errorCode = 'AT0027';
-          response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-              ' Status: $approvalState';
-          break;
-        default:
-          response.isError = true;
-          response.errorCode = 'AT0026';
-          response.errorMessage =
-              'Could not fetch enrollment status for enrollment_id: $enrollId';
-          break;
-      }
-    }
-
     EnrollStatus enrollStatus = EnrollStatus.values.byName(approvalState);
-    getApprovalStatus(enrollStatus);
-    return response;
+    return _getApprovalStatus(enrollStatus, enrollId, approvalState);
   }
 
   Future<bool> _validateSignature(
