@@ -91,11 +91,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
     final atData = enrollData.data;
     final enrollDataStoreValue =
         EnrollDataStoreValue.fromJson(jsonDecode(atData));
+    EnrollStatus enrollStatus =
+        EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
+
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    Response response =
-        verifyEnrollApproval(enrollDataStoreValue.approval!.state, enrollId);
-    if (response.isError) {
-      apkamResult.response = response;
+    apkamResult.response = _getApprovalStatus(
+        enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
+    if (apkamResult.response.isError) {
       return apkamResult;
     }
     apkamResult.publicKey = enrollDataStoreValue.apkamPublicKey;
@@ -135,12 +137,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         break;
     }
     return response;
-  }
-
-  @visibleForTesting
-  Response verifyEnrollApproval(String approvalState, String enrollId) {
-    EnrollStatus enrollStatus = EnrollStatus.values.byName(approvalState);
-    return _getApprovalStatus(enrollStatus, enrollId, approvalState);
   }
 
   Future<bool> _validateSignature(

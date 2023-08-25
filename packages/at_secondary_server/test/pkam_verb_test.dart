@@ -99,6 +99,8 @@ void main() {
           await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
+      expect(apkamResult.response.errorMessage,
+          'enrollment_id: enrollId is not approved | Status: revoked');
     });
 
     test('verify apkam behaviour - case: enrollment pending ', () async {
@@ -111,6 +113,8 @@ void main() {
           await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
+      expect(apkamResult.response.errorMessage,
+          'enrollment_id: enrollId is not approved | Status: pending');
     });
 
     test('verify apkam behaviour - case: enrollment denied ', () async {
@@ -123,39 +127,11 @@ void main() {
           await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
-    });
-
-    test('verify verifyEnrollApproval() - case: enrollment approved', () async {
-      var response =
-          pkamVerbHandler.verifyEnrollApproval('approved', 'enrollId');
-      expect(response.isError, false);
-    });
-
-    test('verify verifyEnrollApproval() - case: enrollment revoked', () async {
-      var response =
-          pkamVerbHandler.verifyEnrollApproval('revoked', 'enrollId');
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0027');
-      expect(response.errorMessage,
-          'enrollment_id: enrollId is not approved | Status: revoked');
-    });
-
-    test('verify verifyEnrollApproval() - case: enrollment denied', () async {
-      var response = pkamVerbHandler.verifyEnrollApproval('denied', 'enrollId');
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0025');
-      expect(response.errorMessage,
+      expect(apkamResult.response.errorMessage,
           'enrollment_id: enrollId is not approved | Status: denied');
     });
 
-    test('verify verifyEnrollApproval() - case: enrollment pending', () async {
-      var response =
-          pkamVerbHandler.verifyEnrollApproval('pending', 'enrollId');
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0026');
-      expect(response.errorMessage,
-          'enrollment_id: enrollId is not approved | Status: pending');
-    });
+
     tearDownAll(() async => await tearDownFunc());
   });
 }
