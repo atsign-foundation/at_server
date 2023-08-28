@@ -10,6 +10,7 @@ import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
@@ -104,6 +105,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(NotifyFetchVerbHandler(keyStore));
     _verbHandlers.add(EnrollVerbHandler(keyStore));
     _verbHandlers.add(TotpVerbHandler(keyStore));
+    _verbHandlers.add(KeysVerbHandler(keyStore));
     return _verbHandlers;
   }
 }

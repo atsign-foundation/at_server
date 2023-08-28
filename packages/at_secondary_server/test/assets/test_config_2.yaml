@@ -1,0 +1,2 @@
+hive:
+    protectedKeys: ['protected_key_alpha<@atsign>', 'protected_key_beta<@atsign>']

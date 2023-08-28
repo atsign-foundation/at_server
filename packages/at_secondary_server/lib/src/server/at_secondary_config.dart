@@ -3,8 +3,13 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:meta/meta.dart';
+import 'package:yaml/yaml.dart';
 
 class AtSecondaryConfig {
+  // Config
+  @visibleForTesting
+  static YamlMap? configYamlMap = ConfigUtil.getYaml();
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
 
@@ -99,6 +104,15 @@ class AtSecondaryConfig {
   // Malformed Keys
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
+
+  // Protected Keys
+  // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+  static final Set<String> _protectedKeys = {
+    'signing_publickey<@atsign>',
+    'signing_privatekey<@atsign>',
+    'publickey<@atsign>',
+    'at_pkam_publickey'
+  };
 
   //version
   static final String? _secondaryServerVersion =
@@ -688,6 +702,20 @@ class AtSecondaryConfig {
     }
   }
 
+  static Set<String> get protectedKeys {
+    try {
+      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      Set<String> protectedKeysFromConfig = {};
+      for (var key in keys) {
+        protectedKeysFromConfig.add(key);
+      }
+      protectedKeysFromConfig.addAll(_protectedKeys);
+      return protectedKeysFromConfig;
+    } on Exception {
+      return _protectedKeys;
+    }
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
@@ -784,7 +812,7 @@ class AtSecondaryConfig {
 }
 
 dynamic getConfigFromYaml(List<String> args) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
@@ -807,7 +835,7 @@ dynamic getConfigFromYaml(List<String> args) {
 }
 
 String? getStringValueFromYaml(List<String> keyParts) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {

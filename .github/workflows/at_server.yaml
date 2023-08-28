@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
         with:
           sdk: stable
@@ -129,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
         with:
           sdk: stable
@@ -229,7 +229,7 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v 1.5.0
         with:
           sdk: stable
@@ -310,7 +310,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
         with:
           sdk: stable
@@ -339,7 +339,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
         with:
           sdk: stable
@@ -364,24 +364,16 @@ jobs:
 # The job runs end-to-end tests between the staging run time secondaries
   end2end_test_staging:
     needs: [ end2end_test_prep ]
-    concurrency: cicdtest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
-      - uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
-        with:
-          sdk: stable
+      - name: Checkout at_server repo
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
-      - name: Install dependencies
-        working-directory: ${{ env.e2etest-working-directory }}
-        run: dart pub get
-
-      # Create two atSign to run e2e test
-      - name: Create atSign
+      - name: Create atSigns
         id: atsign_names
         run: |
-          AT_SIGN_1_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' -w '%{http_code}' -o at_sign_1_resp.json)
-          AT_SIGN_2_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' -w '%{http_code}' -o at_sign_2_resp.json)
+          AT_SIGN_1_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' -w '%{http_code}' -o at_sign_1_resp.json)
+          AT_SIGN_2_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/get-atsign/' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' -w '%{http_code}' -o at_sign_2_resp.json)
           if [ $AT_SIGN_1_RESP -eq 200 ] && [ $AT_SIGN_2_RESP -eq 200 ]; then
             AT_SIGN_1=$(cat at_sign_1_resp.json |  jq -r '.value.atSign')
             AT_SIGN_1_KEY=$(cat at_sign_1_resp.json |  jq -r '.value.ActivationKey')
@@ -398,115 +390,142 @@ jobs:
           else
             echo "Error fetching atsign name"
             exit 1
-          fi                  
-      # Get cram key for above atSign
-      - name: Fetch Cram Key
+          fi
+
+      - name: Install Dart
+        uses: dart-lang/setup-dart@d6a63dab3335f427404425de0fbfed4686d93c4f # v1.5.0
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: ${{ env.e2etest-working-directory }}
+        run: dart pub get
+
+      - name: Cloning at_libraries
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          repository: atsign-foundation/at_libraries
+          path: at_libraries
+          ref: trunk
+
+      - name: Cloning at_tools
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          repository: atsign-foundation/at_tools
+          path: at_tools
+          ref: trunk
+
+      - name: Fetch Cram Keys
         id: cram_keys
-        run: |     
-          sleep 20
-          CRAM_1_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_1\",\"ActivationKey\":\"$AT_SIGN_1_KEY\"}"  -w '%{http_code}' -o cram_1_resp.json)
-          CRAM_2_RESP=$(curl --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_2\",\"ActivationKey\":\"$AT_SIGN_2_KEY\"}"  -w '%{http_code}' -o cram_2_resp.json)    
-          if [ $CRAM_1_RESP -eq 200 ] && [ $CRAM_2_RESP -eq 200 ]; then
-            CRAM_KEY_1=$(cat cram_1_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)   
-            CRAM_KEY_2=$(cat cram_2_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)  
-            echo "CRAM_KEY_1: $CRAM_KEY_1"   
-            echo "CRAM_KEY_2: $CRAM_KEY_2"
-            echo "CRAM_KEY_1=$(echo $CRAM_KEY_1)" >> $GITHUB_OUTPUT
-            echo "CRAM_KEY_2=$(echo $CRAM_KEY_2)" >> $GITHUB_OUTPUT       
-          else
-            echo "Error fetching Cram Key"
-            exit 1
-          fi  
         env:
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
           AT_SIGN_1_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_1_KEY }} 
-          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }}         
+          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }} 
+        run: |     
+          for try in {1..5}; do
+            CRAM_1_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_1\",\"ActivationKey\":\"$AT_SIGN_1_KEY\"}"  -w '%{http_code}' -o cram_1_resp.json)
+            CRAM_2_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_2\",\"ActivationKey\":\"$AT_SIGN_2_KEY\"}"  -w '%{http_code}' -o cram_2_resp.json)
+            if [ $CRAM_1_RESP -eq 200 ] && [ $CRAM_2_RESP -eq 200 ]; then
+              CRAM_KEY_1=$(cat cram_1_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)
+              CRAM_KEY_2=$(cat cram_2_resp.json | jq -r '.cramkey' | sed 's/^[ \t]*//;s/[ \t]*$//' | cut -d':' -f2)
+              echo "CRAM_KEY_1: $CRAM_KEY_1"
+              echo "CRAM_KEY_2: $CRAM_KEY_2"
+              echo "CRAM_KEY_1=$(echo $CRAM_KEY_1)" >> $GITHUB_OUTPUT
+              echo "CRAM_KEY_2=$(echo $CRAM_KEY_2)" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "Error fetching Cram Keys on attempt ${try}"
+              if [ $try -eq 5 ]; then
+                echo "Tried 5 times. Quitting."
+                exit 1
+              fi
+            fi
+            sleep 20
+          done  
 
-      # Get hostname and port from root server for above atsign
       - name: Fetch atSign Hostname
         id: atsign_hosts
-        run: |  
-          sleep 20
-          AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
-          AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
-          if [ ! -z "$AT_SIGN_1_HOST_RESP" ] && [ ! -z "$AT_SIGN_2_HOST_RESP" ]; then
-            AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f1)
-            AT_SIGN_1_PORT=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
-            AT_SIGN_2_HOST=$(echo $AT_SIGN_2_HOST_RESP | cut -d':' -f1)
-            AT_SIGN_2_PORT=$(echo $AT_SIGN_2_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
-            echo "AT_SIGN_1_HOST: $AT_SIGN_1_HOST"
-            echo "AT_SIGN_1_PORT: $AT_SIGN_1_PORT"
-            echo "AT_SIGN_2_HOST: $AT_SIGN_2_HOST"
-            echo "AT_SIGN_2_PORT: $AT_SIGN_2_PORT"
-            echo "AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST)" >> $GITHUB_OUTPUT
-            echo "AT_SIGN_1_PORT=$(echo $AT_SIGN_1_PORT)" >> $GITHUB_OUTPUT   
-            echo "AT_SIGN_2_HOST=$(echo $AT_SIGN_2_HOST)" >> $GITHUB_OUTPUT
-            echo "AT_SIGN_2_PORT=$(echo $AT_SIGN_2_PORT)" >> $GITHUB_OUTPUT                                            
-          else
-            echo "Error fetching Atsign Hostname"
-            exit 1
-          fi   
         env:
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}             
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+        run: |  
+          for try in {1..5}; do
+            AT_SIGN_1_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
+            AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2)
+            if [ ! -z "$AT_SIGN_1_HOST_RESP" ] && [ ! -z "$AT_SIGN_2_HOST_RESP" ]; then
+              AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f1)
+              AT_SIGN_1_PORT=$(echo $AT_SIGN_1_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
+              AT_SIGN_2_HOST=$(echo $AT_SIGN_2_HOST_RESP | cut -d':' -f1)
+              AT_SIGN_2_PORT=$(echo $AT_SIGN_2_HOST_RESP | cut -d':' -f2 | sed 's/\s*$//')
+              echo "AT_SIGN_1_HOST: $AT_SIGN_1_HOST"
+              echo "AT_SIGN_1_PORT: $AT_SIGN_1_PORT"
+              echo "AT_SIGN_2_HOST: $AT_SIGN_2_HOST"
+              echo "AT_SIGN_2_PORT: $AT_SIGN_2_PORT"
+              echo "AT_SIGN_1_HOST=$(echo $AT_SIGN_1_HOST)" >> $GITHUB_OUTPUT
+              echo "AT_SIGN_1_PORT=$(echo $AT_SIGN_1_PORT)" >> $GITHUB_OUTPUT   
+              echo "AT_SIGN_2_HOST=$(echo $AT_SIGN_2_HOST)" >> $GITHUB_OUTPUT
+              echo "AT_SIGN_2_PORT=$(echo $AT_SIGN_2_PORT)" >> $GITHUB_OUTPUT
+              break                                        
+            else
+              echo "Error fetching atSigns Hostname and Port on attempt ${try}"
+              if [ $try -eq 5 ]; then
+                echo "Tried 5 times. Quitting."
+                exit 1
+              fi
+            fi
+            sleep 20
+          done
       
-      # Check hostname and port connectivity 
       - name: Check Connection 
-        run: |                    
-          sleep 20
-          HOST_1_STATUS=$((echo info; sleep 1) | openssl s_client  -connect $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
-          HOST_2_STATUS=$((echo info; sleep 1) | openssl s_client  -connect $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
-          if [ ! "$HOST_1_STATUS" == *"error"* ] && [ ! "$HOST_2_STATUS" == *"error"* ]; then
-            sed -i "s/ATSIGN_1_NAME/@$AT_SIGN_1/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-            sed -i "s/ATSIGN_1_PORT/$AT_SIGN_1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-            sed -i "s/ATSIGN_1_HOST/$AT_SIGN_1_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-            sed -i "s/ATSIGN_2_NAME/@$AT_SIGN_2/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-            sed -i "s/ATSIGN_2_PORT/$AT_SIGN_2_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-            sed -i "s/ATSIGN_2_HOST/$AT_SIGN_2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml  
-            mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
-            cat tests/at_end2end_test/config/config.yaml 
-            echo "connection successfull"
-          else
-            echo "connection error"
-          fi  
         env:   
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
           AT_SIGN_1_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_HOST }} 
           AT_SIGN_1_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_PORT }}
           AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
-          AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}                 
+          AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
+        run: |      
+          for try in {1..5}; do
+            HOST_1_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
+            HOST_2_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
+            echo "atSign1 status : $HOST_1_STATUS" 
+            echo "atsign2 status : $HOST_2_STATUS"
+            if [ ! -z "$HOST_1_STATUS" ] && [ ! -z "$HOST_2_STATUS" ]; then
+              sed -i "s/ATSIGN_1_NAME/@$AT_SIGN_1/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+              sed -i "s/ATSIGN_1_PORT/$AT_SIGN_1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+              sed -i "s/ATSIGN_1_HOST/$AT_SIGN_1_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+              sed -i "s/ATSIGN_2_NAME/@$AT_SIGN_2/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+              sed -i "s/ATSIGN_2_PORT/$AT_SIGN_2_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
+              sed -i "s/ATSIGN_2_HOST/$AT_SIGN_2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml  
+              mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
+              cat tests/at_end2end_test/config/config.yaml 
+              echo "Connection successfull"
+              break
+            else
+              echo "Connection error on attempt ${try}"
+              if [ $try -eq 5 ]; then
+                echo "Tried 5 times. Quitting."
+                exit 1
+              fi
+            fi
+            sleep 20
+          done
   
-      - name: cloning at_libraries
-        uses: actions/checkout@v3
-        with:
-          repository: atsign-foundation/at_libraries
-          path: at_libraries
-          ref: trunk
-
-      # Activate atSign
       - name: Activating atsign    
+        env:
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}         
+          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }} 
+          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }} 
         run: |
           mkdir -p /home/runner/.atsign/keys
           ls -lrth at_libraries
           cd at_libraries/packages/at_onboarding_cli/
           dart pub get
-          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r  root.atsign.wtf
-          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r  root.atsign.wtf
-        env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}         
-          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }} 
-          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }}  
+          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
+          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
 
-      - name: cloning at_tools
-        uses: actions/checkout@v3
-        with:
-          repository: atsign-foundation/at_tools
-          path: at_tools
-          ref: trunk
-      
       - name: Generate the at_demo_data.dart    
         run: |
           cd at_tools/packages/at_dump_atKeys/
@@ -514,46 +533,43 @@ jobs:
           dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/ -p pkam   
           cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
 
-      # Run end-to-end test
-      - name: end-to-end test
+      - name: End-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1               
         
-      # Delete atSign
-      - name: Deleting Atsign 
-        run: |
-          curl --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
-          --header 'Authorization: ${{secrets.NODE_API_DELETE}}' \
-          --header 'Content-Type: application/json' \
-          --data-raw '{
-              "atsign" : "'$AT_SIGN_1'"
-          }'
-          curl --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
-          --header 'Authorization: ${{secrets.NODE_API_DELETE}}' \
-          --header 'Content-Type: application/json' \
-          --data-raw '{
-              "atsign" : "'$AT_SIGN_2'"
-          }'
+      - name: Delete atSigns
+        if: always() # Always try to clear up atSigns even if an earlier step has failed.
         env:
           AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}  
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+        run: |
+          delete_atSign() {
+            curl -s --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
+            --header 'Authorization: ${{secrets.NODE_API_DELETE}}' \
+            --header 'Content-Type: application/json' \
+            --data-raw '{
+                "atsign" : "'$1'"
+            }'
+          }
+          delete_atSign "$AT_SIGN_1"
+          delete_atSign "$AT_SIGN_2"
 
-      # Verify if Atsign exists
-      - name: Verify if Atsign exists
+      - name: Check that atSigns have been deleted
+        env:
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+        # TODO if this step fails then it should do a gChat notification rather than exit 1
+        # TODO this only checks that entry has been removed from root
         run: |  
           sleep 20
           AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
           AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
           if [ -z "$AT_SIGN_1_HOST_RESP" ] && [ -z "$AT_SIGN_2_HOST_RESP" ]; then
-            echo "Atsign deleted successfully"
+            echo "atSigns deleted successfully"
           else
-            echo "Atsign still exists"
+            echo "atSigns still exist"
             exit 1
           fi          
-        env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}            
-
 
   # This job runs on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
@@ -565,7 +581,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -619,7 +635,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -674,7 +690,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -727,7 +743,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       # Extract version for docker tag
       - name: Get version
@@ -773,7 +789,7 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -824,7 +840,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       # Extract version for docker tag
       - name: Get version
