@@ -35,6 +35,7 @@ class ResourceManager {
       NotifyConnectionsPool.getInstance();
 
   int get outboundConnectionLimit => _notifyConnectionsPool.size;
+
   set outboundConnectionLimit(int ocl) => _notifyConnectionsPool.size = ocl;
 
   void start() {
@@ -200,7 +201,7 @@ class ResourceManager {
     // the end backwards to the start; it has confused me every time I've
     // looked at this code.
     String commandBody;
-    commandBody = '${atNotification.notification}';
+    commandBody = '${atNotification.notification}:${atNotification.atValue}';
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.skeEncAlgo != null) {
@@ -237,7 +238,7 @@ class ResourceManager {
       }
       if (atMetaData.ttr != null) {
         commandBody =
-            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody:${atNotification.atValue}';
+            'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody';
       }
       if (atMetaData.ttb != null) {
         commandBody = 'ttb:${atMetaData.ttb}:$commandBody';
