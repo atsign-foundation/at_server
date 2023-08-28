@@ -122,7 +122,7 @@ void main() {
     response = await sh1.read();
     print('notify list verb response : $response');
     expect(response,
-        contains('"key":"$atSign_1:contact-no$atSign_2","value":null'));
+        contains('"key":"$atSign_1:contact-no$atSign_2","value":"$value'));
   });
 
   test('notify verb without messageType', () async {
@@ -200,7 +200,7 @@ void main() {
     expect(
         response,
         contains(
-            '"key":"$atSign_2:email$atSign_1","value":"null","operation":"delete"'));
+            '"key":"$atSign_2:email$atSign_1","value":null,"operation":"delete"'));
   });
 
   test('notify verb without giving message type value', () async {
@@ -699,6 +699,241 @@ void main() {
       expect(decodedResponse['metaData']['skeEncKeyName'], null);
       expect(decodedResponse['metaData']['skeEncAlgo'], null);
     }
+  });
+
+  group('A group of tests related to notify ephemeral', () {
+    test(
+        'notify verb without ttr for messageType-key and operation type - update and with value',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+      /// NOTIFY VERB
+      var value = 'testingvalue';
+      await sh2.writeCommand(
+          'notify:update:messageType:key:$atSign_1:testkey$atSign_2:$value');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh1.writeCommand('notify:list');
+      response = await sh1.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:testkey$atSign_2","value":"$value","operation":"update"'));
+    });
+
+    test('notify verb without ttr and without value for operation type update',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      await sh2.writeCommand('notify:update:$atSign_1:nottrkey$atSign_2');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh1.writeCommand('notify:list');
+      response = await sh1.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:nottrkey$atSign_2","value":null,"operation":"update"'));
+    });
+
+    test(
+        'notify verb without ttr for messageType-text and operation type - update',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      await sh2.writeCommand(
+          'notify:update:messageType:text:$atSign_1:hello_world$atSign_2');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh1.writeCommand('notify:list');
+      response = await sh1.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:hello_world","value":null,"operation":"update"'));
+    });
+
+    test(
+        'notify verb without ttr for messageType-text and operation type - delete',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      await sh2.writeCommand(
+          'notify:delete:messageType:text:$atSign_1:hello_world$atSign_2');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh1.writeCommand('notify:list');
+      response = await sh1.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:hello_world","value":null,"operation":"delete"'));
+    });
+
+    test(
+        'notify verb without ttr and without value for operation type update (self notification)',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      await sh2.writeCommand('notify:update:$atSign_2:nottrkey$atSign_2');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh2.writeCommand('notify:list');
+      response = await sh2.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_2:nottrkey$atSign_2","value":null,"operation":"update"'));
+    });
+
+    test(
+        'notify verb without ttr and with value for operation type update (self notification)',
+        () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      var value = 'no-ttr';
+      await sh2
+          .writeCommand('notify:update:$atSign_2:nottrkey$atSign_2:$value');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh2.writeCommand('notify:list');
+      response = await sh2.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_2:nottrkey$atSign_2","value":"$value","operation":"update"'));
+    });
+
+    test('notify verb without ttr for operation type delete', () async {
+      // The notify ephemeral changes are not into Canary and production.
+      // So, no point in running against and Canary and Prod servers.`
+      if (atSign1ServerVersion < Version(3, 0, 36)) {
+        return;
+      }
+
+      /// NOTIFY VERB
+      await sh2.writeCommand('notify:delete:$atSign_1:twitter-id$atSign_2');
+      String response = await sh2.read();
+      print('notify verb response : $response');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      String notificationId = response.replaceAll('data:', '');
+
+      // notify status
+      response = await getNotifyStatus(sh2, notificationId,
+          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+      print('notify status response : $response');
+      assert(response.contains('data:delivered'));
+
+      ///notify:list verb
+      await sh1.writeCommand('notify:list');
+      response = await sh1.read();
+      print('notify list verb response : $response');
+      expect(
+          response,
+          contains(
+              '"key":"$atSign_1:twitter-id$atSign_2","value":null,"operation":"delete"'));
+    });
   });
 }
 
