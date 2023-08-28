@@ -111,14 +111,12 @@ class PkamVerbHandler extends AbstractVerbHandler {
       case EnrollStatus.denied:
         response.isError = true;
         response.errorCode = 'AT0025';
-        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-            ' Status: $approvalState';
+        response.errorMessage = 'enrollment_id: $enrollId is denied';
         break;
       case EnrollStatus.pending:
         response.isError = true;
         response.errorCode = 'AT0026';
-        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-            ' Status: $approvalState';
+        response.errorMessage = 'enrollment_id: $enrollId is pending';
         break;
       case EnrollStatus.approved:
         // do nothing when enrollment is approved
@@ -126,8 +124,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       case EnrollStatus.revoked:
         response.isError = true;
         response.errorCode = 'AT0027';
-        response.errorMessage = 'enrollment_id: $enrollId is not approved |'
-            ' Status: $approvalState';
+        response.errorMessage = 'enrollment_id: $enrollId is revoked';
         break;
       default:
         response.isError = true;
