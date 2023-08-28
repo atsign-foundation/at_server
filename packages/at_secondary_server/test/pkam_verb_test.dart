@@ -100,7 +100,7 @@ void main() {
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
       expect(apkamResult.response.errorMessage,
-          'enrollment_id: enrollId is not approved | Status: revoked');
+          'enrollment_id: enrollId is revoked');
     });
 
     test('verify apkam behaviour - case: enrollment pending ', () async {
@@ -114,7 +114,7 @@ void main() {
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
       expect(apkamResult.response.errorMessage,
-          'enrollment_id: enrollId is not approved | Status: pending');
+          'enrollment_id: enrollId is pending');
     });
 
     test('verify apkam behaviour - case: enrollment denied ', () async {
@@ -128,7 +128,7 @@ void main() {
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
       expect(apkamResult.response.errorMessage,
-          'enrollment_id: enrollId is not approved | Status: denied');
+          'enrollment_id: enrollId is denied');
     });
 
 

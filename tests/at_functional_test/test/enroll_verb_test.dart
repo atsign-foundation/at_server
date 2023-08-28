@@ -238,7 +238,7 @@ void main() {
       var apkamEnrollIdResponse = await read();
       print(apkamEnrollIdResponse);
       expect(apkamEnrollIdResponse,
-          'error:AT0025:enrollment_id: $secondEnrollId is not approved | Status: denied\n');
+          'error:AT0025:enrollment_id: $secondEnrollId is denied\n');
     });
 
     // enroll request with only first client
@@ -621,7 +621,7 @@ void main() {
         socketConnection2?.close();
         print(pkamResult);
         assert(pkamResult.contains(
-            'enrollment_id: $enrollmentId is not approved | Status: revoked'));
+            'enrollment_id: $enrollmentId is revoked'));
       });
 
       test(
