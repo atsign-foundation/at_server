@@ -135,12 +135,21 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     // When an enrollment is revoked, avoid sending notifications to the
     // existing monitor connection.
     if (enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
-      logger.info('Enrollment is not approved. Failed to send notifications');
+      logger.finer(
+          'EnrollmentId ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
       return;
     }
     if (enrollDataStoreValue.namespaces.isEmpty) {
-      logger.info('No namespaces are enrolled for the enrollmentId:'
+      logger.finer('No namespaces are enrolled for the enrollmentId:'
           ' ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}');
+      return;
+    }
+    // If notification does not contain ".", it indicates namespace is not present.
+    // Do nothing.
+    if (!notification.notification!.contains('.')) {
+      logger.finest(
+          'For enrollmentId: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}'
+          'Failed to send notification because the key ${notification.notification} do not contain namespace');
       return;
     }
     // separate namespace from the notification key
