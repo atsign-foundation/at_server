@@ -126,7 +126,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollParams.appName!,
         enrollParams.deviceName!,
         enrollParams.apkamPublicKey!);
-
+    enrollmentValue.namespaces = enrollNamespaces;
+    enrollmentValue.requestType = EnrollRequestType.newEnrollment;
+    AtData enrollData;
     if (atConnection.getMetaData().authType != null &&
         atConnection.getMetaData().authType == AuthType.cram) {
       // auto approve request from connection that is CRAM authenticated.
@@ -144,15 +146,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(
           AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
+      enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
+      enrollData = AtData()
+        ..data = jsonEncode(enrollmentValue.toJson())
+        // Set TTL to the pending enrollments.
+        // The enrollments will expire after configured
+        // expiry limit, beyond which any action (approve/deny/revoke) on an
+        // enrollment is forbidden
+        ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
     }
-
-    enrollmentValue.namespaces = enrollNamespaces;
-    enrollmentValue.requestType = EnrollRequestType.newEnrollment;
-    AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     logger.finer('enrollData: $enrollData');
     await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
   }
@@ -167,39 +173,51 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String? operation,
       Map<dynamic, dynamic> responseJson) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
-    var key =
+    String enrollmentKey =
         '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    logger.finer('key: $key$currentAtSign');
-    var enrollData;
-    try {
-      enrollData = await keyStore.get('$key$currentAtSign');
-    } on KeyNotFoundException {
-      throw AtEnrollmentException(
-          'enrollment id: $enrollmentIdFromParams not found in keystore');
-    }
-    if (enrollData != null) {
-      final existingAtData = enrollData.data;
-      var enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(existingAtData));
+    logger.finer(
+        'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
+    // Fetch and returns enrollment data from the keystore.
+    // Throw AtEnrollmentException, IF
+    //   1. Enrollment key is not present in keystore
+    //   2. Enrollment key is not active
+    AtData enrollData = await _fetchEnrollmentDataFromKeyStore(
+        enrollmentKey, currentAtSign, enrollmentIdFromParams);
+    var enrollDataStoreValue =
+        EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
 
-      enrollDataStoreValue.approval!.state =
-          _getEnrollStatusEnum(operation).name;
-      responseJson['status'] = _getEnrollStatusEnum(operation).name;
-      AtData updatedEnrollData = AtData()
-        ..data = jsonEncode(enrollDataStoreValue.toJson());
-      await keyStore.put('$key$currentAtSign', updatedEnrollData,
-          skipCommit: true);
-      // when enrollment is approved store the apkamPublicKey of the enrollment
-      if (operation == 'approve') {
-        var apkamPublicKeyInKeyStore =
-            'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
-        var valueJson = {};
-        valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
-        var atData = AtData()..data = jsonEncode(valueJson);
-        await keyStore.put(apkamPublicKeyInKeyStore, atData);
-        await _storeEncryptionKeys(
-            enrollmentIdFromParams!, enrollParams, currentAtSign);
-      }
+    // Verifies whether the enrollment state matches the intended state
+    // Throws AtEnrollmentException, if the enrollment state is different from
+    // the intended state
+    _verifyEnrollmentStateBeforeAction(operation, enrollDataStoreValue);
+    enrollDataStoreValue.approval!.state = _getEnrollStatusEnum(operation).name;
+    responseJson['status'] = _getEnrollStatusEnum(operation).name;
+
+    // If an enrollment is approved, we need the enrollment to be active
+    // to subsequently revoke the enrollment. Hence reset TTL and
+    // expiredAt on metadata.
+    /* TODO: Currently TTL is reset on all the enrollments.
+        However, if the enrollment state is denied or revoked,
+        unless we wanted to display denied or revoked enrollments in the UI,
+        we can let the TTL be, so that the enrollment will be deleted subsequently.*/
+    await keyStore.put(
+        '$enrollmentKey$currentAtSign',
+        AtData()
+          ..data = jsonEncode(enrollDataStoreValue.toJson())
+          ..metaData = (enrollData.metaData
+            ?..ttl = 0
+            ..expiresAt = null),
+        skipCommit: true);
+    // when enrollment is approved store the apkamPublicKey of the enrollment
+    if (operation == 'approve') {
+      var apkamPublicKeyInKeyStore =
+          'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
+      var valueJson = {};
+      valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
+      var atData = AtData()..data = jsonEncode(valueJson);
+      await keyStore.put(apkamPublicKeyInKeyStore, atData);
+      await _storeEncryptionKeys(
+          enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
@@ -316,6 +334,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on Error catch (e, trace) {
       logger.severe(
           'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
+    }
+  }
+
+  Future<AtData> _fetchEnrollmentDataFromKeyStore(
+      String enrollmentKey, currentAtSign, String? enrollmentId) async {
+    AtData enrollData;
+    // KeyStore.get will not return null. If the value is null, keyStore.get
+    // throws KeyNotFoundException.
+    // So, enrollData will NOT be null.
+    try {
+      enrollData = await keyStore.get('$enrollmentKey$currentAtSign');
+    } on KeyNotFoundException {
+      throw AtEnrollmentException(
+          'enrollment id: $enrollmentId not found in keystore');
+    }
+    // If enrollment is not active, throw AtEnrollmentException
+    if (!SecondaryUtil.isActiveKey(enrollData)) {
+      throw AtEnrollmentException('The enrollment $enrollmentId is expired');
+    }
+    return enrollData;
+  }
+
+  /// Verifies whether the enrollment state matches the intended state.
+  /// Throws AtEnrollmentException: If the enrollment state is different
+  /// from the intended state.
+  void _verifyEnrollmentStateBeforeAction(
+      String? operation, EnrollDataStoreValue enrollDataStoreValue) {
+    if (operation == 'approve' &&
+        enrollDataStoreValue.approval!.state != EnrollStatus.pending.name) {
+      throw AtEnrollmentException(
+          'Cannot approve a ${enrollDataStoreValue.approval!.state} enrollment. Only pending enrollments can be approved');
+    }
+    if (operation == 'revoke' &&
+        enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
+      throw AtEnrollmentException(
+          'Cannot revoke a ${enrollDataStoreValue.approval!.state} enrollment. Only approved enrollments can be revoked');
     }
   }
 }
