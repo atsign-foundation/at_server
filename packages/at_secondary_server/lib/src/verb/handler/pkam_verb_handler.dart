@@ -9,7 +9,6 @@ import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
