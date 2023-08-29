@@ -657,7 +657,7 @@ void main() {
       // unauthenticated connection.
       await _connect();
       String enrollRequest =
-          'enroll:request:appName:wavi:deviceName:pixel:namespaces:[wavi,rw]:totp:$totp:apkamPublicKey:${pkamPublicKeyMap[firstAtsign]!}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"totp":"$totp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
       await socket_writer(socketConnection1!, enrollRequest);
       enrollmentResponse = await read();
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
@@ -671,10 +671,10 @@ void main() {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
       await socket_writer(
-          socketConnection1!, 'enroll:revoke:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Exception: Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'Internal server exception : Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
     });
 
     test(
@@ -684,17 +684,17 @@ void main() {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
       await socket_writer(
-          socketConnection1!, 'enroll:deny:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'denied');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve enrollment
       await socket_writer(
-          socketConnection1!, 'enroll:approve:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Exception: Cannot approve a denied enrollment. '
+          'Internal server exception : Cannot approve a denied enrollment. '
           'Only pending enrollments can be approved');
     });
 
@@ -704,17 +704,17 @@ void main() {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
       await socket_writer(
-          socketConnection1!, 'enroll:deny:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'denied');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Revoke enrollment
       await socket_writer(
-          socketConnection1!, 'enroll:revoke:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Exception: Cannot revoke a denied enrollment. '
+          'Internal server exception : Cannot revoke a denied enrollment. '
           'Only approved enrollments can be revoked');
     });
 
@@ -723,23 +723,23 @@ void main() {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
       await socket_writer(
-          socketConnection1!, 'enroll:approve:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'approved');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Revoke enrollment
       await socket_writer(
-          socketConnection1!, 'enroll:revoke:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'revoked');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve a revoked enrollment
       await socket_writer(
-          socketConnection1!, 'enroll:approve:enrollmentId:$enrollmentId');
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Exception: Cannot approve a revoked enrollment. '
+          'Internal server exception : Cannot approve a revoked enrollment. '
           'Only pending enrollments can be approved');
     });
   });
