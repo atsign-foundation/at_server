@@ -1,3 +1,5 @@
+## 3.0.57
+- fix: Refactor commit log keystore to optimize memory usage
 ## 3.0.56
 - fix: Refactor Hive keystore to optimize memory usage
 - fix: Apply Utf7.decode function to decode the keys and atSigns containing emojis.
