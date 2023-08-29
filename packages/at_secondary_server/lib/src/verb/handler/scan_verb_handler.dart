@@ -12,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
 
 /// ScanVerbHandler class is used to process scan verb
 /// Scan verb will return all the possible keys you can lookup
@@ -75,7 +76,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        response.data = jsonEncode(await _getLocalKeys(
+        response.data = jsonEncode(await getLocalKeys(
             atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
       }
     } on Exception catch (e) {
@@ -126,7 +127,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
   /// **Returns**
   ///
   /// Returns the list of keys of current atSign.
-  Future<List<String>> _getLocalKeys(
+  @visibleForTesting
+  Future<List<String>> getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata,
       String? scanRegex,
       bool showHiddenKeys,
@@ -159,7 +161,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       // Display only public keys. "public:_" are hidden keys. So remove them from list.
       // Also, remove all the other keys that do not start with "public:"
       localKeysList.removeWhere(
-          (key) => key.startsWith('public:_') || !key.startsWith('public:'));
+          (key) => key.startsWith('public:_') || key.startsWith('public:') == false);
       for (int i = 0; i < localKeysList.length; i++) {
         localKeysList[i] = localKeysList[i].replaceAll('public:', '');
       }
