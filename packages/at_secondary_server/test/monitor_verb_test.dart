@@ -11,7 +11,6 @@ import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
-
 import 'test_utils.dart';
 
 void main() {
