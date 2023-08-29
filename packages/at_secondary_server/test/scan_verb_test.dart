@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
@@ -167,6 +168,7 @@ void main() {
     test(
         'A test to verify public hidden keys are returned when showhidden set to true',
         () async {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan:showhidden:true', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
@@ -177,6 +179,7 @@ void main() {
     test(
         'A test to verify public hidden keys are not returned when showhidden set to false',
         () async {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       scanVerbHandler.responseManager = mockResponseHandlerManager;
       await scanVerbHandler.process('scan:showhidden:false', inboundConnection);
       List scanResponseList = jsonDecode(scanResponse);
