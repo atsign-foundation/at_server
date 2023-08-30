@@ -9,7 +9,6 @@ import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_server_spec/src/connection/at_connection.dart';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
@@ -67,7 +66,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     if (publicKey == null || publicKey.isEmpty) {
       throw UnAuthenticatedException('pkam publickey not found');
     }
-    var isValidSignature =
+    bool isValidSignature =
         await _validateSignature(verbParams, sessionID, atSign, publicKey);
     // authenticate if signature is valid
     if (isValidSignature) {
@@ -141,36 +140,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var signature = verbParams[AT_PKAM_SIGNATURE]!;
     var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
     var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
-    var signingAlgoEnum;
-    var inputSignature;
     bool isValidSignature = false;
     var storedSecret = await keyStore.get('private:$sessionId$atSign');
     storedSecret = storedSecret?.data;
-    // if no signature algorithm is passed, default to RSA verification. This preserves
-    // backward compatibility for old pkam messages without signing algo.
-    logger.finer('signingAlgo: $signingAlgo');
-    if (signingAlgo == null || signingAlgo.isEmpty) {
-      signingAlgoEnum = SigningAlgoType.rsa2048;
-      inputSignature = base64Decode(signature);
-    } else if (signingAlgo == _eccAlgo) {
-      signingAlgoEnum = SigningAlgoType.ecc_secp256r1;
-      // inputSignature = Uint8List.fromList(signature.codeUnits);
-      inputSignature = base64Decode(signature);
-    } else if (signingAlgo == _rsa2048Algo) {
-      signingAlgoEnum = SigningAlgoType.rsa2048;
-      inputSignature = base64Decode(signature);
+    if(signature == null || signature.isEmpty ){
+      logger.severe('inputSignature is null/empty');
+      return false;
     }
+
+    Uint8List? inputSignature = base64Decode(signature);
+    SigningAlgoType signingAlgoEnum = _getSigningAlgoType(signingAlgo);
     logger.finer('signingAlgoEnum: $signingAlgoEnum');
-    var hashingAlgoEnum;
-    logger.finer('hashingAlgo: $hashingAlgo');
-    if (hashingAlgo == null || hashingAlgo.isEmpty) {
-      hashingAlgoEnum = HashingAlgoType.sha256;
-    } else if (hashingAlgo == _sha256) {
-      hashingAlgoEnum = HashingAlgoType.sha256;
-    } else if (hashingAlgo == _sha512) {
-      hashingAlgoEnum = HashingAlgoType.sha512;
-    }
+
+    HashingAlgoType hashingAlgoEnum = _getHashingAlgoType(hashingAlgo);
     logger.finer('hashingAlgoEnum: $hashingAlgoEnum');
+
     final verificationInput = AtSigningVerificationInput(
         utf8.encode('$sessionId$atSign:$storedSecret') as Uint8List,
         inputSignature,
@@ -185,8 +169,32 @@ class PkamVerbHandler extends AbstractVerbHandler {
     } on Exception catch (e) {
       logger.finer('Exception in pkam signature verification: ${e.toString()}');
     }
-    logger.finer('pkam auth:$isValidSignature');
+    logger.finer('PKAM auth: $isValidSignature');
     return isValidSignature;
+  }
+
+  SigningAlgoType _getSigningAlgoType(String? signingAlgo) {
+    // if no signature algorithm is passed, default to RSA verification. This preserves
+    // backward compatibility for old pkam messages without signing algo.
+    logger.finer('signingAlgo: $signingAlgo');
+    if (signingAlgo == _eccAlgo) {
+      return SigningAlgoType.ecc_secp256r1;
+      // inputSignature = Uint8List.fromList(signature.codeUnits);
+    } else if (signingAlgo == _rsa2048Algo) {
+      return SigningAlgoType.rsa2048;
+    }
+    return SigningAlgoType.rsa2048;
+  }
+
+  HashingAlgoType _getHashingAlgoType(String? hashingAlgo) {
+    logger.finer('hashingAlgo: $hashingAlgo');
+    if (hashingAlgo == _sha256) {
+      return HashingAlgoType.sha256;
+    } else if (hashingAlgo == _sha512) {
+      return HashingAlgoType.sha512;
+    }
+    // defaults to SHA-256
+    return HashingAlgoType.sha256;
   }
 }
 
