@@ -113,20 +113,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Returns a filtered list of the
-  /// keys where the filtering
-  /// depends on the type of authentication
-  /// on the inbound connection
-  ///
-  /// **Parameters**
-  ///
-  /// [atConnectionMetadata] Metadata of the inbound connection.
-  ///
-  /// [keys] List of keys from the secondary persistent store.
-  ///
-  /// **Returns**
-  ///
-  /// Returns the list of keys of current atSign.
+  /// Filter keys based on authentication type of inbound connection
   @visibleForTesting
   Future<List<String>> getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata,
@@ -136,14 +123,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
     List<String> localKeysList =
         keyStore.getKeys(regex: scanRegex) as List<String>;
     if (atConnectionMetadata.isAuthenticated) {
-      // If connection is authenticated, except the private keys, return other keys.
       localKeysList
           .removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
       if (atConnectionMetadata.enrollmentId == null ||
           atConnectionMetadata.enrollmentId!.isEmpty) {
         return localKeysList;
       }
-      // If enrollmentId is populated, filter keys based on enrollmentId
       return await _filterKeysBasedOnEnrollmentId(
           atConnectionMetadata, localKeysList, currentAtSign);
     } else if (atConnectionMetadata.isPolAuthenticated) {
@@ -158,10 +143,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
       }
       return localKeysList;
     } else {
-      // Display only public keys. "public:_" are hidden keys. So remove them from list.
-      // Also, remove all the other keys that do not start with "public:"
-      localKeysList.removeWhere(
-          (key) => key.startsWith('public:_') || key.startsWith('public:') == false);
+      localKeysList.removeWhere((key) =>
+          key.startsWith('public:_') || key.startsWith('public:') == false);
       for (int i = 0; i < localKeysList.length; i++) {
         localKeysList[i] = localKeysList[i].replaceAll('public:', '');
       }
@@ -189,8 +172,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         key.startsWith('_');
   }
 
-  /// Filter and returns keys whose namespaces are authorized for the given
-  /// enrollmentId.
+  /// Filter keys based on namespace access for the given enrollmentId
   ///
   ///   - If the enrollment namespace contains ".*", returns all the keys.
   ///
