@@ -12,22 +12,19 @@ class AtNotificationCallback {
     return _singleton;
   }
 
+  @Deprecated('No longer in use. Replaced with notificationCallback')
   var callbackMethods = <NotificationType, List<NotificationFunction>>{};
+
+  Function? notificationCallback;
 
   /// Method to register callback function
   void registerNotificationCallback(
       NotificationType notificationType, Function callback) {
-    var nf = NotificationFunction();
-    nf.isValid = true;
-    nf.function = callback;
-    var functions = callbackMethods[notificationType];
-    functions ??= <NotificationFunction>[];
-    _removeUnregisteredFunctions(functions);
-    functions.add(nf);
-    callbackMethods[notificationType] = functions;
+    notificationCallback = callback;
   }
 
   /// Method to deregister callback function
+  @Deprecated('No longer in use')
   void unregisterNotificationCallback(
       NotificationType notificationType, Function callback) {
     var functions = callbackMethods[notificationType]!;
@@ -48,28 +45,19 @@ class AtNotificationCallback {
       // Introduced self notification type for APKAM enrollment notifications.
       if (atNotification.type == NotificationType.received ||
           atNotification.type == NotificationType.self) {
-        var callbacks = callbackMethods[atNotification.type!];
-        if (callbacks == null || callbacks.isEmpty) {
-          //logger.info('No callback registered for received notifications');
+        if (notificationCallback == null) {
           return;
         }
-        for (var callback in callbacks) {
-          if (callback.isValid!) {
-            callback.function!(atNotification);
-          }
-        }
+        notificationCallback!(atNotification);
       }
     } on Exception catch (e) {
       throw InternalServerException(
           'Exception while invoking callbacks:${e.toString()}');
     }
   }
-
-  void _removeUnregisteredFunctions(List<NotificationFunction> nf) {
-    nf.removeWhere((element) => element.isValid == false);
-  }
 }
 
+@Deprecated('No longer in use')
 class NotificationFunction {
   Function? function;
   bool? isValid;
