@@ -201,7 +201,10 @@ class ResourceManager {
     // the end backwards to the start; it has confused me every time I've
     // looked at this code.
     String commandBody;
-    commandBody = '${atNotification.notification}:${atNotification.atValue}';
+    commandBody = '${atNotification.notification}';
+    if (atNotification.atValue != null) {
+      commandBody = '$commandBody:${atNotification.atValue}';
+    }
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.skeEncAlgo != null) {
