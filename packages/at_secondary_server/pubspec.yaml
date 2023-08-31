@@ -18,11 +18,11 @@ dependencies:
   collection: 1.18.0
   basic_utils: 5.6.1
   ecdsa: 0.0.4
-  at_commons: 3.0.53
+  at_commons: 3.0.54
   at_utils: 3.0.15
   at_chops: 1.0.4
   at_lookup: 3.0.39
-  at_server_spec: 3.0.13
+  at_server_spec: 3.0.14
   at_persistence_spec: 2.0.14
   at_persistence_secondary_server: 3.0.57
   expire_cache: ^2.0.1
