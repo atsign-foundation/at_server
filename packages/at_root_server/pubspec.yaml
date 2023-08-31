@@ -13,7 +13,7 @@ dependencies:
   uuid: ^3.0.4
   yaml: ^3.1.0
   at_commons: 3.0.53
-  at_utils: ^3.0.0
+  at_utils: 3.0.15
   at_server_spec: 3.0.13
   at_persistence_root_server:
     git:
