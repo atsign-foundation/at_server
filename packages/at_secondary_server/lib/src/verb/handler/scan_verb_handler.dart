@@ -12,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
 
 /// ScanVerbHandler class is used to process scan verb
 /// Scan verb will return all the possible keys you can lookup
@@ -59,62 +60,24 @@ class ScanVerbHandler extends AbstractVerbHandler {
     var scanRegex = verbParams[AT_REGEX];
     var showHiddenKeys = verbParams[showHidden] == 'true' ? true : false;
 
-    // Throw UnAuthenticatedException.
-    // When looking up keys of another atsign and connection is not authenticated,
-    if (forAtSign != null && !atConnectionMetadata.isAuthenticated) {
-      throw UnAuthenticatedException(
-          'Scan to another atsign cannot be performed without auth');
-    }
     try {
-      // If forAtSign is not null and connection is authenticated, scan keys of another user's atsign,
-      // else scan local keys.
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var enrollNamespaces = {};
-      if (forAtSign != null &&
-          atConnectionMetadata.isAuthenticated &&
+      // If forAtSign is set, fetch keys that are sharedBy the "forAtSign" to the currentAtSign
+      // If currentAtSign is @alice and forAtSign is @bob, fetch all the keys that @bob has
+      // created for @alice.
+      if ((forAtSign != null && forAtSign.isNotEmpty) &&
           forAtSign != currentAtSign) {
+        // When looking up keys of another atSign and connection is not authenticated,
+        // Throw UnAuthenticatedException.
+        if (!atConnectionMetadata.isAuthenticated) {
+          throw UnAuthenticatedException(
+              'Scan to another atSign cannot be performed without auth');
+        }
         response.data =
             await _getExternalKeys(forAtSign, scanRegex, atConnection);
       } else {
-        List<String> keys = keyStore.getKeys(regex: scanRegex) as List<String>;
-        List<String> filteredKeys = [];
-        final enrollmentIdFromMetadata = atConnectionMetadata.enrollmentId;
-        logger.finer('enrollmentIdFromMetadata: $enrollmentIdFromMetadata');
-        if (enrollmentIdFromMetadata != null &&
-            enrollmentIdFromMetadata.isNotEmpty) {
-          var enrollmentKey =
-              '$enrollmentIdFromMetadata.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-          enrollNamespaces =
-              (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
-          logger.finer('enroll namespaces: $enrollNamespaces');
-        }
-        List<String> keyString =
-            _getLocalKeys(atConnectionMetadata, keys, showHiddenKeys);
-        for (var key in keyString) {
-          for (var namespace in enrollNamespaces.keys) {
-            // do not show keys in __manage namespace
-            if (namespace == enrollManageNamespace) {
-              continue;
-            }
-            var namespaceRegex = namespace;
-            if (!namespaceRegex.startsWith('.')) {
-              namespaceRegex = '.$namespaceRegex';
-            }
-            if (key.contains(RegExp(namespaceRegex)) ||
-                key.startsWith('public:')) {
-              filteredKeys.add(key);
-            }
-          }
-        }
-        // Apply regex on keyString to remove unnecessary characters and spaces.
-        logger.finer('response.data : $keyString');
-        var keysArray = keyString;
-        logger.finer('keysArray : $keysArray, ${keysArray.length}');
-        if (enrollNamespaces.isNotEmpty) {
-          response.data = json.encode(filteredKeys);
-        } else {
-          response.data = json.encode(keysArray);
-        }
+        response.data = jsonEncode(await getLocalKeys(
+            atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
       }
     } on Exception catch (e) {
       response.isError = true;
@@ -123,9 +86,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Fetches the keys of another user atsign
+  /// Fetches the keys of another user atSign
   ///
-  /// [forAtSign] : The another user atsign to lookup for keys.
+  /// [forAtSign] : The another user atSign to lookup for keys.
   ///
   /// [scanRegex] : The regular expression to filter the keys
   ///
@@ -133,10 +96,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
   ///
   /// **Returns**
   ///
-  /// String : The another atsign keys returned. Returns null if no keys found.
+  /// String : The another atSign keys returned. Returns null if no keys found.
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
-    //scan has to be performed for another atsign
+    //scan has to be performed for another atSign
     var outBoundClient =
         outboundClientManager.getClient(forAtSign, atConnection);
     var handShake = false;
@@ -150,64 +113,43 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Returns a filtered list of the
-  /// keys where the filtering
-  /// depends on the type of authentication
-  /// on the inbound connection
-  ///
-  /// **Parameters**
-  ///
-  /// [atConnectionMetadata] Metadata of the inbound connection.
-  ///
-  /// [keys] List of keys from the secondary persistent store.
-  ///
-  /// **Returns**
-  ///
-  /// Returns the list of keys of current atsign.
-  List<String> _getLocalKeys(InboundConnectionMetadata atConnectionMetadata,
-      List<String> keys, bool showHiddenKeys) {
-    List<String> keysList = [];
-    // Verify if the current user is authenticated or not
-    // If authenticated get all the keys except for private keys
-    // If not, get only public keys
+  /// Filter keys based on authentication type of inbound connection
+  @visibleForTesting
+  Future<List<String>> getLocalKeys(
+      InboundConnectionMetadata atConnectionMetadata,
+      String? scanRegex,
+      bool showHiddenKeys,
+      String currentAtSign) async {
+    List<String> localKeysList =
+        keyStore.getKeys(regex: scanRegex) as List<String>;
     if (atConnectionMetadata.isAuthenticated) {
-      //display all keys except private
-      keys.removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
-      keysList = keys;
-    } else {
-      // When pol is performed, display keys that are private to the atsign.
-      if (atConnectionMetadata.isPolAuthenticated) {
-        // TODO: Refactor along with atKey and Scan refactoring.
-        keys.removeWhere((key) =>
-            key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ==
-                false ||
-            key.toString().startsWith('public:_'));
-        // Remove the atSigns from the inbound connection
-        // keys and add the modified key to the list.
-        // @murali:phone@sitaram => phone@sitaram
-        for (var key in keys) {
-          var modifiedKey =
-              key.replaceAll('${atConnectionMetadata.fromAtSign}:', '');
-          keysList.add(modifiedKey);
-        }
-      } else {
-        // When pol is not performed, display only public keys
-        keys.removeWhere((key) => _getNonPublicKeys(key));
-        for (var key in keys) {
-          var modifiedKey = key.toString().replaceAll('public:', '');
-          keysList.add(modifiedKey);
-        }
+      localKeysList
+          .removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
+      if (atConnectionMetadata.enrollmentId == null ||
+          atConnectionMetadata.enrollmentId!.isEmpty) {
+        return localKeysList;
       }
+      return await _filterKeysBasedOnEnrollmentId(
+          atConnectionMetadata, localKeysList, currentAtSign);
+    } else if (atConnectionMetadata.isPolAuthenticated) {
+      // TODO: Refactor along with atKey and Scan refactoring.
+      localKeysList.removeWhere((key) =>
+          key.toString().startsWith('${atConnectionMetadata.fromAtSign}:') ==
+              false ||
+          key.toString().startsWith('public:_'));
+      for (int i = 0; i < localKeysList.length; i++) {
+        localKeysList[i] = localKeysList[i]
+            .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
+      }
+      return localKeysList;
+    } else {
+      localKeysList.removeWhere((key) =>
+          key.startsWith('public:_') || key.startsWith('public:') == false);
+      for (int i = 0; i < localKeysList.length; i++) {
+        localKeysList[i] = localKeysList[i].replaceAll('public:', '');
+      }
+      return localKeysList;
     }
-    return keysList;
-  }
-
-  /// Check if a key is not public.
-  /// [key] : The key to check.
-  /// Returns true if key starts with pattern, else false.
-  bool _getNonPublicKeys(String key) {
-    return key.toString().startsWith('public:_') ||
-        !key.toString().startsWith('public:');
   }
 
   /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.
@@ -228,5 +170,68 @@ class ScanVerbHandler extends AbstractVerbHandler {
         key.startsWith('privatekey:') ||
         key.startsWith('public:_') ||
         key.startsWith('_');
+  }
+
+  /// Filter keys based on namespace access for the given enrollmentId
+  ///
+  ///   - If the enrollment namespace contains ".*", returns all the keys.
+  ///
+  ///   - Returns all the public keys and the keys whose namespace is authorized
+  ///     for the given enrollmentId.
+  ///
+  ///  - If a key's namespace contain "__manage", the key is ignored.
+  Future<List<String>> _filterKeysBasedOnEnrollmentId(
+      InboundConnectionMetadata atConnectionMetadata,
+      List<String> localKeysList,
+      String currentAtSign) async {
+    var enrollmentKey =
+        '${atConnectionMetadata.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
+    var enrollNamespaces =
+        (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+    // No namespace to filter keys. So, return.
+    if (enrollNamespaces.isEmpty) {
+      logger.finer(
+          'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
+      return [];
+    }
+    // If enrollment namespace contains ".*" return all keys.
+    if (enrollNamespaces.containsKey(allNamespaces)) {
+      return localKeysList;
+    }
+    // Return only keys whose namespace is authorized.
+    int index = 0;
+    // Iterates through the list of local keys.
+    // Removes the key from the list if any of the below condition is met:
+    // 1. If a key does not have namespace
+    // 2. If key is an enrollment key - key whose namespace is "__manage"
+    // 3. If a keys namespace is not authorised in the enrollment.
+    // If a key is removed, the length of the list is reduced. To prevent skipping
+    // of the keys in the list, do not increment "index". Increment "index" only
+    // if key is not removed.
+    while (index < localKeysList.length) {
+      String key = localKeysList[index];
+      // Retain public keys
+      if (key.startsWith('public:')) {
+        index++;
+        continue;
+      }
+      // If key does not have ".", it indicates key does not have namespace
+      // Do not show it in scan result.
+      if (!key.contains('.')) {
+        localKeysList.remove(key);
+        continue;
+      }
+      // Extract namespace from the key.
+      String namespaceFromTheKey = key.toString().substring(
+          (key.toString().lastIndexOf('.') + 1),
+          key.toString().lastIndexOf('@'));
+      if (!enrollNamespaces.containsKey(namespaceFromTheKey) ||
+          namespaceFromTheKey == enrollManageNamespace) {
+        localKeysList.remove(key);
+        continue;
+      }
+      index++;
+    }
+    return localKeysList;
   }
 }
