@@ -4,12 +4,12 @@ import 'package:meta/meta.dart';
 
 /// Verb used for generating OTP for APKAM enrollments
 @experimental
-class Totp extends Verb {
+class Otp extends Verb {
   @override
-  String name() => 'totp';
+  String name() => 'otp';
 
   @override
-  String syntax() => VerbSyntax.totp;
+  String syntax() => VerbSyntax.otp;
 
   @override
   Verb? dependsOn() {
@@ -18,7 +18,7 @@ class Totp extends Verb {
 
   @override
   String usage() {
-    return 'totp:get or totp:validate:<otp>';
+    return 'otp:get or otp:validate:<otp>';
   }
 
   @override
