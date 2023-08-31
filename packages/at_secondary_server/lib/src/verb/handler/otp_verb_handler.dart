@@ -2,7 +2,6 @@ import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -12,7 +11,6 @@ import 'package:expire_cache/expire_cache.dart';
 class OtpVerbHandler extends AbstractVerbHandler {
   static Otp otpVerb = Otp();
   static final expireDuration = Duration(seconds: 90);
-  @visibleForTesting
   static ExpireCache<String, String> cache =
       ExpireCache<String, String>(expireDuration: expireDuration);
 
