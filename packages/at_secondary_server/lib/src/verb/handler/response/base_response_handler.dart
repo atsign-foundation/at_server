@@ -16,10 +16,7 @@ abstract class BaseResponseHandler implements ResponseHandler {
   Future<void> process(AtConnection connection, Response response) async {
     var result = response.data;
     try {
-      if (response.isError || response.isStream) {
-        if (response.isError) {
-          logger.severe(response.errorMessage);
-        }
+      if (response.isStream) {
         return;
       }
       var atConnectionMetadata =
@@ -31,7 +28,14 @@ abstract class BaseResponseHandler implements ResponseHandler {
       var prompt = isAuthenticated
           ? '$atSign@'
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
-      var responseMessage = getResponseMessage(result, prompt)!;
+      String? responseMessage;
+      if (response.isError) {
+        logger.severe(response.errorMessage);
+        responseMessage =
+            'error:${response.errorCode}:${response.errorMessage}\n$prompt';
+      } else {
+        responseMessage = getResponseMessage(result, prompt)!;
+      }
       connection.write(responseMessage);
     } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
