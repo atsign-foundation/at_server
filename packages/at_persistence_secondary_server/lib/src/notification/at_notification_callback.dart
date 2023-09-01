@@ -12,27 +12,12 @@ class AtNotificationCallback {
     return _singleton;
   }
 
-  @Deprecated('No longer in use. Replaced with notificationCallback')
-  var callbackMethods = <NotificationType, List<NotificationFunction>>{};
-
   Function? notificationCallback;
 
   /// Method to register callback function
   void registerNotificationCallback(
       NotificationType notificationType, Function callback) {
     notificationCallback = callback;
-  }
-
-  /// Method to deregister callback function
-  @Deprecated('No longer in use')
-  void unregisterNotificationCallback(
-      NotificationType notificationType, Function callback) {
-    var functions = callbackMethods[notificationType]!;
-    for (var nfs in functions) {
-      if (nfs.function == callback) {
-        nfs.isValid = false;
-      }
-    }
   }
 
   /// Method to invoke registered callbacks
@@ -55,10 +40,4 @@ class AtNotificationCallback {
           'Exception while invoking callbacks:${e.toString()}');
     }
   }
-}
-
-@Deprecated('No longer in use')
-class NotificationFunction {
-  Function? function;
-  bool? isValid;
 }
