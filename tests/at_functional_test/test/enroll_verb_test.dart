@@ -45,6 +45,7 @@ Future<void> encryptKeys() async {
 
 var firstAtsign =
     ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+
 void main() {
   //Establish the client socket connection
   setUp(() async {
@@ -74,19 +75,25 @@ void main() {
       expect(enrollJsonMap['status'], 'approved');
     });
 
-    test('denial of enroll request on an unauthenticated connection should throw an error', () async {
-     var denyEnrollCommand =
+    test(
+        'denial of enroll request on an unauthenticated connection should throw an error',
+        () async {
+      var denyEnrollCommand =
           'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(denyEnrollResponse.contains('Cannot deny enrollment without authentication'), true);
+      expect(
+          denyEnrollResponse
+              .contains('Cannot deny enrollment without authentication'),
+          true);
     });
 
     test(
         'approval of an enroll request on an unauthenticated connection should throw an error',
         () async {
-      var approveEnrollCommand = 'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
+      var approveEnrollCommand =
+          'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
@@ -113,12 +120,12 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(
-          approveEnrollResponse
-              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
+          approveEnrollResponse.contains(
+              'enrollment id: $dummyEnrollmentId not found in keystore'),
           true);
     });
 
-     test(
+    test(
         'Denial of an invalid enrollmentId on an authenticated connection should throw an error',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
@@ -135,32 +142,30 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(
-          denyEnrollResponse
-              .contains('enrollment id: $dummyEnrollmentId not found in keystore'),
+          denyEnrollResponse.contains(
+              'enrollment id: $dummyEnrollmentId not found in keystore'),
           true);
     });
 
-    test('enroll request on unauthenticated connection without totp', () async {
+    test('enroll request on unauthenticated connection without otp', () async {
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('error:', '');
       expect(
-          enrollResponse
-              .contains('invalid totp. Cannot process enroll request'),
+          enrollResponse.contains('invalid otp. Cannot process enroll request'),
           true);
     });
 
-    test('enroll request on unauthenticated connection invalid totp', () async {
+    test('enroll request on unauthenticated connection invalid otp', () async {
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"totp":"1234","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"1234","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       expect(
-          enrollResponse
-              .contains('invalid totp. Cannot process enroll request'),
+          enrollResponse.contains('invalid otp. Cannot process enroll request'),
           true);
     });
 
@@ -171,8 +176,7 @@ void main() {
     // 4. Send an enroll request with otp from the second client
     // 5. First client doesn't approve the enroll request
     // 6. Second client should get an exception as the enroll request is not approved
-    test(
-        'second enroll request using totp and client did not approved enrollment request',
+    test('second enroll request using otp and client denied enrollment request',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
@@ -192,19 +196,19 @@ void main() {
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var totpRequest = 'totp:get\n';
-      await socket_writer(socketConnection1!, totpRequest);
-      var totpResponse = await read();
-      totpResponse = totpResponse.replaceFirst('data:', '');
-      totpResponse = totpResponse.trim();
+      var otpRequest = 'otp:get\n';
+      await socket_writer(socketConnection1!, otpRequest);
+      var otpResponse = await read();
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
       // connect to the second client
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
-      //send second enroll request with totp
+      //send second enroll request with otp
       var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"totp":"$totpResponse","apkamPublicKey":"$apkamPublicKey"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"$apkamPublicKey"}\n';
       await socket_writer(socketConnection2!, secondEnrollRequest);
       var secondEnrollResponse = await read();
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -230,8 +234,9 @@ void main() {
       var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamResponse\n';
       await socket_writer(socketConnection2!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
+      print(apkamEnrollIdResponse);
       expect(apkamEnrollIdResponse,
-          'error:AT0401-Exception: enrollment id: $secondEnrollId is not approved\n');
+          'error:AT0025:enrollment_id: $secondEnrollId is denied\n');
     });
 
     // enroll request with only first client
@@ -343,7 +348,7 @@ void main() {
     //  4. Send an enroll request with otp from the second client
     //  5. First client approves the enroll request
     test(
-        'second enroll request using totp and client approves enrollment request',
+        'second enroll request using otp and client approves enrollment request',
         () async {
       await socket_writer(socketConnection1!, 'from:$firstAtsign');
       var fromResponse = await read();
@@ -362,20 +367,20 @@ void main() {
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var totpRequest = 'totp:get\n';
-      await socket_writer(socketConnection1!, totpRequest);
-      var totpResponse = await read();
-      totpResponse = totpResponse.replaceFirst('data:', '');
-      totpResponse = totpResponse.trim();
+      var otpRequest = 'otp:get\n';
+      await socket_writer(socketConnection1!, otpRequest);
+      var otpResponse = await read();
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
 
       // connect to the second client
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
 
-      //send second enroll request with totp
+      //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"totp":"$totpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection2!, secondEnrollRequest);
       var secondEnrollResponse = await read();
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -434,18 +439,18 @@ void main() {
       var cramResult = await read();
       expect(cramResult, 'data:success\n');
       // Get a TOTP
-      var totpRequest = 'totp:get\n';
-      await socket_writer(socketConnection1!, totpRequest);
-      var totpResponse = await read();
-      totpResponse = totpResponse.replaceFirst('data:', '');
-      totpResponse = totpResponse.trim();
+      var otpRequest = 'otp:get\n';
+      await socket_writer(socketConnection1!, otpRequest);
+      var otpResponse = await read();
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
       socketConnection1?.close();
       // Connect to unauthenticated socket to send an enrollment request
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"totp":"$totpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection2!, secondEnrollRequest);
       var secondEnrollResponse = await read();
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -530,15 +535,15 @@ void main() {
       await socket_writer(socketConnection1!, 'cram:$cramResponse');
       var cramResult = await read();
       expect(cramResult, 'data:success\n');
-      // Get totp
-      await socket_writer(socketConnection1!, 'totp:get');
-      var totp = (await read()).replaceAll('data:', '').trim();
+      // Get otp
+      await socket_writer(socketConnection1!, 'otp:get');
+      var otp = (await read()).replaceAll('data:', '').trim();
       // send an enroll request
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"totp":"$totp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection2!, enrollRequest);
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -612,7 +617,8 @@ void main() {
         await socket_writer(socketConnection2!, pkamCommand);
         pkamResult = await read();
         socketConnection2?.close();
-        expect(pkamResult.contains('$enrollmentId is not approved'), true);
+        print(pkamResult);
+        assert(pkamResult.contains('enrollment_id: $enrollmentId is revoked'));
       });
 
       test(
