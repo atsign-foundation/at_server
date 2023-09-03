@@ -34,6 +34,13 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_lookup
+      ref: feat/gkc-add-root-lookup-retry
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1
