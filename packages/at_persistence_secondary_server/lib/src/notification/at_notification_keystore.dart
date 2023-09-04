@@ -277,4 +277,7 @@ class AtNotificationKeystore
 
   @override
   AtLogType? commitLog;
+
+  @override
+  late AtKeyMetadataStore atKeyMetadataStore;
 }

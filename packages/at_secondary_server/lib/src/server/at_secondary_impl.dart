@@ -422,11 +422,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         QueueManager.getInstance().setMaxRetries(newCount);
       });
 
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
+          ?.listen((maxEnrollRequestsAllowed) {
         AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
       });
 
-      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)
+          ?.listen((timeWindowInMills) {
         AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
       });
     }
@@ -651,7 +653,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStore()!;
     secondaryKeyStore.commitLog = _commitLog;
-
+    await _initializeAtKeyMetadataStore();
     keyStoreManager.keyStore = secondaryKeyStore;
     // Initialize the hive store
     await secondaryKeyStore.initialize();
@@ -678,6 +680,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
     }
     await keyStore.deleteExpiredKeys();
+  }
+
+  Future<void> _initializeAtKeyMetadataStore() async {
+    AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+        AtKeyServerMetadataStoreImpl(serverContext!.currentAtSign!);
+    await atKeyMetadataStoreImpl.init(AtSecondaryConfig.atKeyMetadataStore);
+    (secondaryKeyStore.commitLog as AtCommitLog)
+        .commitLogKeyStore
+        .atKeyMetadataStore = atKeyMetadataStoreImpl;
+
+    // Inside "loadDataIntoKeystore" after populating the existing data into
+    // the at_metadata_store, insert a dummy key "existing_data_populated"
+    // to prevent inserting the data on the subsequent server restart.
+    if (atKeyMetadataStoreImpl.contains('existing_data_populated')) {
+      return;
+    }
+
+    Map<int, CommitEntry> commitEntriesMap =
+        await (secondaryKeyStore.commitLog as AtCommitLog)
+            .commitLogKeyStore
+            .toMap();
+    await atKeyMetadataStoreImpl
+        .loadDataIntoKeystore(commitEntriesMap.values.toList());
   }
 
   Future<void> removeMalformedKeys() async {

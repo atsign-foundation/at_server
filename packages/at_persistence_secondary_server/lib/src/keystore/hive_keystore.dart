@@ -189,12 +189,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
-        _updateMetadataCache(key, hive_value.metaData);
         if (skipCommit) {
           result = -1;
         } else {
           result = await _commitLog.commit(hive_key, commitOp);
         }
+        _updateMetadataCache(key, hive_value.metaData);
       }
     } on DataStoreException {
       rethrow;
@@ -297,15 +297,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     })) {
       commitOp = CommitOp.UPDATE_ALL;
     }
-
+    int? commitId;
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
-      _updateMetadataCache(key, hive_data.metaData);
       if (skipCommit) {
         return -1;
       } else {
-        return await _commitLog.commit(hive_key, commitOp);
+        commitId = await _commitLog.commit(hive_key, commitOp);
       }
+      _updateMetadataCache(key, hive_data.metaData);
     } on Exception catch (exception) {
       logger.severe('HiveKeystore create exception: $exception');
       throw DataStoreException('exception in create: ${exception.toString()}');
@@ -314,21 +314,24 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.severe('HiveKeystore error: $error');
       throw DataStoreException(error.message);
     }
+    return commitId;
   }
 
   /// Returns an integer if the key to be deleted is present in keystore or cache.
   @override
   Future<int?> remove(String key, {bool skipCommit = false}) async {
     key = key.toLowerCase();
+    // If skipCommit is set to true, do not add entry into the commitLog. However, delete
+    // the key from the keystore. Hence setting the commitId to -1.
+    int? commitId = -1;
     try {
+      if (skipCommit == false) {
+        commitId = await _commitLog.commit(key, CommitOp.DELETE);
+      }
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
-      if (skipCommit) {
-        return -1;
-      } else {
-        return await _commitLog.commit(key, CommitOp.DELETE);
-      }
+      return commitId;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
@@ -486,9 +489,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
           .build();
 
       await persistenceManager!.getBox().put(hive_key, newData);
-      _updateMetadataCache(key, newData.metaData);
-      var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
-      return result;
+      int? commitId = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
+      return commitId;
     } on HiveError catch (error) {
       logger.severe('HiveKeystore get error: $error');
       await _restartHiveBox(error);

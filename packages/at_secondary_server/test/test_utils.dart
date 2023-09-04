@@ -90,6 +90,15 @@ verbTestsSetUp() async {
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+
+  // Init the metadata persistent store
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+      AtKeyServerMetadataStoreImpl(alice);
+  await atKeyMetadataStoreImpl.init(storageDir);
+
+  (secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog as AtCommitLog)
+      .commitLogKeyStore
+      .atKeyMetadataStore = atKeyMetadataStoreImpl;
   // Init the hive instances
   await secondaryPersistenceStore!
       .getHivePersistenceManager()!
@@ -113,16 +122,16 @@ verbTestsSetUp() async {
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
 
-  outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
+  outboundClientWithHandshake = OutboundClient(
+      inboundConnection, bob, mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
-  outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
+  outboundClientWithoutHandshake = OutboundClient(
+      inboundConnection, bob, mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100

@@ -313,7 +313,8 @@ void main() {
   });
 
   group('A group of hive related test cases', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    setUp(() async =>
+        keyStoreManager = await setUpFunc(storageDir, atsign: '@test_user_1'));
     test('test notify handler with update operation', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
@@ -453,7 +454,7 @@ void main() {
   });
 
   group('A group of notify verb test', () {
-    setUp(() async => await setUpFunc(storageDir));
+    setUp(() async => await setUpFunc(storageDir, atsign: '@test_user_1'));
     test(
         'A test case to verify enqueuing error notifications increments retry count',
         () async {
@@ -922,7 +923,7 @@ void main() {
         HashMap<String, String>();
 
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir);
+      keyStoreManager = await setUpFunc(storageDir, atsign: '@test_user_1');
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyResponse = Response();
@@ -1007,7 +1008,7 @@ void main() {
     group('A group of test to validate notification verb params', () {
       late NotifyVerbHandler notifyVerbHandler;
       setUp(() async {
-        keyStoreManager = await setUpFunc(storageDir);
+        keyStoreManager = await setUpFunc(storageDir, atsign: '@test_user_1');
         SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
         notifyVerbHandler = NotifyVerbHandler(keyStore);
       });
@@ -1112,10 +1113,15 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
   keyStoreManager.keyStore = hiveKeyStore;
   hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
+
+  // Init the metadata persistent store
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+      AtKeyServerMetadataStoreImpl(atsign!);
+  await atKeyMetadataStoreImpl.init(storageDir);
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
+  notificationInstance.currentAtSign = atsign;
   await notificationInstance.init(storageDir);
   return keyStoreManager;
 }

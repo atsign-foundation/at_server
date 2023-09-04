@@ -37,6 +37,14 @@ Future<void> setUpMethod() async {
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atSign, commitLogPath: storageDir, enableCommitId: true);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+
+  // Init the metadata persistent store
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+      AtKeyServerMetadataStoreImpl(atSign);
+  await atKeyMetadataStoreImpl.init(storageDir);
+  (secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog as AtCommitLog)
+      .commitLogKeyStore
+      .atKeyMetadataStore = atKeyMetadataStoreImpl;
   // Init the hive instances
   await secondaryPersistenceStore!
       .getHivePersistenceManager()!
@@ -97,74 +105,69 @@ void main() {
         expect(atData.metaData!.version, 0);
         expect(atData.metaData?.createdBy, atSign);
         // verify commit entry data
-        // The "getEntry" method is specific to "client" operations. Hence
-        // replaced with "getEntries"
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator<MapEntry<String, CommitEntry>> itr =
+            atCommitLog!.getEntries(-1);
         itr.moveNext();
         expect(itr.current.value.operation, CommitOp.UPDATE);
         expect(itr.current.value.commitId, 0);
       });
 
-      try {
-        test(
-            'test to verify when the commit entry is update on an existing key and data in hive store and latestCommitId of a key should be updated',
-            () async {
-          ///Precondition
-          /// 1. Insert a new key into the keystore
-          /// 2. Update the same key metadata and value
-          ///
-          /// Assertions:
-          /// 1. CommitEntry Operation is set to "UPDATE_ALL"
-          /// 2. The value and metadata of the existing key should be updated
-          /// 3. The commit log should have a new entry
-          /// 4. The version of the key is set to 1
-          /// 5. The "createdAt" is less than now()
-          /// 6. The "updatedAt" is populated and is less than now()
-          /// 7. The "createdBy" is assigned to currentAtSign
-          // Inserting a new key into keystore
-          var keyCreationDateTime = DateTime.now().toUtc();
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('@alice:phone@alice', AtData()..data = '123');
-          // Assert commit entry before update
-          // The "getChanges" method is specific to the client operations. Hence
-          // replaced with "getEntries" method
-          Iterator itr = atCommitLog!.getEntries(-1);
-          itr.moveNext();
-          expect(itr.current.value.atKey, '@alice:phone@alice');
-          expect(itr.current.value.commitId, 0);
-          // Update the same key again
-          var keyUpdateDateTime = DateTime.now().toUtc();
-          await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-              '@alice:phone@alice',
-              AtData()
-                ..data = '345'
-                ..metaData = (AtMetaData()..ttl = 10000));
-          // Assert the metadata
-          AtData? atDataAfterUpdate = await secondaryPersistenceStore!
-              .getSecondaryKeyStore()!
-              .get('@alice:phone@alice');
-          expect(atDataAfterUpdate!.data, '345');
-          expect(atDataAfterUpdate.metaData!.ttl, 10000);
-          expect(atDataAfterUpdate.metaData!.version, 1);
-          expect(atDataAfterUpdate.metaData!.createdBy, atSign);
-          expect(
-              atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >=
-                  keyCreationDateTime.millisecondsSinceEpoch,
-              true);
-          expect(
-              atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
-                  keyUpdateDateTime.millisecondsSinceEpoch,
-              true);
-          itr = atCommitLog!.getEntries(-1);
-          while (itr.moveNext()) {
-            expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
-            expect(itr.current.value.commitId, 1);
-          }
-        });
-      } catch (e, s) {
-        print(s);
-      }
+      test(
+          'test to verify when the commit entry is update on an existing key and data in hive store and latestCommitId of a key should be updated',
+          () async {
+        ///Precondition
+        /// 1. Insert a new key into the keystore
+        /// 2. Update the same key metadata and value
+        ///
+        /// Assertions:
+        /// 1. CommitEntry Operation is set to "UPDATE_ALL"
+        /// 2. The value and metadata of the existing key should be updated
+        /// 3. The commit log should have a new entry
+        /// 4. The version of the key is set to 1
+        /// 5. The "createdAt" is less than now()
+        /// 6. The "updatedAt" is populated and is less than now()
+        /// 7. The "createdBy" is assigned to currentAtSign
+        // Inserting a new key into keystore
+        var keyCreationDateTime = DateTime.now().toUtc();
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('@alice:phone@alice', AtData()..data = '123');
+        // Assert commit entry before update
+        Iterator<MapEntry<String, CommitEntry>> itr =
+            atCommitLog!.getEntries(-1);
+        itr.moveNext();
+
+        expect(itr.current.value.atKey, '@alice:phone@alice');
+        expect(itr.current.value.commitId, 0);
+        // Update the same key again
+        var keyUpdateDateTime = DateTime.now().toUtc();
+        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+            '@alice:phone@alice',
+            AtData()
+              ..data = '345'
+              ..metaData = (AtMetaData()..ttl = 10000));
+        // Assert the metadata
+        AtData? atDataAfterUpdate = await secondaryPersistenceStore!
+            .getSecondaryKeyStore()!
+            .get('@alice:phone@alice');
+        expect(atDataAfterUpdate!.data, '345');
+        expect(atDataAfterUpdate.metaData!.ttl, 10000);
+        expect(atDataAfterUpdate.metaData!.version, 1);
+        expect(atDataAfterUpdate.metaData!.createdBy, atSign);
+        expect(
+            atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >=
+                keyCreationDateTime.millisecondsSinceEpoch,
+            true);
+        expect(
+            atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
+                keyUpdateDateTime.millisecondsSinceEpoch,
+            true);
+        itr = atCommitLog!.getEntries(-1);
+        while (itr.moveNext()) {
+          expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
+          expect(itr.current.value.commitId, 1);
+        }
+      });
 
       test(
           'test to verify when the commit entry is update_meta, the key metadata alone is updated',
@@ -208,7 +211,7 @@ void main() {
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
-            atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
+            await atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
         expect(commitEntryList!.operation, CommitOp.UPDATE_META);
         expect(commitEntryList.commitId, 1);
       });
@@ -439,7 +442,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
@@ -479,7 +482,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         syncVerbParams.putIfAbsent('regex', () => 'buzz');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
@@ -521,7 +524,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
@@ -530,7 +533,7 @@ void main() {
         // Increase the sync buffer size and assert all the 4 keys are added to sync response
         syncProgressiveVerbHandler.capacity = 1200;
         response = Response();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         syncResponse = jsonDecode(response.data!);
@@ -560,7 +563,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
 
@@ -634,7 +637,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -697,7 +700,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -737,7 +740,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -776,7 +779,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -823,7 +826,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);

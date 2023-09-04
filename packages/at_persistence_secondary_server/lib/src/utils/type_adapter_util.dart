@@ -10,5 +10,6 @@ final Map typeAdapterMap = {
   'NotificationTypeAdapter': 7,
   'OperationTypeAdapter': 8,
   'NotificationPriorityAdapter': 9,
-  'MessageTypeAdapter': 10
+  'MessageTypeAdapter': 10,
+  'AtKeyMetadataAdapter': 11
 };

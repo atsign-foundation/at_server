@@ -7,6 +7,7 @@ import 'package:at_utils/at_logger.dart';
 /// Listens on the [AtChangeEventListener] and increments [keysToCompactCount] on each insert
 /// into the commit-log. When [keysToCompactCount] reaches threshold (50), compaction triggers
 /// and removes the duplicate [CommitEntry]
+@Deprecated('message')
 class CommitLogCompactionService implements AtChangeEventListener {
   late CommitLogKeyStore _commitLogKeyStore;
   final _commitLogEntriesMap = <String, CompactionSortedList>{};

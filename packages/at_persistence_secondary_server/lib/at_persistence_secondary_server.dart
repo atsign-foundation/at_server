@@ -28,3 +28,5 @@ export 'package:at_persistence_secondary_server/src/utils/at_metadata_adapter.da
 export 'package:at_persistence_secondary_server/src/utils/date_time_extensions.dart';
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';
+export 'package:at_persistence_secondary_server/src/metadata_keystore/at_key_metadata.dart';
+export 'package:at_persistence_secondary_server/src/metadata_keystore/atkey_metadata_store_impl.dart';
