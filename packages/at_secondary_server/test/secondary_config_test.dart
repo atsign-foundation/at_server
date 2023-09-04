@@ -6,11 +6,11 @@ import 'package:test/test.dart';
 void main() async {
   group('A group of secondary config test', () {
     test('Config: Check rootServerUrl is a String', () async {
-      expect(AtSecondaryConfig.rootServerUrl is String, true);
+      expect(AtSecondaryConfig.rootServerUrl.isNotEmpty, true);
     });
 
     test('Config: check rootServerPort is an int', () async {
-      expect(AtSecondaryConfig.rootServerPort is int, true);
+      expect(AtSecondaryConfig.rootServerPort > 0, true);
     });
 
     test('Config: check AtSecondaryConfig.logLevel defaults to FINEST',

@@ -209,19 +209,19 @@ void main() {
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var totpRequest = 'totp:get\n';
-      await socket_writer(socketConnection1!, totpRequest);
-      var totpResponse = await read();
-      totpResponse = totpResponse.replaceFirst('data:', '');
-      totpResponse = totpResponse.trim();
+      var otpRequest = 'otp:get\n';
+      await socket_writer(socketConnection1!, otpRequest);
+      var otpResponse = await read();
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
 
       // connect to the second client
       socketConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(socketConnection2!);
-      //send second enroll request with totp
+      //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"totp":"$totpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(socketConnection2!, secondEnrollRequest);
 
       var secondEnrollResponse = await read();
