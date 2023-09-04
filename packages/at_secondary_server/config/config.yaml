@@ -155,3 +155,7 @@ enrollment:
   # The maximum time in hours for an enrollment to expire, beyond which any action on enrollment is forbidden.
   # Default values is 48 hours.
   expiryInHours: 48
+  # The maximum number of requests allowed within the time window.
+  maxRequestsPerTimeFrame: 5
+  # The duration of the time window in hours.
+  timeFrameInHours: 1
