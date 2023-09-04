@@ -32,6 +32,10 @@ hive:
   accessLogPath: 'storage/accessLog'
   # The storage path for notifications
   notificationStoragePath: 'storage/notificationLog.v1'
+  # The storage path for AtKeyMetadata store
+  atKeyMetadataStoragePath: 'storage/atKeyMetadataStore'
+
+
   # The frequent time interval(in minutes) to run job which removes the expired keys from secondary storage.
   expiringRunFrequencyMins: 12
   # List of malformed keys that will be deleted on server startup

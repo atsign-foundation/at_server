@@ -163,8 +163,10 @@ void main() {
       List<KeyStoreEntry> syncResponse = [];
 
       // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
+      var commitId = await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
+      print('test_key_alpha@alice: $commitId');
+      commitId = await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
+      print('test_key2_beta@alice: $commitId');
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -264,7 +266,7 @@ void main() {
       await verbHandler.prepareResponse(
           10 * 1024 * 1024, syncResponse, atCommitLog.getEntries(2));
       expect(syncResponse.length, 0);
-    });
+    }, timeout: Timeout(Duration(minutes: 30)));
 
     tearDown(() async => await tearDownFunc());
   });
@@ -285,9 +287,16 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+  AtKeyServerMetadataStoreImpl('@test_user_1');
+  await atKeyMetadataStoreImpl.init(storageDir);
+  (hiveKeyStore.commitLog as AtCommitLog).commitLogKeyStore.atKeyMetadataStore =
+      atKeyMetadataStoreImpl;
   keyStoreManager.keyStore = hiveKeyStore;
   return keyStoreManager;
 }

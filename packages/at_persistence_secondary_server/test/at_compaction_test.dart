@@ -17,6 +17,12 @@ Future<void> setUpMethod({bool enableCommitId = true}) async {
   atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign,
       commitLogPath: storageDir, enableCommitId: enableCommitId);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+      AtKeyServerMetadataStoreImpl('@alice');
+  await atKeyMetadataStoreImpl.init(storageDir);
+  (secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog as AtCommitLog)
+      .commitLogKeyStore
+      .atKeyMetadataStore = atKeyMetadataStoreImpl;
   // Init the hive instances
   await secondaryPersistenceStore!
       .getHivePersistenceManager()!
@@ -55,7 +61,7 @@ void main() {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       List<int> keysToDelete = await atCommitLog!.getKeysToDeleteOnCompaction();
       expect(keysToDelete.length, 0);
-    });
+    }, skip: 'change in compaction impl');
 
     tearDown(() async {
       await tearDownMethod();

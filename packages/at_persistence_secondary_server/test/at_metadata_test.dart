@@ -249,10 +249,19 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
           commitLogPath: storageDir, enableCommitId: enableCommitId);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice')!;
+  secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog =
+      commitLogInstance;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+      AtKeyServerMetadataStoreImpl('@alice');
+  await atKeyMetadataStoreImpl.init(storageDir);
+
+  (hiveKeyStore.commitLog as AtCommitLog).commitLogKeyStore.atKeyMetadataStore = atKeyMetadataStoreImpl;
+
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;

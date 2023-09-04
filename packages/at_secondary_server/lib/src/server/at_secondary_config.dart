@@ -28,6 +28,7 @@ class AtSecondaryConfig {
   static const String _commitLogPath = 'storage/commitLog';
   static const String _accessLogPath = 'storage/accessLog';
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
+  static const String _atKeyMetadataStoragePath = 'storage/atKeyMetadataStore';
   static const int _expiringRunFreqMins = 10;
 
   //Commit Log
@@ -371,6 +372,17 @@ class AtSecondaryConfig {
           ['notification_keystore_compaction', 'compactionFrequencyMins']);
     } on ElementNotFoundException {
       return _notificationKeyStoreCompactionFrequencyMins;
+    }
+  }
+
+  static String get atKeyMetadataStore {
+    if (_envVars.containsKey('atKeyMetadataStoragePath')) {
+      return _envVars['atKeyMetadataStoragePath']!;
+    }
+    try {
+      return getConfigFromYaml(['hive', 'atKeyMetadataStoragePath']);
+    } on ElementNotFoundException {
+      return _atKeyMetadataStoragePath;
     }
   }
 

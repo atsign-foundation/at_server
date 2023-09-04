@@ -258,6 +258,14 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
+
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+  AtKeyServerMetadataStoreImpl('@alice');
+  await atKeyMetadataStoreImpl.init(storageDir);
+
+  (hiveKeyStore.commitLog as AtCommitLog).commitLogKeyStore.atKeyMetadataStore =
+      atKeyMetadataStoreImpl;
+      
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
