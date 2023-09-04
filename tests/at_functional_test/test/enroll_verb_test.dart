@@ -657,13 +657,13 @@ void main() {
     late String enrollmentResponse;
     setUp(() async {
       // Get TOTP from server
-      String totp = await _getTOTPFromServer(firstAtsign);
+      String otp = await _getOTPFromServer(firstAtsign);
       await socketConnection1?.close();
       // Close the connection and create a new connection and send an enrollment request on an
       // unauthenticated connection.
       await _connect();
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"totp":"$totp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
       await socket_writer(socketConnection1!, enrollRequest);
       enrollmentResponse = await read();
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
@@ -751,7 +751,7 @@ void main() {
   });
 }
 
-Future<String> _getTOTPFromServer(String atSign) async {
+Future<String> _getOTPFromServer(String atSign) async {
   await socket_writer(socketConnection1!, 'from:$atSign');
   var fromResponse = await read();
   fromResponse = fromResponse.replaceAll('data:', '');
@@ -759,8 +759,8 @@ Future<String> _getTOTPFromServer(String atSign) async {
   await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
   // Calling read to remove the PKAM request from the queue
   await read();
-  await socket_writer(socketConnection1!, 'totp:get');
-  String totp = await read();
-  totp = totp.replaceAll('data:', '').trim();
-  return totp;
+  await socket_writer(socketConnection1!, 'otp:get');
+  String otp = await read();
+  otp = otp.replaceAll('data:', '').trim();
+  return otp;
 }
