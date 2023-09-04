@@ -7,7 +7,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 
@@ -35,16 +35,16 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_1 = jsonDecode(response.data!)['enrollmentId'];
-      // TOTP Verb
-      HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, 'totp:get');
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
-      await totpVerbHandler.processVerb(
-          response, totpVerbParams, inboundConnection);
-      print('TOTP: ${response.data}');
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      print('OTP: ${response.data}');
       // Enroll request 2
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -151,16 +151,16 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentIdOne = jsonDecode(response.data!)['enrollmentId'];
-      // TOTP Verb
-      HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, 'totp:get');
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
-      await totpVerbHandler.processVerb(
-          response, totpVerbParams, inboundConnection);
-      print('TOTP: ${response.data}');
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      print('OTP: ${response.data}');
       // Enroll request
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -207,12 +207,12 @@ void main() {
 
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
-      // TOTP Verb
-      HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, 'totp:get');
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
-      await totpVerbHandler.processVerb(
-          response, totpVerbParams, inboundConnection);
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
     });
 
     // Key represents the operation and value represents the expected status of
@@ -226,7 +226,7 @@ void main() {
       test('A test to verify pending enrollment is $operation', () async {
         // Enroll request
         String enrollmentRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+            'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
         HashMap<String, String?> enrollmentRequestVerbParams =
             getVerbParam(VerbSyntax.enroll, enrollmentRequest);
         inboundConnection.getMetaData().isAuthenticated = false;
@@ -313,7 +313,7 @@ void main() {
               e.message == 'Cannot revoke enrollment without authentication')));
     });
 
-    test('A test to verify enrollment request without totp throws exception',
+    test('A test to verify enrollment request without otp throws exception',
         () async {
       String enrollmentRequest =
           'enroll:request:{"appname":"wavi","devicename":"mydevice","namespaces":{"wavi":"r"},"apkampublickey":"dummy_apkam_public_key"}';
@@ -329,7 +329,7 @@ void main() {
               response, verbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
-              e.message == 'invalid totp. Cannot process enroll request')));
+              e.message == 'invalid otp. Cannot process enroll request')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -422,15 +422,15 @@ void main() {
         () async {
       Response response = Response();
       inboundConnection.getMetaData().isAuthenticated = true;
-      // GET TOTP
-      HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, 'totp:get');
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
-      await totpVerbHandler.processVerb(
-          response, totpVerbParams, inboundConnection);
+      // GET OTP
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
       // Send enrollment request
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"buzz":"rw"},"encryptedAPKAMSymmetricKey":"dummy_apkam_symmetric_key","apkamPublicKey":"dummy_apkam_public_key","totp":"${response.data}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"buzz":"rw"},"encryptedAPKAMSymmetricKey":"dummy_apkam_symmetric_key","apkamPublicKey":"dummy_apkam_public_key","otp":"${response.data}"}';
       HashMap<String, String?> enrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;

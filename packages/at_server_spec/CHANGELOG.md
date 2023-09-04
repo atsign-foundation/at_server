@@ -1,3 +1,5 @@
+## 3.0.14
+- fix: Rename TOTP to OTP
 ## 3.0.13
 - feat: added keys verb
 - experimental: added totp verb

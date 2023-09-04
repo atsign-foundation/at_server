@@ -558,7 +558,7 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get rootServerPort {
+  static int get rootServerPort {
     var result = _getIntEnvVar('rootServerPort');
     if (result != null) {
       return result;
@@ -570,9 +570,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get rootServerUrl {
+  static String get rootServerUrl {
     if (_envVars.containsKey('rootServerUrl')) {
-      return _envVars['rootServerUrl'];
+      return _envVars['rootServerUrl']!;
     }
     try {
       return getConfigFromYaml(['root_server', 'url']);
