@@ -114,7 +114,7 @@ verbTestsSetUp() async {
   registerFallbackValue(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder,
+      mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -122,7 +122,7 @@ verbTestsSetUp() async {
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder,
+      mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
