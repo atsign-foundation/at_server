@@ -468,12 +468,12 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       // Fetch TOTP
-      String totpCommand = 'totp:get';
+      String totpCommand = 'otp:get';
       HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, totpCommand);
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
+          getVerbParam(VerbSyntax.otp, totpCommand);
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       inboundConnection.getMetaData().isAuthenticated = true;
-      await totpVerbHandler.processVerb(
+      await otpVerbHandler.processVerb(
           response, totpVerbParams, inboundConnection);
     });
     test('A test to verify expired enrollment cannot be approved', () async {
@@ -482,7 +482,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -492,6 +492,7 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
+      await Future.delayed(Duration(milliseconds: 1));
       //Approve enrollment
       String approveEnrollmentCommand =
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
@@ -513,7 +514,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -524,6 +525,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
       //Deny enrollment
+      await Future.delayed(Duration(milliseconds: 1));
       String approveEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
@@ -544,7 +546,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -581,7 +583,7 @@ void main() {
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -609,18 +611,18 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       // Fetch TOTP
-      String totpCommand = 'totp:get';
+      String totpCommand = 'otp:get';
       HashMap<String, String?> totpVerbParams =
-          getVerbParam(VerbSyntax.totp, totpCommand);
-      TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
+          getVerbParam(VerbSyntax.otp, totpCommand);
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       inboundConnection.getMetaData().isAuthenticated = true;
-      await totpVerbHandler.processVerb(
+      await otpVerbHandler.processVerb(
           response, totpVerbParams, inboundConnection);
       // Enroll a request on an unauthenticated connection which will expire in 1 minute
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
