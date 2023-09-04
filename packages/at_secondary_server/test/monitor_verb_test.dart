@@ -8,7 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -618,7 +618,7 @@ void main() {
       expect(responseList[0].notification, 'mobile.wavi');
     });
 
-    test('A test to verify only received notification is sent', () async{
+    test('A test to verify only received notification is sent', () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
@@ -659,36 +659,37 @@ void main() {
       expect(responseList[0].notification, 'mobile.wavi');
     });
 
-    test('A test to verify self and received notification are returned', () async{
+    test('A test to verify self and received notification are returned',
+        () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-      MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification1 = (AtNotificationBuilder()
-        ..id = '123'
-        ..fromAtSign = '@bob'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = alice
-        ..notification = 'phone.wavi'
-        ..type = NotificationType.self
-        ..opType = OperationType.update
-        ..messageType = MessageType.key)
+            ..id = '123'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.self
+            ..opType = OperationType.update
+            ..messageType = MessageType.key)
           .build();
       await Future.delayed(Duration(milliseconds: 1));
       int milliSecondsSinceEpoch =
           DateTime.now().toUtc().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 1));
       var atNotification2 = (AtNotificationBuilder()
-        ..id = '124'
-        ..fromAtSign = '@kevin'
-        ..notificationDateTime = DateTime.now()
-        ..toAtSign = alice
-        ..notification = 'mobile.wavi'
-        ..type = NotificationType.received
-        ..opType = OperationType.update
-        ..messageType = MessageType.key)
+            ..id = '124'
+            ..fromAtSign = '@kevin'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'mobile.wavi'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key)
           .build();
 
       List notificationValueList = [atNotification1, atNotification2];
@@ -710,13 +711,12 @@ Future<String> setEnrollmentKey(String namespace) async {
   inboundConnection.getMetaData().sessionID = 'dummy_session';
   // TOTP Verb
   HashMap<String, String?> totpVerbParams =
-      getVerbParam(VerbSyntax.totp, 'totp:get');
-  TotpVerbHandler totpVerbHandler = TotpVerbHandler(secondaryKeyStore);
-  await totpVerbHandler.processVerb(
-      response, totpVerbParams, inboundConnection);
+      getVerbParam(VerbSyntax.otp, 'otp:get');
+  OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+  await otpVerbHandler.processVerb(response, totpVerbParams, inboundConnection);
   // Enroll request
   String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"totp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.getMetaData().isAuthenticated = false;
