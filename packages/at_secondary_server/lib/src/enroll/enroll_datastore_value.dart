@@ -1,13 +1,14 @@
 import 'package:json_annotation/json_annotation.dart';
+
 part 'enroll_datastore_value.g.dart';
 
-@JsonSerializable()
-
 /// Represents attributes for APKAM enrollment data
+@JsonSerializable()
 class EnrollDataStoreValue {
   late String sessionId;
   late String appName;
   late String deviceName;
+
   // map for representing namespace access. key will be the namespace, value will be the access
   // e.g {'wavi':'r', 'buzz':'rw'}
   Map<String, String> namespaces = {};
@@ -15,6 +16,7 @@ class EnrollDataStoreValue {
   EnrollRequestType? requestType;
   EnrollApproval? approval;
   DateTime? expiresAt;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 

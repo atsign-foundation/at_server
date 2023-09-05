@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -62,6 +63,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
+
+  late SecondaryAddressFinder secondaryAddressFinder;
+  late OutboundClientManager outboundClientManager;
+
   late bool _isPaused;
 
   var logger = AtSignLogger('AtSecondaryServer');
@@ -70,7 +75,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     return _singleton;
   }
 
-  AtSecondaryServerImpl._internal();
+  AtSecondaryServerImpl._internal() {
+    secondaryAddressFinder = CacheableSecondaryAddressFinder(
+        AtSecondaryConfig.rootServerUrl, AtSecondaryConfig.rootServerPort);
+    outboundClientManager = OutboundClientManager(secondaryAddressFinder);
+  }
 
   dynamic _serverSocket;
   bool _isRunning = false;
@@ -91,7 +100,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
-  late OutboundClientManager outboundClientManager;
   late ResourceManager notificationResourceManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
@@ -146,7 +154,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('User atSign is not set');
     }
 
-    currentAtSign = AtUtils.formatAtSign(serverContext!.currentAtSign);
+    currentAtSign = AtUtils.fixAtSign(serverContext!.currentAtSign!);
     logger.info('currentAtSign : $currentAtSign');
 
     // Initialize persistent storage
@@ -188,9 +196,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
-    // Moved this to here so we can inject it into the AtCacheManger and the
-    // DefaultVerbHandlerManager if we create one
-    outboundClientManager = OutboundClientManager.getInstance();
     outboundClientManager.poolSize = serverContext!.outboundConnectionLimit;
 
     // Refresh Cached Keys

@@ -9,7 +9,6 @@ import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -21,8 +20,6 @@ import 'package:meta/meta.dart';
 /// Handshake involves running "from", "pol" verbs on the secondary
 class OutboundClient {
   var logger = AtSignLogger('OutboundClient');
-  static final _rootDomain = AtSecondaryConfig.rootServerUrl;
-  static final _rootPort = AtSecondaryConfig.rootServerPort;
 
   final InboundConnection inboundConnection;
   final String toAtSign;
@@ -36,7 +33,7 @@ class OutboundClient {
   int lookupTimeoutMillis = 5 * 1000;
   int notifyTimeoutMillis = 10 * 1000;
 
-  at_lookup.SecondaryAddressFinder? secondaryAddressFinder;
+  at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
@@ -55,8 +52,8 @@ class OutboundClient {
   late OutboundConnectionFactory _outboundConnectionFactory;
 
   OutboundClient(this.inboundConnection, this.toAtSign,
-      {this.secondaryAddressFinder,
-      OutboundConnectionFactory? outboundConnectionFactory}) {
+      this.secondaryAddressFinder,
+      {OutboundConnectionFactory? outboundConnectionFactory}) {
     outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
     _outboundConnectionFactory = outboundConnectionFactory;
   }
@@ -168,20 +165,9 @@ class OutboundClient {
   }
 
   Future<String> _findSecondary(toAtSign) async {
-    if (secondaryAddressFinder != null) {
-      at_lookup.SecondaryAddress address =
-          await secondaryAddressFinder!.findSecondary(toAtSign);
-      return address.toString();
-    }
-
-    // ignore: deprecated_member_use
-    var secondaryUrl = await at_lookup.AtLookupImpl.findSecondary(
-        toAtSign, _rootDomain, _rootPort!);
-    if (secondaryUrl == null) {
-      throw SecondaryNotFoundException(
-          'No secondary url found for atsign: $toAtSign');
-    }
-    return secondaryUrl;
+    at_lookup.SecondaryAddress address =
+        await secondaryAddressFinder.findSecondary(toAtSign);
+    return address.toString();
   }
 
   Future<bool> _establishHandShake() async {

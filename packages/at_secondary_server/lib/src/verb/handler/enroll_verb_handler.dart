@@ -8,7 +8,7 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/handler/totp_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -115,11 +115,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
     if (!atConnection.getMetaData().isAuthenticated) {
-      var totp = enrollParams.totp;
-      if (totp == null ||
-          (await TotpVerbHandler.cache.get(totp.toString()) == null)) {
+      var otp = enrollParams.otp;
+      if (otp == null ||
+          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
         throw AtEnrollmentException(
-            'invalid totp. Cannot process enroll request');
+            'invalid otp. Cannot process enroll request');
       }
     }
     var enrollNamespaces = enrollParams.namespaces ?? {};
