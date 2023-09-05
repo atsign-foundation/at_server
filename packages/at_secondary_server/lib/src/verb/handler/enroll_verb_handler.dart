@@ -30,9 +30,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Verb getVerb() => enrollVerb;
 
   @visibleForTesting
-  Duration enrollmentExpiry = Duration(seconds: 1);
+  Duration enrollmentExpiry = Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours);
 
-  int enrollKeyDeletionAfterMillis =
+  int enrollmentKeyTtl =
       Duration(days: AtSecondaryConfig.enrollmentKeyTtlInDays).inMilliseconds;
 
   @override
@@ -45,10 +45,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     //Approve, deny, revoke or list enrollments only on authenticated connections
-    // if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
-    //   throw UnAuthenticatedException(
-    //       'Cannot $operation enrollment without authentication');
-    // }
+    if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
+      throw UnAuthenticatedException(
+          'Cannot $operation enrollment without authentication');
+    }
     try {
       EnrollParams? enrollVerbParams;
       if (verbParams[enrollParams] != null) {
@@ -167,7 +167,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         ..data = jsonEncode(enrollmentValue.toJson())
         // Set TTL to the pending enrollments
         // This configures when an enrollment key is deleted
-        ..metaData = (AtMetaData()..ttl = enrollKeyDeletionAfterMillis);
+        ..metaData = (AtMetaData()..ttl = enrollmentKeyTtl);
     }
     logger.finer('enrollData: $enrollData');
     await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
