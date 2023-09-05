@@ -61,9 +61,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   VerbHandler? getVerbHandler(String utf8EncodedCommand) {
     for (var handler in _verbHandlers) {
       if (handler.accept(utf8EncodedCommand)) {
-        if (handler is MonitorVerbHandler) {
-          return handler.clone();
-        }
         return handler;
       }
     }
