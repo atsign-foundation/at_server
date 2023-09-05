@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
@@ -19,7 +18,7 @@ void main() {
     test('test outbound client manager - create new client ', () {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
-      var clientManager = OutboundClientManager.getInstance();
+      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient = clientManager.getClient('bob', inboundConnection);
       expect(outBoundClient.toAtSign, 'bob');
@@ -29,7 +28,7 @@ void main() {
     // test('test outbound client manager - get existing client ', () {
     //   var dummySocket = DummySocket(1);
     //   var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
-    //   var clientManager = OutboundClientManager.getInstance();
+    //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
     //   clientManager.init(5);
     //   var outBoundClient_1 =
     //       clientManager.getClient('bob', inboundConnection, isHandShake: false)!;
@@ -46,7 +45,7 @@ void main() {
     //   var dummySocket_2 = DummySocket(2);
     //   var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
     //   var inboundConnection_2 = InboundConnectionImpl(dummySocket_2, 'bbb');
-    //   var clientManager = OutboundClientManager.getInstance();
+    //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
     //   clientManager.init(5);
     //   var outBoundClient_1 =
     //       clientManager.getClient('alice', inboundConnection_1)!;
@@ -64,7 +63,7 @@ void main() {
     //   var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
     //   var inboundConnection_2 = InboundConnectionImpl(dummySocket_2, 'bbb');
     //   var inboundConnection_3 = InboundConnectionImpl(dummySocket_3, 'ccc');
-    //   var clientManager = OutboundClientManager.getInstance();
+    //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
     //   clientManager.init(2);
     //   clientManager.getClient('alice', inboundConnection_1);
     //   clientManager.getClient('bob', inboundConnection_2);
@@ -80,7 +79,7 @@ void main() {
         () {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
-      var clientManager = OutboundClientManager.getInstance();
+      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       inboundConnection.close();
@@ -92,7 +91,7 @@ void main() {
         () {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
-      var clientManager = OutboundClientManager.getInstance();
+      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
@@ -106,7 +105,7 @@ void main() {
         () {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
-      var clientManager = OutboundClientManager.getInstance();
+      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =

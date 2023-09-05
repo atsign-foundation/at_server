@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -7,22 +8,19 @@ import 'package:meta/meta.dart';
 
 /// Class to retrieve and manage [OutboundClient] from [OutboundClientPool]
 class OutboundClientManager {
-  static final OutboundClientManager _singleton =
-      OutboundClientManager._internal();
-
   var logger = AtSignLogger('OutboundClientManager');
 
   static const int defaultPoolSize = 10;
 
   final OutboundClientPool _pool = OutboundClientPool(size: defaultPoolSize);
 
-  OutboundClientManager._internal();
+  OutboundClientManager(this.secondaryAddressFinder);
 
-  factory OutboundClientManager.getInstance() {
-    return _singleton;
-  }
   @visibleForTesting
   bool closed = false;
+
+  @visibleForTesting
+  SecondaryAddressFinder secondaryAddressFinder;
 
   set poolSize(int s) => _pool.size = s;
   int get poolSize => _pool.size;
@@ -56,7 +54,7 @@ class OutboundClientManager {
     }
 
     // No existing client found, and Pool has capacity - create a new client
-    var newClient = OutboundClient(inboundConnection, toAtSign);
+    var newClient = OutboundClient(inboundConnection, toAtSign, secondaryAddressFinder);
     _pool.add(newClient);
     return newClient;
   }

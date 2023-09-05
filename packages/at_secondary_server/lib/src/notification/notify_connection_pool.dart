@@ -2,6 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
@@ -53,7 +54,7 @@ class NotifyConnectionsPool {
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
-    var newClient = OutboundClient(inboundConnection, toAtSign);
+    var newClient = OutboundClient(inboundConnection, toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
     _outboundClientPool.add(newClient);
     return newClient;
   }
