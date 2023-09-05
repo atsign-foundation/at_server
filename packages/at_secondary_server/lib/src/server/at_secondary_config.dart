@@ -121,13 +121,18 @@ class AtSecondaryConfig {
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
+  // specifies the time after which an enrollment is considered expired
   static final int _enrollmentExpiryInHours = 48;
+  // time after which the enrollment key is actually deleted from the keystore
+  static final int _enrollmentKeyTtlInDays = 14;
 
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
 
   static int get enrollmentExpiryInHours => _enrollmentExpiryInHours;
+
+  static int get enrollmentKeyTtlInDays => _enrollmentKeyTtlInDays;
 
   // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
   //  allow for nulls. Should fix this as has been done for logLevel

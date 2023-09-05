@@ -14,6 +14,7 @@ class EnrollDataStoreValue {
   late String apkamPublicKey;
   EnrollRequestType? requestType;
   EnrollApproval? approval;
+  DateTime? expiresAt;
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 
@@ -21,12 +22,22 @@ class EnrollDataStoreValue {
       _$EnrollDataStoreValueFromJson(json);
 
   Map<String, dynamic> toJson() => _$EnrollDataStoreValueToJson(this);
+
+  bool isExpired() {
+    if (expiresAt != null && DateTime.now().toUtc().isAfter(expiresAt!)) {
+      return true;
+    }
+    return false;
+  }
 }
 
 class EnrollApproval {
   String state;
+
   EnrollApproval(this.state);
+
   EnrollApproval.fromJson(Map<String, dynamic> json) : state = json['state'];
+
   Map<String, dynamic> toJson() => {
         'state': state,
       };
@@ -37,6 +48,6 @@ class EnrollApproval {
   }
 }
 
-enum EnrollStatus { pending, approved, denied, revoked }
+enum EnrollStatus { pending, approved, denied, revoked, expired }
 
 enum EnrollRequestType { newEnrollment, changeEnrollment }

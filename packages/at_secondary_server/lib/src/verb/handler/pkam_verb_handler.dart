@@ -92,7 +92,10 @@ class PkamVerbHandler extends AbstractVerbHandler {
         EnrollDataStoreValue.fromJson(jsonDecode(atData));
     EnrollStatus enrollStatus =
         EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
-
+    if (enrollDataStoreValue.isExpired()) {
+      enrollDataStoreValue.approval!.state = EnrollStatus.expired.name;
+      enrollStatus = EnrollStatus.expired;
+    }
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
     apkamResult.response = _getApprovalStatus(
         enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
@@ -125,6 +128,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.errorCode = 'AT0027';
         response.errorMessage = 'enrollment_id: $enrollId is revoked';
         break;
+      case EnrollStatus.expired:
+        response.isError = true;
+        response.errorCode = 'AT0028';
+        response.errorMessage = 'enrollment_id: $enrollId is expired';
+        break;
       default:
         response.isError = true;
         response.errorCode = 'AT0026';
@@ -143,7 +151,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     bool isValidSignature = false;
     var storedSecret = await keyStore.get('private:$sessionId$atSign');
     storedSecret = storedSecret?.data;
-    if(signature == null || signature.isEmpty ){
+    if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');
       return false;
     }
