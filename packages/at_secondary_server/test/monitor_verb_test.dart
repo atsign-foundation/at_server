@@ -43,10 +43,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -81,10 +78,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -97,10 +91,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -146,10 +137,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -162,10 +150,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -202,10 +187,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -227,10 +209,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -268,10 +247,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -284,10 +260,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -335,10 +308,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -360,10 +330,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -409,10 +376,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -448,10 +412,7 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-      await monitorVerbHandler.sendNotificationToClient(
-          inboundConnection, notification);
+      await monitorVerbHandler.processAtNotification(atNotification);
       expect(inboundConnection.lastWrittenData, isEmpty);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -497,12 +458,9 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
-
       expect(
-          () async => await monitorVerbHandler.sendNotificationToClient(
-              inboundConnection, notification),
+          () async =>
+              await monitorVerbHandler.processAtNotification(atNotification),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
@@ -531,175 +489,13 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      Notification notification = monitorVerbHandler
-          .transformAtNotificationToNotification(atNotification);
       expect(
-          () async => await monitorVerbHandler.sendNotificationToClient(
-              inboundConnection, notification),
+          () async =>
+              await monitorVerbHandler.processAtNotification(atNotification),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
                   'Invalid regular expression. ${verbParams[AT_REGEX]} is not a valid regex')));
-    });
-    tearDown(() async => await verbTestsTearDown());
-  });
-
-  group('A group of tests related to getNotificationsAfterEpoch method', () {
-    setUp(() async {
-      await verbTestsSetUp();
-    });
-    test('A test to verify monitor does not return expired notifications',
-        () async {
-      HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification = (AtNotificationBuilder()
-            ..id = 'abc'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..ttl = 1)
-          .build();
-
-      List notificationValueList = [atNotification];
-      List responseList = monitorVerbHandler.getNotificationsAfterEpoch(
-          notificationValueList,
-          DateTime.now().toUtc().millisecondsSinceEpoch,
-          true);
-      expect(responseList.isEmpty, true);
-    });
-
-    test(
-        'A test to verify when millisecondsSinceEpoch is set notification after the given time are returned',
-        () async {
-      HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-      await Future.delayed(Duration(milliseconds: 1));
-      int milliSecondsSinceEpoch =
-          DateTime.now().toUtc().millisecondsSinceEpoch;
-      await Future.delayed(Duration(milliseconds: 1));
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = '@kevin'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'mobile.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-
-      List notificationValueList = [atNotification1, atNotification2];
-      List responseList = monitorVerbHandler.getNotificationsAfterEpoch(
-          notificationValueList, milliSecondsSinceEpoch, true);
-      expect(responseList.length, 1);
-      expect(responseList[0].id, '124');
-      expect(responseList[0].fromAtSign, '@kevin');
-      expect(responseList[0].notification, 'mobile.wavi');
-    });
-
-    test('A test to verify only received notification is sent', () async {
-      HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
-            ..type = NotificationType.self
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-      await Future.delayed(Duration(milliseconds: 1));
-      int milliSecondsSinceEpoch =
-          DateTime.now().toUtc().millisecondsSinceEpoch;
-      await Future.delayed(Duration(milliseconds: 1));
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = '@kevin'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'mobile.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-
-      List notificationValueList = [atNotification1, atNotification2];
-      List responseList = monitorVerbHandler.getNotificationsAfterEpoch(
-          notificationValueList, milliSecondsSinceEpoch, false);
-      expect(responseList.length, 1);
-      expect(responseList[0].id, '124');
-      expect(responseList[0].fromAtSign, '@kevin');
-      expect(responseList[0].notification, 'mobile.wavi');
-    });
-
-    test('A test to verify self and received notification are returned',
-        () async {
-      HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
-            ..type = NotificationType.self
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-      await Future.delayed(Duration(milliseconds: 1));
-      int milliSecondsSinceEpoch =
-          DateTime.now().toUtc().millisecondsSinceEpoch;
-      await Future.delayed(Duration(milliseconds: 1));
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = '@kevin'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'mobile.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-
-      List notificationValueList = [atNotification1, atNotification2];
-      List responseList = monitorVerbHandler.getNotificationsAfterEpoch(
-          notificationValueList, milliSecondsSinceEpoch, true);
-      expect(responseList.length, 1);
-      expect(responseList[0].id, '124');
-      expect(responseList[0].fromAtSign, '@kevin');
-      expect(responseList[0].notification, 'mobile.wavi');
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -710,7 +506,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   EnrollVerbHandler enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
   inboundConnection.getMetaData().isAuthenticated = true;
   inboundConnection.getMetaData().sessionID = 'dummy_session';
-  // TOTP Verb
+  // OTP Verb
   HashMap<String, String?> totpVerbParams =
       getVerbParam(VerbSyntax.otp, 'otp:get');
   OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
