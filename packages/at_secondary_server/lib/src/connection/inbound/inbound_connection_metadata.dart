@@ -26,8 +26,4 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// A unique identifier generated for a client's APKAM enroll request
   String? enrollmentId;
-
-  /// This is used by the connections where monitor is set to true to filter notifications
-  /// based on the regular expression.
-  String regex = '.*';
 }
