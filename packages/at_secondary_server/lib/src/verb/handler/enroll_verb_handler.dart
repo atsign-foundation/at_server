@@ -293,11 +293,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
     } else {
-      enrollmentRequestsMap[enrollmentKey] = {
-        'appName': enrollDataStoreValue.appName,
-        'deviceName': enrollDataStoreValue.deviceName,
-        'namespace': enrollDataStoreValue.namespaces
-      };
+      if (!(enrollDataStoreValue.approval!.state ==
+          EnrollStatus.expired.name)) {
+        enrollmentRequestsMap[enrollmentKey] = {
+          'appName': enrollDataStoreValue.appName,
+          'deviceName': enrollDataStoreValue.deviceName,
+          'namespace': enrollDataStoreValue.namespaces
+        };
+      }
     }
     return jsonEncode(enrollmentRequestsMap);
   }
@@ -307,11 +310,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      enrollmentRequestsMap[enrollmentKey] = {
-        'appName': enrollDataStoreValue.appName,
-        'deviceName': enrollDataStoreValue.deviceName,
-        'namespace': enrollDataStoreValue.namespaces
-      };
+      if (!(enrollDataStoreValue.approval!.state ==
+          EnrollStatus.expired.name)) {
+        enrollmentRequestsMap[enrollmentKey] = {
+          'appName': enrollDataStoreValue.appName,
+          'deviceName': enrollDataStoreValue.deviceName,
+          'namespace': enrollDataStoreValue.namespaces
+        };
+      }
     }
   }
 
