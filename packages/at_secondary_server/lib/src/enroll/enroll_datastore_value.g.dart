@@ -30,7 +30,7 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'namespaces': instance.namespaces,
       'apkamPublicKey': instance.apkamPublicKey,
       'requestType': _$EnrollRequestTypeEnumMap[instance.requestType],
-      'approval': instance.approval
+      'approval': instance.approval,
     };
 
 const _$EnrollRequestTypeEnumMap = {
