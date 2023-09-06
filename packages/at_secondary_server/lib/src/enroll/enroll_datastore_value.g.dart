@@ -19,8 +19,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
           $enumDecodeNullable(_$EnrollRequestTypeEnumMap, json['requestType'])
       ..approval = json['approval'] == null
           ? null
-          : EnrollApproval.fromJson(json['approval'] as Map<String, dynamic>)
-      ..expiresAt = DateTime.parse(json['expiresAt']);
+          : EnrollApproval.fromJson(json['approval'] as Map<String, dynamic>);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -31,8 +30,7 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'namespaces': instance.namespaces,
       'apkamPublicKey': instance.apkamPublicKey,
       'requestType': _$EnrollRequestTypeEnumMap[instance.requestType],
-      'approval': instance.approval,
-      'expiresAt': instance.expiresAt.toString()
+      'approval': instance.approval
     };
 
 const _$EnrollRequestTypeEnumMap = {
