@@ -341,7 +341,8 @@ void main() {
     test(
         'A test to verify revoke operations thrown exception when given enrollmentId is not in keystore',
         () async {
-      String enrollmentRequest = 'enroll:revoke:{"enrollmentId":"123"}';
+          String enrollmentId = '123';
+      String enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = true;
@@ -351,12 +352,11 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
-      expect(
-          () async => await enrollVerbHandler.processVerb(
-              response, verbParams, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message == 'enrollment id: 123 not found in keystore')));
+      await enrollVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorMessage, isNotNull);
+      assert(response.errorMessage!.contains('enrollment_id: $enrollmentId is expired'));
+      expect(response.errorCode, 'AT0028');
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -500,12 +500,12 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session_id';
-      expect(
-          () async => await enrollVerbHandler.processVerb(
-              response, enrollVerbParams, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message == 'The enrollment $enrollmentId is expired')));
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorMessage, isNotNull);
+      assert(response.errorMessage!.contains('enrollment_id: $enrollmentId is expired'));
+      expect(response.errorCode, 'AT0028');
     });
 
     test('A test to verify expired enrollment cannot be denied', () async {
@@ -532,12 +532,11 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session_id';
-      expect(
-          () async => await enrollVerbHandler.processVerb(
-              response, enrollVerbParams, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message == 'The enrollment $enrollmentId is expired')));
+      await enrollVerbHandler.processVerb(response, enrollVerbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorMessage, isNotNull);
+      assert(response.errorMessage!.contains('enrollment_id: $enrollmentId is expired'));
+      expect(response.errorCode, 'AT0028');
     });
 
     test('A test to verify TTL on approved enrollment is reset', () async {
