@@ -86,19 +86,23 @@ class PkamVerbHandler extends AbstractVerbHandler {
       String enrollId, String atSign) async {
     String enrollmentKey =
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
-    var enrollData = await keyStore.get(enrollmentKey);
-    final atData = enrollData.data;
-    final enrollDataStoreValue =
-        EnrollDataStoreValue.fromJson(jsonDecode(atData));
-    EnrollStatus enrollStatus =
-        EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
-    if (enrollDataStoreValue.isExpired()) {
-      enrollDataStoreValue.approval!.state = EnrollStatus.expired.name;
-      enrollStatus = EnrollStatus.expired;
-    }
+    late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    apkamResult.response = _getApprovalStatus(
-        enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
+    try {
+      var enrollData = await keyStore.get(enrollmentKey);
+      enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data));
+      EnrollStatus enrollStatus =
+          EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
+      apkamResult.response = _getApprovalStatus(
+          enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
+    } on KeyNotFoundException catch (e) {
+      logger.finer('Caught: $e');
+      apkamResult.response.isError = true;
+      apkamResult.response.errorCode = 'AT0028';
+      apkamResult.response.errorMessage =
+          'enrollment_id: $enrollId is expired (or) invalid';
+    }
     if (apkamResult.response.isError) {
       return apkamResult;
     }
@@ -127,11 +131,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.isError = true;
         response.errorCode = 'AT0027';
         response.errorMessage = 'enrollment_id: $enrollId is revoked';
-        break;
-      case EnrollStatus.expired:
-        response.isError = true;
-        response.errorCode = 'AT0028';
-        response.errorMessage = 'enrollment_id: $enrollId is expired';
         break;
       default:
         response.isError = true;
