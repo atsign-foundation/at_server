@@ -3,8 +3,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
@@ -47,8 +47,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
+    EnrollParams? enrollVerbParams;
     try {
-      EnrollParams? enrollVerbParams;
       if (verbParams[enrollParams] != null) {
         enrollVerbParams =
             EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
@@ -78,6 +78,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['reason'] = e.toString();
       logger.severe('Exception: $e\n$stackTrace');
       rethrow;
+    }
+    if (responseJson.containsKey('isError')) {
+      response.isError = true;
+      response.errorMessage = responseJson['errorMessage'];
+      response.errorCode = responseJson['errorCode'];
+      return;
     }
     response.data = jsonEncode(responseJson);
   }
@@ -177,14 +183,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
     logger.finer(
         'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
+    AtData? enrollData;
     // Fetch and returns enrollment data from the keystore.
     // Throw AtEnrollmentException, IF
     //   1. Enrollment key is not present in keystore
     //   2. Enrollment key is not active
-    AtData enrollData = await _fetchEnrollmentDataFromKeyStore(
-        enrollmentKey, currentAtSign, enrollmentIdFromParams);
+    try {
+      enrollData = await _fetchEnrollmentDataFromKeyStore(
+          enrollmentKey, currentAtSign, enrollmentIdFromParams, responseJson);
+    } on AtEnrollmentException catch (e) {
+      // Incase of
+      logger.finer('Caught: $e');
+      return;
+    }
     var enrollDataStoreValue =
-        EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+        EnrollDataStoreValue.fromJson(jsonDecode(enrollData!.data!));
 
     // Verifies whether the enrollment state matches the intended state
     // Throws AtEnrollmentException, if the enrollment state is different from
@@ -337,21 +350,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<AtData> _fetchEnrollmentDataFromKeyStore(
-      String enrollmentKey, currentAtSign, String? enrollmentId) async {
-    AtData enrollData;
+  Future<AtData?> _fetchEnrollmentDataFromKeyStore(String enrollmentKey,
+      currentAtSign, String? enrollmentId, responseJson) async {
     // KeyStore.get will not return null. If the value is null, keyStore.get
-    // throws KeyNotFoundException.
-    // So, enrollData will NOT be null.
+    // throws KeyNotFoundException which will be rethrown as an EnrollmentException
+    AtData? enrollData;
     try {
       enrollData = await keyStore.get('$enrollmentKey$currentAtSign');
-    } on KeyNotFoundException {
+    } on KeyNotFoundException catch (e) {
+      responseJson['isError'] = 'true';
+      responseJson['errorCode'] = 'AT0028';
+      responseJson['errorMessage'] =
+          'enrollment_id: $enrollmentId is expired or invalid';
       throw AtEnrollmentException(
-          'enrollment id: $enrollmentId not found in keystore');
+          'enrollmentId: $enrollmentId is not an active key');
     }
+
     // If enrollment is not active, throw AtEnrollmentException
     if (!SecondaryUtil.isActiveKey(enrollData)) {
-      throw AtEnrollmentException('The enrollment $enrollmentId is expired');
+      responseJson['isError'] = 'true';
+      responseJson['errorCode'] = 'AT0028';
+      responseJson['errorMessage'] = 'enrollment_id: $enrollmentId is expired';
+      throw AtEnrollmentException(
+          'enrollmentId: $enrollmentId is not an active key');
     }
     return enrollData;
   }

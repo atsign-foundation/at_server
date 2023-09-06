@@ -12,6 +12,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:meta/meta.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
@@ -88,20 +89,20 @@ class PkamVerbHandler extends AbstractVerbHandler {
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
+    AtData? enrollData;
     try {
-      var enrollData = await keyStore.get(enrollmentKey);
+      enrollData = await keyStore.get(enrollmentKey);
       enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data));
+          EnrollDataStoreValue.fromJson(jsonDecode(enrollData!.data!));
       EnrollStatus enrollStatus =
           EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
-      apkamResult.response = _getApprovalStatus(
-          enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
+      apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught: $e');
-      apkamResult.response.isError = true;
-      apkamResult.response.errorCode = 'AT0028';
-      apkamResult.response.errorMessage =
-          'enrollment_id: $enrollId is expired (or) invalid';
+      apkamResult.response = _getApprovalStatus(EnrollStatus.expired, enrollId);
+    }
+    if(!SecondaryUtil.isActiveKey(enrollData)){
+      apkamResult.response = _getApprovalStatus(EnrollStatus.expired, enrollId);
     }
     if (apkamResult.response.isError) {
       return apkamResult;
@@ -110,8 +111,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return apkamResult;
   }
 
-  Response _getApprovalStatus(
-      EnrollStatus enrollStatus, enrollId, approvalState) {
+  Response _getApprovalStatus(EnrollStatus enrollStatus, enrollId) {
     Response response = Response();
     switch (enrollStatus) {
       case EnrollStatus.denied:
@@ -131,6 +131,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.isError = true;
         response.errorCode = 'AT0027';
         response.errorMessage = 'enrollment_id: $enrollId is revoked';
+        break;
+      case EnrollStatus.expired:
+        response.isError = true;
+        response.errorCode = 'AT0028';
+        response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
         break;
       default:
         response.isError = true;
