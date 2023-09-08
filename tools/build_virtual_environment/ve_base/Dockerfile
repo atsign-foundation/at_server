@@ -1,4 +1,4 @@
-FROM dart:3.1.0@sha256:96d2e5d03b8356c2a7542716ace7dce745971efe1d03888a1d7ecd2e7c1dde36 AS buildimage
+FROM dart:3.1.0@sha256:a4aea0628b9feb242c7ff272fd5d46d1b5f8ea2dde32c8e00c28e06f67eaa916 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
