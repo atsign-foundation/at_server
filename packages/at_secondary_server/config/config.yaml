@@ -149,3 +149,9 @@ sync:
 #IMPORTANT NOTE : please set testingMode to true only if you know what you're doing. Set to false when not testing
 testing:
   testingMode: false
+
+# APKAM enrollment configurations
+enrollment:
+  # The maximum time in hours for an enrollment to expire, beyond which any action on enrollment is forbidden.
+  # Default values is 48 hours.
+  expiryInHours: 48
