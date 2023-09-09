@@ -3,7 +3,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
@@ -121,7 +120,7 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(approveEnrollResponse,
-          'AT0028:enrollment_id: $enrollmentId is expired or invalid');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
     });
 
     test(
@@ -141,7 +140,7 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0028:enrollment_id: $enrollmentId is expired or invalid');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
