@@ -18,7 +18,7 @@ dependencies:
   collection: 1.18.0
   basic_utils: 5.6.1
   ecdsa: 0.0.4
-  at_commons: 3.0.54
+  at_commons: 3.0.55
   at_utils: 3.0.15
   at_chops: 1.0.4
   at_lookup: 3.0.40
@@ -33,13 +33,6 @@ dependencies:
   mutex: 3.0.1
   yaml: 3.1.2
   logging: 1.2.0
-
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_commons
-      ref: apkam_new_error_code
 
 dev_dependencies:
   test: ^1.24.4
