@@ -120,7 +120,7 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(approveEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -140,7 +140,7 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
