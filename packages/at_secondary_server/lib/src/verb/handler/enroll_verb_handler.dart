@@ -181,22 +181,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     //   1. Enrollment key is not present in keystore
     //   2. Enrollment key is not active
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
+      enrollDataStoreValue =
+          await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       enrollStatus = EnrollStatus.expired;
     }
-    enrollStatus ??= getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
+    enrollStatus ??=
+        getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
     // Validates if enrollment is not expired
-    _validateEnrollmentValidity(enrollStatus, enrollmentIdFromParams!, response);
-    if(response.isError){
+    _validateEnrollmentValidity(
+        enrollStatus, enrollmentIdFromParams!, response);
+    if (response.isError) {
       return;
     }
     // Verifies whether the enrollment state matches the intended state
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
     _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
-    enrollDataStoreValue!.approval!.state = _getEnrollStatusEnum(operation).name;
+    enrollDataStoreValue!.approval!.state =
+        _getEnrollStatusEnum(operation).name;
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
 
     // If an enrollment is approved, we need the enrollment to be active
@@ -212,7 +216,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'approve') {
       var apkamPublicKeyInKeyStore =
           'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
-      var valueJson = {'apkamPublicKey':enrollDataStoreValue.apkamPublicKey};
+      var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
       var atData = AtData()..data = jsonEncode(valueJson);
       await keyStore.put(apkamPublicKeyInKeyStore, atData);
       await _storeEncryptionKeys(
@@ -339,13 +343,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
     }
   }
-  
+
   void _validateEnrollmentValidity(
       EnrollStatus enrollStatus, String enrollmentId, Response response) {
     if (EnrollStatus.expired == enrollStatus) {
       response.isError = true;
       response.errorCode = 'AT0028';
-      response.errorMessage = 'enrollment_id: $enrollmentId is expired or invalid';
+      response.errorMessage =
+          'enrollment_id: $enrollmentId is expired or invalid';
       return;
     }
   }
@@ -355,31 +360,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// from the intended state.
   void _verifyEnrollmentStateBeforeAction(
       String? operation, EnrollStatus enrollStatus) {
-    if (operation == 'approve' &&
-        EnrollStatus.pending != enrollStatus) {
+    if (operation == 'approve' && EnrollStatus.pending != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved');
     }
-    if (operation == 'revoke' &&
-        EnrollStatus.approved != enrollStatus) {
+    if (operation == 'revoke' && EnrollStatus.approved != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }
   }
-  
+
   Future<void> _updateEnrollmentValueAndResetTTL(
       String enrollmentKey, EnrollDataStoreValue enrollDataStoreValue) async {
     // Fetch the existing data
-    AtData? enrollData = await keyStore.get(enrollmentKey);
+    AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
     // Update key with new data
-    // only update ttl, expiresAt in metadata to conserve all the other valid data fields
+    // only update ttl, expiresAt in metadata to preserve all the other valid data fields
+    enrollMetaData?.ttl = 0;
+    enrollMetaData?.expiresAt = null;
     await keyStore.put(
         enrollmentKey,
         AtData()
           ..data = jsonEncode(enrollDataStoreValue.toJson())
-          ..metaData = (enrollData?.metaData
-            ?..ttl = 0
-            ..expiresAt = null),
+          ..metaData = enrollMetaData,
         skipCommit: true);
   }
 }
