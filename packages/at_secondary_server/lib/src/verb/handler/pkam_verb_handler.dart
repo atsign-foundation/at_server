@@ -100,7 +100,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught exception trying to fetch enrollment key: $e');
       apkamResult.response.isError = true;
-      apkamResult.response.errorCode = 'AT0029';
+      apkamResult.response.errorCode = 'AT0028';
       apkamResult.response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
     }
     if(!SecondaryUtil.isActiveKey(enrollData)){
@@ -136,7 +136,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
         break;
       case EnrollStatus.expired:
         response.isError = true;
-        response.errorCode = 'AT0029';
+        response.errorCode = 'AT0028';
         response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
         break;
       default:

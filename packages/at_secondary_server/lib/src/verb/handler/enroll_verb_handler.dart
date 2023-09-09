@@ -365,7 +365,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollData = await keyStore.get('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException catch (e) {
       responseJson['isError'] = 'true';
-      responseJson['errorCode'] = 'AT0029';
+      responseJson['errorCode'] = 'AT0028';
       responseJson['errorMessage'] =
           'enrollment_id: $enrollmentId is expired or invalid';
       logger.finer('Caught while fetching enrollment key: $e');
@@ -376,7 +376,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If enrollment is not active, throw AtEnrollmentException
     if (!SecondaryUtil.isActiveKey(enrollData)) {
       responseJson['isError'] = 'true';
-      responseJson['errorCode'] = 'AT0029';
+      responseJson['errorCode'] = 'AT0028';
       responseJson['errorMessage'] = 'enrollment_id: $enrollmentId is expired';
       throw AtEnrollmentException(
           'enrollmentId: $enrollmentId is expired');

@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
@@ -119,10 +120,8 @@ void main() {
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
-      expect(
-          approveEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(approveEnrollResponse,
+          'AT0028:enrollment_id: $enrollmentId is expired or invalid');
     });
 
     test(
@@ -141,10 +140,8 @@ void main() {
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(
-          denyEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(denyEnrollResponse,
+          'AT0028:enrollment_id: $enrollmentId is expired or invalid');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -695,8 +692,8 @@ void main() {
       expect(jsonDecode(enrollmentResponse)['status'], 'denied');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve enrollment
-      await socket_writer(
-          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
@@ -728,8 +725,8 @@ void main() {
       // Approve enrollment
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
-      await socket_writer(
-          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'approved');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
@@ -740,8 +737,8 @@ void main() {
       expect(jsonDecode(enrollmentResponse)['status'], 'revoked');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve a revoked enrollment
-      await socket_writer(
-          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
