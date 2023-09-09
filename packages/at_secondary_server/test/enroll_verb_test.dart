@@ -609,7 +609,7 @@ void main() {
     HashMap<String, String?> enrollVerbParams;
     setUp(() async {
       await verbTestsSetUp();
-      // Fetch TOTP
+      // Fetch OTP
       String totpCommand = 'otp:get';
       HashMap<String, String?> totpVerbParams =
           getVerbParam(VerbSyntax.otp, totpCommand);
@@ -632,6 +632,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
     });
+
     test('A test to verify denied enrollment cannot be approved', () async {
       //deny enrollment
       String denyEnrollmentCommand =

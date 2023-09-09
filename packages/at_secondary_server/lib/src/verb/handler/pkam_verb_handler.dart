@@ -12,7 +12,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_chops/at_chops.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:meta/meta.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
@@ -89,22 +88,15 @@ class PkamVerbHandler extends AbstractVerbHandler {
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    AtData? enrollData;
     try {
-      enrollData = await keyStore.get(enrollmentKey);
-      enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData!.data!));
-      EnrollStatus enrollStatus =
-          EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
+      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
+      EnrollStatus enrollStatus = getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
       apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught exception trying to fetch enrollment key: $e');
       apkamResult.response.isError = true;
       apkamResult.response.errorCode = 'AT0028';
       apkamResult.response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
-    }
-    if(!SecondaryUtil.isActiveKey(enrollData)){
-      apkamResult.response = _getApprovalStatus(EnrollStatus.expired, enrollId);
     }
     if (apkamResult.response.isError) {
       return apkamResult;
