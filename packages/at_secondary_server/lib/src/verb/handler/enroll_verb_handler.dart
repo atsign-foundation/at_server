@@ -86,6 +86,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
     response.data = jsonEncode(responseJson);
+    return;
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -191,9 +192,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       enrollData = await _fetchEnrollmentDataFromKeyStore(
           enrollmentKey, currentAtSign, enrollmentIdFromParams, responseJson);
-    } on AtEnrollmentException catch (e) {
-      // Incase of
-      logger.finer('Caught: $e');
+    } on AtEnrollmentException {
+      // When an enrollment key is expired or invalid AtEnrollmentException is thrown
       return;
     }
     var enrollDataStoreValue =
@@ -293,8 +293,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
     } else {
-      if (!(enrollDataStoreValue.approval!.state ==
-          EnrollStatus.expired.name)) {
+      if (enrollDataStoreValue.approval!.state !=
+          EnrollStatus.expired.name) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
@@ -310,8 +310,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      if (!(enrollDataStoreValue.approval!.state ==
-          EnrollStatus.expired.name)) {
+      if (enrollDataStoreValue.approval!.state !=
+          EnrollStatus.expired.name) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
@@ -365,20 +365,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollData = await keyStore.get('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException catch (e) {
       responseJson['isError'] = 'true';
-      responseJson['errorCode'] = 'AT0028';
+      responseJson['errorCode'] = 'AT0029';
       responseJson['errorMessage'] =
           'enrollment_id: $enrollmentId is expired or invalid';
+      logger.finer('Caught while fetching enrollment key: $e');
       throw AtEnrollmentException(
-          'enrollmentId: $enrollmentId is not an active key');
+          'enrollmentId: $enrollmentId is expired or invalid');
     }
 
     // If enrollment is not active, throw AtEnrollmentException
     if (!SecondaryUtil.isActiveKey(enrollData)) {
       responseJson['isError'] = 'true';
-      responseJson['errorCode'] = 'AT0028';
+      responseJson['errorCode'] = 'AT0029';
       responseJson['errorMessage'] = 'enrollment_id: $enrollmentId is expired';
       throw AtEnrollmentException(
-          'enrollmentId: $enrollmentId is not an active key');
+          'enrollmentId: $enrollmentId is expired');
     }
     return enrollData;
   }
