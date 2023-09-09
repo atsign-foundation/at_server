@@ -88,16 +88,15 @@ class PkamVerbHandler extends AbstractVerbHandler {
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
+    EnrollStatus? enrollStatus;
     try {
       enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
-      EnrollStatus enrollStatus = getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
-      apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
+      enrollStatus = getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught exception trying to fetch enrollment key: $e');
-      apkamResult.response.isError = true;
-      apkamResult.response.errorCode = 'AT0028';
-      apkamResult.response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
+      enrollStatus = EnrollStatus.expired;
     }
+    apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
     if (apkamResult.response.isError) {
       return apkamResult;
     }
