@@ -220,7 +220,6 @@ void main() {
     var enrollOperationMap = {
       'approve': 'approved',
       'deny': 'denied',
-      'revoke': 'revoked'
     };
 
     enrollOperationMap.forEach((operation, expectedStatus) {
@@ -462,5 +461,249 @@ void main() {
       expect(iterator.moveNext(), false);
     });
     tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to enrollment request expiry', () {
+    Response response = Response();
+    setUp(() async {
+      await verbTestsSetUp();
+      // Fetch TOTP
+      String totpCommand = 'otp:get';
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.otp, totpCommand);
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      await otpVerbHandler.processVerb(
+          response, totpVerbParams, inboundConnection);
+    });
+    test('A test to verify expired enrollment cannot be approved', () async {
+      // Enroll a request on an unauthenticated connection which will expire in 1 millisecond
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentExpiryInMills = 1;
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      String status = jsonDecode(response.data!)['status'];
+      expect(status, 'pending');
+      await Future.delayed(Duration(milliseconds: 1));
+      //Approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message == 'The enrollment $enrollmentId is expired')));
+    });
+
+    test('A test to verify expired enrollment cannot be denied', () async {
+      // Enroll a request on an unauthenticated connection which will expire in 1 millisecond
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentExpiryInMills = 1;
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      String status = jsonDecode(response.data!)['status'];
+      expect(status, 'pending');
+      //Deny enrollment
+      await Future.delayed(Duration(milliseconds: 1));
+      String approveEnrollmentCommand =
+          'enroll:deny:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message == 'The enrollment $enrollmentId is expired')));
+    });
+
+    test('A test to verify TTL on approved enrollment is reset', () async {
+      // Enroll a request on an unauthenticated connection which will expire in 1 minute
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentExpiryInMills = 60000;
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      String status = jsonDecode(response.data!)['status'];
+      expect(status, 'pending');
+      // Verify TTL is added to the enrollment
+      AtData? enrollmentData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(enrollmentData!.metaData!.expiresAt, isNotNull);
+      expect(enrollmentData.metaData!.ttl, 60000);
+      //Approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      // Verify TTL is reset
+      enrollmentData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(enrollmentData!.metaData!.expiresAt, null);
+      expect(enrollmentData.metaData!.ttl, 0);
+    });
+
+    test(
+        'A test to verify TTL is not set for enrollment requested on an authenticated connection',
+        () async {
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      expect(enrollmentId, isNotNull);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      // Verify TTL is not set
+      AtData? enrollmentData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(enrollmentData!.metaData!.expiresAt, null);
+      expect(enrollmentData.metaData!.ttl, null);
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to approve enrollment', () {
+    Response response = Response();
+    late String enrollmentId;
+    late EnrollVerbHandler enrollVerbHandler;
+    HashMap<String, String?> enrollVerbParams;
+    setUp(() async {
+      await verbTestsSetUp();
+      // Fetch TOTP
+      String totpCommand = 'otp:get';
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.otp, totpCommand);
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      await otpVerbHandler.processVerb(
+          response, totpVerbParams, inboundConnection);
+      // Enroll a request on an unauthenticated connection which will expire in 1 minute
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentExpiryInMills = 60000;
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      String status = jsonDecode(response.data!)['status'];
+      expect(status, 'pending');
+    });
+    test('A test to verify denied enrollment cannot be approved', () async {
+      //deny enrollment
+      String denyEnrollmentCommand =
+          'enroll:deny:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'denied');
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Cannot approve a denied enrollment. Only pending enrollments can be approved')));
+    });
+
+    test('A test to verify revoked enrollment cannot be approved', () async {
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String denyEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+      // Approved a revoked enrollment throws AtEnrollmentException
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, approveEnrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Cannot approve a revoked enrollment. Only pending enrollments can be approved')));
+    });
+
+    test('A test to verify pending enrollment cannot be revoked', () async {
+      //revoke enrollment
+      String denyEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
+    });
   });
 }
