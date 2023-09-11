@@ -48,21 +48,28 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     EnrollParams? enrollVerbParams;
     try {
+      // Ensure that enrollParams are present for all enroll operation
+      // Exclude operation 'list' which does not have enrollParams
       if (verbParams[enrollParams] == null) {
-        throw IllegalArgumentException('Verb parameters not provided for EnrollVerb');
-      }
+        if (operation != 'list') {
+          logger.severe(
+              'Enroll params is empty | EnrollParams: ${verbParams[enrollParams]}');
+          throw IllegalArgumentException('Enroll parameters not provided');
+        }
+      } else {
         enrollVerbParams =
             EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
+      }
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
-              enrollVerbParams, currentAtSign, responseJson, atConnection);
+              enrollVerbParams!, currentAtSign, responseJson, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
-          await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
+          await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
               operation, responseJson, response);
           break;
 
@@ -195,7 +202,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage =
-      'enrollment_id: $enrollmentId is expired or invalid';
+          'enrollment_id: $enrollmentIdFromParams is expired or invalid';
     }
     if (response.isError) {
       return;
@@ -203,7 +210,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Verifies whether the enrollment state matches the intended state
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
-    _verifyEnrollmentState(operation, enrollStatus);
+    _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
     enrollDataStoreValue!.approval!.state =
         _getEnrollStatusEnum(operation).name;
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
@@ -352,7 +359,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Verifies whether the enrollment state matches the intended state.
   /// Throws AtEnrollmentException: If the enrollment state is different
   /// from the intended state.
-  void _verifyEnrollmentState(
+  void _verifyEnrollmentStateBeforeAction(
       String? operation, EnrollStatus enrollStatus) {
     if (operation == 'approve' && EnrollStatus.pending != enrollStatus) {
       throw AtEnrollmentException(
