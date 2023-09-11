@@ -118,9 +118,7 @@ void main() {
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
-    print('AtSign 1: $atSign1ServerVersion');
-    print('AtSign 2: $atSign2ServerVersion');
-    if (atSign1ServerVersion > Version(3, 0, 35)) {
+    if (atSign2ServerVersion > Version(3, 0, 35)) {
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
       print('notify list verb response : $response');
@@ -733,7 +731,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -767,7 +765,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -800,7 +798,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -834,7 +832,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -868,7 +866,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -901,7 +899,7 @@ void main() {
             () async {
           // The notify ephemeral changes are not into Canary and production.
           // So, no point in running against and Canary and Prod servers.`
-          if (atSign1ServerVersion < Version(3, 0, 36)) {
+          if (atSign2ServerVersion < Version(3, 0, 36)) {
             return;
           }
 
@@ -934,7 +932,7 @@ void main() {
     test('notify verb without ttr for operation type delete', () async {
       // The notify ephemeral changes are not into Canary and production.
       // So, no point in running against and Canary and Prod servers.`
-      if (atSign1ServerVersion < Version(3, 0, 36)) {
+      if (atSign2ServerVersion < Version(3, 0, 36)) {
         return;
       }
 
