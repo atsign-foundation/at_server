@@ -36,7 +36,10 @@ dependencies:
 
 dependency_overrides:
   at_server_spec:
-    path: ../at_server_spec
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_server_spec
+      ref: rate_limit_spec
 
 dev_dependencies:
   test: ^1.24.4
