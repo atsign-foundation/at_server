@@ -351,7 +351,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.errorCode = 'AT0028';
       response.errorMessage =
           'enrollment_id: $enrollmentId is expired or invalid';
-      return;
     }
   }
 

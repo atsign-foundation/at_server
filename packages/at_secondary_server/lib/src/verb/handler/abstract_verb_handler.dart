@@ -90,7 +90,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtData enrollData = await keyStore.get(enrollmentKey);
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-     if(!SecondaryUtil.isActiveKey(enrollData)){
+      if (!SecondaryUtil.isActiveKey(enrollData) &&
+          enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
         enrollDataStoreValue.approval?.state = EnrollStatus.expired.name;
       }
       return enrollDataStoreValue;
