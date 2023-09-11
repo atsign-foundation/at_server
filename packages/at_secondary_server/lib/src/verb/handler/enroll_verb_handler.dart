@@ -48,20 +48,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     EnrollParams? enrollVerbParams;
     try {
-      if (verbParams[enrollParams] != null) {
+      if (verbParams[enrollParams] == null) {
+        throw IllegalArgumentException('Verb parameters not provided for EnrollVerb');
+      }
         enrollVerbParams =
             EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
-      }
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
-              enrollVerbParams!, currentAtSign, responseJson, atConnection);
+              enrollVerbParams, currentAtSign, responseJson, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
-          await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+          await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
               operation, responseJson, response);
           break;
 
@@ -190,15 +191,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollStatus ??=
         getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
     // Validates if enrollment is not expired
-    _validateEnrollmentValidity(
-        enrollStatus, enrollmentIdFromParams!, response);
+    if (EnrollStatus.expired == enrollStatus) {
+      response.isError = true;
+      response.errorCode = 'AT0028';
+      response.errorMessage =
+      'enrollment_id: $enrollmentId is expired or invalid';
+    }
     if (response.isError) {
       return;
     }
     // Verifies whether the enrollment state matches the intended state
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
-    _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
+    _verifyEnrollmentState(operation, enrollStatus);
     enrollDataStoreValue!.approval!.state =
         _getEnrollStatusEnum(operation).name;
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
@@ -220,7 +225,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var atData = AtData()..data = jsonEncode(valueJson);
       await keyStore.put(apkamPublicKeyInKeyStore, atData);
       await _storeEncryptionKeys(
-          enrollmentIdFromParams, enrollParams, currentAtSign);
+          enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
@@ -344,20 +349,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  void _validateEnrollmentValidity(
-      EnrollStatus enrollStatus, String enrollmentId, Response response) {
-    if (EnrollStatus.expired == enrollStatus) {
-      response.isError = true;
-      response.errorCode = 'AT0028';
-      response.errorMessage =
-          'enrollment_id: $enrollmentId is expired or invalid';
-    }
-  }
-
   /// Verifies whether the enrollment state matches the intended state.
   /// Throws AtEnrollmentException: If the enrollment state is different
   /// from the intended state.
-  void _verifyEnrollmentStateBeforeAction(
+  void _verifyEnrollmentState(
       String? operation, EnrollStatus enrollStatus) {
     if (operation == 'approve' && EnrollStatus.pending != enrollStatus) {
       throw AtEnrollmentException(
