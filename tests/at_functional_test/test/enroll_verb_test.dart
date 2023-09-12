@@ -119,10 +119,8 @@ void main() {
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
-      expect(
-          approveEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(approveEnrollResponse,
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -141,10 +139,8 @@ void main() {
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(
-          denyEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(denyEnrollResponse,
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {

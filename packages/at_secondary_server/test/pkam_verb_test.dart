@@ -131,6 +131,18 @@ void main() {
           'enrollment_id: enrollId is denied');
     });
 
+    test('verify apkam behaviour - case: enrollment expired ', () async {
+      enrollData.approval = EnrollApproval('denied');
+      when(() => mockKeyStore.get(any()))
+          .thenThrow(KeyNotFoundException('key not found'));
+
+      var apkamResult =
+      await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+      expect(apkamResult.response.isError, true);
+      expect(apkamResult.response.errorCode, 'AT0028');
+      expect(apkamResult.response.errorMessage,
+          'enrollment_id: enrollId is expired or invalid');
+    });
 
     tearDownAll(() async => await tearDownFunc());
   });

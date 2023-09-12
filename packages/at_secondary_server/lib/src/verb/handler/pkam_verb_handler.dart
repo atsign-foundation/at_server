@@ -86,16 +86,17 @@ class PkamVerbHandler extends AbstractVerbHandler {
       String enrollId, String atSign) async {
     String enrollmentKey =
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
-    var enrollData = await keyStore.get(enrollmentKey);
-    final atData = enrollData.data;
-    final enrollDataStoreValue =
-        EnrollDataStoreValue.fromJson(jsonDecode(atData));
-    EnrollStatus enrollStatus =
-        EnrollStatus.values.byName(enrollDataStoreValue.approval!.state);
-
+    late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    apkamResult.response = _getApprovalStatus(
-        enrollStatus, enrollId, enrollDataStoreValue.approval!.state);
+    EnrollStatus? enrollStatus;
+    try {
+      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
+      enrollStatus = getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
+    } on KeyNotFoundException catch (e) {
+      logger.finer('Caught exception trying to fetch enrollment key: $e');
+      enrollStatus = EnrollStatus.expired;
+    }
+    apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
     if (apkamResult.response.isError) {
       return apkamResult;
     }
@@ -103,8 +104,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return apkamResult;
   }
 
-  Response _getApprovalStatus(
-      EnrollStatus enrollStatus, enrollId, approvalState) {
+  Response _getApprovalStatus(EnrollStatus enrollStatus, enrollId) {
     Response response = Response();
     switch (enrollStatus) {
       case EnrollStatus.denied:
@@ -125,6 +125,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.errorCode = 'AT0027';
         response.errorMessage = 'enrollment_id: $enrollId is revoked';
         break;
+      case EnrollStatus.expired:
+        response.isError = true;
+        response.errorCode = 'AT0028';
+        response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
+        break;
       default:
         response.isError = true;
         response.errorCode = 'AT0026';
@@ -143,7 +148,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     bool isValidSignature = false;
     var storedSecret = await keyStore.get('private:$sessionId$atSign');
     storedSecret = storedSecret?.data;
-    if(signature == null || signature.isEmpty ){
+    if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');
       return false;
     }
