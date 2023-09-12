@@ -1,3 +1,5 @@
+## 3.0.36
+- fix: Implement notify ephemeral changes - Send notification with value without caching the key on receiver's secondary server 
 ## 3.0.35
 - chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
 - feat: APKAM keys verb implementation
