@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
@@ -89,6 +90,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtData enrollData = await keyStore.get(enrollmentKey);
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+      if (!SecondaryUtil.isActiveKey(enrollData) &&
+          enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
+        enrollDataStoreValue.approval?.state = EnrollStatus.expired.name;
+      }
       return enrollDataStoreValue;
     } on KeyNotFoundException {
       logger.severe('$enrollmentKey does not exist in the keystore');
