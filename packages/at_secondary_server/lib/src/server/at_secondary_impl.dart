@@ -421,6 +421,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         notificationResourceManager.setMaxRetries(newCount);
         QueueManager.getInstance().setMaxRetries(newCount);
       });
+
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
+        AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
+      });
+
+      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
+        AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
+      });
     }
   }
 

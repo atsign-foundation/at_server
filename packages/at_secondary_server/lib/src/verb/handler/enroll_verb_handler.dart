@@ -105,11 +105,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// and its corresponding state.
   ///
   /// Throws "AtEnrollmentException", if the OTP provided is invalid.
+  /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
+  /// a time window.
   Future<void> _handleEnrollmentRequest(
       EnrollParams enrollParams,
       currentAtSign,
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
+    if (!atConnection.isRequestAllowed()) {
+      throw AtThrottleLimitExceeded(
+          'Enrollment requests have exceeded the limit within the specified time frame');
+    }
     if (!atConnection.getMetaData().isAuthenticated) {
       var otp = enrollParams.otp;
       if (otp == null ||
