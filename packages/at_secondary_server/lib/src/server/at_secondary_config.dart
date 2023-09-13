@@ -121,11 +121,21 @@ class AtSecondaryConfig {
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
-  static final int _enrollmentExpiryInHours = 48;
-
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
+
+  // Enrollment Configurations
+  static const int _enrollmentExpiryInHours = 48;
+  static int _maxEnrollRequestsAllowed = 5;
+
+  static final int _timeFrameInHours = 1;
+
+  // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
+  // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
+  // via the config verb
+  static int _timeFrameInMills =
+      Duration(hours: _timeFrameInHours).inMilliseconds;
 
   static int get enrollmentExpiryInHours => _enrollmentExpiryInHours;
 
@@ -716,6 +726,54 @@ class AtSecondaryConfig {
     }
   }
 
+  static int get maxEnrollRequestsAllowed {
+    // For easy of testing purpose, we need to reduce the number of requests.
+    // So, in testing mode, enable to modify the "maxEnrollRequestsAllowed"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode) {
+      return _maxEnrollRequestsAllowed;
+    }
+    var result = _getIntEnvVar('maxEnrollRequestsAllowed');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['enrollment', 'maxRequestsPerTimeFrame']);
+    } on ElementNotFoundException {
+      return _maxEnrollRequestsAllowed;
+    }
+  }
+
+  static set maxEnrollRequestsAllowed(int value) {
+    _maxEnrollRequestsAllowed = value;
+  }
+
+  static int get timeFrameInMills {
+    // For easy of testing purpose, we need to reduce the time frame.
+    // So, in testing mode, enable to modify the "timeFrameInMills"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode) {
+      return _timeFrameInMills;
+    }
+    var result = _getIntEnvVar('enrollTimeFrameInHours');
+    if (result != null) {
+      return Duration(hours: result).inMilliseconds;
+    }
+    try {
+      return Duration(
+              hours: getConfigFromYaml(['enrollment', 'timeFrameInHours']))
+          .inMilliseconds;
+    } on ElementNotFoundException {
+      return Duration(hours: _timeFrameInHours).inMilliseconds;
+    }
+  }
+
+  static set timeFrameInMills(int timeWindowInMills) {
+    _timeFrameInMills = timeWindowInMills;
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (testingMode) {
@@ -786,6 +844,10 @@ class AtSecondaryConfig {
         return false;
       case ModifiableConfigs.doCacheRefreshNow:
         return false;
+      case ModifiableConfigs.maxRequestsPerTimeFrame:
+        return maxEnrollRequestsAllowed;
+      case ModifiableConfigs.timeFrameInMills:
+        return Duration(hours: _timeFrameInHours).inMilliseconds;
     }
   }
 
@@ -866,7 +928,9 @@ enum ModifiableConfigs {
   maxNotificationRetries,
   checkCertificateReload,
   shouldReloadCertificates,
-  doCacheRefreshNow
+  doCacheRefreshNow,
+  maxRequestsPerTimeFrame,
+  timeFrameInMills
 }
 
 class ModifiableConfigurationEntry {

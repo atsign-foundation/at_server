@@ -1,11 +1,18 @@
 import 'dart:io';
 
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
   var metadata = InboundConnectionMetadata();
+
+  @override
+  int maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
+  
+  @override
+  int timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
 
   @override
   void acceptRequests(Function(String p1, InboundConnection p2) callback,
@@ -54,4 +61,9 @@ class DummyInboundConnection implements InboundConnection {
 
   @override
   Socket? receiverSocket;
+
+  @override
+  bool isRequestAllowed() {
+    return true;
+  }
 }
