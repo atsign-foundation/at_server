@@ -4,12 +4,14 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -26,6 +28,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => enrollVerb;
 
+  @visibleForTesting
+  int enrollmentExpiryInMills =
+      Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours).inMilliseconds;
+
   @override
   Future<void> processVerb(
       Response response,
@@ -40,23 +46,31 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
+    EnrollParams? enrollVerbParams;
     try {
-      var enrollVerbParams;
-      if (verbParams[enrollParams] != null) {
+      // Ensure that enrollParams are present for all enroll operation
+      // Exclude operation 'list' which does not have enrollParams
+      if (verbParams[enrollParams] == null) {
+        if (operation != 'list') {
+          logger.severe(
+              'Enroll params is empty | EnrollParams: ${verbParams[enrollParams]}');
+          throw IllegalArgumentException('Enroll parameters not provided');
+        }
+      } else {
         enrollVerbParams =
             EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
       }
       switch (operation) {
         case 'request':
           await _handleEnrollmentRequest(
-              enrollVerbParams, currentAtSign, responseJson, atConnection);
+              enrollVerbParams!, currentAtSign, responseJson, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
-          await _handleEnrollmentPermissions(
-              enrollVerbParams, currentAtSign, operation, responseJson);
+          await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+              operation, responseJson, response);
           break;
 
         case 'list':
@@ -65,14 +79,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           return;
       }
     } catch (e, stackTrace) {
-      response.isError = true;
-      response.errorMessage = e.toString();
-      responseJson['status'] = 'exception';
-      responseJson['reason'] = e.toString();
       logger.severe('Exception: $e\n$stackTrace');
       rethrow;
     }
     response.data = jsonEncode(responseJson);
+    return;
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -94,11 +105,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// and its corresponding state.
   ///
   /// Throws "AtEnrollmentException", if the OTP provided is invalid.
+  /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
+  /// a time window.
   Future<void> _handleEnrollmentRequest(
       EnrollParams enrollParams,
       currentAtSign,
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
+    if (!atConnection.isRequestAllowed()) {
+      throw AtThrottleLimitExceeded(
+          'Enrollment requests have exceeded the limit within the specified time frame');
+    }
     if (!atConnection.getMetaData().isAuthenticated) {
       var otp = enrollParams.otp;
       if (otp == null ||
@@ -119,7 +136,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollParams.appName!,
         enrollParams.deviceName!,
         enrollParams.apkamPublicKey!);
-
+    enrollmentValue.namespaces = enrollNamespaces;
+    enrollmentValue.requestType = EnrollRequestType.newEnrollment;
+    AtData enrollData;
     if (atConnection.getMetaData().authType != null &&
         atConnection.getMetaData().authType == AuthType.cram) {
       // auto approve request from connection that is CRAM authenticated.
@@ -137,15 +156,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(
           AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
+      enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
+      enrollData = AtData()
+        ..data = jsonEncode(enrollmentValue.toJson())
+        // Set TTL to the pending enrollments.
+        // The enrollments will expire after configured
+        // expiry limit, beyond which any action (approve/deny/revoke) on an
+        // enrollment is forbidden
+        ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
     }
-
-    enrollmentValue.namespaces = enrollNamespaces;
-    enrollmentValue.requestType = EnrollRequestType.newEnrollment;
-    AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     logger.finer('enrollData: $enrollData');
     await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
   }
@@ -158,41 +181,64 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       EnrollParams enrollParams,
       currentAtSign,
       String? operation,
-      Map<dynamic, dynamic> responseJson) async {
+      Map<dynamic, dynamic> responseJson,
+      Response response) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
-    var key =
+    String enrollmentKey =
         '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    logger.finer('key: $key$currentAtSign');
-    var enrollData;
+    logger.finer(
+        'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
+    EnrollDataStoreValue? enrollDataStoreValue;
+    EnrollStatus? enrollStatus;
+    // Fetch and returns enrollment data from the keystore.
+    // Throw AtEnrollmentException, IF
+    //   1. Enrollment key is not present in keystore
+    //   2. Enrollment key is not active
     try {
-      enrollData = await keyStore.get('$key$currentAtSign');
+      enrollDataStoreValue =
+          await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException {
-      throw AtEnrollmentException(
-          'enrollment id: $enrollmentIdFromParams not found in keystore');
+      // When an enrollment key is expired or invalid
+      enrollStatus = EnrollStatus.expired;
     }
-    if (enrollData != null) {
-      final existingAtData = enrollData.data;
-      var enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(existingAtData));
+    enrollStatus ??=
+        getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
+    // Validates if enrollment is not expired
+    if (EnrollStatus.expired == enrollStatus) {
+      response.isError = true;
+      response.errorCode = 'AT0028';
+      response.errorMessage =
+          'enrollment_id: $enrollmentIdFromParams is expired or invalid';
+    }
+    if (response.isError) {
+      return;
+    }
+    // Verifies whether the enrollment state matches the intended state
+    // Throws AtEnrollmentException, if the enrollment state is different from
+    // the intended state
+    _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
+    enrollDataStoreValue!.approval!.state =
+        _getEnrollStatusEnum(operation).name;
+    responseJson['status'] = _getEnrollStatusEnum(operation).name;
 
-      enrollDataStoreValue.approval!.state =
-          _getEnrollStatusEnum(operation).name;
-      responseJson['status'] = _getEnrollStatusEnum(operation).name;
-      AtData updatedEnrollData = AtData()
-        ..data = jsonEncode(enrollDataStoreValue.toJson());
-      await keyStore.put('$key$currentAtSign', updatedEnrollData,
-          skipCommit: true);
-      // when enrollment is approved store the apkamPublicKey of the enrollment
-      if (operation == 'approve') {
-        var apkamPublicKeyInKeyStore =
-            'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
-        var valueJson = {};
-        valueJson[apkamPublicKey] = enrollDataStoreValue.apkamPublicKey;
-        var atData = AtData()..data = jsonEncode(valueJson);
-        await keyStore.put(apkamPublicKeyInKeyStore, atData);
-        await _storeEncryptionKeys(
-            enrollmentIdFromParams!, enrollParams, currentAtSign);
-      }
+    // If an enrollment is approved, we need the enrollment to be active
+    // to subsequently revoke the enrollment. Hence reset TTL and
+    // expiredAt on metadata.
+    /* TODO: Currently TTL is reset on all the enrollments.
+        However, if the enrollment state is denied or revoked,
+        unless we wanted to display denied or revoked enrollments in the UI,
+        we can let the TTL be, so that the enrollment will be deleted subsequently.*/
+    await _updateEnrollmentValueAndResetTTL(
+        '$enrollmentKey$currentAtSign', enrollDataStoreValue);
+    // when enrollment is approved store the apkamPublicKey of the enrollment
+    if (operation == 'approve') {
+      var apkamPublicKeyInKeyStore =
+          'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
+      var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
+      var atData = AtData()..data = jsonEncode(valueJson);
+      await keyStore.put(apkamPublicKeyInKeyStore, atData);
+      await _storeEncryptionKeys(
+          enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
@@ -255,11 +301,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
     } else {
-      enrollmentRequestsMap[enrollmentKey] = {
-        'appName': enrollDataStoreValue.appName,
-        'deviceName': enrollDataStoreValue.deviceName,
-        'namespace': enrollDataStoreValue.namespaces
-      };
+      if (enrollDataStoreValue.approval!.state != EnrollStatus.expired.name) {
+        enrollmentRequestsMap[enrollmentKey] = {
+          'appName': enrollDataStoreValue.appName,
+          'deviceName': enrollDataStoreValue.deviceName,
+          'namespace': enrollDataStoreValue.namespaces
+        };
+      }
     }
     return jsonEncode(enrollmentRequestsMap);
   }
@@ -269,11 +317,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      enrollmentRequestsMap[enrollmentKey] = {
-        'appName': enrollDataStoreValue.appName,
-        'deviceName': enrollDataStoreValue.deviceName,
-        'namespace': enrollDataStoreValue.namespaces
-      };
+      if (enrollDataStoreValue.approval!.state != EnrollStatus.expired.name) {
+        enrollmentRequestsMap[enrollmentKey] = {
+          'appName': enrollDataStoreValue.appName,
+          'deviceName': enrollDataStoreValue.deviceName,
+          'namespace': enrollDataStoreValue.namespaces
+        };
+      }
     }
   }
 
@@ -310,5 +360,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       logger.severe(
           'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
     }
+  }
+
+  /// Verifies whether the enrollment state matches the intended state.
+  /// Throws AtEnrollmentException: If the enrollment state is different
+  /// from the intended state.
+  void _verifyEnrollmentStateBeforeAction(
+      String? operation, EnrollStatus enrollStatus) {
+    if (operation == 'approve' && EnrollStatus.pending != enrollStatus) {
+      throw AtEnrollmentException(
+          'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved');
+    }
+    if (operation == 'revoke' && EnrollStatus.approved != enrollStatus) {
+      throw AtEnrollmentException(
+          'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
+    }
+  }
+
+  Future<void> _updateEnrollmentValueAndResetTTL(
+      String enrollmentKey, EnrollDataStoreValue enrollDataStoreValue) async {
+    // Fetch the existing data
+    AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
+    // Update key with new data
+    // only update ttl, expiresAt in metadata to preserve all the other valid data fields
+    enrollMetaData?.ttl = 0;
+    enrollMetaData?.expiresAt = null;
+    await keyStore.put(
+        enrollmentKey,
+        AtData()
+          ..data = jsonEncode(enrollDataStoreValue.toJson())
+          ..metaData = enrollMetaData,
+        skipCommit: true);
   }
 }

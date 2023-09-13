@@ -1,3 +1,6 @@
+## 3.0.15
+- feat: Introduce AtRateLimiter to limit the requests based on the criteria defined
+- fix: Modify InboundConnection to implement AtRateLimiter to limit requests
 ## 3.0.14
 - fix: Rename TOTP to OTP
 ## 3.0.13

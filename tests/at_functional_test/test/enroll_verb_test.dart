@@ -119,10 +119,8 @@ void main() {
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
-      expect(
-          approveEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(approveEnrollResponse,
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -141,10 +139,8 @@ void main() {
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(
-          denyEnrollResponse.contains(
-              'enrollment id: $dummyEnrollmentId not found in keystore'),
-          true);
+      expect(denyEnrollResponse,
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -651,4 +647,230 @@ void main() {
       });
     });
   });
+
+  group('A group of negative tests on enroll verb', () {
+    late String enrollmentId;
+    late String enrollmentResponse;
+    setUp(() async {
+      // Get TOTP from server
+      String otp = await _getOTPFromServer(firstAtsign);
+      await socketConnection1?.close();
+      // Close the connection and create a new connection and send an enrollment request on an
+      // unauthenticated connection.
+      await _connect();
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      enrollmentResponse = await read();
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      socketConnection1?.close();
+    });
+    test(
+        'A test to verify error is returned when pending enrollment is revoked',
+        () async {
+      // Revoke enrollment on an authenticate connection
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign);
+      await socket_writer(
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('error:', '');
+      expect(jsonDecode(enrollmentResponse)['errorDescription'],
+          'Internal server exception : Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+    });
+
+    test(
+        'A test to verify error is returned when denied enrollment is approved',
+        () async {
+      // Deny enrollment on an authenticate connection
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign);
+      await socket_writer(
+          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('data:', '');
+      expect(jsonDecode(enrollmentResponse)['status'], 'denied');
+      expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
+      // Approve enrollment
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('error:', '');
+      expect(
+          jsonDecode(enrollmentResponse)['errorDescription'],
+          'Internal server exception : Cannot approve a denied enrollment. '
+          'Only pending enrollments can be approved');
+    });
+
+    test('A test to verify error is returned when denied enrollment is revoked',
+        () async {
+      // Deny enrollment on an authenticate connection
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign);
+      await socket_writer(
+          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('data:', '');
+      expect(jsonDecode(enrollmentResponse)['status'], 'denied');
+      expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
+      // Revoke enrollment
+      await socket_writer(
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('error:', '');
+      expect(
+          jsonDecode(enrollmentResponse)['errorDescription'],
+          'Internal server exception : Cannot revoke a denied enrollment. '
+          'Only approved enrollments can be revoked');
+    });
+
+    test('A test to verify revoked enrollment cannot be approved', () async {
+      // Approve enrollment
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign);
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('data:', '');
+      expect(jsonDecode(enrollmentResponse)['status'], 'approved');
+      expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
+      // Revoke enrollment
+      await socket_writer(
+          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('data:', '');
+      expect(jsonDecode(enrollmentResponse)['status'], 'revoked');
+      expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
+      // Approve a revoked enrollment
+      await socket_writer(socketConnection1!,
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      enrollmentResponse = (await read()).replaceAll('error:', '');
+      expect(
+          jsonDecode(enrollmentResponse)['errorDescription'],
+          'Internal server exception : Cannot approve a revoked enrollment. '
+          'Only pending enrollments can be approved');
+    });
+  });
+
+  group('A group of test related to Rate limiting enrollment requests', () {
+    String otp = '';
+    setUp(() async {
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      var fromResponse = await read();
+      fromResponse = fromResponse.replaceAll('data:', '');
+      var cramResponse = getDigest(firstAtsign, fromResponse);
+      await socket_writer(socketConnection1!, 'cram:$cramResponse');
+      var cramResult = await read();
+      expect(cramResult, 'data:success\n');
+      await socket_writer(
+          socketConnection1!, 'config:set:maxRequestsPerTimeFrame=1\n');
+      var configResponse = await read();
+      expect(configResponse.trim(), 'data:ok');
+      await socket_writer(
+          socketConnection1!, 'config:set:timeFrameInMills=100\n');
+      configResponse = await read();
+      expect(configResponse.trim(), 'data:ok');
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
+    });
+
+    test(
+        'A test to verify exception is thrown when request exceed the configured limit',
+        () async {
+      SecureSocket unAuthenticatedConnection =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(unAuthenticatedConnection);
+      var enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      var enrollmentResponse =
+          jsonDecode((await read()).replaceAll('data:', ''));
+      expect(enrollmentResponse['status'], 'pending');
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      enrollmentResponse = await read()
+        ..replaceAll('error:', '');
+      expect(
+          enrollmentResponse.contains(
+              'Enrollment requests have exceeded the limit within the specified time frame'),
+          true);
+    });
+
+    test('A test to verify request is successful after the time window',
+        () async {
+      SecureSocket unAuthenticatedConnection =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(unAuthenticatedConnection);
+      var enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      var enrollmentResponse =
+          jsonDecode((await read()).replaceAll('data:', ''));
+      expect(enrollmentResponse['status'], 'pending');
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      enrollmentResponse = await read()
+        ..replaceAll('error:', '');
+      expect(
+          enrollmentResponse.contains(
+              'Enrollment requests have exceeded the limit within the specified time frame'),
+          true);
+      await Future.delayed(Duration(milliseconds: 110));
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      enrollmentResponse = jsonDecode((await read()).replaceAll('data:', ''));
+      expect(enrollmentResponse['status'], 'pending');
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+    });
+
+    test('A test to verify rate limit is per connection', () async {
+      SecureSocket unAuthenticatedConnection =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(unAuthenticatedConnection);
+      var enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      var enrollmentResponse =
+          jsonDecode((await read()).replaceAll('data:', ''));
+      expect(enrollmentResponse['status'], 'pending');
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(unAuthenticatedConnection, enrollRequest);
+      enrollmentResponse = await read()
+        ..replaceAll('error:', '');
+      expect(
+          enrollmentResponse.contains(
+              'Enrollment requests have exceeded the limit within the specified time frame'),
+          true);
+      SecureSocket secondUnAuthenticatedConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(secondUnAuthenticatedConnection2);
+      enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
+      await socket_writer(secondUnAuthenticatedConnection2, enrollRequest);
+      enrollmentResponse = jsonDecode((await read()).replaceAll('data:', ''));
+      expect(enrollmentResponse['status'], 'pending');
+      expect(enrollmentResponse['enrollmentId'], isNotNull);
+    });
+
+    tearDown(() async {
+      socket_writer(socketConnection1!, 'config:reset:maxRequestsAllowed');
+      await read();
+      socket_writer(socketConnection1!, 'config:reset:timeWindowInMills');
+      await read();
+    });
+  });
+}
+
+Future<String> _getOTPFromServer(String atSign) async {
+  await socket_writer(socketConnection1!, 'from:$atSign');
+  var fromResponse = await read();
+  fromResponse = fromResponse.replaceAll('data:', '');
+  var pkamDigest = generatePKAMDigest(atSign, fromResponse);
+  await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
+  // Calling read to remove the PKAM request from the queue
+  await read();
+  await socket_writer(socketConnection1!, 'otp:get');
+  String otp = await read();
+  otp = otp.replaceAll('data:', '').trim();
+  return otp;
 }
