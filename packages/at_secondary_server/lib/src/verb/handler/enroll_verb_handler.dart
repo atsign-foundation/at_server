@@ -114,24 +114,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
     String? otp = enrollParams.otp;
-    await _validateConnectionAuth(otp, atConnection, operation);
+    await _validateConnectionAuthAndOtp(otp, atConnection, operation);
     if (!atConnection.isRequestAllowed()) {
       throw AtThrottleLimitExceeded(
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
-    if (!atConnection.getMetaData().isAuthenticated) {
-      var otp = enrollParams.otp;
-      if (otp == null ||
-          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
-        throw AtEnrollmentException(
-            'invalid otp. Cannot process enroll request');
-      }
-    }
-    var enrollNamespaces = enrollParams.namespaces ?? {};
-    var newEnrollmentId = Uuid().v4();
-    var key =
-        '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    logger.finer('key: $key$currentAtSign');
 
     // assigns valid enrollmentId and enrollmentNamespaces to the enrollParams object
     // also constructs and returns an enrollment key
@@ -471,7 +458,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return enrollmentKey;
   }
 
-  Future<void> _validateConnectionAuth(otp, atConnection, operation) async {
+  Future<void> _validateConnectionAuthAndOtp(otp, atConnection, operation) async {
     if (operation == 'update' &&
         atConnection.getMetaData().authType != AuthType.apkam) {
       throw AtEnrollmentException(
