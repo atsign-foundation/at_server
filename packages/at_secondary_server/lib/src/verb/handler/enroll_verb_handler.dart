@@ -105,6 +105,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// and its corresponding state.
   ///
   /// Throws "AtEnrollmentException", if the OTP provided is invalid.
+  /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
+  /// a time window.
   Future<void> _handleEnrollmentRequest(
       EnrollParams enrollParams,
       currentAtSign,
@@ -113,6 +115,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     String? otp = enrollParams.otp;
     await _validateConnectionAuth(otp, atConnection, operation);
+    if (!atConnection.isRequestAllowed()) {
+      throw AtThrottleLimitExceeded(
+          'Enrollment requests have exceeded the limit within the specified time frame');
+    }
+    if (!atConnection.getMetaData().isAuthenticated) {
+      var otp = enrollParams.otp;
+      if (otp == null ||
+          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
+        throw AtEnrollmentException(
+            'invalid otp. Cannot process enroll request');
+      }
+    }
+    var enrollNamespaces = enrollParams.namespaces ?? {};
+    var newEnrollmentId = Uuid().v4();
+    var key =
+        '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    logger.finer('key: $key$currentAtSign');
 
     // assigns valid enrollmentId and enrollmentNamespaces to the enrollParams object
     // also constructs and returns an enrollment key
