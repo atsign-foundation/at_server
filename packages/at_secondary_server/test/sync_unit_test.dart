@@ -6,7 +6,9 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -16,6 +18,7 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 // How the server processes updates from the client (including the responses it generates) and what the expectations
 // are - i.e. can we reject? what happens when we reject? and more
@@ -824,6 +827,98 @@ void main() {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['value'], '8897896765');
         expect(syncResponseList[0]['operation'], '*');
+      });
+      tearDown(() async => await tearDownMethod());
+    });
+
+    group('A group of tests on APKAM Enrollment', () {
+      setUp(() async => await setUpMethod());
+      test(
+          'A test to verify keys whose namespace are enrolled are only returned',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
+        var enrollmentId = Uuid().v4();
+        String enrollmentKey =
+            '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace@alice';
+        final enrollJson = {
+          'sessionId': '123',
+          'appName': 'wavi',
+          'deviceName': 'pixel',
+          'namespaces': {'wavi': 'rw'},
+          'apkamPublicKey': 'testPublicKeyValue',
+          'requestType': 'newEnrollment',
+          'approval': {'state': 'approved'}
+        };
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put(enrollmentKey, AtData()..data = jsonEncode(enrollJson));
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
+            enrollmentId;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponseList = jsonDecode(response.data!);
+        expect(syncResponseList.length, 1);
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['operation'], '+');
+      });
+
+      test('A test to verify all keys are returned when enrollment contains *:rw',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
+        var enrollmentId = Uuid().v4();
+        String enrollmentKey =
+            '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace@alice';
+        final enrollJson = {
+          'sessionId': '123',
+          'appName': 'wavi',
+          'deviceName': 'pixel',
+          'namespaces': {'wavi': 'rw', '*': 'rw'},
+          'apkamPublicKey': 'testPublicKeyValue',
+          'requestType': 'newEnrollment',
+          'approval': {'state': 'approved'}
+        };
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put(enrollmentKey, AtData()..data = jsonEncode(enrollJson), skipCommit: true);
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
+            enrollmentId;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponseList = jsonDecode(response.data!);
+        expect(syncResponseList.length, 2);
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['operation'], '+');
+        expect(syncResponseList[1]['atKey'], 'public:mobile.buzz@alice');
+        expect(syncResponseList[1]['operation'], '+');
+
       });
       tearDown(() async => await tearDownMethod());
     });
