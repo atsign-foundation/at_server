@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -730,7 +731,7 @@ void main() {
       var apkamSymmetricKeyEncrypter = Encrypter(AES(Key.fromSecureRandom(32)));
 
       var encryptedDefaultEncryptionPrivateKey = apkamSymmetricKeyEncrypter
-          .encrypt(encryptionPrivateKey, iv: IV.fromLength(16))
+          .encrypt(encryptionPrivateKey, iv: IV(Uint8List(16)))
           .base64;
       var valueJson = {};
       valueJson['value'] = encryptedDefaultEncryptionPrivateKey;

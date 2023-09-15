@@ -413,7 +413,7 @@ jobs:
         with:
           repository: atsign-foundation/at_tools
           path: at_tools
-          ref: trunk
+          ref: gkc/work-around-encrypt-package-breaking-change
 
       - name: Fetch Cram Keys
         id: cram_keys
