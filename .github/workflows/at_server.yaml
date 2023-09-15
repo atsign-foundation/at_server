@@ -406,14 +406,14 @@ jobs:
         with:
           repository: atsign-foundation/at_libraries
           path: at_libraries
-          ref: gkc/at-client-update
+          ref: trunk
 
       - name: Cloning at_tools
         uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
         with:
           repository: atsign-foundation/at_tools
           path: at_tools
-          ref: gkc/work-around-encrypt-package-breaking-change
+          ref: trunk
 
       - name: Fetch Cram Keys
         id: cram_keys
