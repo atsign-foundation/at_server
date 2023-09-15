@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
@@ -102,7 +103,7 @@ void main() {
       //3. put encryption private key which is encrypted with self symmetric key
       var rsaPrivateKey = encryptionPrivateKeyMap[firstAtsign];
       var encryptedPrivateKey = Encrypter(AES(Key.fromBase64(aesKey)))
-          .encrypt(rsaPrivateKey!, iv: IV.fromLength(16))
+          .encrypt(rsaPrivateKey!, iv: IV(Uint8List(16)))
           .base64;
       var privateKeyCommand =
           'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:myAESkey:keyName:myPrivateKey $encryptedPrivateKey';
@@ -276,7 +277,7 @@ void main() {
       //3. put encryption private key which is encrypted with self symmetric key
       var rsaPrivateKey = encryptionPrivateKeyMap[firstAtsign];
       var encryptedPrivateKey = Encrypter(AES(Key.fromBase64(aesKey)))
-          .encrypt(rsaPrivateKey!, iv: IV.fromLength(16))
+          .encrypt(rsaPrivateKey!, iv: IV(Uint8List(16)))
           .base64;
       var privateKeyCommand =
           'keys:put:private:namespace:__global:appName:wavi:deviceName:pixel:keyType:aes:encryptionKeyName:myAESkey:keyName:myPrivateKey $encryptedPrivateKey';
