@@ -124,7 +124,7 @@ void main() {
   group('A group of notificationStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        '${Directory.current.path}/test/hive',
+        '${Directory.current.path}/unit_test_storage',
         atsign: '@alice'));
     // test for Notification Stats
     test('notification stats command accept test', () {
@@ -288,7 +288,7 @@ void main() {
   group('A group of commitLogCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        '${Directory.current.path}/test/hive',
+        '${Directory.current.path}/unit_test_storage',
         atsign: '@alice'));
 
     test('commitLogCompactionStats command accept test', () {
@@ -341,7 +341,7 @@ void main() {
   group('A group of accessLogCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        '${Directory.current.path}/test/hive',
+        '${Directory.current.path}/unit_test_storage',
         atsign: '@alice'));
 
     test('accessLogCompactionStats command acceptance test', () {
@@ -387,7 +387,7 @@ void main() {
   group('A group of notificationCompactionStats verb tests', () {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
-        '${Directory.current.path}/test/hive',
+        '${Directory.current.path}/unit_test_storage',
         atsign: '@alice'));
 
     test('notificationCompactionStats command accept test', () {
@@ -470,5 +470,92 @@ void main() {
           (int.parse(lastCommitId) + 5));
       expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][1], '-');
     });
+
+    test(
+        'A test to verify latest commitId among enrolled namespaces is returned',
+        () async {
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId = await LastCommitIDMetricImpl.getInstance()
+          .getMetrics(enrolledNamespaces: ['wavi']);
+      expect(lastCommitId, '1');
+    });
+
+    test(
+        'A test to verify highest commitId among the authorized namespaces is returned',
+        () async {
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId = await LastCommitIDMetricImpl.getInstance()
+          .getMetrics(enrolledNamespaces: ['wavi', 'buzz']);
+      expect(lastCommitId, '2');
+    });
+
+    test(
+        'A test to verify latestCommitId is returned when enrolledNamespace and regex are not supplied',
+        () async {
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId =
+          await LastCommitIDMetricImpl.getInstance().getMetrics();
+      expect(lastCommitId, '3');
+    });
+
+    test(
+        'A test to verify latestCommitId is returned when only regex is not supplied',
+        () async {
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+      await secondaryPersistenceStore!
+          .getSecondaryKeyStore()!
+          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+      await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId =
+          await LastCommitIDMetricImpl.getInstance().getMetrics(regex: 'buzz');
+      expect(lastCommitId, '2');
+    });
+    tearDown(() async => await verbTestsTearDown());
   });
 }

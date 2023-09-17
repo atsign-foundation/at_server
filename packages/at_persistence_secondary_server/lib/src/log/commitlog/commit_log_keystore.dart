@@ -153,9 +153,11 @@ class CommitLogKeyStore
   }
 
   /// Returns the latest committed sequence number with regex
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
+      {List<String>? enrolledNamespace}) async {
     var lastCommittedEntry = (_getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex)),
+        (entry) => (_acceptKey(entry.atKey, regex,
+            enrolledNamespace: enrolledNamespace)),
         orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
@@ -329,8 +331,26 @@ class CommitLogKeyStore
     }
   }
 
-  bool _acceptKey(String atKey, String regex) {
-    return _isRegexMatches(atKey, regex) || _isSpecialKey(atKey);
+  bool _acceptKey(String atKey, String regex,
+      {List<String>? enrolledNamespace}) {
+    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
+        (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
+  }
+
+  bool _isNamespaceAuthorised(String atKey, List<String>? enrolledNamespace) {
+    String? keyNamespace = AtKey.fromString(atKey).namespace;
+    // If enrolledNamespace is null or keyNamespace is null, fallback to
+    // existing behaviour - the key is authorized for the client to receive. So return true.
+    if (enrolledNamespace == null ||
+        enrolledNamespace.isEmpty ||
+        (keyNamespace == null || keyNamespace.isEmpty)) {
+      return true;
+    }
+    if (enrolledNamespace.contains('*') ||
+        enrolledNamespace.contains(keyNamespace)) {
+      return true;
+    }
+    return false;
   }
 
   bool _isRegexMatches(String atKey, String regex) {

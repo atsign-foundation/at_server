@@ -5,6 +5,9 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
@@ -108,12 +111,21 @@ class StatsVerbHandler extends AbstractVerbHandler {
     return stats;
   }
 
-  Future<void> addStatToResult(id, result) async {
+  Future<void> addStatToResult(
+      id, result, List<String> enrolledNamespaces) async {
     logger.info('addStatToResult for id : $id, regex: $_regex');
     var metric = _getMetrics(id);
     var name = metric.name!.getName();
     dynamic value;
-    if ((id == '3' || id == '15') && _regex != null) {
+    if (id == '3') {
+      if (_regex == null || _regex.isEmpty) {
+        _regex = '.*';
+      }
+      value = await (metric.name as LastCommitIDMetricImpl)
+          .getMetrics(regex: _regex, enrolledNamespaces: enrolledNamespaces);
+    } else if (id == '15' && _regex != null) {
+      // When connection is authenticated via the APKAM, return the highest commit-Id
+      // among the specified namespaces.
       value = await metric.name!.getMetrics(regex: _regex);
     } else {
       value = await metric.name!.getMetrics();
@@ -143,9 +155,22 @@ class StatsVerbHandler extends AbstractVerbHandler {
         statsList = statsMap.keys.toSet();
       }
       var result = [];
+      List<String> enrolledNamespaces = [];
+      if ((atConnection.getMetaData() as InboundConnectionMetadata)
+              .enrollmentId !=
+          null) {
+        var enrollmentKey =
+            '${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+        enrolledNamespaces = (await getEnrollDataStoreValue(enrollmentKey))
+            .namespaces
+            .keys
+            .toList();
+      }
       //Iterate through stats_id_list
       await Future.forEach(
-          statsList, (dynamic element) => addStatToResult(element, result));
+          statsList,
+          (dynamic element) =>
+              addStatToResult(element, result, enrolledNamespaces));
       // Create response json
       var responseJson = result.toString();
       response.data = responseJson;
