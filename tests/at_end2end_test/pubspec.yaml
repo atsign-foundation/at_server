@@ -7,6 +7,7 @@ environment:
   sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
+  encrypt: 5.0.1
   at_demo_data:
     git:
       url: https://github.com/atsign-foundation/at_demos.git
