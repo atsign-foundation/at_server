@@ -35,6 +35,13 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: refactor_commit_log
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1
