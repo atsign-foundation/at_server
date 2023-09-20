@@ -19,10 +19,6 @@ void main() {
 
   var secondAtSign =
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
-  var secondAtSignServer =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'];
-  var secondAtSignPort =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'];
 
   Socket? socketFirstAtsign;
 
