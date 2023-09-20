@@ -1,3 +1,5 @@
+## 3.0.58
+- fix: Modify "lastCommittedSequenceNumberWithRegex" to return highest commitId among enrolled namespaces
 ## 3.0.57
 - fix: Refactor commit log keystore to optimize memory usage
 ## 3.0.56
