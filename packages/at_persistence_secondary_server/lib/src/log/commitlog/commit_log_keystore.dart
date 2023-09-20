@@ -338,6 +338,10 @@ class CommitLogKeyStore
   }
 
   bool _isNamespaceAuthorised(String atKey, List<String>? enrolledNamespace) {
+    // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
+    if (atKey == 'configkey') {
+      return true;
+    }
     String? keyNamespace = AtKey.fromString(atKey).namespace;
     // If enrolledNamespace is null or keyNamespace is null, fallback to
     // existing behaviour - the key is authorized for the client to receive. So return true.
