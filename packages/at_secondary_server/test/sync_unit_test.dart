@@ -94,9 +94,11 @@ void main() {
         expect(atData.metaData!.version, 0);
         expect(atData.metaData?.createdBy, atSign);
         // verify commit entry data
-        CommitEntry? commitEntry = await atCommitLog!.getEntry(0);
-        expect(commitEntry!.operation, CommitOp.UPDATE);
-        expect(commitEntry.commitId, 0);
+        Iterator commitEntriesItr = atCommitLog!.getEntries(-1);
+        commitEntriesItr.moveNext();
+        expect(commitEntriesItr.current.value.operation, CommitOp.UPDATE);
+        expect(commitEntriesItr.current.value.commitId, 0);
+        expect(commitEntriesItr.moveNext(), false);
       });
 
       try {
@@ -121,12 +123,11 @@ void main() {
               .getSecondaryKeyStore()
               ?.put('@alice:phone@alice', AtData()..data = '123');
           // Assert commit entry before update
-          List<CommitEntry?> commitEntryListBeforeUpdate =
-              await atCommitLog!.getChanges(-1, '.*');
-          expect(commitEntryListBeforeUpdate.length, 1);
+          Iterator commitEntriesItr = atCommitLog!.getEntries(-1);
+          commitEntriesItr.moveNext();
           expect(
-              commitEntryListBeforeUpdate.first!.atKey, '@alice:phone@alice');
-          expect(commitEntryListBeforeUpdate.first!.commitId, 0);
+              commitEntriesItr.current.value.atKey, '@alice:phone@alice');
+          expect(commitEntriesItr.current.value.commitId, 0);
           // Update the same key again
           var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
