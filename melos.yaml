@@ -1,7 +1,8 @@
 name: at_server
 
 packages:
-- packages/**
+  - packages/*
+  - packages/*/example
 
-- tests/**
-- tools/build_virtual_environment/install_PKAM_Keys
+  - tests/*
+  - tools/build_virtual_environment/install_PKAM_Keys
