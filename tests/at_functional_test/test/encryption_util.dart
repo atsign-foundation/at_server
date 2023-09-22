@@ -1,4 +1,6 @@
 
+import 'dart:typed_data';
+
 import 'package:crypton/crypton.dart';
 import 'package:encrypt/encrypt.dart';
 
@@ -6,7 +8,7 @@ class EncryptionUtil {
 
   static IV getIV(String? ivBase64) {
     if (ivBase64 == null) {
-      return IV.fromLength(16);
+      return IV(Uint8List(16));
     } else {
       return IV.fromBase64(ivBase64);
     }
