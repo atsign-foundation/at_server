@@ -40,7 +40,7 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: packages/at_commons
-      ref: exception_invalid_enrollment_status
+      ref: exeption_invalid_enrollment_status
 
 
 dev_dependencies:

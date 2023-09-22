@@ -89,7 +89,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
     response.data = jsonEncode(enrollmentResponse?.data);
-    return;
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -326,7 +325,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   Future<void> _fetchAllEnrollments(
       Map<String, Map<String, dynamic>> enrollmentRequestsMap) async {
-    // fetch all enrollments/enrollment requests
+    // fetch all enrollments/enrollment-requests
     List<String> enrollmentKeysList =
         keyStore.getKeys(regex: newEnrollmentKeyPattern) as List<String>;
     // fetch enrollment update requests

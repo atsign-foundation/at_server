@@ -167,7 +167,6 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentIdOne = jsonDecode(response.data!)['enrollmentId'];
-      print('enrollment_id_1: $enrollmentIdOne');
       response = Response();
       // Fetch OTP ------------------------------------------------
       HashMap<String, String?> otpVerbParams =
@@ -188,7 +187,6 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
-      print('enrollment_id_2: $enrollmentId');
       response = Response();
       // Approve 2nd enrollment -----------------------------------------
       String approveEnrollmentCommand =
@@ -208,7 +206,6 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
-      print('enroll:list response: ${response.data}');
       Map<String, dynamic> enrollListResponse = jsonDecode(response.data!);
       var testResponse = enrollListResponse[
           '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'];
