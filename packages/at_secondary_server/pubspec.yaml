@@ -34,6 +34,14 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: exception_invalid_enrollment_status
+
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1
