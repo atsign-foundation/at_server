@@ -160,7 +160,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollmentResponse.response.isError = true;
         enrollmentResponse.response.errorCode = 'AT0028';
         enrollmentResponse.response.errorMessage =
-            'cannot update expired/invalid enrollment_id: $enrollId';
+            'cannot update enrollment(id: $enrollId). Enrollment is expired';
         return enrollmentResponse;
       }
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
@@ -208,8 +208,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await _isEnrollmentUpdate(enrollmentIdFromParams, currentAtSign)) {
       isEnrollmentUpdate = true;
       try {
-        enrollDataStoreValue!.namespaces =
-            await _fetchUpdatedNamespaces(enrollmentIdFromParams, currentAtSign);
+        enrollDataStoreValue!.namespaces = await _fetchUpdatedNamespaces(
+            enrollmentIdFromParams, currentAtSign);
       } on AtEnrollmentException catch (e) {
         enrollmentResponse.response.isError = true;
         enrollmentResponse.response.errorMessage = e.toString();
@@ -220,6 +220,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Verifies whether the enrollment state matches the intended state
     // Assigns respective error codes and error messages in case of an invalid state
     _verifyEnrollmentState(operation, enrollStatus, enrollmentResponse.response,
+        enrollmentIdFromParams,
         isEnrollmentUpdate: isEnrollmentUpdate);
     if (enrollmentResponse.response.isError) {
       return enrollmentResponse;
@@ -390,7 +391,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Populates respective errorCodes and errorMessages if the enrollment status
   /// is invalid for a certain operation
   void _verifyEnrollmentState(
-      String? operation, EnrollStatus enrollStatus, response,
+      String? operation, EnrollStatus enrollStatus, response, enrollId,
       {bool isEnrollmentUpdate = false}) {
     if (isEnrollmentUpdate &&
         (operation != 'approve' && EnrollStatus.approved != enrollStatus)) {
@@ -416,7 +417,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollStatus == EnrollStatus.expired) {
       response.isError = true;
       response.errorCode = 'AT0028';
-      response.errorMessage = 'Enrollment is expired or invalid';
+      response.errorMessage = 'Enrollment(id: $enrollId) is expired or invalid';
     }
   }
 
@@ -446,9 +447,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// In case of an enrollment update, fetches updated namespaces from the
   /// enrollment update request and returns them
-  Future<Map<String, String>> _fetchUpdatedNamespaces(String enrollId, currentAtsign) async {
-    String? enrollUpdateKey =
-        getEnrollmentKey(enrollId, currentAtsign: currentAtsign, isSupplementaryKey: true);
+  Future<Map<String, String>> _fetchUpdatedNamespaces(
+      String enrollId, currentAtsign) async {
+    String? enrollUpdateKey = getEnrollmentKey(enrollId,
+        currentAtsign: currentAtsign, isSupplementaryKey: true);
     EnrollDataStoreValue supplementaryEnrollmentValue;
     try {
       supplementaryEnrollmentValue =
@@ -456,15 +458,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on KeyNotFoundException catch (e) {
       logger.finer('Could not fetch updated namespaces | $e');
       throw AtEnrollmentException(
-          'update request for enrollment_id: $enrollId is expired or invalid');
+          'update request for enrollment(id: $enrollId) is expired or invalid');
     }
     if (supplementaryEnrollmentValue.approval!.state ==
         EnrollStatus.expired.name) {
       throw AtEnrollmentException(
-          'update request for enrollment_id: $enrollId is expired or invalid');
+          'update request for enrollment(id: $enrollId) is expired');
     }
-    ///ToDo: should we update even if the updated namespaces include new namespaces
-    ///Todo: or should we ensure that update needs the namespaces to be the same but access varies
     return supplementaryEnrollmentValue.namespaces;
   }
 
@@ -476,7 +476,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue ??= await getEnrollDataStoreValue(existingEnrollKey);
     } on KeyNotFoundException {
       throw AtEnrollmentException(
-          'enrollment_id: $enrollId is expired or invalid');
+          'Enrollment(id: $enrollId) is expired or invalid');
     }
 
     return enrollmentValue.approval!.state == EnrollStatus.approved.name;
