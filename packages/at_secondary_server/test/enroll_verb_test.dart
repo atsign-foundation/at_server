@@ -308,7 +308,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0028');
       expect(response.errorMessage,
-          'cannot update enrollment(id: $enrollId). Enrollment is expired');
+          'cannot update enrollment_id: $enrollId. Enrollment is expired');
     });
 
     test('verify enroll:update behaviour when enrollment request expires',
@@ -532,7 +532,7 @@ void main() {
           response, verbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage!, 'Enrollment(id: $enrollmentId) is expired or invalid');
+      expect(response.errorMessage!, 'Enrollment_id: $enrollmentId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 
@@ -690,7 +690,7 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage, 'Enrollment(id: $enrollId) is expired or invalid');
+      expect(response.errorMessage, 'Enrollment_id: $enrollId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 
@@ -723,7 +723,7 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage, 'Enrollment(id: $enrollmentId) is expired or invalid');
+      expect(response.errorMessage, 'Enrollment_id: $enrollmentId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 

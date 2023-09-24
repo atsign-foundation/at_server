@@ -160,7 +160,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollmentResponse.response.isError = true;
         enrollmentResponse.response.errorCode = 'AT0028';
         enrollmentResponse.response.errorMessage =
-            'cannot update enrollment(id: $enrollId). Enrollment is expired';
+            'cannot update enrollment_id: $enrollId. Enrollment is expired';
         return enrollmentResponse;
       }
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
@@ -417,7 +417,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollStatus == EnrollStatus.expired) {
       response.isError = true;
       response.errorCode = 'AT0028';
-      response.errorMessage = 'Enrollment(id: $enrollId) is expired or invalid';
+      response.errorMessage = 'Enrollment_id: $enrollId is expired or invalid';
     }
   }
 
@@ -458,12 +458,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on KeyNotFoundException catch (e) {
       logger.finer('Could not fetch updated namespaces | $e');
       throw AtEnrollmentException(
-          'update request for enrollment(id: $enrollId) is expired or invalid');
+          'update request for enrollment_id: $enrollId is expired or invalid');
     }
     if (supplementaryEnrollmentValue.approval!.state ==
         EnrollStatus.expired.name) {
       throw AtEnrollmentException(
-          'update request for enrollment(id: $enrollId) is expired');
+          'update request for enrollment_id: $enrollId is expired');
     }
     return supplementaryEnrollmentValue.namespaces;
   }
@@ -476,7 +476,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue ??= await getEnrollDataStoreValue(existingEnrollKey);
     } on KeyNotFoundException {
       throw AtEnrollmentException(
-          'Enrollment(id: $enrollId) is expired or invalid');
+          'Enrollment_id: $enrollId is expired or invalid');
     }
 
     return enrollmentValue.approval!.state == EnrollStatus.approved.name;
