@@ -30,9 +30,10 @@ abstract class BaseResponseHandler implements ResponseHandler {
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
       String? responseMessage;
       if (response.isError) {
+        String errorDescription = error_description[response.errorCode];
         logger.severe(response.errorMessage);
         responseMessage =
-            'error:${response.errorCode}:${response.errorMessage}\n$prompt';
+            'error:${response.errorCode}-$errorDescription : ${response.errorMessage}\n$prompt';
       } else {
         responseMessage = getResponseMessage(result, prompt)!;
       }
