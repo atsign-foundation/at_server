@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
@@ -30,10 +32,13 @@ abstract class BaseResponseHandler implements ResponseHandler {
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
       String? responseMessage;
       if (response.isError) {
-        String errorDescription = error_description[response.errorCode];
+        var errorJsonMap = {
+          'errorCode': response.errorCode,
+          'errorDescription':
+              '${error_description[response.errorCode]} : ${response.errorMessage}'
+        };
         logger.severe(response.errorMessage);
-        responseMessage =
-            'error:${response.errorCode}-$errorDescription : ${response.errorMessage}\n$prompt';
+        responseMessage = 'error:${jsonEncode(errorJsonMap)}\n$prompt';
       } else {
         responseMessage = getResponseMessage(result, prompt)!;
       }
