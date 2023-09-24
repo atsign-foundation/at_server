@@ -120,7 +120,7 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(approveEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0028:Enrollment(id: $dummyEnrollmentId) is expired or invalid\n');
     });
 
     test(
@@ -140,7 +140,7 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0028:Enrollment(id: $dummyEnrollmentId) is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -676,7 +676,7 @@ void main() {
           socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'AT0030:Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
     });
 
     test(
@@ -696,8 +696,7 @@ void main() {
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot approve a denied enrollment. '
-          'Only pending enrollments can be approved');
+          'AT0030:Cannot approve a denied enrollment. Only pending enrollments can be approved');
     });
 
     test('A test to verify error is returned when denied enrollment is revoked',
@@ -716,8 +715,7 @@ void main() {
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot revoke a denied enrollment. '
-          'Only approved enrollments can be revoked');
+          'AT0030:Cannot revoke a denied enrollment. Only approved enrollments can be revoked');
     });
 
     test('A test to verify revoked enrollment cannot be approved', () async {
@@ -741,8 +739,7 @@ void main() {
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot approve a revoked enrollment. '
-          'Only pending enrollments can be approved');
+          'AT0030:Cannot approve a revoked enrollment. Only pending enrollments can be approved');
     });
   });
 
