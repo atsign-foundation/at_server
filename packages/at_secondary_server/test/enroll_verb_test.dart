@@ -258,7 +258,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
           throwsA(predicate((e) => e is UnAuthenticatedException)));
-    inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().isAuthenticated = true;
     });
 
     test('verify enroll:update creates a request with supplementary namespace',
@@ -286,6 +286,21 @@ void main() {
           throwsA(predicate((e) => e is IllegalArgumentException)));
     });
 
+    test('verify enroll:update behavior with invalid enrollmentId', () async {
+      String dummyEnrollId = 'dummy_enroll_id';
+      String command =
+          'enroll:update:{"enrollmentId":"$dummyEnrollId","namespaces":{"update":"r"}}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, command);
+      Response response = Response();
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'Enrollment_id: $dummyEnrollId is expired or invalid');
+    });
+
     test('verify enroll:update behaviour on expired enrollment', () async {
       // create and approve enrollment
       String enrollId = await createAndApproveEnrollment();
@@ -295,8 +310,10 @@ void main() {
       EnrollDataStoreValue existingEnrollValue =
           await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
       existingEnrollValue.approval!.state = EnrollStatus.expired.name;
-      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
-          enrollmentKey, existingEnrollValue);
+      AtData atData = AtData();
+      atData.data = jsonEncode(existingEnrollValue);
+      atData.metaData = AtMetaData()..expiresAt = DateTime.now().toUtc().subtract(Duration(hours:10));
+      await secondaryKeyStore.put(enrollmentKey, atData);
       // update the expired enrollment
       String command =
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"update":"r"}}';
@@ -306,9 +323,9 @@ void main() {
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       expect(response.isError, true);
-      expect(response.errorCode, 'AT0028');
+      expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'cannot update enrollment_id: $enrollId. Enrollment is expired');
+          'EnrollmentStatus: expired. Only approved enrollments can be updated');
     });
 
     test('verify enroll:update behaviour when enrollment request expires',
@@ -532,7 +549,8 @@ void main() {
           response, verbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage!, 'Enrollment_id: $enrollmentId is expired or invalid');
+      expect(response.errorMessage!,
+          'Enrollment_id: $enrollmentId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 
@@ -690,7 +708,8 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage, 'Enrollment_id: $enrollId is expired or invalid');
+      expect(response.errorMessage,
+          'Enrollment_id: $enrollId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 
@@ -723,7 +742,8 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
       expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage, 'Enrollment_id: $enrollmentId is expired or invalid');
+      expect(response.errorMessage,
+          'Enrollment_id: $enrollmentId is expired or invalid');
       expect(response.errorCode, 'AT0028');
     });
 

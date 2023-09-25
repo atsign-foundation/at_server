@@ -59,7 +59,7 @@ Future<void> socket_writer(Socket socket, String msg) async {
 }
 
 ///The prepare function takes a socket and atsign as input params and runs a from verb and pkam verb on the atsign param.
-Future<void> prepare(Socket socket, String atsign) async {
+Future<void> prepare(Socket socket, String atsign, {bool isApkam = false, String? enrollmentId}) async {
   // FROM VERB
   await socket_writer(
       socket, 'from:$atsign:clientConfig:${jsonEncode({'version': '3.0.38'})}');
@@ -69,10 +69,17 @@ Future<void> prepare(Socket socket, String atsign) async {
   var pkamDigest = generatePKAMDigest(atsign, response);
 
   // PKAM VERB
-  await socket_writer(socket, 'pkam:$pkamDigest');
-  response = await read();
-  print('pkam verb response $response');
-  expect(response, 'data:success\n');
+  if(!isApkam) {
+    await socket_writer(socket, 'pkam:$pkamDigest');
+    response = await read();
+    print('pkam verb response $response');
+    expect(response, 'data:success\n');
+  } else {
+    await socket_writer(socket, 'pkam:enrollmentId:$enrollmentId:$pkamDigest');
+    response = await read();
+    print('APKAM response: $response');
+    expect(response, 'data:success\n');
+  }
 }
 
 void _messageHandler(data) {
