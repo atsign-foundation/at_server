@@ -116,14 +116,11 @@ void main() {
       expect(cramResult, 'data:success\n');
       var dummyEnrollmentId = 'feay891281821899090eye';
       var approveEnrollCommand =
-          'enroll:approve:{"enrollmentId":"$dummyEnrollmentId"}\n';
+          'enroll:approve:{"enrollmentId":"$dummyEnrollmentId"}';
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
-      print(approveEnrollResponse);
-      expect(jsonDecode(approveEnrollResponse)['errorCode'], 'AT0028');
-      expect(jsonDecode(approveEnrollResponse)['errorDescription'],
-          'Apkam Enrollment Expired : Enrollment_id: $dummyEnrollmentId is expired or invalid');
+      expect(approveEnrollResponse, 'AT0028:Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -142,9 +139,7 @@ void main() {
       await socket_writer(socketConnection1!, denyEnrollCommand);
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(jsonDecode(denyEnrollResponse)['errorCode'], 'AT0028');
-      expect(jsonDecode(denyEnrollResponse)['errorDescription'],
-          'Apkam Enrollment Expired : Enrollment_id: $dummyEnrollmentId is expired or invalid');
+      expect(denyEnrollResponse, 'AT0028:Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -235,9 +230,7 @@ void main() {
       await socket_writer(socketConnection2!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
       apkamEnrollIdResponse = apkamEnrollIdResponse.replaceFirst('error:', '');
-      expect(jsonDecode(apkamEnrollIdResponse)['errorCode'], 'AT0025');
-      expect(jsonDecode(apkamEnrollIdResponse)['errorDescription'],
-          'Apkam Auth Denied : enrollment_id: $secondEnrollId is denied');
+      expect(apkamEnrollIdResponse, 'AT0025:enrollment_id: $secondEnrollId is denied\n');
     });
 
     // enroll request with only first client
@@ -291,26 +284,26 @@ void main() {
       fromResponse = fromResponse.replaceAll('data:', '');
       // now do the apkam using the enrollment id
       var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
+      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
       await socket_writer(socketConnection2!, apkamEnrollId);
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse, 'data:success\n');
 
       // check if scan verb returns apkam namespace
-      await socket_writer(socketConnection2!, 'scan\n');
+      await socket_writer(socketConnection2!, 'scan');
       var scanResponse = await read();
-      // assert that scan doesn't return key with __manage namespace
+      // assert that scan returns key with __manage namespace
       expect(scanResponse.contains('__manage'), true);
 
       // enroll:list
-      await socket_writer(socketConnection2!, 'enroll:list\n');
+      await socket_writer(socketConnection2!, 'enroll:list');
       var enrollListResponse = await read();
       // enrollment key to be checked
       var enrollmentKey = '$enrollmentId.new.enrollments.__manage$firstAtsign';
       expect(enrollListResponse.contains(enrollmentKey), true);
 
       // llookup of the enrollment key should fail
-      await socket_writer(socketConnection2!, 'llookup:$enrollmentKey\n');
+      await socket_writer(socketConnection2!, 'llookup:$enrollmentKey');
       var llookupResponse = await read();
       expect(
           llookupResponse.contains(
@@ -680,11 +673,8 @@ void main() {
       await socket_writer(
           socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0030');
-      expect(
-          jsonDecode(enrollmentResponse)['errorDescription'],
-          'Invalid Enrollment Status : Cannot revoke a pending enrollment.'
-          ' Only approved enrollments can be revoked');
+      expect(enrollmentResponse,'AT0030:Cannot revoke a pending enrollment.'
+          ' Only approved enrollments can be revoked\n');
     });
 
     test(
@@ -702,9 +692,7 @@ void main() {
       await socket_writer(socketConnection1!,
           'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0030');
-      expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Invalid Enrollment Status : Cannot approve a denied enrollment. Only pending enrollments can be approved');
+      expect(enrollmentResponse,'AT0030:Cannot approve a denied enrollment. Only pending enrollments can be approved\n');
     });
 
     test('A test to verify error is returned when denied enrollment is revoked',
@@ -721,9 +709,7 @@ void main() {
       await socket_writer(
           socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0030');
-      expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Invalid Enrollment Status : Cannot revoke a denied enrollment. Only approved enrollments can be revoked');
+      expect(enrollmentResponse,'AT0030:Cannot revoke a denied enrollment. Only approved enrollments can be revoked\n');
     });
 
     test('A test to verify revoked enrollment cannot be approved', () async {
@@ -745,9 +731,7 @@ void main() {
       await socket_writer(socketConnection1!,
           'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0030');
-      expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Invalid Enrollment Status : Cannot approve a revoked enrollment. Only pending enrollments can be approved');
+      expect(enrollmentResponse, 'AT0030:Cannot approve a revoked enrollment. Only pending enrollments can be approved\n');
     });
   });
 
