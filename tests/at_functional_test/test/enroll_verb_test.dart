@@ -660,7 +660,8 @@ void main() {
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
       String enrollId = jsonDecode(enrollmentResponse)['enrollmentId'];
       // approve enrollment
-      await socket_writer(socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollId"}');
+      await socket_writer(
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollId"}');
       String approveResponse = await read();
       print('enroll:approve response: $approveResponse');
       approveResponse = approveResponse.replaceFirst('data:', "");
@@ -694,24 +695,56 @@ void main() {
       String enrollId = await getApprovedEnrollment();
       await socketConnection1?.close();
       await _connect();
-      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollId);
-      await socket_writer(
-          socketConnection1!, 'enroll:update:{"enrollmentId":"invalid_enrollment_id","namespaces":{"buzz":"rw"}}');
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollId);
+      await socket_writer(socketConnection1!,
+          'enroll:update:{"enrollmentId":"invalid_enrollment_id","namespaces":{"buzz":"rw"}}');
       var response = await read();
       response = response.replaceFirst('error:', '');
       print(response);
     });
 
-    test('test enroll:update request returns an enrollmentId with status pending', () async {
+    test(
+        'test enroll:update request returns an enrollmentId with status pending',
+        () async {
       String enrollId = await getApprovedEnrollment();
       await socketConnection1?.close();
       await _connect();
-      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollId);
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollId);
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"buzz":"rw"}}');
       var response = (await read()).replaceFirst('data:', '');
       expect(jsonDecode(response)['enrollmentId'], enrollId);
       expect(jsonDecode(response)['status'], 'pending');
+    });
+
+    test(
+        'verify that enroll:update request approval actually updates the actual enrollment',
+        () async {
+      String enrollId = await getApprovedEnrollment();
+      await socketConnection1?.close();
+      await _connect();
+      // apkam authentication
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollId);
+      await socket_writer(socketConnection1!,
+          'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"buzz":"rw"}}');
+      await read();
+      // approve enrollment update request
+      await socket_writer(
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollId"}');
+      var updateResponse = await read();
+      updateResponse = updateResponse.replaceFirst('data:', '');
+      expect(jsonDecode(updateResponse)['status'], 'approved');
+      expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
+
+      await socket_writer(socketConnection1!, 'enroll:list');
+      String fetchUpdatedEnrollment = await read();
+      fetchUpdatedEnrollment = fetchUpdatedEnrollment.replaceFirst('data:', '');
+      print('updated enrollment: $fetchUpdatedEnrollment');
+      assert(fetchUpdatedEnrollment.contains(enrollId) &&
+          fetchUpdatedEnrollment.contains('{"buzz":"rw"}'));
     });
   });
 
@@ -733,6 +766,7 @@ void main() {
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       socketConnection1?.close();
     });
+
     test(
         'A test to verify error is returned when pending enrollment is revoked',
         () async {
