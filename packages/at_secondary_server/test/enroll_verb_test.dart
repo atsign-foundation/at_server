@@ -312,7 +312,8 @@ void main() {
       existingEnrollValue.approval!.state = EnrollStatus.expired.name;
       AtData atData = AtData();
       atData.data = jsonEncode(existingEnrollValue);
-      atData.metaData = AtMetaData()..expiresAt = DateTime.now().toUtc().subtract(Duration(hours:10));
+      atData.metaData = AtMetaData()
+        ..expiresAt = DateTime.now().toUtc().subtract(Duration(hours: 10));
       await secondaryKeyStore.put(enrollmentKey, atData);
       // update the expired enrollment
       String command =
@@ -917,6 +918,245 @@ void main() {
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
           'Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+    });
+  });
+
+  group('validate internal methods of enroll verb handler', () {
+    late EnrollVerbHandler enrollVerbHandler;
+
+    setUpAll(() async {
+      await verbTestsSetUp();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+    });
+
+    test('verify behaviour of method: getEnrollmentKey()', () {
+      String enrollmentKey = enrollVerbHandler.getEnrollmentKey('123abc');
+      expect(enrollmentKey, '123abc.new.enrollments.__manage');
+      enrollmentKey =
+          enrollVerbHandler.getEnrollmentKey('234bcd', currentAtsign: '@alice');
+      expect(enrollmentKey, '234bcd.new.enrollments.__manage@alice');
+
+      String supplementaryEnrollmentKey = enrollVerbHandler
+          .getEnrollmentKey('123abc', isSupplementaryKey: true);
+      expect(supplementaryEnrollmentKey,
+          '123abc.supplementary.enrollments.__manage');
+      supplementaryEnrollmentKey = enrollVerbHandler.getEnrollmentKey('234bcd',
+          isSupplementaryKey: true, currentAtsign: '@bob');
+      expect(supplementaryEnrollmentKey,
+          '234bcd.supplementary.enrollments.__manage@bob');
+    });
+
+    test('verify behaviour of method: updateEnrollmentValueAndResetTTL()',
+        () async {
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'sesssion123', 'unit_test', 'test_device', 'apkaaaaam');
+      enrollDataStoreValue.approval = EnrollApproval(EnrollStatus.pending.name);
+      enrollDataStoreValue.namespaces = {'test_namespace': 'rw'};
+      String enrollmentKey =
+          enrollVerbHandler.getEnrollmentKey('1234', currentAtsign: '@alice');
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+
+      AtData? enrollmentKeyStoreValue =
+          await secondaryKeyStore.get(enrollmentKey);
+      EnrollDataStoreValue enrollValue = EnrollDataStoreValue.fromJson(
+          jsonDecode(enrollmentKeyStoreValue!.data!));
+      expect(enrollmentKeyStoreValue.metaData!.ttl, 0);
+      expect(enrollmentKeyStoreValue.metaData!.expiresAt, null);
+      expect(enrollValue.approval!.state, EnrollStatus.pending.name);
+      expect(enrollValue.namespaces, {'test_namespace': 'rw'});
+    });
+
+    test('verify positive behaviour of method: fetchUpdatedNamespaces',
+        () async {
+      String enrollId = 'enroll1234';
+      String atsign = '@alice';
+      String enrollmentKey = enrollVerbHandler.getEnrollmentKey(enrollId,
+          currentAtsign: atsign, isSupplementaryKey: true);
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'sesssion123', 'unit_test', 'test_device', 'apkaaaaam');
+      enrollDataStoreValue.approval = EnrollApproval(EnrollStatus.pending.name);
+      enrollDataStoreValue.namespaces = {'test_namespace': 'rw'};
+      // insert a supplementary key into the keystore
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+      // validate fetchUpdatedNamespaces
+      EnrollVerbResponse response =
+          await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign);
+      expect(response.data['updatedNamespaces'], {'test_namespace': 'rw'});
+    });
+
+    test('verify negative behaviour of method: fetchUpdatedNamespaces()',
+        () async {
+      String enrollId = 'enroll6789';
+      String atsign = '@alice';
+      // validate fetchUpdatedNamespaces
+      EnrollVerbResponse enrollResponse =
+          await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign);
+      expect(enrollResponse.response.isError, true);
+      expect(enrollResponse.response.errorCode, 'AT0028');
+      expect(enrollResponse.response.errorMessage,
+          'update request for enrollment_id: $enrollId is expired or invalid');
+    });
+
+    test('verify positive behaviour of method: isApprovedEnrollment()',
+        () async {
+      Response response = Response();
+      String enrollId = 'enroll7719';
+      String atsign = '@bob';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic');
+      enrollDataStoreValue.approval = EnrollApproval('approved');
+      String enrollmentKey =
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
+      // update key into the keystore
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
+          enrollId, atsign, response);
+      expect(isApproved, true);
+    });
+
+    test(
+        'verify negative behaviour of method: isApprovedEnrollment() - case Expired',
+        () async {
+      Response response = Response();
+      String enrollId = 'enroll7719234';
+      String atsign = '@delta';
+      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
+          enrollId, atsign, response);
+      expect(isApproved, false);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'cannot update enrollment_id: $enrollId. Enrollment is expired');
+    });
+
+    test(
+        'verify negative behaviour of method: isApprovedEnrollment() - case revoked',
+        () async {
+      Response response = Response();
+      String enrollId = 'enroll7456719';
+      String atsign = '@charlie';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic');
+      enrollDataStoreValue.approval = EnrollApproval('revoked');
+      String enrollmentKey =
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
+      // update key into the keystore
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
+          enrollId, atsign, response);
+      expect(isApproved, false);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0030');
+      expect(response.errorMessage,
+          'EnrollmentStatus: ${enrollDataStoreValue.approval!.state}. Only approved enrollments can be updated');
+    });
+
+    test(
+        'verify behaviour of method: validateEnrollmentRequest() - case AtThrottleLimitExceededException',
+        () {
+      inboundConnection.customIsRequestAllowedValue = false;
+      expect(
+          () => enrollVerbHandler.validateEnrollmentRequest(
+              'abcd', inboundConnection, 'approve'),
+          throwsA(predicate((dynamic e) => e is AtThrottleLimitExceeded)));
+      inboundConnection.customIsRequestAllowedValue = true;
+    });
+
+    test(
+        'verify behaviour of method: validateEnrollmentRequest() - case not apkam authenticated',
+        () {
+      expect(
+          () => enrollVerbHandler.validateEnrollmentRequest(
+              'abcd', inboundConnection, 'update'),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.toString().contains(
+                  'Apkam authentication required to update enrollment'))));
+    });
+
+    test(
+        'verify behaviour of method: validateEnrollmentRequest() - case otp is null',
+        () {
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().authType = AuthType.apkam;
+
+      expect(
+          () => enrollVerbHandler.validateEnrollmentRequest(
+              null, inboundConnection, 'update'),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e
+                  .toString()
+                  .contains('invalid otp. Cannot process enroll request'))));
+    });
+
+    test(
+        'verify behaviour: populateEnrollmentRequestDetails() - case request',
+        () async {
+      EnrollParams enrollParams = EnrollParams();
+      EnrollVerbResponse enrollVerbResponse = await enrollVerbHandler
+          .populateEnrollmentRequestDetails('request', enrollParams, '@frodo');
+
+      expect(enrollParams.enrollmentId, isNotNull);
+      expect(enrollParams.namespaces, {});
+      expect(enrollVerbResponse.data['enrollmentKey'],
+          enrollVerbHandler.getEnrollmentKey(enrollParams.enrollmentId!));
+    });
+
+    test(
+        'verify negative behaviour: populateEnrollmentRequestDetails() - case update with invalid params',
+        () async {
+      EnrollParams enrollParams = EnrollParams();
+
+      expect(
+          () async => await enrollVerbHandler.populateEnrollmentRequestDetails(
+              'update', enrollParams, '@frodo'),
+          throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
+    });
+
+    test(
+        'verify negative behaviour: populateEnrollmentRequestDetails() - case update invalid enrollment',
+            () async {
+          EnrollParams enrollParams = EnrollParams();
+          enrollParams.enrollmentId = 'enrollment12391';
+          enrollParams.namespaces = {'dummy_namespace': 'rw'};
+          EnrollVerbResponse enrollResponse =  await enrollVerbHandler.populateEnrollmentRequestDetails(
+                  'update', enrollParams, '@frodo');
+          expect(enrollResponse.response.isError, true);
+          expect(enrollResponse.response.errorCode, 'AT0028');
+          expect(enrollResponse.response.errorMessage,
+          'Enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
+        });
+    
+    test('verify positive behaviour: populateEnrollmentRequestDetails() - case update', () async {
+      String enrollId = 'enroll74567128349';
+      String atsign = '@indiana_jones';
+      String appName = 'unit_test';
+      String deviceName = 'test_device2';
+      String apkamPublicKey = 'apkaaaaam--publiiiic---';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session2341232', appName,deviceName, apkamPublicKey);
+      enrollDataStoreValue.approval = EnrollApproval('revoked');
+      String enrollmentKey =
+      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
+      // update key into the keystore
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+      
+      // verify populateEnrollmentRequestDetails()
+      EnrollParams enrollParams = EnrollParams();
+      enrollParams.enrollmentId = enrollId;
+      enrollParams.namespaces = {'dummy_namespace': 'rw'};
+      EnrollVerbResponse enrollResponse =  await enrollVerbHandler.populateEnrollmentRequestDetails(
+          'update', enrollParams, atsign);
+      expect(enrollParams.appName, appName);
+      expect(enrollParams.deviceName, deviceName);
+      expect(enrollParams.apkamPublicKey, apkamPublicKey);
+      expect(enrollResponse.data['enrollmentKey'], enrollVerbHandler.getEnrollmentKey(enrollId, isSupplementaryKey: true));
     });
   });
 }
