@@ -40,38 +40,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    //Approve, deny, revoke or list enrollments only on authenticated connections
-    if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
-      throw UnAuthenticatedException(
-          'Cannot $operation enrollment without authentication');
-    }
-    EnrollParams? enrollVerbParams;
-    EnrollVerbResponse? enrollmentResponse;
+    EnrollParams? enrollParams =
+        _validateAuthAndFetchEnrollParams(verbParams, atConnection, operation);
+    late EnrollVerbResponse enrollmentResponse;
     try {
-      // Ensure that enrollParams are present for all enroll operation
-      // Exclude operation 'list' which does not have enrollParams
-      if (verbParams[enrollParams] == null) {
-        if (operation != 'list') {
-          logger.severe(
-              'Enroll params is empty | EnrollParams: ${verbParams[enrollParams]}');
-          throw IllegalArgumentException('Enroll parameters not provided');
-        }
-      } else {
-        enrollVerbParams =
-            EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
-      }
       switch (operation) {
         case 'request':
         case 'update':
           enrollmentResponse = await _handleEnrollmentRequest(
-              enrollVerbParams!, currentAtSign, operation, atConnection);
+              enrollParams, currentAtSign, operation, atConnection);
           break;
 
         case 'approve':
         case 'deny':
         case 'revoke':
           enrollmentResponse = await _handleEnrollmentPermissions(
-              enrollVerbParams!, currentAtSign, operation);
+              enrollParams, currentAtSign, operation);
           break;
         case 'list':
           enrollmentResponse =
@@ -81,14 +65,32 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       logger.severe('Exception: $e\n$stackTrace');
       rethrow;
     }
-    if (enrollmentResponse?.response != null &&
-        enrollmentResponse!.response.isError) {
+    if (enrollmentResponse.response.isError) {
       response.isError = true;
       response.errorCode = enrollmentResponse.response.errorCode;
       response.errorMessage = enrollmentResponse.response.errorMessage;
       return;
     }
-    response.data = jsonEncode(enrollmentResponse?.data);
+    response.data = jsonEncode(enrollmentResponse.data);
+  }
+
+  EnrollParams? _validateAuthAndFetchEnrollParams(
+      verbParams, atConnection, operation) {
+    //Approve, deny, revoke, update or list enrollments only on authenticated connections
+    if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
+      throw UnAuthenticatedException(
+          'Cannot $operation enrollment without authentication');
+    }
+    if (operation != 'list' && verbParams == null) {
+      throw IllegalArgumentException(
+          'verb params not provided for enroll $operation');
+    }
+    EnrollParams? enrollParams;
+    if (verbParams != null) {
+      enrollParams =
+          EnrollParams.fromJson(jsonDecode(verbParams['enrollParams']));
+    }
+    return enrollParams;
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -112,22 +114,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Throws "AtEnrollmentException", if the OTP provided is invalid.
   /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
   /// a time window.
-  Future<EnrollVerbResponse> _handleEnrollmentRequest(EnrollParams enrollParams,
+  Future<EnrollVerbResponse> _handleEnrollmentRequest(enrollParams,
       currentAtSign, operation, InboundConnection atConnection) async {
-    await validateEnrollmentRequest(enrollParams.otp, atConnection, operation);
+    await validateEnrollmentRequest(enrollParams, atConnection, operation);
 
     // assigns valid enrollmentId and enrollmentNamespaces to the enrollParams object
     // also constructs and returns an enrollment key
-    EnrollVerbResponse enrollmentResponse =
-        await populateEnrollmentRequestDetails(
-            operation, enrollParams, currentAtSign);
-    if (enrollmentResponse.response.isError) {
-      return enrollmentResponse;
+    EnrollVerbResponse enrollmentResponse = EnrollVerbResponse();
+    late String enrollmentKey;
+    switch (operation) {
+      case 'request':
+        enrollmentKey = handleNewEnrollmentRequest(enrollParams);
+        break;
+      case 'update':
+        enrollmentKey = await handleEnrollmentUpdateRequest(enrollParams, currentAtSign);
+        break;
     }
-    String enrollmentKey = enrollmentResponse.data['enrollmentKey'];
-    String? enrollId = enrollParams.enrollmentId;
+
+    enrollmentResponse.data['enrollmentId'] = enrollParams.enrollmentId;
     logger.finer('Enrollment key: $enrollmentKey$currentAtSign');
-    enrollmentResponse.data['enrollmentId'] = enrollId;
 
     final EnrollDataStoreValue enrollmentValue = EnrollDataStoreValue(
         atConnection.getMetaData().sessionID!,
@@ -147,10 +152,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentResponse.data['status'] = 'approved';
       final inboundConnectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
-      inboundConnectionMetadata.enrollmentId = enrollId;
+      inboundConnectionMetadata.enrollmentId = enrollParams.enrollmentId;
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
-      await _storeEncryptionKeys(enrollId!, enrollParams, currentAtSign);
+      await _storeEncryptionKeys(enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(
@@ -158,8 +163,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
       if (operation == 'update' &&
-          !(await isApprovedEnrollment(
-              enrollId, currentAtSign, enrollmentResponse.response))) {
+          !(await isApprovedEnrollment(enrollParams.enrollmentId, currentAtSign,
+              enrollmentResponse.response))) {
         return enrollmentResponse;
       }
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
@@ -184,46 +189,45 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// If [operation] is approve, store the public key in public:appName.deviceName.pkam.__pkams.__public_keys
   /// and also store default encryption private key and default self encryption key in encrypted format.
   Future<EnrollVerbResponse> _handleEnrollmentPermissions(
-      EnrollParams enrollParams, currentAtSign, String? operation) async {
-    final enrollmentIdFromParams = enrollParams.enrollmentId;
-    String enrollmentKey = getEnrollmentKey(enrollmentIdFromParams!);
+      enrollParams, currentAtSign, String? operation) async {
+    if (enrollParams.enrollmentId == null) {
+      logger.finer('EnrollmentId: ${enrollParams.enrollmentId}');
+      throw IllegalArgumentException(
+          'Required params not provided for enroll:$operation');
+    }
+    String enrollmentKey = getEnrollmentKey(enrollParams.enrollmentId!);
     logger.finer(
         'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
     EnrollVerbResponse enrollmentResponse = EnrollVerbResponse();
     EnrollDataStoreValue? enrollDataStoreValue;
-    EnrollStatus? enrollStatus;
+
     bool isUpdate = false;
     try {
       enrollDataStoreValue =
           await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException {
       // KeyNotFound exception indicates an enrollment is expired or invalid
-      enrollStatus = EnrollStatus.expired;
+      throw AtInvalidEnrollmentException(
+          'enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
     }
-    enrollStatus ??=
-        getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
+    EnrollStatus enrollStatus =
+        getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
 
     if (operation == EnrollOperationEnum.approve.name &&
-        await isEnrollmentUpdate(enrollmentIdFromParams, currentAtSign)) {
+        await isEnrollmentUpdate(enrollParams.enrollmentId!, currentAtSign)) {
       isUpdate = true;
-      enrollmentResponse =
-          await fetchUpdatedNamespaces(enrollmentIdFromParams, currentAtSign);
-      if (enrollmentResponse.response.isError) {
-        return enrollmentResponse;
-      }
-      enrollDataStoreValue!.namespaces =
-          enrollmentResponse.data['updatedNamespaces'];
+      enrollDataStoreValue.namespaces = await fetchUpdatedNamespaces(
+          enrollParams.enrollmentId!, currentAtSign);
     }
     // Verifies whether the enrollment state matches the intended state
     // Assigns respective error codes and error messages in case of an invalid state
     _verifyEnrollmentState(operation, enrollStatus, enrollmentResponse.response,
-        enrollmentIdFromParams,
+        enrollParams.enrollmentId,
         isEnrollmentUpdate: isUpdate);
     if (enrollmentResponse.response.isError) {
       return enrollmentResponse;
     }
-    enrollDataStoreValue!.approval!.state =
-        _getEnrollStatusEnum(operation).name;
+    enrollDataStoreValue.approval!.state = _getEnrollStatusEnum(operation).name;
     enrollmentResponse.data['status'] = _getEnrollStatusEnum(operation).name;
 
     // If an enrollment is approved, we need the enrollment to be active
@@ -243,10 +247,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
       var atData = AtData()..data = jsonEncode(valueJson);
       await keyStore.put(apkamPublicKeyInKeyStore, atData);
-      await _storeEncryptionKeys(
-          enrollmentIdFromParams, enrollParams, currentAtSign);
+      await _storeEncryptionKeys(enrollParams, currentAtSign);
     }
-    enrollmentResponse.data['enrollmentId'] = enrollmentIdFromParams;
+    enrollmentResponse.data['enrollmentId'] = enrollParams.enrollmentId;
     return enrollmentResponse;
   }
 
@@ -255,17 +258,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// These keys will be stored only on server and will not be synced to the client
   /// Encrypted keys will be used later on by the approving app to send the keys to a new enrolling app
   Future<void> _storeEncryptionKeys(
-      String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
+      EnrollParams enrollParams, String atSign) async {
     var privKeyJson = {};
     privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
     await keyStore.put(
-        '$newEnrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+        '${enrollParams.enrollmentId}.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(privKeyJson),
         skipCommit: true);
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
     await keyStore.put(
-        '$newEnrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+        '${enrollParams.enrollmentId}.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(selfKeyJson),
         skipCommit: true);
   }
@@ -412,12 +415,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked';
     }
     if (enrollStatus == EnrollStatus.expired) {
-      response.isError = true;
-      response.errorCode = 'AT0028';
-      response.errorMessage = 'Enrollment_id: $enrollId is expired or invalid';
+      throw AtInvalidEnrollmentException(
+          'Enrollment_id: $enrollId is expired or invalid');
     }
   }
 
+  /// inserts the enrollmentValue into the keystore for the given key
+  /// resets the ttl and expiresAt for the enrollmentData
   @visibleForTesting
   Future<void> updateEnrollmentValueAndResetTTL(
       String enrollmentKey, EnrollDataStoreValue enrollDataStoreValue) async {
@@ -445,28 +449,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// In case of an enrollment update, fetches updated namespaces from the
   /// enrollment update request and returns them
   @visibleForTesting
-  Future<EnrollVerbResponse> fetchUpdatedNamespaces(
+  Future<Map<String, String>> fetchUpdatedNamespaces(
       String enrollId, currentAtsign) async {
     String? enrollUpdateKey = getEnrollmentKey(enrollId,
         currentAtsign: currentAtsign, isSupplementaryKey: true);
     EnrollDataStoreValue supplementaryEnrollmentValue;
-    EnrollVerbResponse enrollResponse = EnrollVerbResponse();
     try {
       supplementaryEnrollmentValue =
           await getEnrollDataStoreValue(enrollUpdateKey);
     } on KeyNotFoundException catch (e) {
       logger.finer('Could not fetch updated namespaces | $e');
-      enrollResponse.response.isError = true;
-      enrollResponse.response.errorCode = 'AT0028';
-      enrollResponse.response.errorMessage =
-          'update request for enrollment_id: $enrollId is expired or invalid';
-      return enrollResponse;
+      throw AtInvalidEnrollmentException(
+          'update request for enrollment_id: $enrollId is expired or invalid');
     }
-    enrollResponse.data['updatedNamespaces'] =
-        supplementaryEnrollmentValue.namespaces;
-    return enrollResponse;
+    return supplementaryEnrollmentValue.namespaces;
   }
-  
+
   /// Verifies if the [enrollId] is an approved enrollment
   /// Returns true if approved enrollment
   /// If not an approved enrollment returns false and sets appropriate error responses
@@ -478,11 +476,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       enrollmentValue = await getEnrollDataStoreValue(existingEnrollKey);
     } on KeyNotFoundException {
-      response.isError = true;
-      response.errorCode = 'AT0028';
-      response.errorMessage =
-          'cannot update enrollment_id: $enrollId. Enrollment is expired';
-      return false;
+      throw AtInvalidEnrollmentException(
+          'cannot update enrollment_id: $enrollId. Enrollment is expired');
     }
     if (EnrollStatus.approved.name != enrollmentValue.approval!.state) {
       response.isError = true;
@@ -515,61 +510,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return isValidUpdateRequest;
   }
 
-  /// populates appropriate enrollment details depending on the operation
-  /// Case 'request': generates a new enrollment_id and namespaces are empty
-  /// Case 'update': fetches enrollment_id and namespaces from params
-  /// Returns a constructed key based on the operation
   @visibleForTesting
-  Future<EnrollVerbResponse> populateEnrollmentRequestDetails(
-      operation, enrollParams, currentAtsign) async {
-    EnrollVerbResponse enrollResponse = EnrollVerbResponse();
-    switch (operation) {
-      case 'request':
-        enrollParams.namespaces ??= <String, String>{};
-        enrollParams.enrollmentId = Uuid().v4();
-        enrollResponse.data['enrollmentKey'] =
-            getEnrollmentKey(enrollParams.enrollmentId);
-        break;
-      case 'update':
-        if (enrollParams.enrollmentId == null ||
-            enrollParams.namespaces == null) {
-          logger.info(
-              'Invalid \'enroll:update\' params: enrollId: ${enrollParams.enrollmentId} enrollNamespace: ${enrollParams.namespaces}');
-          throw IllegalArgumentException(
-              'Invalid parameters received for Enrollment Update. Update requires an existing approved enrollment_id and updated namespaces');
-        }
-        EnrollDataStoreValue? existingEnrollment;
-        try {
-          existingEnrollment = await getEnrollDataStoreValue(getEnrollmentKey(
-              enrollParams.enrollmentId,
-              currentAtsign: currentAtsign));
-        } on KeyNotFoundException catch (e) {
-          logger.finest('could not fetch existing DataStoreValue | $e');
-          enrollResponse.response.isError = true;
-          enrollResponse.response.errorCode = 'AT0028';
-          enrollResponse.response.errorMessage =
-              'Enrollment_id: ${enrollParams.enrollmentId} is expired or invalid';
-        }
-        enrollParams.appName = existingEnrollment?.appName;
-        enrollParams.deviceName = existingEnrollment?.deviceName;
-        enrollParams.apkamPublicKey = existingEnrollment?.apkamPublicKey;
-        // create a supplementary enrollment key
-        enrollResponse.data['enrollmentKey'] = getEnrollmentKey(
-            enrollParams.enrollmentId,
-            isSupplementaryKey: true);
-
-        break;
-      default:
-        throw IllegalArgumentException('Invalid operation: \'$operation\'');
-    }
-    return enrollResponse;
-  }
-
-  @visibleForTesting
-  Future<void> validateEnrollmentRequest(otp, atConnection, operation) async {
+  Future<void> validateEnrollmentRequest(
+      EnrollParams enrollParams, atConnection, operation) async {
     if (!atConnection.isRequestAllowed()) {
       throw AtThrottleLimitExceeded(
           'Enrollment requests have exceeded the limit within the specified time frame');
+    }
+    if (enrollParams.namespaces == null) {
+      throw IllegalArgumentException(
+          'Invalid parameters received for Enrollment Verb. Namespace is required');
     }
     if (operation == 'update' &&
         atConnection.getMetaData().authType != AuthType.apkam) {
@@ -577,14 +527,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Apkam authentication required to update enrollment');
     }
     if (!atConnection.getMetaData().isAuthenticated) {
-      if (otp == null ||
-          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
+      if (enrollParams.otp == null ||
+          (await OtpVerbHandler.cache.get(enrollParams.otp.toString()) ==
+              null)) {
         throw AtEnrollmentException(
-            'invalid otp. Cannot process enroll request');
+            'Invalid otp. Cannot process enroll request');
       }
     }
   }
 
+  /// Constructs the enrollmentKey based on given parameters
   @visibleForTesting
   String getEnrollmentKey(String enrollmentId,
       {bool isSupplementaryKey = false, String? currentAtsign}) {
@@ -599,14 +551,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     return key;
   }
+
+  @visibleForTesting
+  String handleNewEnrollmentRequest(enrollParams) {
+    enrollParams.enrollmentId = Uuid().v4();
+    return getEnrollmentKey(enrollParams.enrollmentId);
+  }
+
+  @visibleForTesting
+  Future<String> handleEnrollmentUpdateRequest(
+      enrollParams, currentAtsign) async {
+    if (enrollParams.enrollmentId == null) {
+      logger.info(
+          'Invalid \'enroll:update\' params: enrollId: ${enrollParams.enrollmentId} enrollNamespace: ${enrollParams.namespaces}');
+      throw IllegalArgumentException(
+          'Invalid parameters received for Enrollment Update. Update requires an existing approved enrollment_id');
+    }
+    EnrollDataStoreValue? existingEnrollment;
+    try {
+      existingEnrollment = await getEnrollDataStoreValue(getEnrollmentKey(
+          enrollParams.enrollmentId,
+          currentAtsign: currentAtsign));
+    } on KeyNotFoundException catch (e) {
+      logger.finest('could not fetch existing DataStoreValue | $e');
+      throw AtInvalidEnrollmentException(
+          'Enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
+    }
+    enrollParams.appName = existingEnrollment.appName;
+    enrollParams.deviceName = existingEnrollment.deviceName;
+    enrollParams.apkamPublicKey = existingEnrollment.apkamPublicKey;
+    // create a supplementary enrollment key
+    return getEnrollmentKey(enrollParams.enrollmentId,
+        isSupplementaryKey: true);
+  }
 }
 
 class EnrollVerbResponse {
   Map<dynamic, dynamic> data = <dynamic, dynamic>{};
   Response response = Response();
-
-  void reset() {
-    data = <dynamic, dynamic>{};
-    response = Response();
-  }
 }
