@@ -11,13 +11,11 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
-  AtSignLogger.root_level = 'finest';
   group('A group of tests to verify enroll request operation', () {
     setUp(() async {
       await verbTestsSetUp();

@@ -289,6 +289,7 @@ void main() {
       // check if scan verb returns apkam namespace
       await socket_writer(socketConnection2!, 'scan');
       var scanResponse = await read();
+      print('scan response: $scanResponse');
       // assert that scan returns key with __manage namespace
       expect(scanResponse.contains('__manage'), true);
 

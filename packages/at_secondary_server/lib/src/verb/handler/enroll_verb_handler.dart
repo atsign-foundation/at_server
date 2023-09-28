@@ -75,7 +75,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   EnrollParams? _validateAuthAndFetchEnrollParams(
-      verbParams, atConnection, operation) {
+      Map<String, String?>? verbParams, atConnection, operation) {
     //Approve, deny, revoke, update or list enrollments only on authenticated connections
     if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
       throw UnAuthenticatedException(
@@ -86,9 +86,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'verb params not provided for enroll $operation');
     }
     EnrollParams? enrollParams;
-    if (verbParams != null) {
+    if (verbParams!['enrollParams'] != null) {
       enrollParams =
-          EnrollParams.fromJson(jsonDecode(verbParams['enrollParams']));
+          EnrollParams.fromJson(jsonDecode(verbParams['enrollParams']!));
     }
     return enrollParams;
   }
