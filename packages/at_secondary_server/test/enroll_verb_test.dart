@@ -11,11 +11,13 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
+  AtSignLogger.root_level = 'finest';
   group('A group of tests to verify enroll request operation', () {
     setUp(() async {
       await verbTestsSetUp();
@@ -293,12 +295,10 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, command);
       Response response = Response();
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0028');
-      expect(response.errorMessage,
-          'Enrollment_id: $dummyEnrollId is expired or invalid');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     test('verify enroll:update behaviour on expired enrollment', () async {
@@ -520,7 +520,7 @@ void main() {
               response, verbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
-              e.message == 'invalid otp. Cannot process enroll request')));
+              e.message == 'Invalid otp. Cannot process enroll request')));
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -546,13 +546,10 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage!,
-          'Enrollment_id: $enrollmentId is expired or invalid');
-      expect(response.errorCode, 'AT0028');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -695,7 +692,6 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String status = jsonDecode(response.data!)['status'];
-      String enrollId = jsonDecode(response.data!)['enrollmentId'];
       expect(status, 'pending');
       await Future.delayed(Duration(milliseconds: 1));
       //Approve enrollment
@@ -705,13 +701,10 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session_id';
-      await enrollVerbHandler.processVerb(
-          response, enrollVerbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage,
-          'Enrollment_id: $enrollId is expired or invalid');
-      expect(response.errorCode, 'AT0028');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     test('A test to verify expired enrollment cannot be denied', () async {
@@ -739,13 +732,10 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session_id';
-      await enrollVerbHandler.processVerb(
-          response, enrollVerbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorMessage, isNotNull);
-      expect(response.errorMessage,
-          'Enrollment_id: $enrollmentId is expired or invalid');
-      expect(response.errorCode, 'AT0028');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     test('A test to verify TTL on approved enrollment is reset', () async {
@@ -981,22 +971,19 @@ void main() {
       await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
           enrollmentKey, enrollDataStoreValue);
       // validate fetchUpdatedNamespaces
-      EnrollVerbResponse response =
+      var updatedNamespaces =
           await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign);
-      expect(response.data['updatedNamespaces'], {'test_namespace': 'rw'});
+      expect(updatedNamespaces, {'test_namespace': 'rw'});
     });
 
     test('verify negative behaviour of method: fetchUpdatedNamespaces()',
         () async {
       String enrollId = 'enroll6789';
       String atsign = '@alice';
-      // validate fetchUpdatedNamespaces
-      EnrollVerbResponse enrollResponse =
-          await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign);
-      expect(enrollResponse.response.isError, true);
-      expect(enrollResponse.response.errorCode, 'AT0028');
-      expect(enrollResponse.response.errorMessage,
-          'update request for enrollment_id: $enrollId is expired or invalid');
+      expect(
+          () async =>
+              await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     test('verify positive behaviour of method: isApprovedEnrollment()',
@@ -1023,13 +1010,10 @@ void main() {
       Response response = Response();
       String enrollId = 'enroll7719234';
       String atsign = '@delta';
-      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
-          enrollId, atsign, response);
-      expect(isApproved, false);
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0028');
-      expect(response.errorMessage,
-          'cannot update enrollment_id: $enrollId. Enrollment is expired');
+      expect(
+          () async => await enrollVerbHandler.isApprovedEnrollment(
+              enrollId, atsign, response),
+          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
     test(
@@ -1046,9 +1030,8 @@ void main() {
       // update key into the keystore
       await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
           enrollmentKey, enrollDataStoreValue);
-      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
-          enrollId, atsign, response);
-      expect(isApproved, false);
+      // validate method response
+      await enrollVerbHandler.isApprovedEnrollment(enrollId, atsign, response);
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
@@ -1059,9 +1042,10 @@ void main() {
         'verify behaviour of method: validateEnrollmentRequest() - case AtThrottleLimitExceededException',
         () {
       inboundConnection.customIsRequestAllowedValue = false;
+      EnrollParams enrollParams = EnrollParams()..otp = 'abcd';
       expect(
           () => enrollVerbHandler.validateEnrollmentRequest(
-              'abcd', inboundConnection, 'approve'),
+              enrollParams, inboundConnection, 'approve'),
           throwsA(predicate((dynamic e) => e is AtThrottleLimitExceeded)));
       inboundConnection.customIsRequestAllowedValue = true;
     });
@@ -1069,9 +1053,10 @@ void main() {
     test(
         'verify behaviour of method: validateEnrollmentRequest() - case not apkam authenticated',
         () {
+      EnrollParams enrollParams = EnrollParams()..otp = 'abcd'..namespaces={"abdc": "rw"};
       expect(
           () => enrollVerbHandler.validateEnrollmentRequest(
-              'abcd', inboundConnection, 'update'),
+              enrollParams, inboundConnection, 'update'),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.toString().contains(
@@ -1083,80 +1068,50 @@ void main() {
         () {
       inboundConnection.getMetaData().isAuthenticated = false;
       inboundConnection.getMetaData().authType = AuthType.apkam;
-
+      EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
       expect(
           () => enrollVerbHandler.validateEnrollmentRequest(
-              null, inboundConnection, 'update'),
+              enrollParams, inboundConnection, 'update'),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e
                   .toString()
-                  .contains('invalid otp. Cannot process enroll request'))));
+                  .contains('Invalid otp. Cannot process enroll request'))));
     });
 
-    test(
-        'verify behaviour: populateEnrollmentRequestDetails() - case request',
+    test('verify behaviour: handleNewEnrollmentRequest() - case request',
         () async {
-      EnrollParams enrollParams = EnrollParams();
-      EnrollVerbResponse enrollVerbResponse = await enrollVerbHandler
-          .populateEnrollmentRequestDetails('request', enrollParams, '@frodo');
+      EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
+      String enrollmentKey =
+          enrollVerbHandler.handleNewEnrollmentRequest(enrollParams);
 
-      expect(enrollParams.enrollmentId, isNotNull);
-      expect(enrollParams.namespaces, {});
-      expect(enrollVerbResponse.data['enrollmentKey'],
+      expect(enrollmentKey,
           enrollVerbHandler.getEnrollmentKey(enrollParams.enrollmentId!));
     });
 
-    test(
-        'verify negative behaviour: populateEnrollmentRequestDetails() - case update with invalid params',
-        () async {
-      EnrollParams enrollParams = EnrollParams();
-
-      expect(
-          () async => await enrollVerbHandler.populateEnrollmentRequestDetails(
-              'update', enrollParams, '@frodo'),
-          throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
-    });
-
-    test(
-        'verify negative behaviour: populateEnrollmentRequestDetails() - case update invalid enrollment',
-            () async {
-          EnrollParams enrollParams = EnrollParams();
-          enrollParams.enrollmentId = 'enrollment12391';
-          enrollParams.namespaces = {'dummy_namespace': 'rw'};
-          EnrollVerbResponse enrollResponse =  await enrollVerbHandler.populateEnrollmentRequestDetails(
-                  'update', enrollParams, '@frodo');
-          expect(enrollResponse.response.isError, true);
-          expect(enrollResponse.response.errorCode, 'AT0028');
-          expect(enrollResponse.response.errorMessage,
-          'Enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
-        });
-    
-    test('verify positive behaviour: populateEnrollmentRequestDetails() - case update', () async {
-      String enrollId = 'enroll74567128349';
-      String atsign = '@indiana_jones';
-      String appName = 'unit_test';
-      String deviceName = 'test_device2';
-      String apkamPublicKey = 'apkaaaaam--publiiiic---';
+    test('verify behaviour: handleEnrollmentUpdateRequest()', () async {
+      String atsign = '@frodo';
+      String enrollId = 'enroll__7456719';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'session2341232', appName,deviceName, apkamPublicKey);
-      enrollDataStoreValue.approval = EnrollApproval('revoked');
+          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic//?');
+      enrollDataStoreValue.namespaces = {"unit_test82": "rw"};
+      enrollDataStoreValue.approval = EnrollApproval('approved');
       String enrollmentKey =
-      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
       // update key into the keystore
       await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
           enrollmentKey, enrollDataStoreValue);
-      
-      // verify populateEnrollmentRequestDetails()
+
       EnrollParams enrollParams = EnrollParams();
       enrollParams.enrollmentId = enrollId;
       enrollParams.namespaces = {'dummy_namespace': 'rw'};
-      EnrollVerbResponse enrollResponse =  await enrollVerbHandler.populateEnrollmentRequestDetails(
-          'update', enrollParams, atsign);
-      expect(enrollParams.appName, appName);
-      expect(enrollParams.deviceName, deviceName);
-      expect(enrollParams.apkamPublicKey, apkamPublicKey);
-      expect(enrollResponse.data['enrollmentKey'], enrollVerbHandler.getEnrollmentKey(enrollId, isSupplementaryKey: true));
+      String enrollmentKeyResponse = await enrollVerbHandler
+          .handleEnrollmentUpdateRequest(enrollParams, atsign);
+      expect(enrollmentKeyResponse, enrollVerbHandler.getEnrollmentKey(enrollId, isSupplementaryKey: true));
+      expect(enrollParams.namespaces, {'dummy_namespace': 'rw'});
+      expect(enrollParams.deviceName, enrollDataStoreValue.deviceName);
+      expect(enrollParams.appName, enrollDataStoreValue.appName);
+      expect(enrollParams.apkamPublicKey, enrollDataStoreValue.apkamPublicKey);
     });
   });
 }
