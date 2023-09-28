@@ -84,10 +84,8 @@ void main() {
       var denyEnrollResponse = await read();
       print(denyEnrollResponse);
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
-      expect(
-          denyEnrollResponse
-              .contains('Cannot deny enrollment without authentication'),
-          true);
+      expect(denyEnrollResponse,
+          'AT0401-Exception: Cannot deny enrollment without authentication\n');
     });
 
     test(
@@ -98,10 +96,8 @@ void main() {
       await socket_writer(socketConnection1!, approveEnrollCommand);
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
-      expect(
-          approveEnrollResponse
-              .contains('Cannot approve enrollment without authentication'),
-          true);
+      expect(approveEnrollResponse,
+          'AT0401-Exception: Cannot approve enrollment without authentication\n');
     });
 
     test(
@@ -121,7 +117,7 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(approveEnrollResponse,
-          'AT0028:Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0029-Apkam Enrollment Expired : enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -141,7 +137,7 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0028:Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0029-Apkam Enrollment Expired : enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -150,9 +146,8 @@ void main() {
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('error:', '');
-      expect(
-          enrollResponse.contains('invalid otp. Cannot process enroll request'),
-          true);
+      expect(enrollResponse,
+          'AT0011-Exception: Invalid otp. Cannot process enroll request\n');
     });
 
     test('enroll request on unauthenticated connection invalid otp', () async {
@@ -161,9 +156,8 @@ void main() {
       await socket_writer(socketConnection1!, enrollRequest);
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('data:', '');
-      expect(
-          enrollResponse.contains('invalid otp. Cannot process enroll request'),
-          true);
+      expect(enrollResponse,
+          'error:AT0011-Exception: Invalid otp. Cannot process enroll request\n');
     });
 
     // Purpose of the tests
@@ -686,9 +680,9 @@ void main() {
           socketConnection1!, 'enroll:update:{"enrollmentId":"dummy1"}');
       var response = await read();
       response = response.replaceFirst('error:', '');
-      expect(jsonDecode(response)['errorCode'], 'AT0011');
+      expect(jsonDecode(response)['errorCode'], 'AT0022');
       expect(jsonDecode(response)['errorDescription'],
-          'Internal server exception : Apkam authentication required to update enrollment');
+          'Illegal arguments : Invalid parameters received for Enrollment Verb. Namespace is required');
     });
 
     test('verify enroll:update behaviour with invalid enrollmentId', () async {
