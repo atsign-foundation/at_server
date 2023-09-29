@@ -6,3 +6,8 @@ packages:
 
   - tests/*
   - tools/build_virtual_environment/install_PKAM_Keys
+
+command:
+  bootstrap:
+    hooks:
+      pre: dart pub get -C tests/at_functional_test
