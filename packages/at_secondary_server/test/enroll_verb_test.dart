@@ -324,7 +324,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'EnrollmentStatus: expired. Only approved enrollments can be updated');
+          'Enrollment_id: $enrollId is expired. Only approved enrollments can be updated');
     });
 
     test('verify enroll:update behaviour on revoked enrollment', () async {
@@ -353,7 +353,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'EnrollmentStatus: revoked. Only approved enrollments can be updated');
+          'Enrollment_id: $enrollId is revoked. Only approved enrollments can be updated');
     });
 
     test('verify enroll:update behaviour on denied enrollment', () async {
@@ -380,7 +380,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'EnrollmentStatus: denied. Only approved enrollments can be updated');
+          'Enrollment_id: $enrollId is denied. Only approved enrollments can be updated');
     });
 
     test('verify enroll:update behaviour when enrollment request expires',
@@ -405,7 +405,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'Cannot approve a approved enrollment. Only pending enrollments can be approved');
+          'Enrollment_id: $enrollId is approved. Only pending enrollments can be approved');
       // reset enrollments expiry duration
       enrollVerbHandler.enrollmentExpiryInMills =
           Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours)
@@ -915,7 +915,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'Cannot approve a denied enrollment. Only pending enrollments can be approved');
+          'Enrollment_id: $enrollmentId is denied. Only pending enrollments can be approved');
     });
 
     test('A test to verify revoked enrollment cannot be approved', () async {
@@ -945,7 +945,7 @@ void main() {
       expect(response.errorCode, 'AT0030');
       // Approved a revoked enrollment throws AtEnrollmentException
       expect(response.errorMessage,
-          'Cannot approve a revoked enrollment. Only pending enrollments can be approved');
+          'Enrollment_id: $enrollmentId is revoked. Only pending enrollments can be approved');
     });
 
     test('A test to verify pending enrollment cannot be revoked', () async {
@@ -961,7 +961,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'Enrollment_id: $enrollmentId is pending. Only approved enrollments can be revoked');
     });
   });
 
@@ -1089,7 +1089,7 @@ void main() {
       expect(response.isError, true);
       expect(response.errorCode, 'AT0030');
       expect(response.errorMessage,
-          'EnrollmentStatus: ${enrollDataStoreValue.approval!.state}. Only approved enrollments can be updated');
+          'Enrollment_id: $enrollId is revoked. Only approved enrollments can be updated');
     });
 
     test(

@@ -216,7 +216,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on KeyNotFoundException {
       // KeyNotFound exception indicates an enrollment is expired or invalid
       throw AtInvalidEnrollmentException(
-          'enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
+          'Enrollment_id: ${enrollParams.enrollmentId} is expired or invalid');
     }
     EnrollStatus enrollStatus =
         getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
@@ -406,7 +406,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.isError = true;
       response.errorCode = 'AT0030';
       response.errorMessage =
-          'EnrollmentStatus: ${enrollStatus.name}. Only approved enrollments can be updated';
+          'Enrollment_id: $enrollId is ${enrollStatus.name}. Only approved enrollments can be updated';
     }
     if (operation == 'approve' &&
         EnrollStatus.pending != enrollStatus &&
@@ -414,13 +414,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.isError = true;
       response.errorCode = 'AT0030';
       response.errorMessage =
-          'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved';
+          'Enrollment_id: $enrollId is ${enrollStatus.name}. Only pending enrollments can be approved';
     }
     if (operation == 'revoke' && EnrollStatus.approved != enrollStatus) {
       response.isError = true;
       response.errorCode = 'AT0030';
       response.errorMessage =
-          'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked';
+          'Enrollment_id: $enrollId is ${enrollStatus.name}. Only approved enrollments can be revoked';
     }
     if (enrollStatus == EnrollStatus.expired) {
       throw AtInvalidEnrollmentException(
@@ -485,13 +485,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue = await getEnrollDataStoreValue(existingEnrollKey);
     } on KeyNotFoundException {
       throw AtInvalidEnrollmentException(
-          'cannot update enrollment_id: $enrollId. Enrollment is expired');
+          'Cannot update enrollment_id: $enrollId. Enrollment is expired');
     }
     if (EnrollStatus.approved.name != enrollmentValue.approval!.state) {
       response.isError = true;
       response.errorCode = 'AT0030';
       response.errorMessage =
-          'EnrollmentStatus: ${enrollmentValue.approval!.state}. Only approved enrollments can be updated';
+          'Enrollment_id: $enrollId is ${enrollmentValue.approval?.state}. Only approved enrollments can be updated';
       return false;
     }
     return true;
@@ -573,7 +573,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       logger.info(
           'Invalid \'enroll:update\' params: enrollId: ${enrollParams.enrollmentId} enrollNamespace: ${enrollParams.namespaces}');
       throw IllegalArgumentException(
-          'Invalid parameters received for Enrollment Update. Update requires an existing approved enrollment_id');
+          'Invalid parameters received for Enrollment Update. Update requires an existing approved enrollment');
     }
     EnrollDataStoreValue? existingEnrollment;
     try {
