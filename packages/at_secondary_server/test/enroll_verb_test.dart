@@ -327,6 +327,62 @@ void main() {
           'EnrollmentStatus: expired. Only approved enrollments can be updated');
     });
 
+    test('verify enroll:update behaviour on revoked enrollment', () async {
+      // create and approve enrollment
+      String enrollId = await createAndApproveEnrollment();
+      // set the enrollment status as expired
+      String enrollmentKey =
+      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
+      EnrollDataStoreValue existingEnrollValue =
+      await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+      // set the existing state as revoked
+      existingEnrollValue.approval!.state = EnrollStatus.revoked.name;
+      AtData atData = AtData();
+      atData.data = jsonEncode(existingEnrollValue);
+      atData.metaData = AtMetaData();
+      // store the modified enrollment value to the actual enrollment key
+      await secondaryKeyStore.put(enrollmentKey, atData);
+      // update the expired enrollment
+      String command =
+          'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"update":"r"}}';
+      HashMap<String, String?> verbParams =
+      getVerbParam(VerbSyntax.enroll, command);
+      Response response = Response();
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0030');
+      expect(response.errorMessage,
+          'EnrollmentStatus: revoked. Only approved enrollments can be updated');
+    });
+
+    test('verify enroll:update behaviour on denied enrollment', () async {
+      // create and approve enrollment
+      String enrollId = await createAndApproveEnrollment();
+      // set the enrollment status as expired
+      String enrollmentKey =
+      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
+      EnrollDataStoreValue existingEnrollValue =
+      await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+      existingEnrollValue.approval!.state = EnrollStatus.denied.name;
+      AtData atData = AtData();
+      atData.data = jsonEncode(existingEnrollValue);
+      atData.metaData = AtMetaData();
+      await secondaryKeyStore.put(enrollmentKey, atData);
+      // update the expired enrollment
+      String command =
+          'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"update":"r"}}';
+      HashMap<String, String?> verbParams =
+      getVerbParam(VerbSyntax.enroll, command);
+      Response response = Response();
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0030');
+      expect(response.errorMessage,
+          'EnrollmentStatus: denied. Only approved enrollments can be updated');
+    });
+
     test('verify enroll:update behaviour when enrollment request expires',
         () async {
       enrollVerbHandler.enrollmentExpiryInMills = 1;
