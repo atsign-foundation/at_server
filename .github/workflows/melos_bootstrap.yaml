@@ -1,0 +1,28 @@
+name: "Melos bootstrap"
+on:
+  workflow_dispatch:
+    inputs:
+      melos_args:
+        description: "Melos arguments"
+        required: false
+        default: '--ignore="at_root_server" --ignore="at_secondary"'
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  default_melos_args: '--ignore="at_root_server" --ignore="at_secondary"'
+
+jobs:
+  melos-bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: subosito/flutter-action@48cafc24713cca54bbe03cdc3a423187d413aafa # v2.10.0
+        with:
+          channel: "stable"
+      - name: flutter pub get
+        run: flutter pub get
+      - name: Do melos bootstrap
+        run: dart run melos bootstrap ${{ github.events.inputs.melos_args ||  env.default_melos_args }}
