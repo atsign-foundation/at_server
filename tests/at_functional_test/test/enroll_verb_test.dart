@@ -118,7 +118,7 @@ void main() {
       var approveEnrollResponse = await read();
       approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
       expect(approveEnrollResponse,
-          'AT0029-Apkam Enrollment Expired : enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0029-Apkam Enrollment Expired : Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test(
@@ -138,7 +138,7 @@ void main() {
       var denyEnrollResponse = await read();
       denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0029-Apkam Enrollment Expired : enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0029-Apkam Enrollment Expired : Enrollment_id: $dummyEnrollmentId is expired or invalid\n');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
@@ -646,7 +646,6 @@ void main() {
   });
 
   group('verify different cases of enroll:update', () {
-
     /// Creates a new enrollment request and approves the request
     /// returns the newly approved enrollment_id
     Future<String> getApprovedEnrollment() async {
@@ -743,14 +742,16 @@ void main() {
       await prepare(socketConnection1!, firstAtsign,
           isApkam: true, enrollmentId: secondEnrollId);
       // revoke the first enrollment
-      await socket_writer(socketConnection1!, 'enroll:revoke:{"enrollmentId":"$firstEnrollId"}');
+      await socket_writer(socketConnection1!,
+          'enroll:revoke:{"enrollmentId":"$firstEnrollId"}');
       assert((await read()).contains('revoked'));
       // try to update the first enrollment which is revoked
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"$firstEnrollId","namespaces":{"buzz":"rw"}}');
       var response = await read();
       response = response.replaceFirst('error:', '');
-      expect(response, 'AT0030:EnrollmentStatus: revoked. Only approved enrollments can be updated\n');
+      expect(response,
+          'AT0030:Enrollment_id: $firstEnrollId is revoked. Only approved enrollments can be updated\n');
     });
 
     test(
@@ -891,10 +892,8 @@ void main() {
       await socket_writer(
           socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
-      expect(
-          enrollmentResponse,
-          'AT0030:Cannot revoke a pending enrollment.'
-          ' Only approved enrollments can be revoked\n');
+      expect(enrollmentResponse,
+          'AT0030:Enrollment_id: $enrollmentId is pending. Only approved enrollments can be revoked\n');
     });
 
     test(
@@ -913,7 +912,7 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(enrollmentResponse,
-          'AT0030:Cannot approve a denied enrollment. Only pending enrollments can be approved\n');
+          'AT0030:Enrollment_id: $enrollmentId is denied. Only pending enrollments can be approved\n');
     });
 
     test('A test to verify error is returned when denied enrollment is revoked',
@@ -931,7 +930,7 @@ void main() {
           socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(enrollmentResponse,
-          'AT0030:Cannot revoke a denied enrollment. Only approved enrollments can be revoked\n');
+          'AT0030:Enrollment_id: $enrollmentId is denied. Only approved enrollments can be revoked\n');
     });
 
     test('A test to verify revoked enrollment cannot be approved', () async {
@@ -954,7 +953,7 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}');
       enrollmentResponse = (await read()).replaceAll('error:', '');
       expect(enrollmentResponse,
-          'AT0030:Cannot approve a revoked enrollment. Only pending enrollments can be approved\n');
+          'AT0030:Enrollment_id: $enrollmentId is revoked. Only pending enrollments can be approved\n');
     });
   });
 
