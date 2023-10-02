@@ -148,7 +148,7 @@ void main() {
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('error:', '');
       expect(enrollResponse,
-          'AT0011-Exception: Invalid otp. Cannot process enroll request\n');
+          'AT0026:Invalid otp. Cannot process enroll request\n');
     });
 
     test('enroll request on unauthenticated connection invalid otp', () async {
@@ -684,6 +684,7 @@ void main() {
 
     test('test enroll:update on an unauthenticated connection', () async {
       await _connect();
+      // socket connection has not been authenticated
       await socket_writer(
           socketConnection1!, 'enroll:update:{"enrollmentId":"dummy1"}');
       var response = await read();
@@ -695,6 +696,7 @@ void main() {
     test('verify enroll:update behaviour with an invalid syntax', () async {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
+      // send enroll:update request without namespace
       await socket_writer(
           socketConnection1!, 'enroll:update:{"enrollmentId":"dummy1"}');
       var response = await read();
@@ -710,6 +712,7 @@ void main() {
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
           isApkam: true, enrollmentId: enrollId);
+      // try to update with an invalid enrollmentId
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"invalid_enrollment_id","namespaces":{"buzz":"rw"}}');
       var response = await read();
@@ -732,8 +735,26 @@ void main() {
       expect(jsonDecode(response)['status'], 'pending');
     });
 
+    test('verify enroll:update behaviour with revoked enrollmentId', () async {
+      String firstEnrollId = await getApprovedEnrollment();
+      String secondEnrollId = await getApprovedEnrollment();
+
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: secondEnrollId);
+      // revoke the first enrollment
+      await socket_writer(socketConnection1!, 'enroll:revoke:{"enrollmentId":"$firstEnrollId"}');
+      assert((await read()).contains('revoked'));
+      // try to update the first enrollment which is revoked
+      await socket_writer(socketConnection1!,
+          'enroll:update:{"enrollmentId":"$firstEnrollId","namespaces":{"buzz":"rw"}}');
+      var response = await read();
+      response = response.replaceFirst('error:', '');
+      expect(response, 'AT0030:EnrollmentStatus: revoked. Only approved enrollments can be updated\n');
+    });
+
     test(
-        'verify that enroll:update request approval actually updates the actual enrollment',
+        'verify that enroll:update request approval updates the namespaces of existing enrollments',
         () async {
       String enrollId = await getApprovedEnrollment();
       await socketConnection1?.close();
