@@ -17,8 +17,12 @@ updates:
   - package-ecosystem: "docker"
     directory: "/tools/build_virtual_environment/ve_base"
     schedule:
-      interval: "daily"     
+      interval: "daily"
   - package-ecosystem: "docker"
+    directory: "/packages/at_root_server"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pub"
     directory: "/packages/at_root_server"
     schedule:
       interval: "daily"
@@ -30,4 +34,3 @@ updates:
     directory: "/tools" # Location of package manifests
     schedule:
       interval: "daily"
-      
