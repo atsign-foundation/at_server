@@ -116,18 +116,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// a time window.
   Future<EnrollVerbResponse> _handleEnrollmentRequest(enrollParams,
       currentAtSign, operation, InboundConnection atConnection) async {
-    await validateEnrollmentRequest(enrollParams, atConnection, operation);
-
     // assigns valid enrollmentId and enrollmentNamespaces to the enrollParams object
     // also constructs and returns an enrollment key
     EnrollVerbResponse enrollmentResponse = EnrollVerbResponse();
+    try {
+      await validateEnrollmentRequest(enrollParams, atConnection, operation);
+    } on AtEnrollmentException catch(e){
+      logger.severe('Caught while validating enrollment request: $e');
+      enrollmentResponse.response.isError = true;
+      enrollmentResponse.response.errorMessage = e.message;
+      enrollmentResponse.response.errorCode = 'AT0026'; // for invalid otp
+      return enrollmentResponse;
+    }
+
     late String enrollmentKey;
     switch (operation) {
       case 'request':
         enrollmentKey = handleNewEnrollmentRequest(enrollParams);
         break;
       case 'update':
-        enrollmentKey = await handleEnrollmentUpdateRequest(enrollParams, currentAtSign);
+        enrollmentKey = await handleUpdateEnrollmentRequest(enrollParams, currentAtSign);
         break;
     }
 
@@ -523,7 +531,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     if (operation == 'update' &&
         atConnection.getMetaData().authType != AuthType.apkam) {
-      throw AtEnrollmentException(
+      throw UnAuthenticatedException(
           'Apkam authentication required to update enrollment');
     }
     if (!atConnection.getMetaData().isAuthenticated) {
@@ -559,7 +567,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<String> handleEnrollmentUpdateRequest(
+  Future<String> handleUpdateEnrollmentRequest(
       enrollParams, currentAtsign) async {
     if (enrollParams.enrollmentId == null) {
       logger.info(
