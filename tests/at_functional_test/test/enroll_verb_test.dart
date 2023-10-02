@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_builders.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
@@ -157,7 +158,7 @@ void main() {
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       expect(enrollResponse,
-          'error:AT0011-Exception: Invalid otp. Cannot process enroll request\n');
+          'error:AT0026:Invalid otp. Cannot process enroll request\n');
     });
 
     // Purpose of the tests
@@ -645,6 +646,9 @@ void main() {
   });
 
   group('verify different cases of enroll:update', () {
+
+    /// Creates a new enrollment request and approves the request
+    /// returns the newly approved enrollment_id
     Future<String> getApprovedEnrollment() async {
       await _connect();
       await prepare(socketConnection1!, firstAtsign);
@@ -662,6 +666,20 @@ void main() {
       approveResponse = approveResponse.replaceFirst('data:', "");
       expect(jsonDecode(approveResponse)['status'], 'approved');
       return enrollId;
+    }
+
+    /// Inserts provided key into the secondary server
+    Future<void> updateKey(
+        String key, String namespace, String atsign, String value) async {
+      await _connect();
+      await prepare(socketConnection1!, atsign);
+      UpdateVerbBuilder updateVerbBuilder = UpdateVerbBuilder()
+        ..sharedBy = atsign
+        ..atKey = '$key.$namespace'
+        ..value = value;
+      await socket_writer(socketConnection1!, updateVerbBuilder.buildCommand());
+      assert((await read()).contains('data:'));
+      await socketConnection1?.close();
     }
 
     test('test enroll:update on an unauthenticated connection', () async {
@@ -740,6 +758,87 @@ void main() {
       print('updated enrollment: $fetchUpdatedEnrollment');
       assert(fetchUpdatedEnrollment.contains(enrollId) &&
           fetchUpdatedEnrollment.contains('{"buzz":"rw"}'));
+    });
+
+    test('verify enroll:update actually provides access to updated namespaces',
+        () async {
+      // insert keys into secondary server
+      await updateKey('apkam_update_wavi', 'wavi', firstAtsign, 'data_1');
+      await updateKey('apkam_update_buzz', 'buzz', firstAtsign, 'data_2');
+      // create an new enrollment and approve it. Default access 'wavi:rw'
+      String enrollId = await getApprovedEnrollment();
+      await socketConnection1?.close();
+      // create new connection with apkam auth
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollId);
+      // scan keys with only access to 'wavi' namespace
+      socket_writer(socketConnection1!, 'scan');
+      var scanResponse = await read();
+      assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
+      // scan should not contain keys with 'buzz' namespace
+      assert(!scanResponse.contains('apkam_update_buzz.buzz$firstAtsign'));
+      // create an enrollment update request
+      await socket_writer(socketConnection1!,
+          'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"wavi":"rw","buzz":"rw"}}');
+      var updateResponse = await read();
+      updateResponse = updateResponse.replaceFirst('data:', '');
+      expect(jsonDecode(updateResponse)['status'], 'pending');
+      expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
+      // approve the enrollment update request
+      await socket_writer(
+          socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollId"}');
+      updateResponse = await read();
+      updateResponse = updateResponse.replaceFirst('data:', '');
+      expect(jsonDecode(updateResponse)['status'], 'approved');
+      expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
+      // assert scan now contains both the keys
+      socket_writer(socketConnection1!, 'scan');
+      scanResponse = await read();
+      print(scanResponse);
+      assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
+      assert(scanResponse.contains('apkam_update_buzz.buzz$firstAtsign'));
+    });
+
+    test(
+        'verify that denial of enroll:update request does NOT provides access to updated namespaces',
+        () async {
+      // insert keys into secondary server
+      await updateKey('apkam_update_wavi', 'wavi', firstAtsign, 'data_1');
+      await updateKey('apkam_update_buzz', 'buzz', firstAtsign, 'data_2');
+      // create an new enrollment and approve it. Default access 'wavi:rw'
+      String enrollId = await getApprovedEnrollment();
+      await socketConnection1?.close();
+      // create new connection with apkam auth
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollId);
+      // scan keys with only access to 'wavi' namespace
+      socket_writer(socketConnection1!, 'scan');
+      var scanResponse = await read();
+      assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
+      // scan should not contain keys with 'buzz' namespace
+      assert(!scanResponse.contains('apkam_update_buzz.buzz$firstAtsign'));
+      // create an enrollment update request
+      await socket_writer(socketConnection1!,
+          'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"wavi":"rw","buzz":"rw"}}');
+      var updateResponse = await read();
+      updateResponse = updateResponse.replaceFirst('data:', '');
+      expect(jsonDecode(updateResponse)['status'], 'pending');
+      expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
+      // deny the enrollment update request
+      await socket_writer(
+          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollId"}');
+      updateResponse = await read();
+      updateResponse = updateResponse.replaceFirst('data:', '');
+      expect(jsonDecode(updateResponse)['status'], 'denied');
+      expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
+
+      socket_writer(socketConnection1!, 'scan');
+      scanResponse = await read();
+      assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
+      // scan should not contain keys with 'buzz' namespace
+      assert(!scanResponse.contains('apkam_update_buzz.buzz$firstAtsign'));
     });
   });
 

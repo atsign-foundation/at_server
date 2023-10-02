@@ -332,9 +332,9 @@ void main() {
       String enrollId = await createAndApproveEnrollment();
       // set the enrollment status as expired
       String enrollmentKey =
-      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
       EnrollDataStoreValue existingEnrollValue =
-      await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+          await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
       // set the existing state as revoked
       existingEnrollValue.approval!.state = EnrollStatus.revoked.name;
       AtData atData = AtData();
@@ -346,7 +346,7 @@ void main() {
       String command =
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"update":"r"}}';
       HashMap<String, String?> verbParams =
-      getVerbParam(VerbSyntax.enroll, command);
+          getVerbParam(VerbSyntax.enroll, command);
       Response response = Response();
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
@@ -361,9 +361,9 @@ void main() {
       String enrollId = await createAndApproveEnrollment();
       // set the enrollment status as expired
       String enrollmentKey =
-      enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: '@alice');
       EnrollDataStoreValue existingEnrollValue =
-      await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+          await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
       existingEnrollValue.approval!.state = EnrollStatus.denied.name;
       AtData atData = AtData();
       atData.data = jsonEncode(existingEnrollValue);
@@ -373,7 +373,7 @@ void main() {
       String command =
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"update":"r"}}';
       HashMap<String, String?> verbParams =
-      getVerbParam(VerbSyntax.enroll, command);
+          getVerbParam(VerbSyntax.enroll, command);
       Response response = Response();
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
@@ -569,12 +569,12 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0026');
       expect(
-          () async => await enrollVerbHandler.processVerb(
-              response, verbParams, inboundConnection),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e.message == 'Invalid otp. Cannot process enroll request')));
+          response.errorMessage, 'Invalid otp. Cannot process enroll request');
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -1107,12 +1107,14 @@ void main() {
     test(
         'verify behaviour of method: validateEnrollmentRequest() - case not apkam authenticated',
         () {
-      EnrollParams enrollParams = EnrollParams()..otp = 'abcd'..namespaces={"abdc": "rw"};
+      EnrollParams enrollParams = EnrollParams()
+        ..otp = 'abcd'
+        ..namespaces = {"abdc": "rw"};
       expect(
           () => enrollVerbHandler.validateEnrollmentRequest(
               enrollParams, inboundConnection, 'update'),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is UnAuthenticatedException &&
               e.toString().contains(
                   'Apkam authentication required to update enrollment'))));
     });
@@ -1160,8 +1162,11 @@ void main() {
       enrollParams.enrollmentId = enrollId;
       enrollParams.namespaces = {'dummy_namespace': 'rw'};
       String enrollmentKeyResponse = await enrollVerbHandler
-          .handleEnrollmentUpdateRequest(enrollParams, atsign);
-      expect(enrollmentKeyResponse, enrollVerbHandler.getEnrollmentKey(enrollId, isSupplementaryKey: true));
+          .handleUpdateEnrollmentRequest(enrollParams, atsign);
+      expect(
+          enrollmentKeyResponse,
+          enrollVerbHandler.getEnrollmentKey(enrollId,
+              isSupplementaryKey: true));
       expect(enrollParams.namespaces, {'dummy_namespace': 'rw'});
       expect(enrollParams.deviceName, enrollDataStoreValue.deviceName);
       expect(enrollParams.appName, enrollDataStoreValue.appName);

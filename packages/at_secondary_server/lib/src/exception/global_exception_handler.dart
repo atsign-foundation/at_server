@@ -63,7 +63,6 @@ class GlobalExceptionHandler {
         exception is HandShakeException ||
         exception is UnAuthenticatedException ||
         exception is UnAuthorizedException ||
-        exception is AtEnrollmentException ||
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||
         exception is AtConnectException ||
