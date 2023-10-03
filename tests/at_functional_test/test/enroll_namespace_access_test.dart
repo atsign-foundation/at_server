@@ -323,6 +323,7 @@ void main() {
       await socket_writer(
           socketConnection1!, 'update:$atmosphereKey atmospherevalue');
       var updateResponse = await read();
+      assert(updateResponse.contains('data:'));
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
@@ -338,17 +339,15 @@ void main() {
       expect(enrollJsonMap['status'], 'approved');
 
       var enrollmentId = enrollJsonMap['enrollmentId'];
-
+      await socketConnection1?.close();
       // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollmentId);
 
       await socket_writer(socketConnection1!, 'scan');
-      var scanResponse = await read();
+      String scanResponse = await read();
+      print('scanResponse: $scanResponse');
       expect(scanResponse.contains(atmosphereKey), true);
     });
 
@@ -496,17 +495,14 @@ void main() {
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-
       var enrollmentId = enrollJsonMap['enrollmentId'];
+      await socketConnection1?.close();
 
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
+      await _connect();
+      // this authenticates to the server using apkam authentication with the
+      // enrollment_is that has just been created
+      await prepare(socketConnection1!, firstAtsign,
+          isApkam: true, enrollmentId: enrollmentId);
       await socket_writer(socketConnection1!, 'scan');
       var scanResponse = await read();
       print(scanResponse);

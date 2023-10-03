@@ -795,7 +795,7 @@ void main() {
       await prepare(socketConnection1!, firstAtsign,
           isApkam: true, enrollmentId: enrollId);
       // scan keys with only access to 'wavi' namespace
-      socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan');
       var scanResponse = await read();
       assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
       // scan should not contain keys with 'buzz' namespace
@@ -815,7 +815,7 @@ void main() {
       expect(jsonDecode(updateResponse)['status'], 'approved');
       expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
       // assert scan now contains both the keys
-      socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan');
       scanResponse = await read();
       print(scanResponse);
       assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
@@ -836,7 +836,7 @@ void main() {
       await prepare(socketConnection1!, firstAtsign,
           isApkam: true, enrollmentId: enrollId);
       // scan keys with only access to 'wavi' namespace
-      socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan');
       var scanResponse = await read();
       assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
       // scan should not contain keys with 'buzz' namespace
@@ -856,7 +856,7 @@ void main() {
       expect(jsonDecode(updateResponse)['status'], 'denied');
       expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
 
-      socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan');
       scanResponse = await read();
       assert(scanResponse.contains('apkam_update_wavi.wavi$firstAtsign'));
       // scan should not contain keys with 'buzz' namespace

@@ -77,7 +77,7 @@ Future<void> prepare(Socket socket, String atsign, {bool isApkam = false, String
   } else {
     await socket_writer(socket, 'pkam:enrollmentId:$enrollmentId:$pkamDigest');
     response = await read();
-    print('APKAM response: $response');
+    print('APKAM auth response: $response');
     expect(response, 'data:success\n');
   }
 }
