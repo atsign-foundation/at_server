@@ -342,13 +342,11 @@ void main() {
       await socketConnection1?.close();
       // now do the apkam using the enrollment id
       await _connect();
-      await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollmentId);
+      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollmentId);
 
-      await socket_writer(socketConnection1!, 'scan');
-      String scanResponse = await read();
-      print('scanResponse: $scanResponse');
-      expect(scanResponse.contains(atmosphereKey), true);
+      await socket_writer(socketConnection1!, 'llookup:$atmosphereKey');
+      String lookupResponse = await read();
+      expect(lookupResponse, 'data:atmospherevalue\n');
     });
 
     // 1. Do a cram authentication
@@ -501,12 +499,10 @@ void main() {
       await _connect();
       // this authenticates to the server using apkam authentication with the
       // enrollment_is that has just been created
-      await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollmentId);
-      await socket_writer(socketConnection1!, 'scan');
-      var scanResponse = await read();
-      print(scanResponse);
-      expect((scanResponse.contains(waviKey)), true);
+      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollmentId);
+      await socket_writer(socketConnection1!, 'llookup:$waviKey');
+      String lookupResponse = await read();
+      expect(lookupResponse, 'data:checkingValue\n');
     });
 
     //  Pre-requisite - create a wavi key
