@@ -31,10 +31,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
     final operation = verbParams['operation'];
     switch (operation) {
       case 'get':
-        // if (!atConnection.getMetaData().isAuthenticated) {
-        //   throw UnAuthenticatedException(
-        //       'otp:get requires authenticated connection');
-        // }
+        if (!atConnection.getMetaData().isAuthenticated) {
+          throw UnAuthenticatedException(
+              'otp:get requires authenticated connection');
+        }
         do {
           response.data = _generateOTP();
         }
