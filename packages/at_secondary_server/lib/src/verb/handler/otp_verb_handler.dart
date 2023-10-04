@@ -31,10 +31,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
     final operation = verbParams['operation'];
     switch (operation) {
       case 'get':
-        if (!atConnection.getMetaData().isAuthenticated) {
-          throw UnAuthenticatedException(
-              'otp:get requires authenticated connection');
-        }
+        // if (!atConnection.getMetaData().isAuthenticated) {
+        //   throw UnAuthenticatedException(
+        //       'otp:get requires authenticated connection');
+        // }
         do {
           response.data = _generateOTP();
         }
@@ -43,13 +43,19 @@ class OtpVerbHandler extends AbstractVerbHandler {
         await cache.set(response.data!, response.data!);
         break;
       case 'validate':
-        String? otp = verbParams['otp'];
-        if (otp != null && (await cache.get(otp)) == otp) {
-          response.data = 'valid';
-        } else {
-          response.data = 'invalid';
-        }
+        response.data =
+            await isValidOtp(verbParams['otp']) ? 'valid' : 'invalid';
         break;
+    }
+  }
+
+  static Future<bool> isValidOtp(String? otp) async {
+    if (otp != null && (await cache.get(otp)) == otp) {
+      // if an opt is validated, remove that otp from the cache
+      await cache.invalidate(otp);
+      return true;
+    } else {
+      return false;
     }
   }
 
@@ -88,7 +94,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
     int randomAscii;
     do {
       randomAscii = minAscii + Random().nextInt((maxAscii - minAscii) + 1);
-      // 79 is the ASCII value of "O". If randamAscii is 79, generate again.
+      // 79 is the ASCII value of "O". If randomAscii is 79, generate again.
     } while (randomAscii == 79);
     return String.fromCharCode(randomAscii);
   }

@@ -118,8 +118,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     if (!atConnection.getMetaData().isAuthenticated) {
       var otp = enrollParams.otp;
-      if (otp == null ||
-          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
+      if (!await OtpVerbHandler.isValidOtp(otp)) {
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
