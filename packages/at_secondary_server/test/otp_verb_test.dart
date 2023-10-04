@@ -84,6 +84,28 @@ void main() {
       expect(response.data, 'valid');
     });
 
+    test('verify otp:validate invalidates an OTP after it is used',
+            () async {
+          Response response = Response();
+          HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+          inboundConnection.getMetaData().isAuthenticated = true;
+
+          OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+          await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+          String? otp = response.data;
+          // attempt #1 should return a valid response
+          verbParams =
+              getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
+          await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+          expect(response.data, 'valid');
+          // attempt #2 should return a invalid response
+          verbParams =
+              getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
+          await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+          expect(response.data, 'invalid');
+        });
+
     test('A test to verify otp:validate returns invalid when OTP is expired',
         () async {
       Response response = Response();
