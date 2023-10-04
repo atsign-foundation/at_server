@@ -147,8 +147,28 @@ void main() async {
       response = await read();
       print('config verb response $response');
       expect(response, contains('data:25'));
-  });
 
+      test('fetch and validate otp', ()async{
+        await socket_writer(socketFirstAtsign!, 'otp:get');
+        String otp = (await read()).replaceFirst('data:', '');
+        expect(otp.length, 6);
+        // validate otp
+        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+        expect(await read(), 'data:valid');
+      });
+
+      test('ensure otp is invalidated after use', ()async{
+        await socket_writer(socketFirstAtsign!, 'otp:get');
+        String otp = (await read()).replaceFirst('data:', '');
+        expect(otp.length, 6);
+        // validate otp attempt #1 should be valid
+        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+        expect(await read(), 'data:valid');
+        // validate otp attempt #2 should be invalid
+        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+        expect(await read(), 'data:invalid');
+      });
+  });
 
   tearDown(() {
     //Closing the socket connection
