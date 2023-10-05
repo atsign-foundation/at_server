@@ -764,9 +764,6 @@ void main() {
           socketConnection1!, 'config:set:timeFrameInMills=100\n');
       configResponse = await read();
       expect(configResponse.trim(), 'data:ok');
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
-      otp = otp.replaceAll('data:', '').trim();
     });
 
     test(
@@ -775,6 +772,9 @@ void main() {
       SecureSocket unAuthenticatedConnection =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(unAuthenticatedConnection);
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -782,6 +782,10 @@ void main() {
           jsonDecode((await read()).replaceAll('data:', ''));
       expect(enrollmentResponse['status'], 'pending');
       expect(enrollmentResponse['enrollmentId'], isNotNull);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -798,6 +802,10 @@ void main() {
       SecureSocket unAuthenticatedConnection =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(unAuthenticatedConnection);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -805,6 +813,10 @@ void main() {
           jsonDecode((await read()).replaceAll('data:', ''));
       expect(enrollmentResponse['status'], 'pending');
       expect(enrollmentResponse['enrollmentId'], isNotNull);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -825,6 +837,10 @@ void main() {
       SecureSocket unAuthenticatedConnection =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(unAuthenticatedConnection);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -832,6 +848,10 @@ void main() {
           jsonDecode((await read()).replaceAll('data:', ''));
       expect(enrollmentResponse['status'], 'pending');
       expect(enrollmentResponse['enrollmentId'], isNotNull);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -844,6 +864,10 @@ void main() {
       SecureSocket secondUnAuthenticatedConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(secondUnAuthenticatedConnection2);
+
+      await socket_writer(socketConnection1!, 'otp:get');
+      otp = await read();
+      otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(secondUnAuthenticatedConnection2, enrollRequest);
