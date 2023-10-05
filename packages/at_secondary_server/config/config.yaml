@@ -9,7 +9,7 @@ root_server:
 
 # Default logger settings
 log:
-  level: FINER
+  level: INFO
 
 # The atProtocol security configurations.
 security:
@@ -17,9 +17,9 @@ security:
   # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
   # [privateKeyLocation] should be populated with the path's to respective certificates.
   useTLS: true
-  certificateChainLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/fullchain.pem'
-  privateKeyLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/privkey.pem'
-  trustedCertificateLocation: '/home/srie/Desktop/work/at_server/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/cacert.pem'
+  certificateChainLocation: 'certs/fullchain.pem'
+  privateKeyLocation: 'certs/privkey.pem'
+  trustedCertificateLocation: '/etc/cacert/cacert.pem'
   clientCertificateRequired: true
 
 # The atProtocol storage configurations
