@@ -105,69 +105,70 @@ void main() async {
 
 //THE FOLLOWING TESTS ONLY WORK WHEN IN TESTING MODE
   test('config verb test set-reset-print operation', () async {
-      //the below block of code sets the commit log compaction freq to  4
-      await socket_writer(
-          socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
-      var response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:ok'));
+    //the below block of code sets the commit log compaction freq to  4
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:commitLogCompactionFrequencyMins=4');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
 
-      //this resets the commit log compaction freq previously set to 4 to default value
-      await socket_writer(
-          socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
-      //await Future.delayed(Duration(seconds: 2));
-      response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:ok'));
+    //this resets the commit log compaction freq previously set to 4 to default value
+    await socket_writer(
+        socketFirstAtsign!, 'config:reset:commitLogCompactionFrequencyMins');
+    //await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
 
-      // this ensures that the reset actually works and the current value is 18 as per the config
-      // at tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/config/config.yaml
-      await socket_writer(
-          socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
-      //await Future.delayed(Duration(seconds: 2));
-      response = (await read()).trim();
-      print('config verb response [$response]');
-      // TODO gkc 20230219 It's two values because we used to set to 30 but now we're setting to 18.
-      // TODO gkc 20230219 We can remove the 'or' once build_virtual_environment is merged to trunk
-      expect((response == 'data:18' || response == 'data:30'), true);
+    // this ensures that the reset actually works and the current value is 18 as per the config
+    // at tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/config/config.yaml
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:commitLogCompactionFrequencyMins');
+    //await Future.delayed(Duration(seconds: 2));
+    response = (await read()).trim();
+    print('config verb response [$response]');
+    // TODO gkc 20230219 It's two values because we used to set to 30 but now we're setting to 18.
+    // TODO gkc 20230219 We can remove the 'or' once build_virtual_environment is merged to trunk
+    expect((response == 'data:18' || response == 'data:30'), true);
   });
 
   test('config verb test set-print', () async {
-      //the block of code below sets max notification retries to 25
-      await socket_writer(
-          socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
-      var response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:ok'));
+    //the block of code below sets max notification retries to 25
+    await socket_writer(
+        socketFirstAtsign!, 'config:set:maxNotificationRetries=25');
+    var response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:ok'));
 
-      //the block of code below verifies that the max notification retries is set to 25
-      await socket_writer(
-          socketFirstAtsign!, 'config:print:maxNotificationRetries');
-      await Future.delayed(Duration(seconds: 2));
-      response = await read();
-      print('config verb response $response');
-      expect(response, contains('data:25'));
+    //the block of code below verifies that the max notification retries is set to 25
+    await socket_writer(
+        socketFirstAtsign!, 'config:print:maxNotificationRetries');
+    await Future.delayed(Duration(seconds: 2));
+    response = await read();
+    print('config verb response $response');
+    expect(response, contains('data:25'));
+  });
 
-      test('fetch and validate otp', ()async{
-        await socket_writer(socketFirstAtsign!, 'otp:get');
-        String otp = (await read()).replaceFirst('data:', '');
-        expect(otp.length, 6);
-        // validate otp
-        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
-        expect(await read(), 'data:valid');
-      });
+  test('fetch and validate otp', () async {
+    await socket_writer(socketFirstAtsign!, 'otp:get');
+    String otp = (await read()).replaceFirst('data:', '');
+    otp = otp.replaceFirst('\n', '');
+    expect(otp.length, 6);
+    // validate otp
+    await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+    expect(await read(), 'data:valid\n');
+  });
 
-      test('ensure otp is invalidated after use', ()async{
-        await socket_writer(socketFirstAtsign!, 'otp:get');
-        String otp = (await read()).replaceFirst('data:', '');
-        expect(otp.length, 6);
-        // validate otp attempt #1 should be valid
-        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
-        expect(await read(), 'data:valid');
-        // validate otp attempt #2 should be invalid
-        await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
-        expect(await read(), 'data:invalid');
-      });
+  test('ensure otp is invalidated after use', () async {
+    await socket_writer(socketFirstAtsign!, 'otp:get');
+    String otp = (await read()).replaceFirst('data:', '');
+    otp = otp.replaceFirst('\n', '');
+    // validate otp attempt #1 should be valid
+    await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+    expect(await read(), 'data:valid\n');
+    // validate otp attempt #2 should be invalid
+    await socket_writer(socketFirstAtsign!, 'otp:validate:$otp');
+    expect(await read(), 'data:invalid\n');
   });
 
   tearDown(() {
