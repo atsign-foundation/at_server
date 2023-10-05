@@ -357,3 +357,13 @@ String createRandomString(int length) {
       (index) =>
           characters.codeUnitAt(testUtilsRandom.nextInt(characters.length))));
 }
+
+class CustomInboundConnection extends DummyInboundConnection{
+  bool isValid;
+  CustomInboundConnection({required this.isValid});
+  
+  @override
+  bool isRequestAllowed() {
+    return isValid;
+  }
+}

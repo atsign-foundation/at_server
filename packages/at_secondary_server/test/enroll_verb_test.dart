@@ -1095,13 +1095,13 @@ void main() {
     test(
         'verify behaviour of method: validateEnrollmentRequest() - case AtThrottleLimitExceededException',
         () {
-      inboundConnection.customIsRequestAllowedValue = false;
+          inboundConnection = CustomInboundConnection(isValid: false);
       EnrollParams enrollParams = EnrollParams()..otp = 'abcd';
       expect(
           () => enrollVerbHandler.validateEnrollmentRequest(
               enrollParams, inboundConnection, 'approve'),
           throwsA(predicate((dynamic e) => e is AtThrottleLimitExceeded)));
-      inboundConnection.customIsRequestAllowedValue = true;
+      inboundConnection = CustomInboundConnection(isValid: true);
     });
 
     test(
