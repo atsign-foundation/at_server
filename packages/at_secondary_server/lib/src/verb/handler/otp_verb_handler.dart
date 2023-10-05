@@ -1,24 +1,31 @@
 import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/store/otp_store.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:expire_cache/expire_cache.dart';
 
 class OtpVerbHandler extends AbstractVerbHandler {
   static Otp otpVerb = Otp();
-  static final expireDuration = Duration(seconds: 90);
-  static ExpireCache<String, String> cache =
-      ExpireCache<String, String>(expireDuration: expireDuration);
 
-  OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  @visibleForTesting
+  Duration otpExpiryDuration = Duration(minutes: 5);
+
+  static late OTPStore _otpStore;
+
+  OtpVerbHandler(SecondaryKeyStore keyStore, {Duration? gcDuration})
+      : super(keyStore) {
+    gcDuration ??= Duration(minutes: AtSecondaryConfig.otpGCDurationInMins);
+    _otpStore = OTPStore(gcDuration: gcDuration);
+  }
 
   @override
-  bool accept(String command) =>
-      command == 'otp:get' || command.startsWith('otp:validate');
+  bool accept(String command) => command.startsWith('otp');
 
   @override
   Verb getVerb() => otpVerb;
@@ -29,6 +36,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
+    if (verbParams[AtConstants.ttl] != null) {
+      otpExpiryDuration =
+          Duration(seconds: int.parse(verbParams[AtConstants.ttl]!));
+    }
     switch (operation) {
       case 'get':
         if (!atConnection.getMetaData().isAuthenticated) {
@@ -40,17 +51,36 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         // If OTP generated do not have digits, generate again.
         while (RegExp(r'\d').hasMatch(response.data!) == false);
-        await cache.set(response.data!, response.data!);
+        _otpStore.set(
+            response.data!,
+            DateTime.now()
+                .toUtc()
+                .add(otpExpiryDuration)
+                .millisecondsSinceEpoch);
         break;
       case 'validate':
         String? otp = verbParams['otp'];
-        if (otp != null && (await cache.get(otp)) == otp) {
+        bool isValid = isValidOTP(otp);
+        if (isValid) {
           response.data = 'valid';
-        } else {
-          response.data = 'invalid';
+          return;
         }
-        break;
+        response.data = 'invalid';
     }
+  }
+
+  static bool isValidOTP(String? otp) {
+    if (otp == null) {
+      return false;
+    }
+    int? otpExpiry = _otpStore.get(otp);
+    // Remove the OTP from the OTPStore to prevent reuse of OTP.
+    _otpStore.remove(otp);
+    if (otpExpiry != null &&
+        otpExpiry >= DateTime.now().toUtc().millisecondsSinceEpoch) {
+      return true;
+    }
+    return false;
   }
 
   /// This function generates a UUID and converts it into a 6-character alpha-numeric string.
@@ -99,5 +129,15 @@ class OtpVerbHandler extends AbstractVerbHandler {
       result = result * 256 + b;
     }
     return result;
+  }
+
+  /// Retrieves the number of OTPs currently stored in the OTPStore.
+  ///
+  /// This method is intended for unit testing purposes to access the size of
+  /// the OTPStore's internal store.
+  @visibleForTesting
+  int size() {
+    // ignore: invalid_use_of_visible_for_testing_member
+    return _otpStore.size();
   }
 }

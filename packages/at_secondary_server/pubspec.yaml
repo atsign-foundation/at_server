@@ -26,7 +26,6 @@ dependencies:
   at_server_spec: 3.0.15
   at_persistence_spec: 2.0.14
   at_persistence_secondary_server: 3.0.57
-  expire_cache: ^2.0.1
   intl: ^0.18.1
   json_annotation: ^4.8.0
   version: 3.0.2
@@ -34,6 +33,15 @@ dependencies:
   mutex: 3.0.1
   yaml: 3.1.2
   logging: 1.2.0
+
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: expire_otp_changes
+
+
 
 dev_dependencies:
   test: ^1.24.4

@@ -159,3 +159,9 @@ enrollment:
   maxRequestsPerTimeFrame: 5
   # The duration of the time window in hours.
   timeFrameInHours: 1
+
+# OTP Store Configurations
+otp:
+  # The duration between each garbage collection which removes the expired OTPs from the OTPStore.
+  # Defaults to 60 minutes
+  gcDurationInMins: 60

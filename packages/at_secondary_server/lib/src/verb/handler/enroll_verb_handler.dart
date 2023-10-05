@@ -116,14 +116,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw AtThrottleLimitExceeded(
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
-    if (!atConnection.getMetaData().isAuthenticated) {
-      var otp = enrollParams.otp;
-      if (otp == null ||
-          (await OtpVerbHandler.cache.get(otp.toString()) == null)) {
-        throw AtEnrollmentException(
-            'invalid otp. Cannot process enroll request');
-      }
+
+    if ((!atConnection.getMetaData().isAuthenticated) &&
+        (!OtpVerbHandler.isValidOTP(enrollParams.otp))) {
+      throw AtEnrollmentException('invalid otp. Cannot process enroll request');
     }
+
     var enrollNamespaces = enrollParams.namespaces ?? {};
     var newEnrollmentId = Uuid().v4();
     var key =

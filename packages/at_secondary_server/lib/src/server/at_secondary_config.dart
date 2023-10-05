@@ -129,6 +129,10 @@ class AtSecondaryConfig {
   static const int _enrollmentExpiryInHours = 48;
   static int _maxEnrollRequestsAllowed = 5;
 
+  // OTP Configurations
+  // The duration between each garbage collection which removes the expired OTPs from the OTPStore.
+  static const int _otpGCDurationInMins = 60;
+
   static final int _timeFrameInHours = 1;
 
   // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
@@ -767,6 +771,18 @@ class AtSecondaryConfig {
           .inMilliseconds;
     } on ElementNotFoundException {
       return Duration(hours: _timeFrameInHours).inMilliseconds;
+    }
+  }
+
+  static int get otpGCDurationInMins {
+    var result = _getIntEnvVar('otpGCDurationInMins');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['otp', 'gcDurationInMins']);
+    } on ElementNotFoundException {
+      return _otpGCDurationInMins;
     }
   }
 
