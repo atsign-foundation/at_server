@@ -41,8 +41,6 @@ dependency_overrides:
       path: packages/at_commons
       ref: expire_otp_changes
 
-
-
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1
