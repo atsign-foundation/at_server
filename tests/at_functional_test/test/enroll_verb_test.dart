@@ -769,6 +769,18 @@ void main() {
       otp = otp.replaceAll('data:', '').trim();
     });
 
+    Future<String> getNewOtp() async {
+      socketConnection2 =
+          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+      socket_listener(socketConnection2!);
+      await prepare(socketConnection2!, firstAtsign);
+      await socket_writer(socketConnection2!, 'otp:get');
+      String otp = (await read()).replaceFirst('data:', '');
+      otp = otp.replaceFirst('\n', '');
+      await socketConnection2?.close();
+      return otp;
+    }
+
     test(
         'A test to verify exception is thrown when request exceed the configured limit',
         () async {
@@ -805,11 +817,13 @@ void main() {
           jsonDecode((await read()).replaceAll('data:', ''));
       expect(enrollmentResponse['status'], 'pending');
       expect(enrollmentResponse['enrollmentId'], isNotNull);
+      otp = await getNewOtp();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
       enrollmentResponse = await read()
         ..replaceAll('error:', '');
+      print(enrollmentResponse);
       expect(
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
@@ -832,6 +846,7 @@ void main() {
           jsonDecode((await read()).replaceAll('data:', ''));
       expect(enrollmentResponse['status'], 'pending');
       expect(enrollmentResponse['enrollmentId'], isNotNull);
+      otp = await getNewOtp();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(unAuthenticatedConnection, enrollRequest);
@@ -844,6 +859,7 @@ void main() {
       SecureSocket secondUnAuthenticatedConnection2 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
       socket_listener(secondUnAuthenticatedConnection2);
+      otp = await getNewOtp();
       enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
       await socket_writer(secondUnAuthenticatedConnection2, enrollRequest);
