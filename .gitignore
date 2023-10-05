@@ -7,7 +7,7 @@ build/
 
 # If you're building an application, you may want to check-in your pubspec.lock
 pubspec.lock
-pubspec_overrides.yaml # melos
+pubspec_overrides.yaml
 
 # Directory created by dartdoc
 # If you don't generate documentation locally you can remove this line.
@@ -31,3 +31,10 @@ doc/api/
 */certs/*
 .vscode/
 storage
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+poetry.lock
