@@ -148,7 +148,7 @@ void main() {
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('error:', '');
       expect(enrollResponse,
-          'AT0026:Invalid otp. Cannot process enroll request\n');
+          'AT0022-Exception: Invalid OTP. Cannot process enroll request\n');
     });
 
     test('enroll request on unauthenticated connection invalid otp', () async {
@@ -158,7 +158,7 @@ void main() {
       var enrollResponse = await read();
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       expect(enrollResponse,
-          'error:AT0026:Invalid otp. Cannot process enroll request\n');
+          'error:AT0022-Exception: Invalid OTP. Cannot process enroll request\n');
     });
 
     // Purpose of the tests
@@ -632,13 +632,15 @@ void main() {
         String enrollmentId = jsonDecode(
             enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
+        // perform revoke operation with socket2 which is un-authenticated
         socketConnection2 =
             await secure_socket_connection(firstAtsignServer, firstAtsignPort);
         socket_listener(socketConnection2!);
         String revokeEnrollmentCommand =
-            'enroll:revoke:enrollmentid:$enrollmentId';
+            'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
         await socket_writer(socketConnection2!, revokeEnrollmentCommand);
         var revokeEnrollmentResponse = await read();
+        print('enroll:revoke response $revokeEnrollmentResponse');
         expect(revokeEnrollmentResponse.trim(),
             'error:AT0401-Exception: Cannot revoke enrollment without authentication');
       });
@@ -765,11 +767,12 @@ void main() {
           isApkam: true, enrollmentId: enrollId);
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"buzz":"rw"}}');
-      await read();
+      print('enroll update response: ${await read()}');
       // approve enrollment update request
       await socket_writer(
           socketConnection1!, 'enroll:approve:{"enrollmentId":"$enrollId"}');
       var updateResponse = await read();
+      print('enroll approve response: $updateResponse');
       updateResponse = updateResponse.replaceFirst('data:', '');
       expect(jsonDecode(updateResponse)['status'], 'approved');
       expect(jsonDecode(updateResponse)['enrollmentId'], enrollId);
