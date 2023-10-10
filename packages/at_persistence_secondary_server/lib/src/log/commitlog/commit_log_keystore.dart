@@ -187,7 +187,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   bool _isNamespaceAuthorised(String atKey, List<String>? enrolledNamespace) {
     // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
-    if (atKey == 'configkey') {
+    if (atKey.toLowerCase() == 'configkey') {
       return true;
     }
     String? keyNamespace = AtKey.fromString(atKey).namespace;
