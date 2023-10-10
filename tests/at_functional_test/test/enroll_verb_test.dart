@@ -712,7 +712,7 @@ void main() {
       await socketConnection1?.close();
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollId);
+          isAPKAM: true, enrollmentId: enrollId);
       // try to update with an invalid enrollmentId
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"invalid_enrollment_id","namespaces":{"buzz":"rw"}}');
@@ -728,7 +728,7 @@ void main() {
       await socketConnection1?.close();
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollId);
+          isAPKAM: true, enrollmentId: enrollId);
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"buzz":"rw"}}');
       var response = (await read()).replaceFirst('data:', '');
@@ -742,7 +742,7 @@ void main() {
 
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: secondEnrollId);
+          isAPKAM: true, enrollmentId: secondEnrollId);
       // revoke the first enrollment
       await socket_writer(socketConnection1!,
           'enroll:revoke:{"enrollmentId":"$firstEnrollId"}');
@@ -764,7 +764,7 @@ void main() {
       await _connect();
       // apkam authentication
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollId);
+          isAPKAM: true, enrollmentId: enrollId);
       await socket_writer(socketConnection1!,
           'enroll:update:{"enrollmentId":"$enrollId","namespaces":{"buzz":"rw"}}');
       print('enroll update response: ${await read()}');
@@ -796,7 +796,7 @@ void main() {
       // create new connection with apkam auth
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollId);
+          isAPKAM: true, enrollmentId: enrollId);
       // scan keys with only access to 'wavi' namespace
       await socket_writer(socketConnection1!, 'scan');
       var scanResponse = await read();
@@ -837,7 +837,7 @@ void main() {
       // create new connection with apkam auth
       await _connect();
       await prepare(socketConnection1!, firstAtsign,
-          isApkam: true, enrollmentId: enrollId);
+          isAPKAM: true, enrollmentId: enrollId);
       // scan keys with only access to 'wavi' namespace
       await socket_writer(socketConnection1!, 'scan');
       var scanResponse = await read();

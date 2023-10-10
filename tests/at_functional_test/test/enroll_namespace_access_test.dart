@@ -23,11 +23,17 @@ var aliceApkamSymmetricKey;
 var encryptedDefaultEncPrivateKey;
 var encryptedSelfEncKey;
 
-Future<void> _connect() async {
+Future<void> _connect({int socketNumber: 1}) async {
   // socket connection for first atsign
-  socketConnection1 =
-      await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  socket_listener(socketConnection1!);
+  if (socketNumber == 1) {
+    socketConnection1 =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketConnection1!);
+  } else {
+    socketConnection2 =
+        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
+    socket_listener(socketConnection2!);
+  }
 }
 
 Future<void> encryptKeys() async {
@@ -308,14 +314,7 @@ void main() {
     test(
         'enroll request on cram authenticated connection for wavi namespace and scan displays atmosphere key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await prepare(socketConnection1!, firstAtsign, isCRAM: true);
 
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
@@ -342,7 +341,8 @@ void main() {
       await socketConnection1?.close();
       // now do the apkam using the enrollment id
       await _connect();
-      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollmentId);
+      await prepare(socketConnection1!, firstAtsign,
+          isAPKAM: true, enrollmentId: enrollmentId);
 
       await socket_writer(socketConnection1!, 'llookup:$atmosphereKey');
       String lookupResponse = await read();
@@ -358,13 +358,7 @@ void main() {
     test(
         'second enroll request using otp and client approves enrollment request',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramSecret = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramSecret');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await prepare(socketConnection1!, firstAtsign, isCRAM: true);
 
       // update wavi key
       String waviKey = 'phone.wavi$firstAtsign';
@@ -413,18 +407,11 @@ void main() {
       expect(approveJson['enrollmentId'], secondEnrollId);
 
       // close the first connection
-      socketConnection1!.close();
+      await socketConnection1!.close();
 
       // connect to the second client to do an apkam
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamDigest\n';
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamResponse = await read();
-      expect(apkamResponse, 'data:success\n');
+      await prepare(socketConnection2!, firstAtsign,
+          isAPKAM: true, enrollmentId: secondEnrollId);
 
       // update buzz key
       String buzzKey = 'email.buzz$firstAtsign';
@@ -435,14 +422,19 @@ void main() {
       // llookup on wavi key should fail
       await socket_writer(socketConnection2!, 'llookup:$waviKey');
       var llookupResponse = await read();
-      expect(llookupResponse,
-          startsWith('error:AT0009-UnAuthorized client in request'));
+      llookupResponse = llookupResponse.replaceFirst('error:', '');
+      expect(jsonDecode(llookupResponse)['errorCode'], 'AT0009');
+      print(llookupResponse);
+      assert(jsonDecode(llookupResponse)['errorDescription']
+          .startsWith('UnAuthorized client in request'));
 
       // delete on wavi key should fail
       await socket_writer(socketConnection2!, 'delete:$waviKey');
       var deleteResponse = await read();
-      expect(deleteResponse,
-          startsWith('error:AT0009-UnAuthorized client in request'));
+      deleteResponse = deleteResponse.replaceFirst('error:', '');
+      expect(jsonDecode(deleteResponse)['errorCode'], 'AT0009');
+      assert(jsonDecode(deleteResponse)['errorDescription']
+          .startsWith('UnAuthorized client in request'));
 
       // llookup on buzz key should succeed
       await socket_writer(socketConnection2!, 'llookup:$buzzKey');
@@ -499,7 +491,8 @@ void main() {
       await _connect();
       // this authenticates to the server using apkam authentication with the
       // enrollment_is that has just been created
-      await prepare(socketConnection1!, firstAtsign, isApkam: true, enrollmentId: enrollmentId);
+      await prepare(socketConnection1!, firstAtsign,
+          isAPKAM: true, enrollmentId: enrollmentId);
       await socket_writer(socketConnection1!, 'llookup:$waviKey');
       String lookupResponse = await read();
       expect(lookupResponse, 'data:checkingValue\n');
@@ -563,6 +556,7 @@ void main() {
   tearDown(() {
     //Closing the socket connection
     clear();
-    socketConnection1!.destroy();
+    socketConnection1?.close();
+    socketConnection2?.close();
   });
 }

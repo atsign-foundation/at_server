@@ -193,13 +193,7 @@ void main() {
     test(
         'check keys verb put operation - enroll request on a second authenticated connection using otp',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await prepare(socketConnection1!, firstAtsign, isCRAM: true);
 
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
@@ -242,17 +236,7 @@ void main() {
       expect(approveJson['enrollmentId'], secondEnrollId);
 
       // connect to the second client to do an apkam
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamDigest\n';
-
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      print(apkamEnrollIdResponse);
-      expect(apkamEnrollIdResponse, 'data:success\n');
+      await prepare(socketConnection2!, firstAtsign, isAPKAM: true, enrollmentId: secondEnrollId);
       var encryptionPublicKey = encryptionPublicKeyMap[firstAtsign];
 
       //1. put encryption public key
@@ -379,5 +363,10 @@ void main() {
       expect(putResponse,
           'error:AT0401-Exception: Command cannot be executed without auth\n');
     });
+  });
+
+  tearDown(() async{
+    await socketConnection1?.close();
+    await socketConnection2?.close();
   });
 }
