@@ -103,7 +103,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException(
           'Enroll params not provided for enroll:$operation');
     }
-    if (!atConnection.isRequestAllowed()) {
+    if (operation =='request' && !atConnection.isRequestAllowed()) {
       // Throttle limit exceeded for enrollment requests
       throw AtThrottleLimitExceeded(
           'Enrollment requests have exceeded the limit within the specified time frame');
