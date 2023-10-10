@@ -97,9 +97,12 @@ void main() {
         expect(atData.metaData!.version, 0);
         expect(atData.metaData?.createdBy, atSign);
         // verify commit entry data
-        CommitEntry? commitEntry = await atCommitLog!.getEntry(0);
-        expect(commitEntry!.operation, CommitOp.UPDATE);
-        expect(commitEntry.commitId, 0);
+        // The "getEntry" method is specific to "client" operations. Hence
+        // replaced with "getEntries"
+        Iterator itr = atCommitLog!.getEntries(-1);
+        itr.moveNext();
+        expect(itr.current.value.operation, CommitOp.UPDATE);
+        expect(itr.current.value.commitId, 0);
       });
 
       try {
@@ -124,12 +127,12 @@ void main() {
               .getSecondaryKeyStore()
               ?.put('@alice:phone@alice', AtData()..data = '123');
           // Assert commit entry before update
-          List<CommitEntry?> commitEntryListBeforeUpdate =
-              await atCommitLog!.getChanges(-1, '.*');
-          expect(commitEntryListBeforeUpdate.length, 1);
-          expect(
-              commitEntryListBeforeUpdate.first!.atKey, '@alice:phone@alice');
-          expect(commitEntryListBeforeUpdate.first!.commitId, 0);
+          // The "getChanges" method is specific to the client operations. Hence
+          // replaced with "getEntries" method
+          Iterator itr = atCommitLog!.getEntries(-1);
+          itr.moveNext();
+          expect(itr.current.value.atKey, '@alice:phone@alice');
+          expect(itr.current.value.commitId, 0);
           // Update the same key again
           var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
@@ -153,7 +156,7 @@ void main() {
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdateDateTime.millisecondsSinceEpoch,
               true);
-          Iterator itr = atCommitLog!.getEntries(-1);
+          itr = atCommitLog!.getEntries(-1);
           while (itr.moveNext()) {
             expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
             expect(itr.current.value.commitId, 1);
@@ -436,7 +439,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
@@ -476,7 +479,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('regex', () => 'buzz');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
@@ -518,7 +521,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
@@ -527,7 +530,7 @@ void main() {
         // Increase the sync buffer size and assert all the 4 keys are added to sync response
         syncProgressiveVerbHandler.capacity = 1200;
         response = Response();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         syncResponse = jsonDecode(response.data!);
@@ -557,7 +560,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
 
@@ -631,7 +634,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -694,7 +697,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -734,7 +737,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -773,7 +776,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -820,7 +823,7 @@ void main() {
         var atConnection = InboundConnectionImpl(null, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
