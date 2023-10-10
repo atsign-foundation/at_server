@@ -46,18 +46,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollParamsMap = jsonDecode(verbParams['enrollParams']!);
     }
     // Validate the conditions required to process enrollment operation
-    _checkEnrollmentOperationParams(enrollParamsMap, atConnection, operation);
+    checkEnrollmentOperationParams(enrollParamsMap, atConnection, operation);
 
     late EnrollVerbResponse enrollmentResponse;
 
     try {
       switch (operation) {
         case 'request':
-          enrollmentResponse = await handleNewEnrollmentRequest(
+          enrollmentResponse = await processNewEnrollmentRequest(
               enrollParamsMap, currentAtSign, atConnection);
           break;
         case 'update':
-          enrollmentResponse = await handleUpdateEnrollmentRequest(
+          enrollmentResponse = await processUpdateEnrollmentRequest(
               enrollParamsMap, currentAtSign, atConnection);
           break;
         case 'approve':
@@ -90,7 +90,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Ensures each of the enrollment operations has the required parameters
-  void _checkEnrollmentOperationParams(
+  @visibleForTesting
+  void checkEnrollmentOperationParams(
       Map<String, dynamic>? enrollParamsMap, atConnection, operation) {
     if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
       // Only authenticated connections can perform 'approve', 'deny', 'revoke', 'update', or 'list' operations
@@ -119,7 +120,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Apkam authentication required to update enrollment');
     }
-
     if (operation != 'request' &&
         operation != 'list' &&
         enrollParamsMap!['enrollmentId'] == null) {
@@ -130,7 +130,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<EnrollVerbResponse> handleNewEnrollmentRequest(
+  Future<EnrollVerbResponse> processNewEnrollmentRequest(
       enrollParamsMap, currentAtSign, atConnection) async {
     // Generate a unique enrollment ID using Uuid for new enrollments
     enrollParamsMap['enrollmentId'] = Uuid().v4();
@@ -145,7 +145,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Invalid OTP. Cannot process enroll request');
     }
 
-    return await _nameToBeUpdated(enrollmentKey, enrollParamsMap, currentAtSign,
+    return await _persistEnrollmentRequest(enrollmentKey, enrollParamsMap, currentAtSign,
         EnrollOperationEnum.request.name, atConnection);
   }
 
@@ -157,9 +157,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// 3) Fetches appName, deviceName and apkamPubKey from existing
   /// enrollDataStoreValue and populates the [enrollParamsMap]
   ///
-  /// 4) Calls [_nameToBeUpdated] to further process the enroll update request
+  /// 4) Calls [_persistEnrollmentRequest] to further process the enroll update request
   @visibleForTesting
-  Future<EnrollVerbResponse> handleUpdateEnrollmentRequest(
+  Future<EnrollVerbResponse> processUpdateEnrollmentRequest(
       enrollParamsMap, currentAtsign, atConnection) async {
     EnrollDataStoreValue? existingEnrollment;
     try {
@@ -192,7 +192,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     String enrollmentKey = getEnrollmentKey(enrollParamsMap['enrollmentId']!,
         isSupplementaryKey: true);
     // enrollment update creates an enrollment request with updated namespaces
-    return await _nameToBeUpdated(enrollmentKey, enrollParamsMap, currentAtsign,
+    return await _persistEnrollmentRequest(enrollmentKey, enrollParamsMap, currentAtsign,
         EnrollOperationEnum.update.name, atConnection);
   }
 
@@ -214,10 +214,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The function returns a JSON-encoded string containing the enrollmentId
   /// and its corresponding state.
   ///
-  /// Throws "AtEnrollmentException", if the OTP provided is invalid.
   /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
   /// a time window.
-  Future<EnrollVerbResponse> _nameToBeUpdated(enrollmentKey, enrollParamsMap,
+  Future<EnrollVerbResponse> _persistEnrollmentRequest(enrollmentKey, enrollParamsMap,
       currentAtSign, operation, InboundConnection atConnection) async {
     EnrollParams enrollParams = EnrollParams.fromJson(enrollParamsMap);
     EnrollVerbResponse enrollVerbResponse = EnrollVerbResponse();
