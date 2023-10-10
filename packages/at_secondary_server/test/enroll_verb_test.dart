@@ -319,12 +319,10 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, command);
       Response response = Response();
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0030');
-      expect(response.errorMessage,
-          'Enrollment_id: $enrollId is expired. Only approved enrollments can be updated');
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(isA<AtInvalidEnrollmentException>()));
     });
 
     test('verify enroll:update behaviour on revoked enrollment', () async {
@@ -503,7 +501,7 @@ void main() {
     test(
         'A test to verify enrollment cannot be approved on an unauthenticated connection',
         () async {
-      String enrollmentRequest = 'enroll:approve:enrollmentid:123';
+      String enrollmentRequest = 'enroll:approve:{"enrollmentId":"123"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -523,7 +521,7 @@ void main() {
     test(
         'A test to verify enrollment cannot be denied on an unauthenticated connection',
         () async {
-      String enrollmentRequest = 'enroll:deny:enrollmentid:123';
+      String enrollmentRequest = 'enroll:deny:{"enrollmentId":"123"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -542,7 +540,7 @@ void main() {
     test(
         'A test to verify enrollment cannot be revoked on an unauthenticated connection',
         () async {
-      String enrollmentRequest = 'enroll:revoke:enrollmentid:123';
+      String enrollmentRequest = 'enroll:revoke:{"enrollmentId":"123"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
@@ -569,12 +567,10 @@ void main() {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
-      await enrollVerbHandler.processVerb(
-          response, verbParams, inboundConnection);
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0026');
       expect(
-          response.errorMessage, 'Invalid otp. Cannot process enroll request');
+          () async => await enrollVerbHandler.processVerb(
+              response, verbParams, inboundConnection),
+          throwsA(isA<IllegalArgumentException>()));
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -1032,120 +1028,143 @@ void main() {
 
     test('verify negative behaviour of method: fetchUpdatedNamespaces()',
         () async {
+      //invalid enrollment id
       String enrollId = 'enroll6789';
       String atsign = '@alice';
+      // ensure invalid enrollmentId throws AtInvalidEnrollmentException
       expect(
           () async =>
               await enrollVerbHandler.fetchUpdatedNamespaces(enrollId, atsign),
           throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
     });
 
-    test('verify positive behaviour of method: isApprovedEnrollment()',
-        () async {
-      Response response = Response();
-      String enrollId = 'enroll7719';
-      String atsign = '@bob';
-      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic');
-      enrollDataStoreValue.approval = EnrollApproval('approved');
-      String enrollmentKey =
-          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
-      // update key into the keystore
-      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
-          enrollmentKey, enrollDataStoreValue);
-      bool isApproved = await enrollVerbHandler.isApprovedEnrollment(
-          enrollId, atsign, response);
-      expect(isApproved, true);
-    });
-
     test(
-        'verify negative behaviour of method: isApprovedEnrollment() - case Expired',
-        () async {
-      Response response = Response();
-      String enrollId = 'enroll7719234';
-      String atsign = '@delta';
-      expect(
-          () async => await enrollVerbHandler.isApprovedEnrollment(
-              enrollId, atsign, response),
-          throwsA(predicate((dynamic e) => e is AtInvalidEnrollmentException)));
-    });
-
-    test(
-        'verify negative behaviour of method: isApprovedEnrollment() - case revoked',
-        () async {
-      Response response = Response();
-      String enrollId = 'enroll7456719';
-      String atsign = '@charlie';
-      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic');
-      enrollDataStoreValue.approval = EnrollApproval('revoked');
-      String enrollmentKey =
-          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
-      // update key into the keystore
-      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
-          enrollmentKey, enrollDataStoreValue);
-      // validate method response
-      await enrollVerbHandler.isApprovedEnrollment(enrollId, atsign, response);
-      expect(response.isError, true);
-      expect(response.errorCode, 'AT0030');
-      expect(response.errorMessage,
-          'Enrollment_id: $enrollId is revoked. Only approved enrollments can be updated');
-    });
-
-    test(
-        'verify behaviour of method: validateEnrollmentRequest() - case AtThrottleLimitExceededException',
+        'verify behaviour of method: checkEnrollmentOperationParams() - case AtThrottleLimitExceededException',
         () {
-          inboundConnection = CustomInboundConnection(isValid: false);
+      inboundConnection = CustomInboundConnection(isValid: false);
       EnrollParams enrollParams = EnrollParams()..otp = 'abcd';
       expect(
-          () => enrollVerbHandler.validateEnrollmentRequest(
-              enrollParams, inboundConnection, 'approve'),
-          throwsA(predicate((dynamic e) => e is AtThrottleLimitExceeded)));
+          () => enrollVerbHandler.checkEnrollmentOperationParams(
+              enrollParams.toJson(), inboundConnection, 'request'),
+          throwsA(isA<AtThrottleLimitExceeded>()));
       inboundConnection = CustomInboundConnection(isValid: true);
     });
 
     test(
-        'verify behaviour of method: validateEnrollmentRequest() - case not apkam authenticated',
+        'verify behaviour of method: checkEnrollmentOperationParams() - update wihthout apkam authentication',
         () {
-      EnrollParams enrollParams = EnrollParams()
-        ..otp = 'abcd'
-        ..namespaces = {"abdc": "rw"};
-      expect(
-          () => enrollVerbHandler.validateEnrollmentRequest(
-              enrollParams, inboundConnection, 'update'),
-          throwsA(predicate((dynamic e) =>
-              e is UnAuthenticatedException &&
-              e.toString().contains(
-                  'Apkam authentication required to update enrollment'))));
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().authType = AuthType.pkamLegacy;
+      EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
+      try {
+        enrollVerbHandler.checkEnrollmentOperationParams(
+            enrollParams.toJson(), inboundConnection, 'update');
+      } on Exception catch (e) {
+        assert(e is UnAuthenticatedException);
+        expect(e.toString(),
+            'Exception: Apkam authentication required to update enrollment');
+      }
+
+      inboundConnection.getMetaData().isAuthenticated = false;
     });
 
     test(
-        'verify behaviour of method: validateEnrollmentRequest() - case otp is null',
-        () {
+        'verify behaviour of method: checkEnrollmentOperationParams() - approve on un-authenticated connection',
+        () async {
       inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().authType = AuthType.apkam;
       EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
       expect(
-          () => enrollVerbHandler.validateEnrollmentRequest(
-              enrollParams, inboundConnection, 'update'),
-          throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
-              e
-                  .toString()
-                  .contains('Invalid otp. Cannot process enroll request'))));
+          () => enrollVerbHandler.checkEnrollmentOperationParams(
+              enrollParams.toJson(), inboundConnection, 'approve'),
+          throwsA(isA<UnAuthenticatedException>()));
     });
 
-    test('verify behaviour: handleNewEnrollmentRequest() - case request',
+    test(
+        'verify behaviour of method: checkEnrollmentOperationParams() - revoke with no enrollParams',
         () async {
-      EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
-      String enrollmentKey =
-          enrollVerbHandler.handleNewEnrollmentRequest(enrollParams);
-
-      expect(enrollmentKey,
-          enrollVerbHandler.getEnrollmentKey(enrollParams.enrollmentId!));
+      inboundConnection.getMetaData().isAuthenticated = true;
+      expect(
+          () => enrollVerbHandler.checkEnrollmentOperationParams(
+              null, inboundConnection, 'revoke'),
+          throwsA(isA<IllegalArgumentException>()));
+      inboundConnection.getMetaData().isAuthenticated = false;
     });
 
-    test('verify behaviour: handleEnrollmentUpdateRequest()', () async {
+    test(
+        'verify behaviour of method: checkEnrollmentOperationParams() - request with null namespace',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = false;
+      EnrollParams enrollParams = EnrollParams()..namespaces = null;
+      expect(
+          () => enrollVerbHandler.checkEnrollmentOperationParams(
+              enrollParams.toJson(), inboundConnection, 'request'),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test(
+        'verify behaviour of method: checkEnrollmentOperationParams() - approve with null enrollId',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = true;
+      EnrollParams enrollParams = EnrollParams()..namespaces = {"abdc": "rw"};
+      expect(
+          () => enrollVerbHandler.checkEnrollmentOperationParams(
+              enrollParams.toJson(), inboundConnection, 'approve'),
+          throwsA(isA<IllegalArgumentException>()));
+      inboundConnection.getMetaData().isAuthenticated = false;
+    });
+
+    test(
+        'verify behaviour of method: processNewEnrollmentRequest() - OTP is invalid',
+        () async {
+      inboundConnection.getMetaData().isAuthenticated = false;
+      String otp = 'WRONGP';
+      EnrollParams enrollParams = EnrollParams()
+        ..namespaces = {"abdc": "rw"}
+        ..otp = otp;
+      expect(
+          enrollVerbHandler.processNewEnrollmentRequest(
+              enrollParams.toJson(), '@atsign123', inboundConnection),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test(
+        'verify behaviour of method: handleNewEnrollmentRequest() - OTP is null',
+        () async {
+      EnrollParams enrollParams = EnrollParams()
+        ..namespaces = {"abdc": "rw"}
+        ..otp = null;
+      expect(
+          enrollVerbHandler.processNewEnrollmentRequest(
+              enrollParams.toJson(), '@atsign123', inboundConnection),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('verify behaviour: handleNewEnrollmentRequest() - valid OTP',
+        () async {
+      String atsign = '@froyo';
+      inboundConnection.getMetaData().sessionID = 'sessssioooon';
+      String otp = 'ABCDEF';
+      // set otp in the otpVerbHandler cache to mimic otp generation
+      await OtpVerbHandler.cache.set(otp, otp);
+
+      EnrollParams enrollParams = EnrollParams()
+        ..namespaces = {"abdc": "rw"}
+        ..otp = otp
+        ..deviceName = 'unit_tester'
+        ..appName = 'unit_test_app'
+        ..apkamPublicKey = 'apkaaaaaaam';
+
+      EnrollVerbResponse enrollVerbResponse =
+          await enrollVerbHandler.processNewEnrollmentRequest(
+              enrollParams.toJson(), atsign, inboundConnection);
+      assert(enrollVerbResponse.data.containsKey('enrollmentId'));
+      expect(enrollVerbResponse.data['status'], 'pending');
+    });
+
+    test(
+        'verify behaviour: handleEnrollmentUpdateRequest() - update approved enrollment',
+        () async {
+      inboundConnection.getMetaData().sessionID = 'session123131';
       String atsign = '@frodo';
       String enrollId = 'enroll__7456719';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
@@ -1161,16 +1180,55 @@ void main() {
       EnrollParams enrollParams = EnrollParams();
       enrollParams.enrollmentId = enrollId;
       enrollParams.namespaces = {'dummy_namespace': 'rw'};
-      String enrollmentKeyResponse = await enrollVerbHandler
-          .handleUpdateEnrollmentRequest(enrollParams, atsign);
+      EnrollVerbResponse enrollVerbResponse =
+          await enrollVerbHandler.processUpdateEnrollmentRequest(
+              enrollParams.toJson(), atsign, inboundConnection);
+      expect(enrollVerbResponse.data['enrollmentId'], enrollId);
+      expect(enrollVerbResponse.data['status'], 'pending');
+    });
+
+    test(
+        'verify behaviour: handleEnrollmentUpdateRequest() - update pending enrollment',
+        () async {
+      inboundConnection.getMetaData().sessionID = 'session123131';
+      String atsign = '@frodo';
+      String enrollId = 'enroll__745671982';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session2342', 'unit_test', 'test_device', 'apkaaaaam--publiiiic//?');
+      enrollDataStoreValue.namespaces = {"unit_test82": "rw"};
+      enrollDataStoreValue.approval = EnrollApproval('pending');
+      String enrollmentKey =
+          enrollVerbHandler.getEnrollmentKey(enrollId, currentAtsign: atsign);
+      // update key into the keystore
+      await enrollVerbHandler.updateEnrollmentValueAndResetTTL(
+          enrollmentKey, enrollDataStoreValue);
+
+      EnrollParams enrollParams = EnrollParams();
+      enrollParams.enrollmentId = enrollId;
+      enrollParams.namespaces = {'dummy_namespace': 'rw'};
+      EnrollVerbResponse enrollVerbResponse =
+          await enrollVerbHandler.processUpdateEnrollmentRequest(
+              enrollParams.toJson(), atsign, inboundConnection);
+      expect(enrollVerbResponse.response.isError, true);
+      expect(enrollVerbResponse.response.errorCode, 'AT0030');
+      expect(enrollVerbResponse.response.errorMessage,
+          'Enrollment_id: enroll__745671982 is pending. Only approved enrollments can be updated');
+    });
+
+    test(
+        'verify behaviour: handleEnrollmentUpdateRequest() - update invalid enrollment',
+        () async {
+      inboundConnection.getMetaData().sessionID = 'session123131';
+      String atsign = '@frodo';
+      String enrollId = 'invalid_enrollment_id';
+
+      EnrollParams enrollParams = EnrollParams();
+      enrollParams.enrollmentId = enrollId;
+      enrollParams.namespaces = {'dummy_namespace': 'rw'};
       expect(
-          enrollmentKeyResponse,
-          enrollVerbHandler.getEnrollmentKey(enrollId,
-              isSupplementaryKey: true));
-      expect(enrollParams.namespaces, {'dummy_namespace': 'rw'});
-      expect(enrollParams.deviceName, enrollDataStoreValue.deviceName);
-      expect(enrollParams.appName, enrollDataStoreValue.appName);
-      expect(enrollParams.apkamPublicKey, enrollDataStoreValue.apkamPublicKey);
+          () async => await enrollVerbHandler.processUpdateEnrollmentRequest(
+              enrollParams.toJson(), atsign, inboundConnection),
+          throwsA(isA<AtInvalidEnrollmentException>()));
     });
   });
 }
