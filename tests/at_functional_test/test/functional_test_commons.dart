@@ -59,25 +59,33 @@ Future<void> socket_writer(Socket socket, String msg) async {
 }
 
 ///The prepare function takes a socket and atsign as input params and runs a from verb and pkam verb on the atsign param.
-Future<void> prepare(Socket socket, String atsign, {bool isApkam = false, String? enrollmentId}) async {
-  // FROM VERB
+Future<void> prepare(Socket socket, String atsign,
+    {bool isAPKAM = false, bool isCRAM = false, String? enrollmentId}) async {
+  // FROM verb
   await socket_writer(
       socket, 'from:$atsign:clientConfig:${jsonEncode({'version': '3.0.38'})}');
   var response = await read();
   print('From verb response $response');
   response = response.replaceAll('data:', '');
-  var pkamDigest = generatePKAMDigest(atsign, response);
 
-  // PKAM VERB
-  if(!isApkam) {
-    await socket_writer(socket, 'pkam:$pkamDigest');
-    response = await read();
-    print('pkam verb response $response');
-    expect(response, 'data:success\n');
-  } else {
+  // PKAM verb
+   if (isAPKAM) {
+    var pkamDigest = generatePKAMDigest(atsign, response);
     await socket_writer(socket, 'pkam:enrollmentId:$enrollmentId:$pkamDigest');
     response = await read();
     print('APKAM auth response: $response');
+    expect(response, 'data:success\n');
+  } else if (isCRAM) {
+    var cramSecret = getDigest(atsign, response);
+    await socket_writer(socket, 'cram:$cramSecret');
+    response = await read();
+    print('CRAM auth response: $response');
+    expect(response, 'data:success\n');
+  } else {
+    var pkamDigest = generatePKAMDigest(atsign, response);
+    await socket_writer(socket, 'pkam:$pkamDigest');
+    response = await read();
+    print('pkam verb response $response');
     expect(response, 'data:success\n');
   }
 }
@@ -97,7 +105,8 @@ void _messageHandler(data) {
 }
 
 Future<String> read({int maxWaitMilliSeconds = 5000}) async {
-  String result = 'error:read timed out after $maxWaitMilliSeconds milliseconds';
+  String result =
+      'error:read timed out after $maxWaitMilliSeconds milliseconds';
   var loopDelay = 10;
   //wait maxWaitMilliSeconds seconds for response from remote socket
   var loopCount = (maxWaitMilliSeconds / loopDelay).round();
