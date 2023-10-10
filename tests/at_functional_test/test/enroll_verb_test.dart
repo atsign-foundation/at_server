@@ -392,7 +392,7 @@ void main() {
       expect(approveJson['enrollmentId'], secondEnrollId);
 
       // close the first connection
-      socketConnection1!.close();
+      await socketConnection1!.close();
 
       // connect to the second client to do an apkam
       await socket_writer(socketConnection2!, 'from:$firstAtsign');
@@ -505,7 +505,7 @@ void main() {
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-      socketConnection1?.close();
+      await socketConnection1?.close();
       // PKAM Auth
       socketConnection1 =
           await secure_socket_connection(firstAtsignServer, firstAtsignPort);
@@ -587,7 +587,7 @@ void main() {
         await socket_writer(socketConnection2!, pkamCommand);
         pkamResult = await read();
         expect(pkamResult, 'data:success\n');
-        socketConnection2?.close();
+        await socketConnection2?.close();
 
         // Revoke the enrollment
         String revokeEnrollmentCommand =
@@ -609,7 +609,7 @@ void main() {
         pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
         await socket_writer(socketConnection2!, pkamCommand);
         pkamResult = await read();
-        socketConnection2?.close();
+        await socketConnection2?.close();
         print(pkamResult);
         assert(pkamResult.contains('enrollment_id: $enrollmentId is revoked'));
       });
@@ -1067,10 +1067,12 @@ void main() {
     });
 
     tearDown(() async {
-      socket_writer(socketConnection1!, 'config:reset:maxRequestsAllowed');
+      await socket_writer(socketConnection1!, 'config:reset:maxRequestsAllowed');
       await read();
-      socket_writer(socketConnection1!, 'config:reset:timeWindowInMills');
+      await socket_writer(socketConnection1!, 'config:reset:timeWindowInMills');
       await read();
+      await socketConnection1?.close();
+      await socketConnection2?.close();
     });
   });
 }

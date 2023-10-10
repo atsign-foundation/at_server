@@ -236,7 +236,8 @@ void main() {
       expect(approveJson['enrollmentId'], secondEnrollId);
 
       // connect to the second client to do an apkam
-      await prepare(socketConnection2!, firstAtsign, isAPKAM: true, enrollmentId: secondEnrollId);
+      await prepare(socketConnection2!, firstAtsign,
+          isAPKAM: true, enrollmentId: secondEnrollId);
       var encryptionPublicKey = encryptionPublicKeyMap[firstAtsign];
 
       //1. put encryption public key
@@ -363,10 +364,9 @@ void main() {
       expect(putResponse,
           'error:AT0401-Exception: Command cannot be executed without auth\n');
     });
-  });
-
-  tearDown(() async{
-    await socketConnection1?.close();
-    await socketConnection2?.close();
+    tearDown(() async {
+      await socketConnection1?.close();
+      await socketConnection2?.close();
+    });
   });
 }

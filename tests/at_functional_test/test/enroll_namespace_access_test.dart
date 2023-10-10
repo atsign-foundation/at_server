@@ -23,7 +23,7 @@ var aliceApkamSymmetricKey;
 var encryptedDefaultEncPrivateKey;
 var encryptedSelfEncKey;
 
-Future<void> _connect({int socketNumber: 1}) async {
+Future<void> _connect({int socketNumber = 1}) async {
   // socket connection for first atsign
   if (socketNumber == 1) {
     socketConnection1 =
@@ -52,12 +52,11 @@ void main() {
   var firstAtsign =
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
 
-  //Establish the client socket connection
-  setUp(() async {
-    await _connect();
-  });
-
   group('A group of tests to verify apkam enroll namespace access', () {
+    //Establish the client socket connection
+    setUp(() async {
+      await _connect();
+    });
     //  1. Cram authenticate and send the enroll request for wavi namespace
     //  2. pkam using the enroll id
     //  3. Create a public key with atmosphere namespace
@@ -402,6 +401,7 @@ void main() {
           'enroll:approve:{"enrollmentId":"$secondEnrollId"}\n');
       var approveResponse = await read();
       approveResponse = approveResponse.replaceFirst('data:', '');
+      print('second enroll request response: $approveResponse');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
       expect(approveJson['enrollmentId'], secondEnrollId);
@@ -551,12 +551,14 @@ void main() {
       assert((!deleteResponse.contains('Invalid syntax')) &&
           (!deleteResponse.contains('null')));
     });
+
+    tearDown(() async {
+      //Closing the socket connection
+      clear();
+      await socketConnection1?.close();
+      await socketConnection2?.close();
+    });
   });
 
-  tearDown(() {
-    //Closing the socket connection
-    clear();
-    socketConnection1?.close();
-    socketConnection2?.close();
-  });
+
 }

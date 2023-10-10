@@ -38,7 +38,7 @@ void main() async {
 
     ///Update verb with private key
     await socket_writer(
-        socketFirstAtsign!, 'update:@alice:email$firstAtsign bob@atsign.com');
+        socketFirstAtsign!, 'update:$firstAtsign:email$firstAtsign bob@atsign.com');
     response = await read();
     print('update verb response $response');
     assert(
