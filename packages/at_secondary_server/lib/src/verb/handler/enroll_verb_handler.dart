@@ -50,15 +50,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       // Ensure that enrollParams are present for all enroll operation
       // Exclude operation 'list' which does not have enrollParams
-      if (verbParams[enrollParams] == null) {
+      if (verbParams[AtConstants.enrollParams] == null) {
         if (operation != 'list') {
           logger.severe(
-              'Enroll params is empty | EnrollParams: ${verbParams[enrollParams]}');
+              'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
           throw IllegalArgumentException('Enroll parameters not provided');
         }
       } else {
-        enrollVerbParams =
-            EnrollParams.fromJson(jsonDecode(verbParams[enrollParams]!));
+        enrollVerbParams = EnrollParams.fromJson(
+            jsonDecode(verbParams[AtConstants.enrollParams]!));
       }
       switch (operation) {
         case 'request':
@@ -117,8 +117,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
 
+    Response otpResponse = await OtpVerbHandler(keyStore)
+        .processInternal('otp:validate:${enrollParams.otp}', atConnection);
     if ((!atConnection.getMetaData().isAuthenticated) &&
-        (!OtpVerbHandler.isValidOTP(enrollParams.otp))) {
+        (otpResponse.data == 'invalid')) {
       throw AtEnrollmentException('invalid otp. Cannot process enroll request');
     }
 
@@ -152,8 +154,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
-      await keyStore.put(
-          AT_PKAM_PUBLIC_KEY, AtData()..data = enrollParams.apkamPublicKey!);
+      await keyStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = enrollParams.apkamPublicKey!);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
       enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
@@ -222,10 +224,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If an enrollment is approved, we need the enrollment to be active
     // to subsequently revoke the enrollment. Hence reset TTL and
     // expiredAt on metadata.
-    /* TODO: Currently TTL is reset on all the enrollments.
-        However, if the enrollment state is denied or revoked,
-        unless we wanted to display denied or revoked enrollments in the UI,
-        we can let the TTL be, so that the enrollment will be deleted subsequently.*/
     await _updateEnrollmentValueAndResetTTL(
         '$enrollmentKey$currentAtSign', enrollDataStoreValue);
     // when enrollment is approved store the apkamPublicKey of the enrollment
@@ -250,13 +248,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     var privKeyJson = {};
     privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
     await keyStore.put(
-        '$newEnrollmentId.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+        '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(privKeyJson),
         skipCommit: true);
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
     await keyStore.put(
-        '$newEnrollmentId.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+        '$newEnrollmentId.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(selfKeyJson),
         skipCommit: true);
   }
@@ -336,7 +334,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String key, EnrollParams enrollParams, String atSign) async {
     try {
       var notificationValue = {};
-      notificationValue[apkamEncryptedSymmetricKey] =
+      notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
           enrollParams.encryptedAPKAMSymmetricKey;
       logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
@@ -353,10 +351,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       logger.finer('notification generated: $notificationId');
     } on Exception catch (e, trace) {
       logger.severe(
-          'Exception while storing notification key $enrollmentId. Exception $e. Trace $trace');
+          'Exception while storing notification key ${AtConstants.enrollmentId}. Exception $e. Trace $trace');
     } on Error catch (e, trace) {
       logger.severe(
-          'Error while storing notification key $enrollmentId. Error $e. Trace $trace');
+          'Error while storing notification key ${AtConstants.enrollmentId}. Error $e. Trace $trace');
     }
   }
 
@@ -390,4 +388,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           ..metaData = enrollMetaData,
         skipCommit: true);
   }
+
+/*Future<bool> isOTPValid(String? otp) async {
+    if(otp == null){
+      return false;
+    }
+    AtData otpAtData = await keyStore.get('private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}');
+    int expiryInMills = int.parse(otpAtData.data!);
+
+    if (expiryInMills >= DateTime.now().toUtc().millisecondsSinceEpoch) {
+      return true;
+    }
+    return false;
+  }*/
 }

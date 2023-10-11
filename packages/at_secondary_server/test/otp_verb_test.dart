@@ -49,7 +49,7 @@ void main() {
       Response response = Response();
       inboundConnection.getMetaData().isAuthenticated = true;
       HashMap<String, String?> verbParams =
-          getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
+          getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1000');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
@@ -71,7 +71,7 @@ void main() {
       verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, 'invalid');
-    });
+    }, timeout: Timeout(Duration(minutes: 10)));
     tearDown(() async => await verbTestsTearDown());
   });
 
@@ -121,52 +121,46 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.getMetaData().isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
-      otpVerbHandler.otpExpiryDuration = Duration(microseconds: 1);
-      await Future.delayed(Duration(microseconds: 3));
-      String? otp = response.data;
-      response = Response();
+      otpVerbHandler.otpExpiryInMills = 1;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      String? otp = response.data;
+      await Future.delayed(Duration(milliseconds: 2));
+      response = Response();
       verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, 'invalid');
     });
-    tearDown(() async => await verbTestsTearDown());
-  });
 
-  group('A group of tests related to gc on otp store', () {
-    setUp(() async {
-      await verbTestsSetUp();
-    });
-
-    test('A test to verify gc removes the expired keys from the otp store',
+    test(
+        'A test to verify otp:validate return invalid when otp does not exist in keystore',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
-
-      OtpVerbHandler otpVerbHandler =
-          OtpVerbHandler(secondaryKeyStore, gcDuration: Duration(seconds: 2));
-
+      String otp = 'ABC123';
       HashMap<String, String?> verbParams =
-          getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
-      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
-      String? firstOTP = response.data;
-      expect(firstOTP, isNotEmpty);
-
-      verbParams = getVerbParam(VerbSyntax.otp, 'otp:get:ttl:30');
-      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
-      String? secondOTP = response.data;
-      expect(secondOTP, isNotEmpty);
-
-      await Future.delayed(Duration(seconds: 2));
-      expect(otpVerbHandler.size(), 1);
-
-      verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$firstOTP');
+          getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, 'invalid');
+    });
 
-      verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$secondOTP');
+    test('A test to verify otp:validate invalidates an OTP after it is used',
+        () async {
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      inboundConnection.getMetaData().isAuthenticated = true;
+
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      String? otp = response.data;
+      // attempt #1 should return a valid response
+      verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, 'valid');
+      // attempt #2 should return a invalid response
+      verbParams = getVerbParam(VerbSyntax.otp, 'otp:validate:$otp');
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(response.data, 'invalid');
     });
     tearDown(() async => await verbTestsTearDown());
   });

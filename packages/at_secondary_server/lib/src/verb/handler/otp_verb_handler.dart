@@ -1,8 +1,8 @@
 import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/store/otp_store.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
@@ -14,15 +14,9 @@ class OtpVerbHandler extends AbstractVerbHandler {
   static Otp otpVerb = Otp();
 
   @visibleForTesting
-  Duration otpExpiryDuration = Duration(minutes: 5);
+  int otpExpiryInMills = Duration(minutes: 5).inMilliseconds;
 
-  static late OTPStore _otpStore;
-
-  OtpVerbHandler(SecondaryKeyStore keyStore, {Duration? gcDuration})
-      : super(keyStore) {
-    gcDuration ??= Duration(minutes: AtSecondaryConfig.otpGCDurationInMins);
-    _otpStore = OTPStore(gcDuration: gcDuration);
-  }
+  OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
   bool accept(String command) => command.startsWith('otp');
@@ -36,9 +30,9 @@ class OtpVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
-    if (verbParams[AtConstants.ttl] != null) {
-      otpExpiryDuration =
-          Duration(seconds: int.parse(verbParams[AtConstants.ttl]!));
+    if (verbParams[AtConstants.ttl] != null &&
+        verbParams[AtConstants.ttl]!.isNotEmpty) {
+      otpExpiryInMills = int.parse(verbParams[AtConstants.ttl]!);
     }
     switch (operation) {
       case 'get':
@@ -51,16 +45,15 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         // If OTP generated do not have digits, generate again.
         while (RegExp(r'\d').hasMatch(response.data!) == false);
-        _otpStore.set(
-            response.data!,
-            DateTime.now()
-                .toUtc()
-                .add(otpExpiryDuration)
-                .millisecondsSinceEpoch);
+        await keyStore.put(
+            'private:${response.data}${AtSecondaryServerImpl.getInstance().currentAtSign}',
+            AtData()
+              ..data =
+                  '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
+              ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
         break;
       case 'validate':
-        String? otp = verbParams['otp'];
-        bool isValid = isValidOTP(otp);
+        var isValid = await isOTPValid(verbParams['otp']);
         if (isValid) {
           response.data = 'valid';
           return;
@@ -69,18 +62,21 @@ class OtpVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  static bool isValidOTP(String? otp) {
+  Future<bool> isOTPValid(String? otp) async {
     if (otp == null) {
       return false;
     }
-    int? otpExpiry = _otpStore.get(otp);
-    // Remove the OTP from the OTPStore to prevent reuse of OTP.
-    _otpStore.remove(otp);
-    if (otpExpiry != null &&
-        otpExpiry >= DateTime.now().toUtc().millisecondsSinceEpoch) {
-      return true;
+    String otpKey =
+        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    AtData otpAtData;
+    try {
+      otpAtData = await keyStore.get(otpKey);
+    } on KeyNotFoundException {
+      return false;
     }
-    return false;
+    // Remove the key from keystore to prevent reuse of OTP.
+    await keyStore.remove(otpKey);
+    return SecondaryUtil.isActiveKey(otpAtData);
   }
 
   /// This function generates a UUID and converts it into a 6-character alpha-numeric string.
@@ -129,15 +125,5 @@ class OtpVerbHandler extends AbstractVerbHandler {
       result = result * 256 + b;
     }
     return result;
-  }
-
-  /// Retrieves the number of OTPs currently stored in the OTPStore.
-  ///
-  /// This method is intended for unit testing purposes to access the size of
-  /// the OTPStore's internal store.
-  @visibleForTesting
-  int size() {
-    // ignore: invalid_use_of_visible_for_testing_member
-    return _otpStore.size();
   }
 }
