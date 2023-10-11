@@ -1,5 +1,7 @@
 ## 3.0.36
-- fix: Implement notify ephemeral changes - Send notification with value without caching the key on receiver's secondary server 
+- fix: Implement notify ephemeral changes - Send notification with value without caching the key on receiver's secondary server
+- feat: Implement AtRateLimiter to limit the enrollment requests on a particular connection
+- fix: Upgraded at_commons to 3.0.56
 ## 3.0.35
 - chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
 - feat: APKAM keys verb implementation
