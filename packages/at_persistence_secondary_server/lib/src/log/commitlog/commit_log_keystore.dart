@@ -22,7 +22,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return (getBox() as Box).getAt(getBox().length - 1).commitId;
   }
 
-  CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {}
+  CommitLogKeyStore(String currentAtSign) : super(currentAtSign);
 
   @override
   Future<void> initialize() async {
@@ -36,7 +36,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');
 
-    await repairCommitLogAndCreateCachedMap();
+    //await repairCommitLogAndCreateCachedMap();
   }
 
   Future<int> commitChange(CommitEntry commitEntry) async {
@@ -308,70 +308,83 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return getBox().length;
   }
 
-  /// Removes entries with malformed keys
-  /// Repairs entries with null commit IDs
-  /// Clears and repopulates the [commitLogCache]
-  @visibleForTesting
-  Future<bool> repairCommitLogAndCreateCachedMap() async {
-    // Ensures the below code runs only when initialized from secondary server.
-    // enableCommitId is set to true in secondary server and to false in client SDK.
-    Map<int, CommitEntry> allEntries = await toMap();
-    await removeEntriesWithMalformedAtKeys(allEntries);
-    await repairNullCommitIDs();
-    // commitLogCache.clear();
-    // commitLogCache.initialize();
-    return true;
+  Future<void> removeEntriesWithMalformedAtKeys() async {
+    for (int commitIndex = 0; commitIndex < getBox().length; commitIndex++) {
+      CommitEntry? commitEntry = (getBox() as Box).getAt(commitIndex);
+      if (commitEntry == null) {
+        _logger.warning(
+            'CommitLog seqNum $commitIndex has a null commitEntry - removing');
+        remove(commitIndex);
+        return;
+      }
+      if (commitEntry.atKey == null) {
+        _logger.warning(
+            'CommitLog seqNum $commitIndex has an entry with a null atKey - removed');
+        remove(commitIndex);
+        return;
+      }
+      KeyType keyType =
+          AtKey.getKeyType(commitEntry.atKey!, enforceNameSpace: false);
+      if (keyType == KeyType.invalidKey) {
+        _logger.warning(
+            'CommitLog seqNum $commitIndex has an entry with an invalid atKey ${commitEntry.atKey} - removed');
+        remove(commitIndex);
+        return;
+      } else {
+        _logger.finest(
+            'CommitLog seqNum $commitIndex has valid type $keyType for atkey ${commitEntry.atKey}');
+      }
+    }
   }
 
   /// Removes all entries which have a malformed [CommitEntry.atKey]
   /// Returns the list of [CommitEntry.atKey]s which were removed
-  @visibleForTesting
-  Future<List<String>> removeEntriesWithMalformedAtKeys(
-      Map<int, CommitEntry> allEntries) async {
-    List<String> removed = [];
-    await Future.forEach(allEntries.keys, (int seqNum) async {
-      CommitEntry? commitEntry = allEntries[seqNum];
-      if (commitEntry == null) {
-        _logger.warning(
-            'CommitLog seqNum $seqNum has a null commitEntry - removing');
-        remove(seqNum);
-        return;
-      }
-      String? atKey = commitEntry.atKey;
-      if (atKey == null) {
-        _logger.warning(
-            'CommitLog seqNum $seqNum has an entry with a null atKey - removed');
-        return;
-      }
-      KeyType keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
-      if (keyType == KeyType.invalidKey) {
-        _logger.warning(
-            'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
-        removed.add(atKey);
-        remove(seqNum);
-        return;
-      } else {
-        _logger.finer(
-            'CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
-      }
-    });
-    return removed;
-  }
+  // @visibleForTesting
+  // Future<List<String>> removeEntriesWithMalformedAtKeysOld(
+  //     Map<int, CommitEntry> allEntries) async {
+  //   List<String> removed = [];
+  //   await Future.forEach(allEntries.keys, (int seqNum) async {
+  //     CommitEntry? commitEntry = allEntries[seqNum];
+  //     if (commitEntry == null) {
+  //       _logger.warning(
+  //           'CommitLog seqNum $seqNum has a null commitEntry - removing');
+  //       remove(seqNum);
+  //       return;
+  //     }
+  //     String? atKey = commitEntry.atKey;
+  //     if (atKey == null) {
+  //       _logger.warning(
+  //           'CommitLog seqNum $seqNum has an entry with a null atKey - removed');
+  //       return;
+  //     }
+  //     KeyType keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
+  //     if (keyType == KeyType.invalidKey) {
+  //       _logger.warning(
+  //           'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
+  //       removed.add(atKey);
+  //       remove(seqNum);
+  //       return;
+  //     } else {
+  //       _logger.finer(
+  //           'CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
+  //     }
+  //   });
+  //   return removed;
+  // }
 
-  /// For each commitEntry with a null commitId, replace the commitId with
-  /// the hive internal key
-  @visibleForTesting
-  Future<void> repairNullCommitIDOld(Map<int, CommitEntry> commitLogMap) async {
-    await Future.forEach(commitLogMap.keys, (key) async {
-      CommitEntry? commitEntry = commitLogMap[key];
-      if (commitEntry?.commitId == null) {
-        commitEntry!.commitId = key as int;
-        await getBox().put(commitEntry.commitId, commitEntry);
-      }
-    });
-  }
+  // /// For each commitEntry with a null commitId, replace the commitId with
+  // /// the hive internal key
+  // @visibleForTesting
+  // Future<void> repairNullCommitIDOld(Map<int, CommitEntry> commitLogMap) async {
+  //   await Future.forEach(commitLogMap.keys, (key) async {
+  //     CommitEntry? commitEntry = commitLogMap[key];
+  //     if (commitEntry?.commitId == null) {
+  //       commitEntry!.commitId = key as int;
+  //       await getBox().put(commitEntry.commitId, commitEntry);
+  //     }
+  //   });
+  // }
 
-  @visibleForTesting
   Future<void> repairNullCommitIDs() async {
     for (int commitIndex = 0; commitIndex < getBox().length; commitIndex++) {
       CommitEntry commitEntry = (getBox() as Box).getAt(commitIndex);
@@ -388,10 +401,33 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
       // of the "this" commitEntry, then the commitId in AtKeyMetadataStore is old.
       // Update the commitId to the latest.
       if (atKeyServerMetadata.commitId < commitEntry.key) {
-        atKeyMetadataStore.put(
+        await atKeyMetadataStore.put(
             commitEntry.atKey, atKeyServerMetadata..commitId = commitEntry.key);
       }
-      getBox().put(commitEntry.key, commitEntry..commitId = commitEntry.key);
+      await getBox()
+          .put(commitEntry.key, commitEntry..commitId = commitEntry.key);
+    }
+  }
+
+  Future<void> loadDataIntoMetadataStore() async {
+    // Inside "loadDataIntoKeystore" after populating the existing data into
+    // the at_metadata_store, insert a dummy key "existing_data_populated"
+    // to prevent inserting the data on the subsequent server restart.
+    if (atKeyMetadataStore.contains('existing_data_populated')) {
+      return;
+    }
+    for (int commitIndex = 0; commitIndex < getBox().length; commitIndex++) {
+      CommitEntry commitEntry = (getBox() as Box).getAt(commitIndex);
+      if (commitEntry.commitId == -1) {
+        continue;
+      }
+      await atKeyMetadataStore.put(commitEntry.atKey!,
+          AtKeyServerMetadata()..commitId = commitEntry.commitId!);
+      // After completion, insert a dummy key to ensure the metadata keystore
+      // is prepopulated with the existing data and prevent loading data on
+      // subsequent restarts
+      await atKeyMetadataStore.put(
+          'existing_data_populated', AtKeyServerMetadata()..commitId = -1);
     }
   }
 
@@ -574,103 +610,3 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
     return _lastSyncedEntryCacheMap.values.toList();
   }
 }
-
-// class CommitLogCache {
-//   final _logger = AtSignLogger('CommitLogCache');
-//
-//   // [CommitLogKeyStore] for which the cache is being maintained
-//   CommitLogKeyStore commitLogKeyStore;
-//
-//   // A Map implementing a LinkedHashMap to preserve the insertion order.
-//   // "{}" is collection literal to represent a LinkedHashMap.
-//   // Stores AtKey and its corresponding commitEntry sorted by their commit-id's
-//   final _commitLogCacheMap = <String, CommitEntry>{};
-//
-//   int get latestCommitId {
-//     if ((commitLogKeyStore.getBox() as Box).isEmpty) {
-//       return -1;
-//     }
-//     return (commitLogKeyStore.getBox() as Box).values.last.commitId;
-//   }
-//
-//   CommitLogCache(this.commitLogKeyStore);
-//
-//   /// Initializes the CommitLogCache
-//   void initialize() {
-//     Iterable iterable = (commitLogKeyStore.getBox() as Box).values;
-//     for (var value in iterable) {
-//       if (value.commitId == null) {
-//         _logger.finest(
-//             'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
-//         continue;
-//       }
-//       // The reason we remove and add is that, the map which is a LinkedHashMap
-//       // should have data in the following format:
-//       // {
-//       //  {k1, v1},
-//       //  {k2, v2},
-//       //  {k3, v3}
-//       // }
-//       // such that v1 < v2 < v3
-//       //
-//       // If a key exist in the _commitLogCacheMap, updating the commit entry will
-//       // overwrite the existing key resulting into an unsorted map.
-//       // Hence remove the key and insert at the last ensure the entry with highest commitEntry
-//       // is always at the end of the map.
-//       if (_commitLogCacheMap.containsKey(value.atKey)) {
-//         _commitLogCacheMap.remove(value.atKey);
-//         _commitLogCacheMap[value.atKey] = value;
-//       } else {
-//         _commitLogCacheMap[value.atKey] = value;
-//       }
-//     }
-//   }
-//
-//   /// Updates cache when a new [CommitEntry] for the [key] is added
-//   void update(String key, CommitEntry commitEntry) {
-//     _updateCacheLog(key, commitEntry);
-//   }
-//
-//   /// Updates the commitId of the key.
-//   void _updateCacheLog(String key, CommitEntry commitEntry) {
-//     // The reason we remove and add is that, the map which is a LinkedHashMap
-//     // should have data in the following format:
-//     // {
-//     //  {k1, v1},
-//     //  {k2, v2},
-//     //  {k3, v3}
-//     // }
-//     // such that v1 < v2 < v3
-//     //
-//     // If a key exist in the _commitLogCacheMap, updating the commit entry will
-//     // overwrite the existing key resulting into an unsorted map.
-//     // Hence remove the key and insert at the last ensure the entry with highest commitEntry
-//     // is always at the end of the map.
-//     _commitLogCacheMap.remove(key);
-//     _commitLogCacheMap[key] = commitEntry;
-//   }
-//
-//   CommitEntry? getEntry(String atKey) {
-//     if (_commitLogCacheMap.containsKey(atKey)) {
-//       return _commitLogCacheMap[atKey];
-//     }
-//     return null;
-//   }
-//
-//   /// On commit log compaction, the entries are removed from the
-//   /// Commit Log Keystore. Remove the stale entries from the commit log cache-map
-//   void remove(String atKey) {
-//     _commitLogCacheMap.remove(atKey);
-//   }
-//
-//   /// Not a part of API. Added for unit test
-//   @visibleForTesting
-//   List<MapEntry<String, CommitEntry>> entriesList() {
-//     return _commitLogCacheMap.entries.toList();
-//   }
-//
-//   // Clears all of the entries in cache
-//   void clear() {
-//     _commitLogCacheMap.clear();
-//   }
-// }

@@ -480,27 +480,6 @@ void main() async {
         expect((await commitLogInstance.commitLogKeyStore.get(4))?.atKey,
             'mobile.wavi@alice');
       });
-
-      test(
-          'A test to verify repair commit log updates the commitId in metadata persistent store',
-          () async {
-        var commitLogInstance =
-            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-        // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.getBox().add(
-            CommitEntry('location.wavi@alice', CommitOp.UPDATE, DateTime.now())
-              ..commitId = 0);
-        // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore.getBox().add(
-            CommitEntry('mobile.wavi@alice', CommitOp.UPDATE, DateTime.now()));
-        expect(
-            commitLogInstance.commitLogKeyStore.atKeyMetadataStore
-                .contains('mobile.wavi@alice'),
-            false);
-
-        await commitLogInstance.commitLogKeyStore.repairNullCommitIDs();
-        print((commitLogInstance.commitLogKeyStore.atKeyMetadataStore as AtKeyServerMetadataStoreImpl).getBox().keys.toList());
-      });
     });
     group('A group of tests to verify local key does not add to commit log',
         () {
@@ -732,29 +711,55 @@ void main() async {
     });
     tearDown(() async => await tearDownFunc());
   });
+
+  group('A group of tests related to metadata persistent store', () {
+    setUp(() async => await setUpFunc(storageDir, enableCommitId: true));
+    test(
+        'A test to verify repair commit log updates the commitId in metadata persistent store',
+        () async {
+      var commitLogInstance =
+          await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+      // Inserting commitEntry with commitId 0
+      await commitLogInstance!.commitLogKeyStore.getBox().add(
+          CommitEntry('location.wavi@alice', CommitOp.UPDATE, DateTime.now())
+            ..commitId = 0);
+      // Inserting commitEntry with null commitId
+      await commitLogInstance.commitLogKeyStore.getBox().add(
+          CommitEntry('mobile.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+      expect(
+          commitLogInstance.commitLogKeyStore.atKeyMetadataStore
+              .contains('mobile.wavi@alice'),
+          false);
+
+      await commitLogInstance.commitLogKeyStore.repairNullCommitIDs();
+      AtKeyServerMetadata test = await commitLogInstance.commitLogKeyStore.atKeyMetadataStore.get('mobile.wavi@alice');
+      print(test.commitId);
+    }, timeout: Timeout(Duration(minutes: 50)));
+    tearDown(() async => await tearDownFunc());
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
+  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
+  AtKeyServerMetadataStoreImpl('@alice');
+  await atKeyMetadataStoreImpl.init(storageDir, isLazy: true);
+
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice',
           commitLogPath: storageDir, enableCommitId: enableCommitId);
+  commitLogInstance?.commitLogKeyStore.atKeyMetadataStore = atKeyMetadataStoreImpl;
+
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice')!;
   secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog =
       commitLogInstance;
+
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
-      AtKeyServerMetadataStoreImpl('@alice');
-  await atKeyMetadataStoreImpl.init(storageDir);
-
-  (hiveKeyStore.commitLog as AtCommitLog).commitLogKeyStore.atKeyMetadataStore =
-      atKeyMetadataStoreImpl;
-
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
