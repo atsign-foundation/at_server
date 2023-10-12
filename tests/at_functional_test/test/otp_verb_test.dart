@@ -21,9 +21,11 @@ void main() {
   });
 
   group('A group of tests related to OTP generation and expiration', () {
-    test('A test to generate OTP and returns valid before OTP is not expired', () async {
+    test('A test to generate OTP and returns valid before OTP is not expired',
+        () async {
       await prepare(authenticatedConnection, firstAtSign);
-      await socket_writer(authenticatedConnection, 'otp:get:ttl:5');
+      await socket_writer(authenticatedConnection,
+          'otp:get:ttl:${Duration(minutes: 1).inMilliseconds}');
       String otp = (await read()).trim().replaceAll('data:', '');
       expect(otp, isNotEmpty);
 
@@ -32,7 +34,8 @@ void main() {
       expect(response, 'valid');
     });
 
-    test('A test to generate OTP and returns invalid when TTL is met', () async {
+    test('A test to generate OTP and returns invalid when TTL is met',
+        () async {
       await prepare(authenticatedConnection, firstAtSign);
       await socket_writer(authenticatedConnection, 'otp:get:ttl:1');
       String otp = (await read()).trim().replaceAll('data:', '');

@@ -117,11 +117,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
 
-    Response otpResponse = await OtpVerbHandler(keyStore)
-        .processInternal('otp:validate:${enrollParams.otp}', atConnection);
-    if ((!atConnection.getMetaData().isAuthenticated) &&
-        (otpResponse.data == 'invalid')) {
-      throw AtEnrollmentException('invalid otp. Cannot process enroll request');
+    // OTP is sent only in enrollment request which is submitted on
+    // unauthenticated connection.
+    if (atConnection.getMetaData().isAuthenticated == false) {
+      Response otpResponse = await OtpVerbHandler(keyStore)
+          .processInternal('otp:validate:${enrollParams.otp}', atConnection);
+      if (otpResponse == 'invalid') {
+        throw AtEnrollmentException(
+            'invalid otp. Cannot process enroll request');
+      }
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
