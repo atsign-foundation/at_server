@@ -316,7 +316,7 @@ void main() {
     test('A test to verify enrollment request without otp throws exception',
         () async {
       String enrollmentRequest =
-          'enroll:request:{"appname":"wavi","devicename":"mydevice","namespaces":{"wavi":"r"},"apkampublickey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;

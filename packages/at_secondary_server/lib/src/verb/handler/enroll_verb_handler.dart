@@ -122,7 +122,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated == false) {
       Response otpResponse = await OtpVerbHandler(keyStore)
           .processInternal('otp:validate:${enrollParams.otp}', atConnection);
-      if (otpResponse == 'invalid') {
+      if (otpResponse.data == 'invalid') {
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
