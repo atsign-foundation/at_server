@@ -653,7 +653,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStore()!;
     secondaryKeyStore.commitLog = _commitLog;
-    await _initializeAtKeyMetadataStore();
+    await _startAtCommitLogCleanUpJobs();
     keyStoreManager.keyStore = secondaryKeyStore;
     // Initialize the hive store
     await secondaryKeyStore.initialize();
@@ -682,7 +682,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await keyStore.deleteExpiredKeys();
   }
 
-  Future<void> _initializeAtKeyMetadataStore() async {
+  Future<void> _startAtCommitLogCleanUpJobs() async {
     AtKeyServerMetadataStoreImpl atKeyMetadataStoreImpl =
         AtKeyServerMetadataStoreImpl(serverContext!.currentAtSign!);
     await atKeyMetadataStoreImpl.init(AtSecondaryConfig.atKeyMetadataStore);
@@ -690,19 +690,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .commitLogKeyStore
         .atKeyMetadataStore = atKeyMetadataStoreImpl;
 
-    // Inside "loadDataIntoKeystore" after populating the existing data into
-    // the at_metadata_store, insert a dummy key "existing_data_populated"
-    // to prevent inserting the data on the subsequent server restart.
-    if (atKeyMetadataStoreImpl.contains('existing_data_populated')) {
-      return;
-    }
+    await (secondaryKeyStore.commitLog as AtCommitLog)
+        .commitLogKeyStore
+        .removeEntriesWithMalformedAtKeys();
+    await (secondaryKeyStore.commitLog as AtCommitLog)
+        .commitLogKeyStore
+        .repairNullCommitIDs();
 
-    Map<int, CommitEntry> commitEntriesMap =
-        await (secondaryKeyStore.commitLog as AtCommitLog)
-            .commitLogKeyStore
-            .toMap();
-    await atKeyMetadataStoreImpl
-        .loadDataIntoKeystore(commitEntriesMap.values.toList());
+    await (secondaryKeyStore.commitLog as AtCommitLog)
+        .commitLogKeyStore
+        .loadDataIntoMetadataStore();
   }
 
   Future<void> removeMalformedKeys() async {

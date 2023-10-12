@@ -39,26 +39,9 @@ class AtKeyServerMetadataStoreImpl
     return box.containsKey(atKey);
   }
 
-  Future<void> loadDataIntoKeystore(List<CommitEntry> commitEntryList) async {
-    for (CommitEntry commitEntry in commitEntryList) {
-      // For local keys and keys that are synced to the client, will have
-      // commitId "-1". We need not maintain the latestCommitId for such keys.
-      if (commitEntry.commitId == -1) {
-        continue;
-      }
-      await box.put(commitEntry.atKey!,
-          AtKeyServerMetadata()..commitId = commitEntry.commitId!);
-    }
-    // After completion, insert a dummy key to ensure the metadata keystore
-    // is prepopulated with the existing data and prevent loading data on
-    // subsequent restarts
-    await box.put(
-        'existing_data_populated', AtKeyServerMetadata()..commitId = 1);
-  }
-
   @visibleForTesting
   @override
-  BoxBase getBox() {
+  LazyBox<AtKeyMetadata> getBox() {
     return box;
   }
 }
