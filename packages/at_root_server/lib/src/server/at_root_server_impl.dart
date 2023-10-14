@@ -85,7 +85,7 @@ class RootServerImpl implements AtRootServer {
     logger.info('Connection from '
         '${socket.remoteAddress.address}:${socket.remotePort}');
     var client = RootClient(socket);
-    logger.info('connection successful\n');
+    logger.info('connection successful');
     client.write('@');
   }
 
