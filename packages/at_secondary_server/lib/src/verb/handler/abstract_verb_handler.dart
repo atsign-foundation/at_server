@@ -152,4 +152,27 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
   }
+
+
+  /// This function checks the validity of a provided OTP.
+  /// It returns true if the OTP is valid; otherwise, it returns false.
+  /// If the OTP is not found in the keystore, it also returns false.
+  ///
+  /// Additionally, this function removes the OTP from the keystore to prevent its reuse.
+  Future<bool> isOTPValid(String? otp) async {
+    if (otp == null) {
+      return false;
+    }
+    String otpKey =
+        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    AtData otpAtData;
+    try {
+      otpAtData = await keyStore.get(otpKey);
+    } on KeyNotFoundException {
+      return false;
+    }
+    // Remove the key from keystore to prevent reuse of OTP.
+    await keyStore.remove(otpKey);
+    return SecondaryUtil.isActiveKey(otpAtData);
+  }
 }

@@ -2,7 +2,6 @@ import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
@@ -60,23 +59,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         response.data = 'invalid';
     }
-  }
-
-  Future<bool> isOTPValid(String? otp) async {
-    if (otp == null) {
-      return false;
-    }
-    String otpKey =
-        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    AtData otpAtData;
-    try {
-      otpAtData = await keyStore.get(otpKey);
-    } on KeyNotFoundException {
-      return false;
-    }
-    // Remove the key from keystore to prevent reuse of OTP.
-    await keyStore.remove(otpKey);
-    return SecondaryUtil.isActiveKey(otpAtData);
   }
 
   /// This function generates a UUID and converts it into a 6-character alpha-numeric string.

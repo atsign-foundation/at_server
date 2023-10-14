@@ -8,7 +8,6 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
-import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -120,9 +119,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
     if (atConnection.getMetaData().isAuthenticated == false) {
-      Response otpResponse = await OtpVerbHandler(keyStore)
-          .processInternal('otp:validate:${enrollParams.otp}', atConnection);
-      if (otpResponse.data == 'invalid') {
+      var isValid = await isOTPValid(enrollParams.otp);
+      if (!isValid) {
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
