@@ -178,7 +178,13 @@ class RootServerImpl implements AtRootServer {
     serverSocket.listen((connection) {
       _handle(AtClientConnectionImpl(connection));
     }, onError: (error) {
-      logger.severe('rootServer Socket Error :' +
+      if (error is HandShakeException) {
+        // This is not unusual. If there's a real cert problem
+        // then client-side monitoring will detect it.
+        // See https://github.com/atsign-foundation/at_server/issues/1590
+        return;
+      }
+      logger.info('ServerSocket stream error :' +
           error.toString() +
           'connecting to ' +
           serverSocket.address.toString());
