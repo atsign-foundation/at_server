@@ -130,6 +130,9 @@ class RootServerImpl implements AtRootServer {
       var certsAvailable = false;
       // if certs are unavailable then retry max 10 minutes
       while (true) {
+        if (retryCount > 0) {
+          sleep(Duration(seconds: 10));
+        }
         try {
           if (certsAvailable || retryCount > 60) {
             break;
@@ -142,7 +145,6 @@ class RootServerImpl implements AtRootServer {
           retryCount++;
           logger.info('certs unavailable. Retry count ${retryCount}');
         }
-        sleep(Duration(seconds: 10));
       }
       if (certsAvailable) {
         SecureServerSocket.bind(InternetAddress.anyIPv4, port!, secCon)
