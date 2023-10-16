@@ -58,9 +58,11 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   /// Returns the latest committed sequence number with regex
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
+      {List<String>? enrolledNamespace}) async {
     var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex)),
+        (entry) => (_acceptKey(entry.atKey, regex,
+            enrolledNamespace: enrolledNamespace)),
         orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
         (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
@@ -177,8 +179,30 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
-  bool _acceptKey(String atKey, String regex) {
-    return _isRegexMatches(atKey, regex) || _isSpecialKey(atKey);
+  bool _acceptKey(String atKey, String regex,
+      {List<String>? enrolledNamespace}) {
+    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
+        (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
+  }
+
+  bool _isNamespaceAuthorised(String atKey, List<String>? enrolledNamespace) {
+    // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
+    if (atKey.toLowerCase() == 'configkey') {
+      return true;
+    }
+    String? keyNamespace = AtKey.fromString(atKey).namespace;
+    // If enrolledNamespace is null or keyNamespace is null, fallback to
+    // existing behaviour - the key is authorized for the client to receive. So return true.
+    if (enrolledNamespace == null ||
+        enrolledNamespace.isEmpty ||
+        (keyNamespace == null || keyNamespace.isEmpty)) {
+      return true;
+    }
+    if (enrolledNamespace.contains('*') ||
+        enrolledNamespace.contains(keyNamespace)) {
+      return true;
+    }
+    return false;
   }
 
   bool _isRegexMatches(String atKey, String regex) {
@@ -186,10 +210,10 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   bool _isSpecialKey(String atKey) {
-    return atKey.contains(AT_ENCRYPTION_SHARED_KEY) ||
+    return atKey.contains(AtConstants.atEncryptionSharedKey) ||
         atKey.startsWith('public:') ||
-        atKey.contains(AT_PKAM_SIGNATURE) ||
-        atKey.contains(AT_SIGNING_PRIVATE_KEY);
+        atKey.contains(AtConstants.atPkamSignature) ||
+        atKey.contains(AtConstants.atSigningPrivateKey);
   }
 
   /// Returns the latest commitEntry of the key.
