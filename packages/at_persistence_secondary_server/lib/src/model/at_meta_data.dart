@@ -136,21 +136,21 @@ class AtMetaData extends HiveObject {
     map['refreshAt'] = refreshAt?.toUtc().toString();
     map['status'] = status;
     map['version'] = version;
-    map[AT_TTL] = ttl;
-    map[AT_TTB] = ttb;
-    map[AT_TTR] = ttr;
-    map[CCD] = isCascade;
-    map[IS_BINARY] = isBinary;
-    map[IS_ENCRYPTED] = isEncrypted;
-    map[PUBLIC_DATA_SIGNATURE] = dataSignature;
-    map[SHARED_KEY_ENCRYPTED] = sharedKeyEnc;
-    map[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] = pubKeyCS;
-    map[ENCODING] = encoding;
-    map[ENCRYPTING_KEY_NAME] = encKeyName;
-    map[ENCRYPTING_ALGO] = encAlgo;
-    map[IV_OR_NONCE] = ivNonce;
-    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] = skeEncKeyName;
-    map[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] = skeEncAlgo;
+    map[AtConstants.ttl] = ttl;
+    map[AtConstants.ttb] = ttb;
+    map[AtConstants.ttr] = ttr;
+    map[AtConstants.ccd] = isCascade;
+    map[AtConstants.isBinary] = isBinary;
+    map[AtConstants.isEncrypted] = isEncrypted;
+    map[AtConstants.publicDataSignature] = dataSignature;
+    map[AtConstants.sharedKeyEncrypted] = sharedKeyEnc;
+    map[AtConstants.sharedWithPublicKeyCheckSum] = pubKeyCS;
+    map[AtConstants.encoding] = encoding;
+    map[AtConstants.encryptingKeyName] = encKeyName;
+    map[AtConstants.encryptingAlgo] = encAlgo;
+    map[AtConstants.ivOrNonce] = ivNonce;
+    map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
+    map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
     return map;
   }
 
@@ -178,33 +178,33 @@ class AtMetaData extends HiveObject {
         : (json['version'] == null)
             ? 0
             : json['version'];
-    ttl = (json[AT_TTL] is String)
-        ? int.parse(json[AT_TTL])
-        : (json[AT_TTL] == null)
+    ttl = (json[AtConstants.ttl] is String)
+        ? int.parse(json[AtConstants.ttl])
+        : (json[AtConstants.ttl] == null)
             ? null
-            : json[AT_TTL];
-    ttb = (json[AT_TTB] is String)
-        ? int.parse(json[AT_TTB])
-        : (json[AT_TTB] == null)
+            : json[AtConstants.ttl];
+    ttb = (json[AtConstants.ttb] is String)
+        ? int.parse(json[AtConstants.ttb])
+        : (json[AtConstants.ttb] == null)
             ? null
-            : json[AT_TTB];
-    ttr = (json[AT_TTR] is String)
-        ? int.parse(json[AT_TTR])
-        : (json[AT_TTR] == null)
+            : json[AtConstants.ttb];
+    ttr = (json[AtConstants.ttr] is String)
+        ? int.parse(json[AtConstants.ttr])
+        : (json[AtConstants.ttr] == null)
             ? null
-            : json[AT_TTR];
-    isCascade = json[CCD];
-    isBinary = json[IS_BINARY];
-    isEncrypted = json[IS_ENCRYPTED];
-    dataSignature = json[PUBLIC_DATA_SIGNATURE];
-    sharedKeyEnc = json[SHARED_KEY_ENCRYPTED];
-    pubKeyCS = json[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
-    encoding = json[ENCODING];
-    encKeyName = json[ENCRYPTING_KEY_NAME];
-    encAlgo = json[ENCRYPTING_ALGO];
-    ivNonce = json[IV_OR_NONCE];
-    skeEncKeyName = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
-    skeEncAlgo = json[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+            : json[AtConstants.ttr];
+    isCascade = json[AtConstants.ccd];
+    isBinary = json[AtConstants.isBinary];
+    isEncrypted = json[AtConstants.isEncrypted];
+    dataSignature = json[AtConstants.publicDataSignature];
+    sharedKeyEnc = json[AtConstants.sharedKeyEncrypted];
+    pubKeyCS = json[AtConstants.sharedWithPublicKeyCheckSum];
+    encoding = json[AtConstants.encoding];
+    encKeyName = json[AtConstants.encryptingKeyName];
+    encAlgo = json[AtConstants.encryptingAlgo];
+    ivNonce = json[AtConstants.ivOrNonce];
+    skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
+    skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
 
     return this;
   }

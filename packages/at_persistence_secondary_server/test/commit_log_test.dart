@@ -133,7 +133,9 @@ void main() async {
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
             await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+                'test_key_false_$i.wavi@alice',
+                CommitOp.UPDATE,
+                DateTime.now()));
           } else {
             await commitLogKeystore.getBox().add(CommitEntry(
                 'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
