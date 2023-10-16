@@ -87,8 +87,10 @@ class AtCommitLog extends BaseAtCommitLog {
 
   /// Returns the latest committed sequence number with regex
   @server
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex) async {
-    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex);
+  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
+      {List<String>? enrolledNamespace}) async {
+    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex,
+        enrolledNamespace: enrolledNamespace);
   }
 
   /// Returns the first committed sequence number
