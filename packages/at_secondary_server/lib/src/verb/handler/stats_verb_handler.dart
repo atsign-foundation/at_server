@@ -121,11 +121,11 @@ class StatsVerbHandler extends AbstractVerbHandler {
       if (_regex == null || _regex.isEmpty) {
         _regex = '.*';
       }
+      // When connection is authenticated via the APKAM, return the highest commit-Id
+      // among the specified namespaces.
       value = await (metric.name as LastCommitIDMetricImpl)
           .getMetrics(regex: _regex, enrolledNamespaces: enrolledNamespaces);
     } else if (id == '15' && _regex != null) {
-      // When connection is authenticated via the APKAM, return the highest commit-Id
-      // among the specified namespaces.
       value = await metric.name!.getMetrics(regex: _regex);
     } else {
       value = await metric.name!.getMetrics();
@@ -143,8 +143,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
-      var statID = verbParams[AT_STAT_ID];
-      _regex = verbParams[AT_REGEX];
+      var statID = verbParams[AtConstants.statId];
+      _regex = verbParams[AtConstants.regex];
       logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
       Set statsList;
       if (statID != null) {
