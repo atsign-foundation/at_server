@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/config/configuration.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
+import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 void main() async {
@@ -62,6 +66,29 @@ void main() async {
         '@test_user_1');
     expect(() async => await atConfigInstance.removeFromBlockList({}),
         throwsA(predicate((dynamic e) => e is AssertionError)));
+  });
+
+  test('verify backwards compatibility of blocklist with config key', () async {
+    AtConfig atConfig = AtConfig(
+        await AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'),
+        '@test_user_1');
+    LazyBox box = atConfig.persistenceManager.getBox() as LazyBox;
+    List<String> blockedAtsigns = [
+      '@blocked_user_1',
+      '@blocked_user_2',
+      '@blocked_user_3'
+    ];
+    var blockedConfig = Configuration(blockedAtsigns);
+    AtData atData = AtData()..data = jsonEncode(blockedConfig);
+    atData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(atData);
+    await box.put(atConfig.oldConfigKey, atData);
+    // fetch the data that has been put into the keystore using the new config key
+    var blockList = await atConfig.getBlockList();
+    expect(blockList.toList(), blockedAtsigns);
+    // verify that the new config key has been put into the keystore
+    assert(box.containsKey(atConfig.configKey));
+    // verify that the oldConfigKey has been deleted
+    box.containsKey(atConfig.oldConfigKey);
   });
 
   try {
