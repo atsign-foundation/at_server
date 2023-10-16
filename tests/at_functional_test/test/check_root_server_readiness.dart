@@ -15,6 +15,8 @@ void main() {
 
   late SecureSocket _secureSocket;
 
+  bool isRootServerStarted = false;
+
   test('checking for root server readiness', () async {
     while (retryCount < maxRetryCount) {
       try {
@@ -25,16 +27,17 @@ void main() {
         if (response == '@') {
           print('Secure Socket is open for Root Server');
         }
-        var isRootServerStarted =
-        await _lookupForSecondaryAddress(_secureSocket, atSign, rootServer);
+        isRootServerStarted =
+            await _lookupForSecondaryAddress(_secureSocket, atSign, rootServer);
         if (isRootServerStarted) {
-          print('Closing socket connection');
+          print('Root server started successfully');
           _secureSocket.close();
           break;
         } else {
-          print('Failed to start root server');
+          print('Root server is not completely initialized');
           _secureSocket.close();
-          break;
+          retryCount = retryCount + 1;
+          await Future.delayed(Duration(seconds: 5));
         }
       } on SocketException {
         print('Waiting for the root server to start: RetryCount: $retryCount');
@@ -46,6 +49,7 @@ void main() {
         retryCount = retryCount + 1;
       }
     }
+    expect(isRootServerStarted, true, reason: 'Failed to start root server successfully');
   }, timeout: Timeout(Duration(minutes: 1)));
 }
 
