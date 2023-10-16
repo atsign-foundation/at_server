@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
@@ -11,7 +12,8 @@ class AtConfig {
   var logger = AtSignLogger('AtConfig');
 
   ///stores 'Configuration' type under [configkey] in secondary.
-  String configKey = 'configKey';
+  String olConfigKey = 'configKey';
+  String configKey = 'private:blocklist';
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   final String? _atSign;
   AtCommitLog? _commitLog;
@@ -27,18 +29,16 @@ class AtConfig {
         .getHivePersistenceManager()!;
   }
 
-  ///Returns 'success' on adding unique [data] into blocklist.
-  Future<String> addToBlockList(Set<String> data) async {
+  ///Returns 'success' on adding unique [blockList] into blocklist.
+  Future<String> addToBlockList(Set<String> blockList) async {
     String result;
     try {
-      assert(data.isNotEmpty);
-      var existingData = await get(configKey);
-      var blockList = await getBlockList();
-      var uniqueBlockList = Set.from(blockList);
-      uniqueBlockList.addAll(data);
+      assert(blockList.isNotEmpty);
+      AtData? existingData = await _getExistingData();
+      Set<String> uniqueBlockList = await getBlockList();
+      uniqueBlockList.addAll(blockList);
       var config = Configuration(List<String>.from(uniqueBlockList));
       result = await prepareAndStoreData(config, existingData);
-      return result;
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -46,40 +46,40 @@ class AtConfig {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
+    return result;
   }
 
-  ///removes [data] from blocklist if satisfies basic conditions.
-  Future<String?> removeFromBlockList(Set<String> data) async {
+  ///removes [unblockAtsignsList] from blocklist if satisfies basic conditions.
+  Future<String?> removeFromBlockList(Set<String> unblockAtsignsList) async {
     String? result;
     try {
-      assert(data.isNotEmpty);
-      var existingData = await get(configKey);
-      if (existingData != null) {
-        var blockList = await getBlockList();
+      assert(unblockAtsignsList.isNotEmpty);
+      var existingData = await _getExistingData();
+      Set<String> blockedAtsignsSet = await getBlockList();
+      // remove the atsign in unblockAtsignList from the existing blocklist
+      if (blockedAtsignsSet.isNotEmpty) {
         var config = Configuration(
-            List.from(Set.from(blockList).difference(Set.from(data))));
+            List.from(blockedAtsignsSet.difference(Set.from(unblockAtsignsList))));
         result = await prepareAndStoreData(config, existingData);
       }
-      return result;
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
     } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
+      throw DataStoreException('Hive error adding to commit log:${e.message}');
     }
+    return result;
   }
 
   ///Returns blocklist by fetching from atsign's secondary.
   Future<Set<String>> getBlockList() async {
     var result = <String>{};
     try {
-      var existingData = await get(configKey);
+      var existingData = await _getExistingData();
       if (existingData != null) {
         var config = jsonDecode(existingData.data!);
         result = Set<String>.from(config['blockList']);
       }
-      return result;
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -87,6 +87,8 @@ class AtConfig {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
+
+    return result;
   }
 
   ///Returns [AtData] value for given [key].
@@ -95,7 +97,6 @@ class AtConfig {
     try {
       var hiveKey = keyStoreHelper.prepareKey(key);
       value = await (persistenceManager.getBox() as LazyBox).get(hiveKey);
-      return value;
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
@@ -103,6 +104,8 @@ class AtConfig {
       logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
+
+    return value;
   }
 
   ///Returns 'true' if blocklist contains [atsign].
@@ -111,7 +114,6 @@ class AtConfig {
     try {
       var blockList = await getBlockList();
       result = blockList.contains(atsign);
-      return result;
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -119,6 +121,7 @@ class AtConfig {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
+    return result;
   }
 
   ///Returns 'success' after successfully persisting data into secondary.
@@ -136,5 +139,30 @@ class AtConfig {
     await _commitLog!.commit(configKey, CommitOp.UPDATE);
     result = 'success';
     return result;
+  }
+
+  /// Fetches existing Config data from the keystore
+  ///
+  /// Tries fetching data with [configKey] which is the new config key
+  ///
+  /// For backward-compatability, if data could not be fetched with new key
+  /// tries fetching data with [oldConfigKey]
+  Future<AtData?> _getExistingData() async {
+    AtData? existingData;
+    try {
+      // try to fetch data using the new config-key format
+      existingData = await get(configKey);
+    } on KeyNotFoundException catch (e) {
+      logger.finer('Could not fetch data with NEW config-key | ${e.message}');
+    }
+    if (existingData == null) {
+      try {
+        existingData = await get(olConfigKey);
+        await (persistenceManager.getBox() as LazyBox).delete(olConfigKey);
+      } on KeyNotFoundException catch (e) {
+        logger.finer('Could not fetch data with OLD config-key | ${e.message}');
+      }
+    }
+    return existingData;
   }
 }
