@@ -54,9 +54,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
               .getCommitLog(currentAtSign),
           currentAtSign);
       dynamic result;
-      var operation = verbParams[AT_OPERATION];
-      var atsigns = verbParams[AT_SIGN];
-      String? setOperation = verbParams[SET_OPERATION];
+      var operation = verbParams[AtConstants.atOperation];
+      var atsigns = verbParams[AtConstants.atSign];
+      String? setOperation = verbParams[AtConstants.setOperation];
 
       if (operation != null) {
         switch (operation) {
@@ -70,10 +70,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
             if (nonCurrentAtSignList.isNotEmpty) {
               result =
                   await atConfigInstance.addToBlockList(nonCurrentAtSignList);
-            }
-
-            ///if list contains only currentAtSign
-            else {
+            } else {
+              ///if list contains only currentAtSign
               result = 'success';
             }
             break;
@@ -89,7 +87,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         //in case of config:set the config input received is in the form of 'config=value'. The below if condition splits that and separates config name and config value
         if (setOperation == 'set') {
           //split 'config=value' to array of strings
-          var newConfig = verbParams[CONFIG_NEW]?.split('=');
+          var newConfig = verbParams[AtConstants.configNew]?.split('=');
           //first element of array is config name
           setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
           //second element of array is config value
@@ -97,7 +95,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         } else {
           //in other cases reset/print only config name is received
           setConfigName =
-              ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
+              ModifiableConfigs.values.byName(verbParams[AtConstants.configNew]!);
         }
 
         //implementation for config:set
