@@ -11,10 +11,10 @@ import 'package:hive/hive.dart';
 class AtConfig {
   var logger = AtSignLogger('AtConfig');
 
-  ///stores 'Configuration' type under [configkey] in secondary.
-  String olConfigKey = 'configKey';
-  String configKey = 'private:blocklist';
-  var keyStoreHelper = HiveKeyStoreHelper.getInstance();
+  ///stores 'Configuration' type under [configKey] in secondary.
+  final oldConfigKey = HiveKeyStoreHelper.getInstance().prepareKey('configKey');
+  final configKey =
+      HiveKeyStoreHelper.getInstance().prepareKey('private:blocklist');
   final String? _atSign;
   AtCommitLog? _commitLog;
   late HivePersistenceManager persistenceManager;
@@ -58,8 +58,8 @@ class AtConfig {
       Set<String> blockedAtsignsSet = await getBlockList();
       // remove the atsign in unblockAtsignList from the existing blocklist
       if (blockedAtsignsSet.isNotEmpty) {
-        var config = Configuration(
-            List.from(blockedAtsignsSet.difference(Set.from(unblockAtsignsList))));
+        var config = Configuration(List.from(
+            blockedAtsignsSet.difference(Set.from(unblockAtsignsList))));
         result = await prepareAndStoreData(config, existingData);
       }
     } on Exception catch (e) {
@@ -95,8 +95,7 @@ class AtConfig {
   Future<AtData?> get(String key) async {
     AtData? value;
     try {
-      var hiveKey = keyStoreHelper.prepareKey(key);
-      value = await (persistenceManager.getBox() as LazyBox).get(hiveKey);
+      value = await (persistenceManager.getBox() as LazyBox).get(key);
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
@@ -127,12 +126,11 @@ class AtConfig {
   ///Returns 'success' after successfully persisting data into secondary.
   Future<String> prepareAndStoreData(config, [existingData]) async {
     String result;
-    configKey = keyStoreHelper.prepareKey(configKey);
     var newData = AtData();
     newData.data = jsonEncode(config);
 
-    newData = keyStoreHelper.prepareDataForKeystoreOperation(newData,
-        existingAtData: existingData);
+    newData = HiveKeyStoreHelper.getInstance()
+        .prepareDataForKeystoreOperation(newData, existingAtData: existingData);
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
@@ -154,13 +152,27 @@ class AtConfig {
       existingData = await get(configKey);
     } on KeyNotFoundException catch (e) {
       logger.finer('Could not fetch data with NEW config-key | ${e.message}');
+    } on Exception catch (e) {
+      logger.finer('Could not fetch data with NEW config-key | $e');
+      rethrow;
     }
     if (existingData == null) {
+      // If data could not be fetched with the new config-key, try fetching the data
+      // using the old config-key and delete the old key from keystore
       try {
-        existingData = await get(olConfigKey);
-        await (persistenceManager.getBox() as LazyBox).delete(olConfigKey);
+        existingData = await get(oldConfigKey);
+        AtData newAtData = AtData()..data = existingData?.data;
+        HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
+            newAtData,
+            existingAtData: existingData);
+        // store the existing data with the new key
+        await (persistenceManager.getBox() as LazyBox).put(configKey, newAtData);
+        await (persistenceManager.getBox() as LazyBox).delete(oldConfigKey);
       } on KeyNotFoundException catch (e) {
         logger.finer('Could not fetch data with OLD config-key | ${e.message}');
+      } on Exception catch (e) {
+        logger.finer('Could not fetch data with OLD config-key | $e');
+        rethrow;
       }
     }
     return existingData;
