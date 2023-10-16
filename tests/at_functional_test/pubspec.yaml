@@ -20,13 +20,6 @@ dependencies:
   uuid: ^3.0.7
   elliptic: ^0.3.8
 
-dependency_overrides:
-  at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_secondary_server
-      ref: apkam_sync_persistence_changes
-
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.24.3
