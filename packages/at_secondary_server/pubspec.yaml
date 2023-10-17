@@ -25,7 +25,7 @@ dependencies:
   at_lookup: 3.0.40
   at_server_spec: 3.0.15
   at_persistence_spec: 2.0.14
-  at_persistence_secondary_server: 3.0.57
+  at_persistence_secondary_server: 3.0.58
   intl: ^0.18.1
   json_annotation: ^4.8.0
   version: 3.0.2

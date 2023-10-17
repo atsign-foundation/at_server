@@ -4,6 +4,7 @@
 - fix: Upgraded at_commons to 3.0.56
 - fix: Enable client to set OTP expiry via OTP verb
 - fix: Prevent reuse of OTP
+- fix: Modify sync_progressive_verb_handler to filter responses on enrolled namespaces if authenticated via APKAM 
 ## 3.0.35
 - chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
 - feat: APKAM keys verb implementation

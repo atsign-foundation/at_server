@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 import 'at_demo_data.dart';
 import 'encryption_util.dart';
@@ -45,6 +46,8 @@ Future<void> encryptKeys() async {
 
 var firstAtsign =
     ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+var secondAtSign =
+    ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
 
 void main() {
   //Establish the client socket connection
@@ -881,6 +884,75 @@ void main() {
       await read();
       socket_writer(socketConnection1!, 'config:reset:timeWindowInMills');
       await read();
+    });
+  });
+
+  group('A group of tests related to fetching latest commit id', () {
+    String enrollmentResponse;
+    late String enrollmentId;
+    setUp(() async {
+      // Get TOTP from server
+      String otp = await _getOTPFromServer(firstAtsign);
+      await socketConnection1?.close();
+      // Close the connection and create a new connection and send an enrollment request on an
+      // unauthenticated connection.
+      await _connect();
+      String enrollRequest =
+          'enroll:request:{"appName":"my-first-app","deviceName":"pixel","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
+      await socket_writer(socketConnection1!, enrollRequest);
+      enrollmentResponse = await read();
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      enrollmentId = enrollmentId.trim();
+      socketConnection1?.close();
+    });
+
+    /// The purpose of the test is to fetch the latestCommitId among the enrolled namespaces
+    /// When 3 keys are inserted into server:
+    /// key1.wavi@alice - CommitId: 1
+    /// key2.buzz@alice - CommitId: 2
+    /// key3.atmosphere@alice - CommitId: 3
+    /// and if only 'wavi' and 'buzz' are enrolled, return commitId: 2
+    test(
+        'A test to verify stats verb returns highest commitId among enrolled namespace',
+        () async {
+      String randomId = Uuid().v4();
+      String enrollRequest = 'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      await _connect();
+      await prepare(socketConnection1!, firstAtsign);
+      socket_writer(socketConnection1!, enrollRequest);
+      await read();
+      socket_writer(socketConnection1!, 'stats:3');
+      await read();
+
+      socket_writer(socketConnection1!,
+          'update:$secondAtSign:phone-$randomId.wavi$firstAtsign random-value');
+      await read();
+      socket_writer(socketConnection1!,
+          'update:$secondAtSign:mobile-$randomId.buzz$firstAtsign random-value');
+      String commitIdOfLastEnrolledKey =
+          (await read()).replaceAll('data:', '').trim();
+      // Key which has un-enrolled namespace
+      socket_writer(socketConnection1!,
+          'update:$secondAtSign:contact-$randomId.atmosphere$firstAtsign random-value');
+      await read();
+      socket_writer(socketConnection1!, 'stats:3');
+      await read();
+      socketConnection1?.close();
+      await _connect();
+      await socket_writer(socketConnection1!, 'from:$firstAtsign');
+      String response = (await read()).replaceAll('data:', '').trim();
+      String digest = generatePKAMDigest(firstAtsign, response);
+      await socket_writer(
+          socketConnection1!, 'pkam:enrollmentId:$enrollmentId:$digest');
+      response = (await read()).replaceAll('data:', '');
+      await socket_writer(socketConnection1!, 'stats:3');
+      String lastCommitIdAmongEnrolledNamespace =
+          jsonDecode((await read()).replaceAll('data:', ''))[0]['value'];
+      expect(
+          int.parse(lastCommitIdAmongEnrolledNamespace) >=
+              int.parse(commitIdOfLastEnrolledKey),
+          true);
     });
   });
 }

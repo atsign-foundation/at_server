@@ -38,13 +38,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
     if (_atCompaction is AtCommitLog) {
-      compactionStatsKey = commitLogCompactionKey;
+      compactionStatsKey = AtConstants.commitLogCompactionKey;
     }
     if (_atCompaction is AtAccessLog) {
-      compactionStatsKey = accessLogCompactionKey;
+      compactionStatsKey = AtConstants.accessLogCompactionKey;
     }
     if (_atCompaction is AtNotificationKeystore) {
-      compactionStatsKey = notificationCompactionKey;
+      compactionStatsKey = AtConstants.notificationCompactionKey;
     }
   }
 }
