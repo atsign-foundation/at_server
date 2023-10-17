@@ -51,13 +51,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
                   '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
               ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
         break;
-      case 'validate':
-        var isValid = await isOTPValid(verbParams['otp']);
-        if (isValid) {
-          response.data = 'valid';
-          return;
-        }
-        response.data = 'invalid';
     }
   }
 

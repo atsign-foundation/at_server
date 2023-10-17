@@ -173,6 +173,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     logger.finer('enrollData: $enrollData');
     await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
+    // Remove the OTP from keystore to prevent reuse.
+    await keyStore.remove(
+        'private:${enrollParams.otp?.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}');
   }
 
   /// Handles enrollment approve, deny and revoke requests.

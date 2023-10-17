@@ -171,8 +171,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on KeyNotFoundException {
       return false;
     }
-    // Remove the key from keystore to prevent reuse of OTP.
-    await keyStore.remove(otpKey);
     return SecondaryUtil.isActiveKey(otpAtData);
   }
 }

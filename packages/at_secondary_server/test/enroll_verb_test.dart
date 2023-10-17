@@ -41,7 +41,6 @@ void main() {
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(
           response, otpVerbParams, inboundConnection);
-      print('OTP: ${response.data}');
       // Enroll request 2
       enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
@@ -80,6 +79,31 @@ void main() {
           await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
+    });
+
+    test('A test to verify OTP is deleted once it is used to submit an enrollment',() async {
+      Response response = Response();
+      // OTP Verb
+      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      HashMap<String, String?> otpVerbParams =
+      getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String otp = response.data!;
+
+      String enrollmentRequest =
+      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.getMetaData().isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      expect(enrollmentId, isNotNull);
+      expect(await enrollVerbHandler.isOTPValid(otp), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });
