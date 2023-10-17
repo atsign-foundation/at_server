@@ -19,7 +19,7 @@ dependencies:
   basic_utils: 5.6.1
   ecdsa: 0.0.4
   encrypt: 5.0.3
-  at_commons: 3.0.56
+  at_commons: 3.0.57
   at_utils: 3.0.15
   at_chops: 1.0.4
   at_lookup: 3.0.40
@@ -30,16 +30,9 @@ dependencies:
   json_annotation: ^4.8.0
   version: 3.0.2
   meta: 1.10.0
-  mutex: 3.0.1
+  mutex: 3.1.0
   yaml: 3.1.2
   logging: 1.2.0
-
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_commons
-      ref: expire_otp_changes
 
 dev_dependencies:
   test: ^1.24.4
