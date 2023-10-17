@@ -7,7 +7,7 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helpe
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
-/// Class to configure blocklist for atconnections.
+/// Class to configure blocklist for atConnections.
 class AtConfig {
   var logger = AtSignLogger('AtConfig');
 
@@ -31,9 +31,12 @@ class AtConfig {
 
   ///Returns 'success' on adding unique [blockList] into blocklist.
   Future<String> addToBlockList(Set<String> blockList) async {
-    String result;
+    String? result;
+    if (blockList.isEmpty) {
+      throw IllegalArgumentException(
+          'Provided list of atsigns to block is empty');
+    }
     try {
-      assert(blockList.isNotEmpty);
       AtData? existingData = await _getExistingData();
       Set<String> uniqueBlockList = await getBlockList();
       uniqueBlockList.addAll(blockList);
@@ -49,14 +52,17 @@ class AtConfig {
     return result;
   }
 
-  ///removes [unblockAtsignsList] from blocklist if satisfies basic conditions.
+  /// Removes [unblockAtsignsList] from blocklist if satisfies basic conditions.
   Future<String?> removeFromBlockList(Set<String> unblockAtsignsList) async {
     String? result;
+    if (unblockAtsignsList.isEmpty) {
+      throw IllegalArgumentException(
+          'Provided list of atsigns to unblock is empty');
+    }
     try {
-      assert(unblockAtsignsList.isNotEmpty);
       var existingData = await _getExistingData();
       Set<String> blockedAtsignsSet = await getBlockList();
-      // remove the atsign in unblockAtsignList from the existing blocklist
+      // remove the atsign in unblockAtsignList from the existing blockedAtsignsSet
       if (blockedAtsignsSet.isNotEmpty) {
         var config = Configuration(List.from(
             blockedAtsignsSet.difference(Set.from(unblockAtsignsList))));
@@ -73,12 +79,12 @@ class AtConfig {
 
   ///Returns blocklist by fetching from atsign's secondary.
   Future<Set<String>> getBlockList() async {
-    var result = <String>{};
+    var blockList = <String>{};
     try {
       var existingData = await _getExistingData();
-      if (existingData != null) {
+      if (existingData != null && existingData.data != null) {
         var config = jsonDecode(existingData.data!);
-        result = Set<String>.from(config['blockList']);
+        blockList = Set<String>.from(config['blockList']);
       }
     } on Exception catch (e) {
       throw DataStoreException(
@@ -87,8 +93,7 @@ class AtConfig {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
-
-    return result;
+    return blockList;
   }
 
   ///Returns [AtData] value for given [key].
@@ -103,7 +108,6 @@ class AtConfig {
       logger.severe('HiveKeystore get error: $error');
       throw DataStoreException(error.message);
     }
-
     return value;
   }
 
@@ -125,7 +129,6 @@ class AtConfig {
 
   ///Returns 'success' after successfully persisting data into secondary.
   Future<String> prepareAndStoreData(config, [existingData]) async {
-    String result;
     var newData = AtData();
     newData.data = jsonEncode(config);
 
@@ -135,8 +138,7 @@ class AtConfig {
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
     await _commitLog!.commit(configKey, CommitOp.UPDATE);
-    result = 'success';
-    return result;
+    return 'success';
   }
 
   /// Fetches existing Config data from the keystore
@@ -161,13 +163,16 @@ class AtConfig {
       // using the old config-key and delete the old key from keystore
       try {
         existingData = await get(oldConfigKey);
-        AtData newAtData = AtData()..data = existingData?.data;
-        HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
-            newAtData,
-            existingAtData: existingData);
-        // store the existing data with the new key
-        await (persistenceManager.getBox() as LazyBox).put(configKey, newAtData);
-        await (persistenceManager.getBox() as LazyBox).delete(oldConfigKey);
+        if (existingData != null && existingData.data != null) {
+          AtData newAtData = AtData()..data = existingData.data;
+          HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
+              newAtData,
+              existingAtData: existingData);
+          // store the existing data with the new key
+          await persistenceManager.getBox().put(configKey, newAtData);
+          logger.info('Successfully migrated configKey data to new key format');
+          await persistenceManager.getBox().delete(oldConfigKey);
+        }
       } on KeyNotFoundException catch (e) {
         logger.finer('Could not fetch data with OLD config-key | ${e.message}');
       } on Exception catch (e) {
