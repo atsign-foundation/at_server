@@ -102,8 +102,8 @@ class AtCommitLog extends BaseAtCommitLog {
 
   /// Returns the latest committed sequence number
   @server
-  int? lastCommittedSequenceNumber() {
-    return _commitLogKeyStore.latestCommitId;
+  Future<int?> lastCommittedSequenceNumber() async {
+    return await _commitLogKeyStore.latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex
@@ -147,13 +147,13 @@ class AtCommitLog extends BaseAtCommitLog {
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
   @server
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String? regex, int limit = 25}) {
+  Future<Iterator<MapEntry<String, CommitEntry>>> getEntries(int commitId,
+      {String? regex, int limit = 25}) async {
     // If regex is null or isEmpty set regex to match all keys
     if (regex == null || regex.isEmpty) {
       regex = '.*';
     }
-    return _commitLogKeyStore.getEntries(commitId, regex: regex, limit: limit);
+    return await _commitLogKeyStore.getEntries(commitId, regex: regex, limit: limit);
   }
 
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {

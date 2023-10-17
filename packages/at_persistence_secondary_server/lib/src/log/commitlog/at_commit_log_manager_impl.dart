@@ -27,7 +27,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
         _commitLogMap[atSign] = ClientAtCommitLog(commitLogKeyStore);
       }
       if (commitLogPath != null) {
-        await commitLogKeyStore.init(commitLogPath, isLazy: false);
+        await commitLogKeyStore.init(commitLogPath, isLazy: true);
       }
     }
     return _commitLogMap[atSign];

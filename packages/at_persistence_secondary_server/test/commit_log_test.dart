@@ -291,7 +291,7 @@ void main() async {
               .commit('location.wavi@alice', CommitOp.UPDATE);
         }
         Iterator iterator =
-            commitLogInstance!.getEntries(-1, regex: 'location.wavi');
+            await commitLogInstance!.getEntries(-1, regex: 'location.wavi');
         iterator.moveNext();
         expect(iterator.current.value.commitId, 4);
         expect(iterator.current.value.atKey, 'location.wavi@alice');
@@ -306,7 +306,7 @@ void main() async {
         await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
         // Fetch the commit entry using the lastSyncedCommitEntry
         Iterator iterator =
-            commitLogInstance.getEntries(-1, regex: 'location.wavi');
+            await commitLogInstance.getEntries(-1, regex: 'location.wavi');
         iterator.moveNext();
         expect(iterator.current.value.commitId, 1);
         expect(iterator.current.value.atKey, 'location.wavi@alice');

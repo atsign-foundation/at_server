@@ -79,7 +79,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
           await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
+    lastCommitID = (await _atCommitLog?.lastCommittedSequenceNumber()).toString();
     return lastCommitID;
   }
 
@@ -490,7 +490,7 @@ class LatestCommitEntryOfEachKey implements MetricProvider {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
 
-    Iterator commitEntryIterator = atCommitLog!.getEntries(-1, regex: regex);
+    Iterator commitEntryIterator = await atCommitLog!.getEntries(-1, regex: regex);
 
     while (commitEntryIterator.moveNext()) {
       CommitEntry commitEntry = commitEntryIterator.current.value;

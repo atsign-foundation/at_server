@@ -693,7 +693,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await (secondaryKeyStore.commitLog as AtCommitLog)
         .commitLogKeyStore
         .removeEntriesWithMalformedAtKeys();
-    await (secondaryKeyStore.commitLog as AtCommitLog)
+    await (
+        secondaryKeyStore.commitLog as AtCommitLog)
         .commitLogKeyStore
         .repairNullCommitIDs();
 

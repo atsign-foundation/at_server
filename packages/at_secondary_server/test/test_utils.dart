@@ -226,7 +226,7 @@ verbTestsSetUp() async {
 
   statsNotificationService = MockStatsNotificationService();
   when(() => statsNotificationService.writeStatsToMonitor())
-      .thenAnswer((invocation) {});
+      .thenAnswer((invocation) async {});
 }
 
 Future<void> verbTestsTearDown() async {
