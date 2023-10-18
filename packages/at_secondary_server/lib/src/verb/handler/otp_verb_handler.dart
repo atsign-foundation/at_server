@@ -18,7 +18,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
-  bool accept(String command) => command.startsWith('otp');
+  bool accept(String command) => command == 'otp:get';
 
   @override
   Verb getVerb() => otpVerb;
@@ -51,6 +51,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
                   '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
               ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
         break;
+      default:
+        throw InvalidSyntaxException('$operation is not a valid operation');
     }
   }
 
