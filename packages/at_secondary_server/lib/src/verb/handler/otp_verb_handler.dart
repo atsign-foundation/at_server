@@ -1,24 +1,24 @@
 import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:expire_cache/expire_cache.dart';
 
 class OtpVerbHandler extends AbstractVerbHandler {
   static Otp otpVerb = Otp();
-  static final expireDuration = Duration(seconds: 90);
-  static ExpireCache<String, String> cache =
-      ExpireCache<String, String>(expireDuration: expireDuration);
+
+  @visibleForTesting
+  int otpExpiryInMills = Duration(minutes: 5).inMilliseconds;
 
   OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
-  bool accept(String command) =>
-      command == 'otp:get' || command.startsWith('otp:validate');
+  bool accept(String command) => command == 'otp:get';
 
   @override
   Verb getVerb() => otpVerb;
@@ -29,6 +29,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
+    if (verbParams[AtConstants.ttl] != null &&
+        verbParams[AtConstants.ttl]!.isNotEmpty) {
+      otpExpiryInMills = int.parse(verbParams[AtConstants.ttl]!);
+    }
     switch (operation) {
       case 'get':
         if (!atConnection.getMetaData().isAuthenticated) {
@@ -40,16 +44,15 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         // If OTP generated do not have digits, generate again.
         while (RegExp(r'\d').hasMatch(response.data!) == false);
-        await cache.set(response.data!, response.data!);
+        await keyStore.put(
+            'private:${response.data}${AtSecondaryServerImpl.getInstance().currentAtSign}',
+            AtData()
+              ..data =
+                  '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
+              ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
         break;
-      case 'validate':
-        String? otp = verbParams['otp'];
-        if (otp != null && (await cache.get(otp)) == otp) {
-          response.data = 'valid';
-        } else {
-          response.data = 'invalid';
-        }
-        break;
+      default:
+        throw InvalidSyntaxException('$operation is not a valid operation');
     }
   }
 
