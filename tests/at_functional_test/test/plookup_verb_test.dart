@@ -34,7 +34,7 @@ void main() async {
   test('plookup verb on non existent key - negative case', () async {
     ///PLOOKUP VERB
     await socket_writer(socketFirstAtsign!,'plookup:no-key$firstAtsign');
-    String response = await read();
+    String response = await read(maxWaitMilliSeconds: 15000);
     print('plookup verb response $response');
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);

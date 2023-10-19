@@ -49,7 +49,7 @@ void main() {
     String response = await sh2.read();
     print('notify verb response : $response');
     assert(
-    (!response.contains('Invalid syntax')) && (!response.contains('null')));
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
 
     // notify status
@@ -242,7 +242,7 @@ void main() {
     /// NOTIFY VERB
     var value = '$lastValue Shris Infotech Services';
     await sh1.writeCommand(
-        'notify:update:messageType:key:$atSign_2:company$atSign_1:$value');
+        'notify:update:messageType:key:ttr:-1:$atSign_2:company$atSign_1:$value');
     String response = await sh1.read();
     print('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
@@ -259,7 +259,8 @@ void main() {
     String keyRequired =
         '"key":"$atSign_2:company$atSign_1","value":"$value","operation":"update"';
     response = await retryCommandUntilMatchOrTimeout(
-        sh2, 'notify:list', keyRequired, 15000);
+        sh2, 'notify:list:company', keyRequired, 15000);
+    print('notify list response $response');
     expect(response, contains(keyRequired));
   });
 
@@ -436,7 +437,7 @@ void main() {
     var timeBeforeNotification = DateTime.now().millisecondsSinceEpoch;
     String value = 'AtSign Company';
     await sh1.writeCommand(
-        'notify:update:messageType:key:$atSign_2:organisation.wavi$atSign_1:$value');
+        'notify:update:messageType:key:ttr:-1:$atSign_2:organisation.wavi$atSign_1:$value');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
