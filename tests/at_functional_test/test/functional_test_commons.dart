@@ -113,3 +113,14 @@ Future<String> read({int maxWaitMilliSeconds = 5000}) async {
   }
   return result;
 }
+
+  Future<String> getVersion(Socket socket) async {
+    await socket_writer(socket,'info\n');
+    var version = await read();
+    version = version.replaceAll('data:', '');
+    // Since secondary version has gha<number> appended, remove the gha number from version
+    // Hence using split.
+    var versionStr = jsonDecode(version)['version'].split('+')[0];
+    return versionStr;
+  }
+
