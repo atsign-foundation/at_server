@@ -50,7 +50,8 @@ class AtCommitLog extends BaseAtCommitLog {
   /// returns the sequence number corresponding to the new commit
   /// throws [DataStoreException] if there is an exception writing to hive box
   @server
-  Future<int?> commit(String key, CommitOp operation) async {
+  Future<int?> commit(String key, CommitOp operation,
+      {int? previousCommitId = -1}) async {
     // If key starts with "public:__", it is a public hidden key which gets synced
     // between cloud and local secondary. So increment commitId.
     // If key starts with "public:_" it is a public hidden key but does not get synced.
@@ -62,12 +63,13 @@ class AtCommitLog extends BaseAtCommitLog {
         (key.startsWith(RegExp('private:|privatekey:|public:_|local:')))) {
       return -1;
     }
-    int result;
+    int commitId;
     key = Utf7.decode(key);
     var entry = CommitEntry(
         key, operation, DateTime.now().toUtcMillisecondsPrecision());
     try {
-      result = await _commitLogKeyStore.add(entry);
+      commitId = await _commitLogKeyStore.commitChange(entry,
+          previousCommitId: previousCommitId);
       await _publishChangeEvent(entry);
     } on Exception catch (e) {
       throw DataStoreException(
@@ -76,7 +78,7 @@ class AtCommitLog extends BaseAtCommitLog {
       throw DataStoreException(
           'Hive error adding to commit log:${e.toString()}');
     }
-    return result;
+    return commitId;
   }
 
   /// Returns the latest committed sequence number
@@ -110,12 +112,6 @@ class AtCommitLog extends BaseAtCommitLog {
   @server
   int getSize() {
     return _commitLogKeyStore.getSize();
-  }
-
-  /// Returns the latest commitEntry of the key.
-  @server
-  CommitEntry? getLatestCommitEntry(String key) {
-    return _commitLogKeyStore.getLatestCommitEntry(key);
   }
 
   /// Closes the [CommitLogKeyStore] instance.
@@ -209,6 +205,36 @@ class AtCommitLog extends BaseAtCommitLog {
 @client
 class ClientAtCommitLog extends AtCommitLog {
   ClientAtCommitLog(CommitLogKeyStore keyStore) : super(keyStore);
+
+  @override
+  Future<int?> commit(String key, CommitOp operation,
+      {int? previousCommitId = -1}) async {
+    // If key starts with "public:__", it is a public hidden key which gets synced
+    // between cloud and local secondary. So increment commitId.
+    // If key starts with "public:_" it is a public hidden key but does not get synced.
+    // So return -1.
+    // The private: and privatekey: are not synced. so return -1.
+    // The key that starts with 'local:' are the local keys that do not sync between the
+    // client and server. Hence do not add to commit log.
+    if (!key.startsWith('public:__') &&
+        (key.startsWith(RegExp('private:|privatekey:|public:_|local:')))) {
+      return -1;
+    }
+    int commitId;
+    key = Utf7.decode(key);
+    var entry = CommitEntry(
+        key, operation, DateTime.now().toUtcMillisecondsPrecision());
+    try {
+      commitId = await _commitLogKeyStore.add(entry);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'Exception adding to commit log:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error adding to commit log:${e.toString()}');
+    }
+    return commitId;
+  }
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry

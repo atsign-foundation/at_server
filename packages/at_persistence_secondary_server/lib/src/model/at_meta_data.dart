@@ -77,6 +77,9 @@ class AtMetaData extends HiveObject {
   @HiveField(23)
   String? skeEncAlgo;
 
+  @HiveField(24)
+  int? commitId;
+
   @override
   String toString() {
     return toJson().toString();
@@ -151,6 +154,7 @@ class AtMetaData extends HiveObject {
     map[AtConstants.ivOrNonce] = ivNonce;
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map['commitId'] = commitId;
     return map;
   }
 
@@ -205,6 +209,7 @@ class AtMetaData extends HiveObject {
     ivNonce = json[AtConstants.ivOrNonce];
     skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    commitId = json['commitId'];
 
     return this;
   }
@@ -237,7 +242,8 @@ class AtMetaData extends HiveObject {
           encAlgo == other.encAlgo &&
           ivNonce == other.ivNonce &&
           skeEncKeyName == other.skeEncKeyName &&
-          skeEncAlgo == other.skeEncAlgo;
+          skeEncAlgo == other.skeEncAlgo &&
+          commitId == other.commitId;
 
   @override
   int get hashCode =>
@@ -264,7 +270,8 @@ class AtMetaData extends HiveObject {
       encAlgo.hashCode ^
       ivNonce.hashCode ^
       skeEncKeyName.hashCode ^
-      skeEncAlgo.hashCode;
+      skeEncAlgo.hashCode ^
+      commitId.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
@@ -301,13 +308,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..encAlgo = fields[20]
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
-      ..skeEncAlgo = fields[23];
+      ..skeEncAlgo = fields[23]
+      ..commitId = fields[24];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -355,6 +363,8 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(22)
       ..write(obj.skeEncKeyName)
       ..writeByte(23)
-      ..write(obj.skeEncAlgo);
+      ..write(obj.skeEncAlgo)
+      ..writeByte(24)
+      ..write(obj.commitId);
   }
 }

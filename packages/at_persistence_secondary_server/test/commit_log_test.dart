@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
-import 'package:hive/hive.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -19,11 +18,11 @@ void main() async {
           () async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-        var hiveKey =
-            await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
+        var hiveKey = await commitLogInstance!
+            .commit('location.wavi@alice', CommitOp.UPDATE);
         var committedEntry = await (commitLogInstance.getEntry(hiveKey));
         expect(committedEntry?.key, hiveKey);
-        expect(committedEntry?.atKey, 'location@alice');
+        expect(committedEntry?.atKey, 'location.wavi@alice');
         expect(committedEntry?.operation, CommitOp.UPDATE);
         expect(committedEntry?.commitId, isNull);
         commitLogInstance = null;
@@ -313,76 +312,6 @@ void main() async {
         expect(iterator.current.value.atKey, 'location.wavi@alice');
         expect(iterator.current.value.operation, CommitOp.DELETE);
       });
-
-      test(
-          'A test to verify if size of commit log matches length of commit log cache map then commit log keystore is compacted',
-          () async {
-        var commitLogInstance =
-            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-        // Add 5 distinct keys
-        await commitLogInstance!
-            .commit('firstname.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit('lastName.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit('country.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit('phone.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit('location.wavi@alice', CommitOp.UPDATE);
-        // Update the keys
-        await commitLogInstance.commit(
-            'location.wavi@alice', CommitOp.UPDATE_ALL);
-        await commitLogInstance.commit(
-            'lastName.wavi@alice', CommitOp.UPDATE_ALL);
-        await commitLogInstance.commit('firstname.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit('country.wavi@alice', CommitOp.UPDATE);
-        // Add a new key which is NOT in commit log keystore
-        await commitLogInstance.commit('city.wavi@alice', CommitOp.UPDATE);
-        // Delete the existing key
-        await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
-        // Verify size of commit log keystore and commit log cache map are equal
-        expect(commitLogInstance.commitLogKeyStore.getBox().keys.length,
-            commitLogInstance.commitLogKeyStore.commitEntriesList().length);
-        // Get all entries from the commit log keystore.
-        Iterator itr =
-            commitLogInstance.commitLogKeyStore.getBox().keys.iterator;
-        itr.moveNext();
-        CommitEntry commitEntry =
-            (commitLogInstance.commitLogKeyStore.getBox() as Box)
-                .get(itr.current);
-        expect(commitEntry.atKey, 'phone.wavi@alice');
-        expect(commitEntry.commitId, 3);
-        expect(commitEntry.operation, CommitOp.UPDATE);
-        itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
-        expect(commitEntry.atKey, 'lastName.wavi@alice');
-        expect(commitEntry.commitId, 6);
-        expect(commitEntry.operation, CommitOp.UPDATE_ALL);
-        itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
-        expect(commitEntry.atKey, 'firstname.wavi@alice');
-        expect(commitEntry.commitId, 7);
-        expect(commitEntry.operation, CommitOp.UPDATE);
-        itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
-        expect(commitEntry.atKey, 'country.wavi@alice');
-        expect(commitEntry.commitId, 8);
-        expect(commitEntry.operation, CommitOp.UPDATE);
-        itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
-        expect(commitEntry.atKey, 'city.wavi@alice');
-        expect(commitEntry.commitId, 9);
-        expect(commitEntry.operation, CommitOp.UPDATE);
-        itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
-        expect(commitEntry.atKey, 'location.wavi@alice');
-        expect(commitEntry.commitId, 10);
-        expect(commitEntry.operation, CommitOp.DELETE);
-        // To ensure there are no more keys in iterator.
-        expect(itr.moveNext(), false);
-      });
     });
 
     group('A group of tests to verify repair commit log', () {
@@ -399,8 +328,7 @@ void main() async {
         await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
         var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
         expect(commitLogMap?.values.first.commitId, null);
-        await commitLogInstance?.commitLogKeyStore
-            .repairNullCommitIDs(commitLogMap!);
+        await commitLogInstance?.commitLogKeyStore.repairNullCommitIDs();
         commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
         expect(commitLogMap?.values.first.commitId, 0);
       });
@@ -427,8 +355,7 @@ void main() async {
             .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
         var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
-        await commitLogInstance.commitLogKeyStore
-            .repairNullCommitIDs(commitLogMap);
+        await commitLogInstance.commitLogKeyStore.repairNullCommitIDs();
         commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
         commitLogMap.forEach((key, value) {
           assert(value.commitId != null);
@@ -517,7 +444,7 @@ void main() async {
         await commitLogInstance?.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
         await commitLogInstance!.commitLogKeyStore
-            .repairCommitLogAndCreateCachedMap();
+            .repairCommitLog();
         Iterator<MapEntry<String, CommitEntry>> itr =
             commitLogInstance.getEntries(-1);
         itr.moveNext();
@@ -534,36 +461,6 @@ void main() async {
         expect(itr.current.key, '@alice:key1.wavi@alice');
         expect(itr.current.value.commitId, 4);
         expect(itr.current.value.operation, CommitOp.UPDATE);
-      });
-
-      test(
-          'A test to verify the order of keys and values in commit log cache map',
-          () async {
-        var commitLogInstance =
-            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
-        await commitLogInstance?.commit(
-            '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
-            '@alice:key2.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
-            '@alice:key3.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
-            '@alice:key2.wavi@alice', CommitOp.DELETE);
-        await commitLogInstance?.commit(
-            '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance!.commitLogKeyStore
-            .repairCommitLogAndCreateCachedMap();
-
-        List<MapEntry<String, CommitEntry>> commitEntriesList =
-            commitLogInstance.commitLogKeyStore.commitEntriesList();
-        expect(commitEntriesList[0].key, '@alice:key3.wavi@alice');
-        expect(commitEntriesList[0].value.commitId, 2);
-
-        expect(commitEntriesList[1].key, '@alice:key2.wavi@alice');
-        expect(commitEntriesList[1].value.commitId, 3);
-
-        expect(commitEntriesList[2].key, '@alice:key1.wavi@alice');
-        expect(commitEntriesList[2].value.commitId, 4);
       });
 
       test(
@@ -626,11 +523,13 @@ void main() async {
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
             await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
+                'test_key_true_$i.wavi@alice',
+                CommitOp.UPDATE,
+                DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(
-                CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
-                  ..commitId = i);
+            await commitLogKeystore.getBox().add(CommitEntry(
+                'test_key_true_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
+              ..commitId = i);
           }
         }
         Iterator<MapEntry<String, CommitEntry>>? changes =

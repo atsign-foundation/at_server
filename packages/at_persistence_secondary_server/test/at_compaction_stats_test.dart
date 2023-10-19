@@ -44,8 +44,10 @@ Future<void> main() async {
 
     test("verify commitLog stats in keystore", () async {
       // Add CommitEntries to CommitLog
-      await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
-      await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
+      int? previousCommitId =
+          await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
+      await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE,
+          previousCommitId: previousCommitId);
       var atCompactionService = AtCompactionService.getInstance();
       int dateTimeBeforeCompactionInMilliSeconds =
           DateTime.now().toUtc().microsecondsSinceEpoch;

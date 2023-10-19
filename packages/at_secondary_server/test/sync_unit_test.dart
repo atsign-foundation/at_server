@@ -207,10 +207,10 @@ void main() {
         expect(atData.metaData!.createdBy, atSign);
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
-        CommitEntry? commitEntryList =
-            atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
-        expect(commitEntryList!.operation, CommitOp.UPDATE_META);
-        expect(commitEntryList.commitId, 1);
+        AtMetaData? atMetaData = await secondaryPersistenceStore!
+            .getSecondaryKeyStore()!
+            .getMeta('@alice:phone@alice');
+        expect(atMetaData?.commitId, 1);
       });
 
       test(
@@ -870,7 +870,7 @@ void main() {
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -879,7 +879,8 @@ void main() {
         expect(syncResponseList[0]['operation'], '+');
       });
 
-      test('A test to verify all keys are returned when enrollment contains *:rw',
+      test(
+          'A test to verify all keys are returned when enrollment contains *:rw',
           () async {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -899,9 +900,9 @@ void main() {
           'requestType': 'newEnrollment',
           'approval': {'state': 'approved'}
         };
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put(enrollmentKey, AtData()..data = jsonEncode(enrollJson), skipCommit: true);
+        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+            enrollmentKey, AtData()..data = jsonEncode(enrollJson),
+            skipCommit: true);
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -912,7 +913,7 @@ void main() {
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -921,7 +922,6 @@ void main() {
         expect(syncResponseList[0]['operation'], '+');
         expect(syncResponseList[1]['atKey'], 'public:mobile.buzz@alice');
         expect(syncResponseList[1]['operation'], '+');
-
       });
       tearDown(() async => await tearDownMethod());
     });

@@ -51,8 +51,10 @@ void main() {
 
     test('A test to verify duplicate entry with lowest commit id returned',
         () async {
-      await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
+      int? previousCommitId =
+          await atCommitLog!.commit('@alice:phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog!.commit('@alice:phone.wavi@alice', CommitOp.UPDATE,
+          previousCommitId: previousCommitId);
       List<int> keysToDelete = await atCommitLog!.getKeysToDeleteOnCompaction();
       expect(keysToDelete.length, 0);
     });

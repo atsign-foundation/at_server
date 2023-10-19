@@ -755,10 +755,10 @@ void main() async {
       var result = await keyStore.put('phone.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+      await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog('@test_user_1'));
-      expect(commitLogInstance!.getLatestCommitEntry('phone.wavi@test_user_1'),
-          isNull);
+      AtMetaData? atMetaData = await keyStore.getMeta('phone.wavi@test_user_1');
+      expect(atMetaData?.commitId, -1);
     });
     test('skip commit true in create', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -769,10 +769,10 @@ void main() async {
       var result = await keyStore.create('email.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
+      await (AtCommitLogManagerImpl.getInstance()
           .getCommitLog('@test_user_1'));
-      expect(commitLogInstance!.getLatestCommitEntry('email.wavi@test_user_1'),
-          isNull);
+      AtMetaData? atMetaData = await keyStore.getMeta('phone.wavi@test_user_1');
+      expect(atMetaData?.commitId, isNull);
     });
     test('skip commit true in remove', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -783,11 +783,6 @@ void main() async {
       var result =
           await keyStore.remove('firstname.wavi@test_user_1', skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
-      expect(
-          commitLogInstance!.getLatestCommitEntry('firstname.wavi@test_user_1'),
-          isNull);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });
