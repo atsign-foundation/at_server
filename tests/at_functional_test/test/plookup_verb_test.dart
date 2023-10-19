@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:test/test.dart';
+import 'package:version/version.dart';
 
 import 'functional_test_commons.dart';
 
@@ -34,12 +35,19 @@ void main() async {
   test('plookup verb on non existent key - negative case', () async {
     ///PLOOKUP VERB
     await socket_writer(socketFirstAtsign!,'plookup:no-key$firstAtsign');
-    String response = await read(maxWaitMilliSeconds: 15000);
-    print('plookup verb response $response');
-    response = response.replaceFirst('error:', '');
-    var errorMap = jsonDecode(response);
+    var response = await read();
+    var version = await getVersion(socketFirstAtsign!);
+    print(version);
+    var serverResponse = Version.parse(await getVersion(socketFirstAtsign!));
+    if (serverResponse > Version(3, 0, 24)) {
+      response = response.replaceFirst('error:', '');
+      var errorMap = jsonDecode(response);
       expect(errorMap['errorCode'], 'AT0011');
       expect(errorMap['errorDescription'],
           contains('public:no-key$firstAtsign does not exist in keystore'));
+    } else {
+      expect(response,
+          contains('public:no-key$firstAtsign does not exist in keystore'));
+    }
   }, timeout: Timeout(Duration(seconds: 120)));
 }
