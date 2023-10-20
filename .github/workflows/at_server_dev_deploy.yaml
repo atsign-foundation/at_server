@@ -37,7 +37,7 @@ jobs:
           context: packages/at_root_server
           push: true
           tags: |
-            atsigncompany/root:dev_env
+            atsigncompany/root:dev_env-gha${{ github.run_number }}
             atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
 
   Deploy_On_Dev_K8:
@@ -68,4 +68,4 @@ jobs:
         # Deploy the Docker image to the GKE cluster
         - name: Deploy
           run: |-
-            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env
+            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-gha${{ github.run_number }}

@@ -69,3 +69,4 @@ jobs:
       - name: Deploy
         run: |-
           kubectl -n root set image deployment/root root=atsigncompany/root:prod
+          kubectl rollout restart deployment root -n root
