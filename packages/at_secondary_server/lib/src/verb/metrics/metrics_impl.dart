@@ -79,7 +79,7 @@ class LastCommitIDMetricImpl implements MetricProvider {
           await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
+    lastCommitID = (await _atCommitLog?.lastCommittedSequenceNumber()).toString();
     return lastCommitID;
   }
 
@@ -406,8 +406,8 @@ class CommitLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(commitLogCompactionKey)) {
-      AtData? atData = await keyStore.get(commitLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -437,8 +437,8 @@ class AccessLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(accessLogCompactionKey)) {
-      AtData? atData = await keyStore.get(accessLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -468,8 +468,8 @@ class NotificationCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(notificationCompactionKey)) {
-      AtData? atData = await keyStore.get(notificationCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -490,7 +490,7 @@ class LatestCommitEntryOfEachKey implements MetricProvider {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
 
-    Iterator commitEntryIterator = atCommitLog!.getEntries(-1, regex: regex);
+    Iterator commitEntryIterator = await atCommitLog!.getEntries(-1, regex: regex);
 
     while (commitEntryIterator.moveNext()) {
       CommitEntry commitEntry = commitEntryIterator.current.value;

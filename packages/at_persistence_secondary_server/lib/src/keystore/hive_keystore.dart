@@ -47,6 +47,32 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     await initialize();
   }
 
+  Future<void> repairCommitLog() async {
+    for (int commitIndex = 0;
+        commitIndex < _commitLog.commitLogKeyStore.getBox().length;
+        commitIndex++) {
+      CommitEntry commitEntry =
+          await (_commitLog.commitLogKeyStore.getBox() as LazyBox)
+              .getAt(commitIndex);
+      AtMetaData? atMetaData = await getMeta(commitEntry.atKey!);
+      if (commitEntry.commitId != null && atMetaData?.commitId != null) {
+        continue;
+      } else if (commitEntry.commitId != null && atMetaData?.commitId == null) {
+        await putMeta(
+            commitEntry.atKey!, atMetaData?..commitId = commitEntry.commitId,
+            skipCommit: true);
+      } else if (commitEntry.commitId == null) {
+        await _commitLog.commitLogKeyStore
+            .getBox()
+            .put(commitEntry.key, commitEntry..commitId = commitEntry.key);
+
+        await putMeta(
+            commitEntry.atKey!, atMetaData?..commitId = commitEntry.key,
+            skipCommit: true);
+      }
+    }
+  }
+
   Future<void> _initExpiryKeysCache() async {
     if (persistenceManager == null || !persistenceManager!.getBox().isOpen) {
       logger.severe(
@@ -482,7 +508,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<int?> putMeta(String key, AtMetaData? metadata) async {
+  Future<int?> putMeta(String key, AtMetaData? metadata,
+      {bool skipCommit = false}) async {
     key = key.toLowerCase();
     try {
       String hive_key = keyStoreHelper.prepareKey(key);
@@ -501,11 +528,15 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
       await persistenceManager!.getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
-      int? commitId = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
-      await persistenceManager!
-          .getBox()
-          .put(hive_key, newData..metaData?.commitId = commitId);
-      return commitId;
+      if (skipCommit) {
+        return -1;
+      } else {
+        int? commitId = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
+        await persistenceManager!
+            .getBox()
+            .put(hive_key, newData..metaData?.commitId = commitId);
+        return commitId;
+      }
     } on HiveError catch (error) {
       logger.severe('HiveKeystore get error: $error');
       await _restartHiveBox(error);

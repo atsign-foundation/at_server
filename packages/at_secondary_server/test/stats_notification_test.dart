@@ -41,7 +41,7 @@ void main() {
     statsNotificationService.inboundConnectionPool = mockInboundConnectionPool;
 
     when(() => mockAtCommitLog.lastCommittedSequenceNumber())
-        .thenAnswer((_) => 4);
+        .thenAnswer((_) => Future.value(4));
 
     when(() => mockInboundConnection1.write(
         any(that: startsWith('notification:')))).thenAnswer((invocation) {

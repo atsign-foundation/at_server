@@ -113,7 +113,7 @@ void main() {
       verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
       var response = Response();
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '0');
+      verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
       verbParams.putIfAbsent('limit', () => '10');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -148,7 +148,7 @@ void main() {
 
       List<KeyStoreEntry> syncResponse = [];
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(0));
+          0, syncResponse, await atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_alpha@alice');
     });
@@ -179,18 +179,18 @@ void main() {
       // Since syncResponse already has an entry, and the 'capacity' is 0, then the next entry
       // should not be added to the syncResponse
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(0));
+          0, syncResponse, await atCommitLog.getEntries(0));
       expect(syncResponse, [entry]);
 
       syncResponse.clear();
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(0));
+          0, syncResponse, await atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_alpha@alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(1));
+          0, syncResponse, await atCommitLog.getEntries(1));
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key2_beta@alice');
     });
@@ -222,7 +222,7 @@ void main() {
       syncResponse.add(entry);
 
       await verbHandler.prepareResponse(
-          10 * 1024 * 1024, syncResponse, atCommitLog.getEntries(0));
+          10 * 1024 * 1024, syncResponse, await atCommitLog.getEntries(0));
 
       // Expecting that all the entries in the commitLog have been
       // added to syncResponse
@@ -249,20 +249,20 @@ void main() {
 
       List<KeyStoreEntry> syncResponse = [];
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(0));
+          0, syncResponse, await atCommitLog.getEntries(0));
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key1@alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(
-          0, syncResponse, atCommitLog.getEntries(1));
+          0, syncResponse, await atCommitLog.getEntries(1));
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key2@alice');
 
       // test with empty iterator
       syncResponse.clear();
       await verbHandler.prepareResponse(
-          10 * 1024 * 1024, syncResponse, atCommitLog.getEntries(2));
+          10 * 1024 * 1024, syncResponse, await atCommitLog.getEntries(2));
       expect(syncResponse.length, 0);
     });
 

@@ -41,8 +41,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var commitEntryIterator = atCommitLog!.getEntries(
-        int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
+    var commitEntryIterator = await atCommitLog!.getEntries(
+        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
         regex: verbParams['regex']);
 
     List<KeyStoreEntry> syncResponse = [];

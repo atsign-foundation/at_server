@@ -415,7 +415,7 @@ void main() {
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -441,7 +441,7 @@ void main() {
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -481,7 +481,7 @@ void main() {
       expect(approveEnrollmentResponse['status'], 'approved');
       // Verify Commit log does not contain keys with __manage namespace
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       iterator.moveNext();
       expect(iterator.current.key,
           'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');

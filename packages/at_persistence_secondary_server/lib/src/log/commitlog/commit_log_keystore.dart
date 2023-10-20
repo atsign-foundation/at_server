@@ -12,11 +12,11 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   final Mutex _commitMutex = Mutex();
 
-  int get latestCommitId {
-    if ((getBox() as Box).isEmpty) {
+  Future<int> get latestCommitId async {
+    if ((getBox() as LazyBox).isEmpty) {
       return -1;
     }
-    return (getBox() as Box).getAt(getBox().length - 1).commitId;
+    return (await (getBox() as LazyBox).getAt(getBox().length - 1)).commitId;
   }
 
   CommitLogKeyStore(String currentAtSign) : super(currentAtSign);
@@ -77,13 +77,21 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// Returns the latest committed sequence number with regex
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
       {List<String>? enrolledNamespace}) async {
-    var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex,
-            enrolledNamespace: enrolledNamespace)),
-        orElse: () => NullCommitEntry());
-    var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
-    return lastCommittedSequenceNum;
+    int index = getBox().length;
+    bool isKeyAccepted = false;
+
+    while (index >= 0 && !isKeyAccepted) {
+      index = index - 1;
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(index);
+      isKeyAccepted = _acceptKey(commitEntry.atKey!, regex,
+          enrolledNamespace: enrolledNamespace);
+    }
+
+    if (isKeyAccepted) {
+      return index;
+    } else {
+      return NullCommitEntry().commitId;
+    }
   }
 
   /// Sorts the [CommitEntry]'s order by commit in descending order
@@ -229,8 +237,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25}) {
+  Future<Iterator<MapEntry<String, CommitEntry>>> getEntries(int commitId,
+      {String regex = '.*', int limit = 25}) async {
     // When commitId is -1, it means a full sync. So return all the entries from the start.
     // Set start to 0
     // If commitId is not 0, it means to send keys from the given commitId
@@ -239,7 +247,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     int endIndex = (getBox().length - 1);
     while (startIndex <= endIndex) {
       var midIndex = (startIndex + endIndex) ~/ 2;
-      CommitEntry commitEntry = (getBox() as Box).getAt(midIndex);
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(midIndex);
       if (commitId == commitEntry.commitId) {
         startIndex = midIndex;
         break;
@@ -255,7 +263,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     limit = (getBox().length < limit) ? getBox().length : limit;
     Map<String, CommitEntry> commitEntriesMap = {};
     while (startIndex < limit) {
-      CommitEntry commitEntry = (getBox() as Box).getAt(startIndex);
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(startIndex);
       if (!_acceptKey(commitEntry.atKey!, regex)) {
         startIndex = startIndex + 1;
         continue;
@@ -295,7 +303,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     // Ensures the below code runs only when initialized from secondary server.
     // enableCommitId is set to true in secondary server and to false in client SDK.
     await removeEntriesWithMalformedAtKeys();
-    await repairNullCommitIDs();
+    //await repairNullCommitIDs();
     return true;
   }
 
@@ -304,7 +312,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   @visibleForTesting
   Future<void> removeEntriesWithMalformedAtKeys() async {
     for (int commitIndex = 0; commitIndex < getBox().length; commitIndex++) {
-      CommitEntry? commitEntry = (getBox() as Box).getAt(commitIndex);
+      CommitEntry? commitEntry = await (getBox() as LazyBox).getAt(commitIndex);
       if (commitEntry == null) {
         _logger.warning(
             'CommitLog seqNum $commitIndex has a null commitEntry - removing');
@@ -331,19 +339,19 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
-  /// For each commitEntry with a null commitId, replace the commitId with
+  /*/// For each commitEntry with a null commitId, replace the commitId with
   /// the hive internal key
   @visibleForTesting
   Future<void> repairNullCommitIDs() async {
     for (int commitIndex = 0; commitIndex < getBox().length; commitIndex++) {
-      CommitEntry commitEntry = (getBox() as Box).getAt(commitIndex);
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(commitIndex);
       if (commitEntry.commitId != null) {
         continue;
       }
       await getBox()
           .put(commitEntry.key, commitEntry..commitId = commitEntry.key);
     }
-  }
+  }*/
 }
 
 abstract class BaseCommitLogKeyStore with HiveBase<CommitEntry?> {
@@ -456,16 +464,14 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       }
       var changes = <CommitEntry>[];
       var regexString = (regex != null) ? regex : '';
-      var values = (getBox() as Box).values;
       var startKey = sequenceNumber + 1;
-      limit ??= values.length + 1;
-      for (CommitEntry element in values) {
-        if (element.key >= startKey &&
-            _acceptKey(element.atKey!, regexString) &&
-            changes.length <= limit) {
-          if (element.commitId == null) {
-            changes.add(element);
-          }
+      limit ??= getBox().length + 1;
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(startKey);
+      if (commitEntry.key >= startKey &&
+          _acceptKey(commitEntry.atKey!, regexString) &&
+          changes.length <= limit) {
+        if (commitEntry.commitId == null) {
+          changes.add(commitEntry);
         }
       }
       return changes;
@@ -491,17 +497,21 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
           'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
       return lastSyncedEntry;
     }
-    var values = (getBox() as Box).values.toList()..sort(_sortByCommitId);
-    if (values.isEmpty) {
+    if (getBox().isEmpty) {
       return null;
     }
-    // Returns the commitEntry with maximum commitId matching the given regex.
-    // otherwise returns NullCommitEntry
-    lastSyncedEntry = values.lastWhere(
-        (entry) =>
-            (_acceptKey(entry!.atKey!, regex) && (entry.commitId != null)),
-        orElse: () => NullCommitEntry());
 
+    int index = 0;
+    lastSyncedEntry = NullCommitEntry();
+    while (index < (getBox().length - 1)) {
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(index);
+      if ((_acceptKey(commitEntry.atKey!, regex) &&
+          (commitEntry.commitId != null))) {
+        lastSyncedEntry = commitEntry;
+        break;
+      }
+      index = index + 1;
+    }
     if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
       _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
       return null;

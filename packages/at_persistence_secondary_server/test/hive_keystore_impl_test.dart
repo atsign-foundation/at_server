@@ -157,30 +157,6 @@ void main() async {
       expect(expiredKeys.length, 0);
     });
 
-    // test('test hive files deleted - get - box not available', () async {
-    //   var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-    //       .getSecondaryPersistenceStore('@test_user_1')!;
-    //   var keyStore = keyStoreManager.getSecondaryKeyStore();
-    //   await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
-    //   expect(
-    //       () async => await keyStore!.get('abc'),
-    //       throwsA(predicate((dynamic e) =>
-    //           e is DataStoreException &&
-    //           e.message == 'Box has already been closed.')));
-    // });
-    //
-    // test('test hive files deleted - put - box not available', () async {
-    //   var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-    //       .getSecondaryPersistenceStore('@test_user_1')!;
-    //   var keyStore = keyStoreManager.getSecondaryKeyStore();
-    //   await Hive.deleteBoxFromDisk(_getShaForAtsign('@test_user_1'));
-    //   expect(
-    //       () async => await keyStore!.put('abc', null),
-    //       throwsA(predicate((dynamic e) =>
-    //           e is DataStoreException &&
-    //           e.message == 'Box has already been closed.')));
-    // });
-
     test('test delete expired keys - no data', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore('@test_user_1');
@@ -755,8 +731,7 @@ void main() async {
       var result = await keyStore.put('phone.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      await (AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'));
       AtMetaData? atMetaData = await keyStore.getMeta('phone.wavi@test_user_1');
       expect(atMetaData?.commitId, -1);
     });
@@ -769,8 +744,7 @@ void main() async {
       var result = await keyStore.create('email.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      await (AtCommitLogManagerImpl.getInstance().getCommitLog('@test_user_1'));
       AtMetaData? atMetaData = await keyStore.getMeta('phone.wavi@test_user_1');
       expect(atMetaData?.commitId, isNull);
     });
@@ -784,6 +758,40 @@ void main() async {
           await keyStore.remove('firstname.wavi@test_user_1', skipCommit: true);
       expect(result, -1);
     });
+    tearDown(() async => await tearDownFunc(atSign));
+  });
+
+  group('A group of tests related to commit log repair', () {
+    String atSign = '@emoji🛠️';
+    setUp(() async => await setUpFunc(storageDir, atSign));
+
+    test('A test to verify commit Id gets updated with put method in the hive keystore',
+        () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)!;
+      HiveKeystore hiveKeystore = keyStoreManager.getSecondaryKeyStore()!;
+
+      await hiveKeystore.put(
+          'location.wavi$atSign', AtData()..data = 'Hyderabad');
+
+      AtMetaData? atMetadata =
+          await hiveKeystore.getMeta('location.wavi$atSign');
+      expect(atMetadata!.commitId, 0);
+    });
+
+    test('A test to verify commit Id gets updated with putMeta method in the hive keystore',
+            () async {
+          var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(atSign)!;
+          HiveKeystore hiveKeystore = keyStoreManager.getSecondaryKeyStore()!;
+
+          await hiveKeystore.putMeta(
+              'location.wavi$atSign', AtMetaData());
+
+          AtMetaData? atMetadata =
+          await hiveKeystore.getMeta('location.wavi$atSign');
+          expect(atMetadata!.commitId, 0);
+        });
     tearDown(() async => await tearDownFunc(atSign));
   });
 }
