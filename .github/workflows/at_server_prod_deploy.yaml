@@ -37,7 +37,9 @@ jobs:
           context: packages/at_root_server
           push: true
           tags: |
+            atsigncompany/root:prod
             atsigncompany/root:prod-gha${{ github.run_number }}
+            atsigncompany/root:prod-${{ env.BRANCH }}-gha${{ github.run_number }}
 
   Deploy_On_Prod_K8:
     needs: Docker_Build
