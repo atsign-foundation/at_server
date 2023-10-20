@@ -65,7 +65,7 @@ jobs:
           cluster_name: ${{ secrets.GKE_PROD_CLUSTER }}
           location: ${{ secrets.GKE_PROD_ZONE }}
 
-      # Deploy the Docker image to the GKE cluster
+      # Deploy the Docker image to the GKE cluster 
       - name: Deploy
         run: |-
           kubectl -n root set image deployment/root root=atsigncompany/root:prod
