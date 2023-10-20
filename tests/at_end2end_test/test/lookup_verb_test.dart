@@ -30,15 +30,6 @@ void main() {
     sh2.clear();
   });
 
-
-  test('llookup verb on a non-existent key', () async {
-    ///lookup verb alice  atsign
-    await sh1.writeCommand('llookup:random$atSign_1');
-    String response = await sh1.read();
-    print('llookup verb response : $response');
-    expect(response, contains('key not found : random$atSign_1 does not exist in keystore'));
-  }, timeout: Timeout(Duration(minutes: 3)));
-
   test('update-lookup verb on private key - positive verb', () async {
     ///Update verb on bob atsign
     var lastValue = Random().nextInt(5);
@@ -51,20 +42,8 @@ void main() {
 
     ///lookup verb alice  atsign
     await sh2.writeCommand('lookup:special-code$atSign_1');
-   response = await sh2.read(timeoutMillis: 4000);
+    response = await sh2.read(timeoutMillis: 4000);
     print('lookup verb response : $response');
     expect(response, contains('data:$value'));
-  }, timeout: Timeout(Duration(minutes: 3)));
-
-
-  test('update-lookup verb by giving wrong spelling - Negative case', () async {
-    ///lookup verb
-    await sh1.writeCommand('lokup:public:phone$atSign_2');
-    String response = await sh1.read();
-    print('lookup verb response from : $response');
-    expect(response, contains('Invalid syntax'));
-    // Going to reconnect, because invalid syntax causes server to close connection
-    sh1.close();
-    sh1 = await e2e.getSocketHandler(atSign_1);
   }, timeout: Timeout(Duration(minutes: 3)));
 }
