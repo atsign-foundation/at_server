@@ -8,10 +8,6 @@ publish_to: none
 environment:
   sdk: '>=2.15.0 <4.0.0'
 
-dependency_overrides:
-  at_persistence_secondary_server:
-    path: ../at_persistence_secondary_server
-
 dependencies:
   args: 2.4.2
   uuid: 3.0.7
