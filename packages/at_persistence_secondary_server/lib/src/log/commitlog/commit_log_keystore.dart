@@ -185,12 +185,20 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
   }
 
-  bool _isNamespaceAuthorised(String atKey, List<String>? enrolledNamespace) {
+  bool _isNamespaceAuthorised(String atKeyAsString, List<String>? enrolledNamespace) {
     // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
-    if (atKey.toLowerCase() == 'configkey') {
+    if (atKeyAsString.toLowerCase() == 'configkey') {
       return true;
     }
-    String? keyNamespace = AtKey.fromString(atKey).namespace;
+    late AtKey atKey;
+    try {
+      atKey = AtKey.fromString(atKeyAsString);
+    } on InvalidSyntaxException catch (_) {
+      _logger.warning(
+          '_isNamespaceAuthorized found an invalid key "$atKeyAsString" in the commit log. Returning false');
+      return false;
+    }
+    String? keyNamespace = atKey.namespace;
     // If enrolledNamespace is null or keyNamespace is null, fallback to
     // existing behaviour - the key is authorized for the client to receive. So return true.
     if (enrolledNamespace == null ||
@@ -371,7 +379,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
 
   ClientCommitLogKeyStore(String currentAtSign) : super(currentAtSign);
 
-  /// Initializes the key store and makes it ready for the persistance
+  /// Initializes the key store and makes it ready for the persistence
   @override
   Future<void> initialize() async {
     _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
