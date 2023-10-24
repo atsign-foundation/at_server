@@ -25,7 +25,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.sync)}:') &&
-      command.startsWith('sync:from');
+          command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -76,11 +76,19 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           enforceNameSpace: false);
       if (atKeyType == KeyType.invalidKey) {
         logger.warning(
-            '${commitEntryIterator.current.key} is an invalid key. Skipping from adding it to sync response');
+            'prepareResponse | ${commitEntryIterator.current.key} is an invalid key. Skipping.');
+        continue;
+      }
+      late AtKey parsedAtKey;
+      try {
+        parsedAtKey = AtKey.fromString(commitEntryIterator.current.key!);
+      } on InvalidSyntaxException catch (_) {
+        logger.warning(
+            'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
         continue;
       }
       String? keyNamespace =
-          AtKey.fromString(commitEntryIterator.current.key!).namespace;
+          parsedAtKey.namespace;
       if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
           enrolledNamespaces.isNotEmpty &&
           (!enrolledNamespaces.containsKey(allNamespaces) &&
@@ -97,7 +105,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         // exist in keystore, skip the key to sync and continue
         if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
           logger.finer(
-              '${commitEntryIterator.current.key} does not exist in the keystore. skipping the key to sync');
+              'prepareResponse | ${commitEntryIterator.current.key} does not exist in the keystore. Skipping.');
           continue;
         }
 

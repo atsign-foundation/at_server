@@ -1,3 +1,10 @@
+## 3.0.37
+- fix: In the `SyncProgressiveVerbHandler.prepareResponse` method, gracefully 
+  handle any malformed keys which happen to be in the commit log for
+  historical reasons
+- build: Take up at_persistence_secondary_server version 3.0.59 which
+  includes a similar fix when checking namespace authorization in the
+  `CommitLogKeyStore._isNamespaceAuthorised` method
 ## 3.0.36
 - fix: Implement notify ephemeral changes - Send notification with value without caching the key on receiver's secondary server
 - feat: Implement AtRateLimiter to limit the enrollment requests on a particular connection
