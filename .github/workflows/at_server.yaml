@@ -71,14 +71,6 @@ jobs:
         working-directory: ${{ env.root-working-directory }}
         run: dart test --concurrency=1
 
-      # adds dependency overrides to pubspec.yaml
-      # Runs when github action event type is pull_request or push event to trunk branch
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        run: |
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_persistence_secondary_server
-
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
         run: dart pub get
@@ -90,14 +82,6 @@ jobs:
       - name: Run tests in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
         run: dart test --concurrency=1
-
-      # adds dependency overrides to pubspec.yaml
-      # Runs when github action event type is pull_request or push event to trunk branch
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        run: |
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       # Runs dart lint rules and unit tests on at_secondary_server
       - name: Install dependencies in at_secondary_server
@@ -150,14 +134,6 @@ jobs:
 
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
-
-      # Runs when github action event is pull_request or push to a trunk branch.
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
-        run: |
-          python3 -m pip install --require-hashes -r tools/requirements.txt
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       - name: Generate secondary server binary
         working-directory: ${{ env.secondary-working-directory }}
