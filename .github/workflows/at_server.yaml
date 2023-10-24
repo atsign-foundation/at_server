@@ -35,16 +35,7 @@ jobs:
       - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
         with:
           sdk: stable
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
-        with:
-          python-version: '3.8'
-      # Install python packages
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --require-hashes -r tools/requirements.txt
-
+ 
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
         working-directory: ${{ env.proot-working-directory }}
@@ -117,12 +108,6 @@ jobs:
       - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
         with:
           sdk: stable
-
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
-        with:
-          python-version: '3.8'
 
       - name: Install dependencies
         working-directory: ${{ env.ftest-working-directory }}
