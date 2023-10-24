@@ -94,11 +94,12 @@ void main() {
       String otp = response.data!;
 
       String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
-      EnrollVerbHandler enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -410,12 +411,13 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           responseObject, verbParams, inboundConnection);
-      Map<String, dynamic> enrollmentResponse = jsonDecode(responseObject.data!);
+      Map<String, dynamic> enrollmentResponse =
+          jsonDecode(responseObject.data!);
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -441,7 +443,7 @@ void main() {
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -481,7 +483,7 @@ void main() {
       expect(approveEnrollmentResponse['status'], 'approved');
       // Verify Commit log does not contain keys with __manage namespace
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          await (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       iterator.moveNext();
       expect(iterator.current.key,
           'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');
@@ -614,7 +616,7 @@ void main() {
     test(
         'A test to verify TTL is not set for enrollment requested on an authenticated connection',
         () async {
-          Response response = Response();
+      Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       String enrollmentRequest =

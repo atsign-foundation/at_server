@@ -932,6 +932,7 @@ void main() {
           'update:$secondAtSign:mobile-$randomId.buzz$firstAtsign random-value');
       String commitIdOfLastEnrolledKey =
           (await read()).replaceAll('data:', '').trim();
+      print('CommitId of last enrolled key: $commitIdOfLastEnrolledKey');
       // Key which has un-enrolled namespace
       socket_writer(socketConnection1!,
           'update:$secondAtSign:contact-$randomId.atmosphere$firstAtsign random-value');
@@ -949,6 +950,7 @@ void main() {
       await socket_writer(socketConnection1!, 'stats:3');
       String lastCommitIdAmongEnrolledNamespace =
           jsonDecode((await read()).replaceAll('data:', ''))[0]['value'];
+      print('CommitId from the stats:3 verb: $lastCommitIdAmongEnrolledNamespace');
       expect(
           int.parse(lastCommitIdAmongEnrolledNamespace) >=
               int.parse(commitIdOfLastEnrolledKey),

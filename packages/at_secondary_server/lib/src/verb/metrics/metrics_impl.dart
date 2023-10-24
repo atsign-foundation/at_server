@@ -70,16 +70,18 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String? regex, List<String>? enrolledNamespaces}) async {
+  Future<String> getMetrics(
+      {String? regex, List<String>? enrolledNamespaces}) async {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null || enrolledNamespaces != null) {
       regex ??= '.*';
-      lastCommitID =
-          await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
+      lastCommitID = await _atCommitLog?.lastCommittedSequenceNumberWithRegex(
+          regex,
+          enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
+    lastCommitID = (await _atCommitLog?.lastCommittedSequenceNumber()).toString();
     return lastCommitID;
   }
 
@@ -299,7 +301,7 @@ class NotificationsMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    Map<String, dynamic> _metricsMap = <String, dynamic>{
+    Map<String, dynamic> metricsMap = <String, dynamic>{
       "total": 0,
       "type": <String, int>{
         "sent": 0,
@@ -320,8 +322,8 @@ class NotificationsMetricImpl implements MetricProvider {
       },
       "createdOn": 0,
     };
-    _metricsMap = await getNotificationStats(_metricsMap);
-    return jsonEncode(_metricsMap);
+    metricsMap = await getNotificationStats(metricsMap);
+    return jsonEncode(metricsMap);
   }
 
   bool _check(var notifications, String key, String? value) {
@@ -329,38 +331,38 @@ class NotificationsMetricImpl implements MetricProvider {
   }
 
   Future<Map<String, dynamic>> getNotificationStats(
-      Map<String, dynamic> _metrics) async {
+      Map<String, dynamic> metrics) async {
     AtNotificationKeystore notificationKeystore =
         AtNotificationKeystore.getInstance();
     List notificationsList = await notificationKeystore.getValues();
-    _metrics['total'] = notificationsList.length;
+    metrics['total'] = notificationsList.length;
     for (var notifications in notificationsList) {
       if (_check(notifications, 'type', 'sent')) {
-        _metrics['type']['sent']++;
+        metrics['type']['sent']++;
       } else if (_check(notifications, 'type', 'received')) {
-        _metrics['type']['received']++;
+        metrics['type']['received']++;
       }
       if (_check(notifications, 'notificationStatus', 'delivered')) {
-        _metrics['status']['delivered']++;
+        metrics['status']['delivered']++;
       } else if (_check(notifications, 'notificationStatus', 'errored')) {
-        _metrics['status']['failed']++;
+        metrics['status']['failed']++;
       } else if (_check(notifications, 'notificationStatus', 'queued') ||
           _check(notifications, 'status', null)) {
-        _metrics['status']['queued']++;
+        metrics['status']['queued']++;
       }
       if (_check(notifications, 'opType', 'update')) {
-        _metrics['operations']['update']++;
+        metrics['operations']['update']++;
       } else if (_check(notifications, 'opType', 'delete')) {
-        _metrics['operations']['delete']++;
+        metrics['operations']['delete']++;
       }
       if (_check(notifications, 'messageType', 'key')) {
-        _metrics['messageType']['key']++;
+        metrics['messageType']['key']++;
       } else if (_check(notifications, 'messageType', 'text')) {
-        _metrics['messageType']['text']++;
+        metrics['messageType']['text']++;
       }
     }
-    _metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
-    return _metrics;
+    metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
+    return metrics;
   }
 
   @override
@@ -406,8 +408,8 @@ class CommitLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(commitLogCompactionKey)) {
-      AtData? atData = await keyStore.get(commitLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -437,8 +439,8 @@ class AccessLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(accessLogCompactionKey)) {
-      AtData? atData = await keyStore.get(accessLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -468,8 +470,9 @@ class NotificationCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(notificationCompactionKey)) {
-      AtData? atData = await keyStore.get(notificationCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+      AtData? atData =
+          await keyStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -490,7 +493,8 @@ class LatestCommitEntryOfEachKey implements MetricProvider {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
 
-    Iterator commitEntryIterator = atCommitLog!.getEntries(-1, regex: regex);
+    Iterator commitEntryIterator =
+        await atCommitLog!.getEntries(-1, regex: regex);
 
     while (commitEntryIterator.moveNext()) {
       CommitEntry commitEntry = commitEntryIterator.current.value;

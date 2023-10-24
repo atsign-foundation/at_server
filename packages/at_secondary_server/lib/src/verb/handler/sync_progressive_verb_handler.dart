@@ -25,7 +25,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.sync)}:') &&
-          command.startsWith('sync:from');
+      command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -41,8 +41,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     // Get entries to sync
-    var commitEntryIterator = atCommitLog!.getEntries(
-        int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
+    var commitEntryIterator = await atCommitLog!.getEntries(
+        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
         regex: verbParams['regex']);
 
     List<KeyStoreEntry> syncResponse = [];
@@ -87,8 +87,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
             'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
         continue;
       }
-      String? keyNamespace =
-          parsedAtKey.namespace;
+      String? keyNamespace = parsedAtKey.namespace;
       if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
           enrolledNamespaces.isNotEmpty &&
           (!enrolledNamespaces.containsKey(allNamespaces) &&

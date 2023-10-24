@@ -18,6 +18,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
+import 'package:test/expect.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -113,16 +114,16 @@ verbTestsSetUp() async {
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
 
-  outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
+  outboundClientWithHandshake = OutboundClient(
+      inboundConnection, bob, mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
-  outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
+  outboundClientWithoutHandshake = OutboundClient(
+      inboundConnection, bob, mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -216,8 +217,9 @@ verbTestsSetUp() async {
       .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
-  when(() => statsNotificationService.writeStatsToMonitor())
-      .thenAnswer((invocation) {});
+  when(() => statsNotificationService.writeStatsToMonitor(
+      latestCommitID: any(named: 'latestCommitID'),
+      operationType: any(named: 'operationType'))).thenAnswer((_) async => {});
 }
 
 Future<void> verbTestsTearDown() async {

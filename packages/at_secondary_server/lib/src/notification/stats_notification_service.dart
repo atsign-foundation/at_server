@@ -110,10 +110,10 @@ class StatsNotificationService {
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
 
     // Runs the _schedule method as long as server is up and running.
-    timer = Timer.periodic(interval, (timer) {
+    timer = Timer.periodic(interval, (timer) async {
       try {
         _logger.finer('Stats Notification Job triggered');
-        writeStatsToMonitor();
+        await writeStatsToMonitor();
         _logger.finer('Stats Notification Job completed');
       } on Exception catch (exception) {
         _logger.severe(
@@ -133,9 +133,11 @@ class StatsNotificationService {
   }
 
   /// Writes the lastCommitID to all Monitor connections
-  void writeStatsToMonitor({String? latestCommitID, String? operationType}) {
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
     try {
-      latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
+      latestCommitID ??=
+          (await atCommitLog!.lastCommittedSequenceNumber()).toString();
       // Gets the list of active connections.
       var connectionsList = inboundConnectionPool.getConnections();
       // Iterates on the list of active connections.

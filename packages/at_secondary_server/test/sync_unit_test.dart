@@ -99,7 +99,7 @@ void main() {
         // verify commit entry data
         // The "getEntry" method is specific to "client" operations. Hence
         // replaced with "getEntries"
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = await atCommitLog!.getEntries(-1);
         itr.moveNext();
         expect(itr.current.value.operation, CommitOp.UPDATE);
         expect(itr.current.value.commitId, 0);
@@ -129,7 +129,7 @@ void main() {
           // Assert commit entry before update
           // The "getChanges" method is specific to the client operations. Hence
           // replaced with "getEntries" method
-          Iterator itr = atCommitLog!.getEntries(-1);
+          Iterator itr = await atCommitLog!.getEntries(-1);
           itr.moveNext();
           expect(itr.current.value.atKey, '@alice:phone@alice');
           expect(itr.current.value.commitId, 0);
@@ -156,7 +156,7 @@ void main() {
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdateDateTime.millisecondsSinceEpoch,
               true);
-          itr = atCommitLog!.getEntries(-1);
+          itr = await atCommitLog!.getEntries(-1);
           while (itr.moveNext()) {
             expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
             expect(itr.current.value.commitId, 1);
@@ -235,7 +235,7 @@ void main() {
             ?.isKeyExists('@alice:phone@alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = await atCommitLog!.getEntries(-1);
         while (itr.moveNext()) {
           expect(itr.current.value.operation, CommitOp.DELETE);
           expect(itr.current.value.commitId, 1);
@@ -258,7 +258,7 @@ void main() {
             ?.isKeyExists('@alice:mobile@alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = await atCommitLog!.getEntries(-1);
         while (itr.moveNext()) {
           expect(itr.current.value.operation, CommitOp.DELETE);
           expect(itr.current.value.commitId, 0);
