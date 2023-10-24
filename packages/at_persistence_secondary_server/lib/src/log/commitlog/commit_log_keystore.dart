@@ -10,7 +10,12 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   final _logger = AtSignLogger('CommitLogKeyStore');
   late CommitLogCache commitLogCache;
 
-  int get latestCommitId => commitLogCache.latestCommitId;
+  Future<int> get latestCommitId async {
+    if ((getBox() as LazyBox).isEmpty) {
+      return -1;
+    }
+    return (await (getBox() as LazyBox).getAt(getBox().length - 1)).commitId;
+  }
 
   CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
     commitLogCache = CommitLogCache(this);
@@ -60,13 +65,19 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// Returns the latest committed sequence number with regex
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
       {List<String>? enrolledNamespace}) async {
-    var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex,
-            enrolledNamespace: enrolledNamespace)),
-        orElse: () => NullCommitEntry());
-    var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
-    return lastCommittedSequenceNum;
+    int index = getBox().length;
+    bool isKeyAccepted = false;
+
+    while (index >= 0 && !isKeyAccepted) {
+      index = index - 1;
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(index);
+      isKeyAccepted = _acceptKey(commitEntry.atKey!, regex,
+          enrolledNamespace: enrolledNamespace);
+      if (isKeyAccepted) {
+        return commitEntry.commitId;
+      }
+    }
+    return -1;
   }
 
   /// Sorts the [CommitEntry]'s order by commit in descending order
@@ -117,7 +128,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   @override
   Future<void> remove(int commitEntryIndex) async {
-    CommitEntry? commitEntry = (getBox() as Box).get(commitEntryIndex);
+    CommitEntry? commitEntry =
+        await (getBox() as LazyBox).get(commitEntryIndex);
     await super.remove(commitEntryIndex);
     // On removing the entry from commit log keystore, remove the stale entries from
     // commit log cache map
@@ -133,7 +145,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await getBox().deleteAll(deleteKeysList);
     // Removes stale entries from the commit log cache map
     for (int key in deleteKeysList) {
-      CommitEntry? commitEntry = (getBox() as Box).get(key);
+      CommitEntry? commitEntry = await (getBox() as LazyBox).get(key);
       if (commitEntry != null) {
         commitLogCache.remove(commitEntry.atKey!);
       }
@@ -185,7 +197,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
   }
 
-  bool _isNamespaceAuthorised(String atKeyAsString, List<String>? enrolledNamespace) {
+  bool _isNamespaceAuthorised(
+      String atKeyAsString, List<String>? enrolledNamespace) {
     // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
     if (atKeyAsString.toLowerCase() == 'configkey') {
       return true;
@@ -230,16 +243,44 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25}) {
-    Iterable<MapEntry<String, CommitEntry>> commitEntriesIterable =
-        commitLogCache
-            .entriesList()
-            .where((element) =>
-                element.value.commitId! >= commitId &&
-                _acceptKey(element.value.atKey!, regex))
-            .take(limit);
-    return commitEntriesIterable.iterator;
+  Future<Iterator<MapEntry<String, CommitEntry>>> getEntries(int commitId,
+      {String regex = '.*', int limit = 25}) async {
+    // When commitId is -1, it means a full sync. So return all the entries from the start.
+    // Set start to 0
+    // If commitId is not 0, it means to send keys from the given commitId
+    // Using binary search approach, find the index and set start to the index.
+    int startIndex = 0;
+    int endIndex = (getBox().length - 1);
+    while (startIndex <= endIndex) {
+      var midIndex = (startIndex + endIndex) ~/ 2;
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(midIndex);
+      if (commitId == commitEntry.commitId) {
+        startIndex = midIndex;
+        break;
+      } else if (commitEntry.commitId == null ||
+          commitEntry.commitId! > commitId) {
+        endIndex = midIndex - 1;
+      } else {
+        startIndex = midIndex + 1;
+      }
+    }
+
+    // Fetch the sync entries
+    limit = (getBox().length < limit) ? getBox().length : limit;
+    Map<String, CommitEntry> commitEntriesMap = {};
+    while (startIndex < limit) {
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(startIndex);
+      if (!_acceptKey(commitEntry.atKey!, regex)) {
+        startIndex = startIndex + 1;
+        continue;
+      }
+      if (commitEntriesMap.containsKey(commitEntry.atKey)) {
+        commitEntriesMap.remove(commitEntry.atKey);
+      }
+      commitEntriesMap[commitEntry.atKey!] = commitEntry;
+      startIndex = startIndex + 1;
+    }
+    return commitEntriesMap.entries.iterator;
   }
 
   ///Returns the key-value pair of commit-log where key is hive internal key and
@@ -271,7 +312,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await removeEntriesWithMalformedAtKeys(allEntries);
     await repairNullCommitIDs(allEntries);
     commitLogCache.clear();
-    commitLogCache.initialize();
+    await commitLogCache.initialize();
     return true;
   }
 
@@ -438,17 +479,36 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       if (getBox().isEmpty) {
         return <CommitEntry>[];
       }
+      if (sequenceNumber == -1) {
+        sequenceNumber = 0;
+      }else {
+        // Binary search for sequence number.
+        int startIndex = 0;
+        int endIndex = (getBox().length - 1);
+        while (startIndex <= endIndex) {
+          var midIndex = (startIndex + endIndex) ~/ 2;
+          CommitEntry commitEntry = await (getBox() as LazyBox).getAt(midIndex);
+          if (commitEntry.key == sequenceNumber) {
+            startIndex = midIndex;
+            break;
+          } else if (commitEntry.key > sequenceNumber) {
+            endIndex = midIndex - 1;
+          } else {
+            startIndex = midIndex + 1;
+          }
+        }
+        sequenceNumber = startIndex + 1;
+      }
       var changes = <CommitEntry>[];
       var regexString = (regex != null) ? regex : '';
-      var values = (getBox() as Box).values;
-      var startKey = sequenceNumber + 1;
-      limit ??= values.length + 1;
-      for (CommitEntry element in values) {
-        if (element.key >= startKey &&
-            _acceptKey(element.atKey!, regexString) &&
+      limit ??= getBox().length;
+      for (int startKey = sequenceNumber; startKey < limit; startKey++) {
+        CommitEntry commitEntry = await (getBox() as LazyBox).getAt(startKey);
+        if (commitEntry.key >= startKey &&
+            _acceptKey(commitEntry.atKey!, regexString) &&
             changes.length <= limit) {
-          if (element.commitId == null) {
-            changes.add(element);
+          if (commitEntry.commitId == null) {
+            changes.add(commitEntry);
           }
         }
       }
@@ -475,17 +535,36 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
           'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
       return lastSyncedEntry;
     }
-    var values = (getBox() as Box).values.toList()..sort(_sortByCommitId);
-    if (values.isEmpty) {
+    if (getBox().isEmpty) {
       return null;
     }
-    // Returns the commitEntry with maximum commitId matching the given regex.
-    // otherwise returns NullCommitEntry
-    lastSyncedEntry = values.lastWhere(
-        (entry) =>
-            (_acceptKey(entry!.atKey!, regex) && (entry.commitId != null)),
-        orElse: () => NullCommitEntry());
 
+    int index = 0;
+    lastSyncedEntry = NullCommitEntry()..commitId = -1;
+    while (index < getBox().length) {
+      CommitEntry commitEntry = await (getBox() as LazyBox).getAt(index);
+      // 1. _acceptKey method returns true if the AtKey in commitEntry matches the
+      // supplied regex.
+      //
+      // 2. Verifying "commitEntry.commitId != null" to prevent the un-committed entries
+      // which will have commitId as null getting updated to lastSyncedEntry variable.
+      //
+      // 3. The commit log entries are not sorted by CommitId. The lastSyncedEntry
+      // is supposed to contain the entry with the highest CommitId.
+      // Therefore, do not update if the CommitId of the current commit entry
+      // is lower than the CommitId of the lastSyncedEntry.
+      if ((_acceptKey(commitEntry.atKey!, regex) &&
+          (commitEntry.commitId != null) &&
+          (lastSyncedEntry!.commitId! < commitEntry.commitId!))) {
+        lastSyncedEntry = commitEntry;
+      }
+      // A "null" commitId indicates an un-committed entry. Entries from here are NOT
+      // synced to the server. So break the loop here.
+      if (commitEntry.commitId == null) {
+        break;
+      }
+      index = index + 1;
+    }
     if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
       _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
       return null;
@@ -522,12 +601,13 @@ class CommitLogCache {
   CommitLogCache(this.commitLogKeyStore);
 
   /// Initializes the CommitLogCache
-  void initialize() {
-    Iterable iterable = (commitLogKeyStore.getBox() as Box).values;
-    for (var value in iterable) {
-      if (value.commitId == null) {
+  Future<void> initialize() async {
+    for (int i = 0; i < commitLogKeyStore.getBox().length; i++) {
+      CommitEntry commitEntry =
+          await (commitLogKeyStore.getBox() as LazyBox).getAt(0);
+      if (commitEntry.commitId == null) {
         _logger.finest(
-            'CommitID is null for ${value.atKey}. Skipping to update entry into commitLogCacheMap');
+            'CommitID is null for ${commitEntry.atKey}. Skipping to update entry into commitLogCacheMap');
         continue;
       }
       // The reason we remove and add is that, the map which is a LinkedHashMap
@@ -543,15 +623,15 @@ class CommitLogCache {
       // overwrite the existing key resulting into an unsorted map.
       // Hence remove the key and insert at the last ensure the entry with highest commitEntry
       // is always at the end of the map.
-      if (_commitLogCacheMap.containsKey(value.atKey)) {
-        _commitLogCacheMap.remove(value.atKey);
-        _commitLogCacheMap[value.atKey] = value;
+      if (_commitLogCacheMap.containsKey(commitEntry.atKey)) {
+        _commitLogCacheMap.remove(commitEntry.atKey);
+        _commitLogCacheMap[commitEntry.atKey!] = commitEntry;
       } else {
-        _commitLogCacheMap[value.atKey] = value;
+        _commitLogCacheMap[commitEntry.atKey!] = commitEntry;
       }
       // update the latest commit id
-      if (value.commitId > _latestCommitId) {
-        _latestCommitId = value.commitId;
+      if (commitEntry.commitId! > _latestCommitId) {
+        _latestCommitId = commitEntry.commitId!;
       }
     }
   }

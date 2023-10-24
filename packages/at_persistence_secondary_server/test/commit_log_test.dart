@@ -34,11 +34,13 @@ void main() async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
-        var key_1 =
+        var key1CommitId =
             await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        CommitEntry? commitEntry = await commitLogInstance?.getEntry(key1CommitId);
+        commitLogInstance?.update(commitEntry!, key1CommitId!);
         await commitLogInstance!.commit('phone@alice', CommitOp.UPDATE);
 
-        var changes = await commitLogInstance.getChanges(key_1, '');
+        var changes = await commitLogInstance.getChanges(key1CommitId, '.*');
         expect(changes.length, 1);
         expect(changes[0].atKey, 'phone@alice');
       });
@@ -162,7 +164,7 @@ void main() async {
         await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
         await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
         await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 2);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 2);
       });
 
       test('test last sequence number called once', () async {
@@ -172,18 +174,18 @@ void main() async {
         await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
 
         await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 1);
       });
 
       test('test last sequence number called multiple times', () async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit('location.wavi@alice', CommitOp.UPDATE);
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
+        await commitLogInstance?.commit('location.wavi@alice', CommitOp.UPDATE);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 1);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 1);
       });
 
       test(
@@ -194,7 +196,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             'public:_location@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), -1);
       });
 
       test('test to verify commitId does not increment for privatekey',
@@ -204,7 +206,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             'privatekey:testkey@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), -1);
       });
 
       test('test to verify commitId increments for signing public key',
@@ -214,7 +216,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             'public:signing_publickey@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 0);
       });
 
       test('test to verify commitId increments for signing private key',
@@ -224,7 +226,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             '@alice:signing_privatekey@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 0);
       });
 
       test(
@@ -235,7 +237,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             'private:testkey@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), -1);
       });
 
       test(
@@ -246,7 +248,7 @@ void main() async {
         var commitId = await commitLogInstance?.commit(
             'public:__location@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(await commitLogInstance?.lastCommittedSequenceNumber(), 0);
       });
     });
     group('A group of commit log compaction tests', () {
@@ -292,7 +294,7 @@ void main() async {
               .commit('location.wavi@alice', CommitOp.UPDATE);
         }
         Iterator iterator =
-            commitLogInstance!.getEntries(-1, regex: 'location.wavi');
+            await commitLogInstance!.getEntries(-1, regex: 'location.wavi');
         iterator.moveNext();
         expect(iterator.current.value.commitId, 4);
         expect(iterator.current.value.atKey, 'location.wavi@alice');
@@ -307,7 +309,7 @@ void main() async {
         await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
         // Fetch the commit entry using the lastSyncedCommitEntry
         Iterator iterator =
-            commitLogInstance.getEntries(-1, regex: 'location.wavi');
+            await commitLogInstance.getEntries(-1, regex: 'location.wavi');
         iterator.moveNext();
         expect(iterator.current.value.commitId, 1);
         expect(iterator.current.value.atKey, 'location.wavi@alice');
@@ -345,38 +347,43 @@ void main() async {
             commitLogInstance.commitLogKeyStore.getBox().keys.iterator;
         itr.moveNext();
         CommitEntry commitEntry =
-            (commitLogInstance.commitLogKeyStore.getBox() as Box)
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
                 .get(itr.current);
         expect(commitEntry.atKey, 'phone.wavi@alice');
         expect(commitEntry.commitId, 3);
         expect(commitEntry.operation, CommitOp.UPDATE);
         itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
+        commitEntry =
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
+                .get(itr.current);
         expect(commitEntry.atKey, 'lastName.wavi@alice');
         expect(commitEntry.commitId, 6);
         expect(commitEntry.operation, CommitOp.UPDATE_ALL);
         itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
+        commitEntry =
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
+                .get(itr.current);
         expect(commitEntry.atKey, 'firstname.wavi@alice');
         expect(commitEntry.commitId, 7);
         expect(commitEntry.operation, CommitOp.UPDATE);
         itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
+        commitEntry =
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
+                .get(itr.current);
         expect(commitEntry.atKey, 'country.wavi@alice');
         expect(commitEntry.commitId, 8);
         expect(commitEntry.operation, CommitOp.UPDATE);
         itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
+        commitEntry =
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
+                .get(itr.current);
         expect(commitEntry.atKey, 'city.wavi@alice');
         expect(commitEntry.commitId, 9);
         expect(commitEntry.operation, CommitOp.UPDATE);
         itr.moveNext();
-        commitEntry = (commitLogInstance.commitLogKeyStore.getBox() as Box)
-            .get(itr.current);
+        commitEntry =
+            await (commitLogInstance.commitLogKeyStore.getBox() as LazyBox)
+                .get(itr.current);
         expect(commitEntry.atKey, 'location.wavi@alice');
         expect(commitEntry.commitId, 10);
         expect(commitEntry.operation, CommitOp.DELETE);
@@ -492,7 +499,7 @@ void main() async {
         await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
         await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
 
-        Iterator? entriesIterator = commitLogInstance?.getEntries(-1);
+        Iterator? entriesIterator = await commitLogInstance?.getEntries(-1);
         int commitLogCountBeforeDeletion = 0;
         if (entriesIterator != null) {
           while (entriesIterator.moveNext()) {
@@ -519,7 +526,7 @@ void main() async {
         await commitLogInstance!.commitLogKeyStore
             .repairCommitLogAndCreateCachedMap();
         Iterator<MapEntry<String, CommitEntry>> itr =
-            commitLogInstance.getEntries(-1);
+            await commitLogInstance.getEntries(-1);
         itr.moveNext();
         expect(itr.current.key, '@alice:key3.wavi@alice');
         expect(itr.current.value.commitId, 2);
@@ -551,11 +558,9 @@ void main() async {
             '@alice:key2.wavi@alice', CommitOp.DELETE);
         await commitLogInstance?.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance!.commitLogKeyStore
-            .repairCommitLogAndCreateCachedMap();
 
         List<MapEntry<String, CommitEntry>> commitEntriesList =
-            commitLogInstance.commitLogKeyStore.commitEntriesList();
+            commitLogInstance!.commitLogKeyStore.commitEntriesList();
         expect(commitEntriesList[0].key, '@alice:key3.wavi@alice');
         expect(commitEntriesList[0].value.commitId, 2);
 
@@ -577,7 +582,7 @@ void main() async {
             await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
         await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
 
-        Iterator? entriesIterator = commitLogInstance?.getEntries(-1);
+        Iterator? entriesIterator = await commitLogInstance?.getEntries(-1);
         int commitLogCountBeforeDeletion = 0;
         if (entriesIterator != null) {
           while (entriesIterator.moveNext()) {
@@ -586,7 +591,7 @@ void main() async {
         }
         expect(commitLogCountBeforeDeletion, 3);
         await commitLogInstance?.commitLogKeyStore.remove(commitIdToRemove!);
-        entriesIterator = commitLogInstance?.getEntries(-1);
+        entriesIterator = await commitLogInstance?.getEntries(-1);
         int commitLogCountAfterDeletion = 0;
         if (entriesIterator != null) {
           while (entriesIterator.moveNext()) {
@@ -608,7 +613,7 @@ void main() async {
 
         await commitLogInstance?.commitLogKeyStore.remove(commitIdToRemove!);
         Iterator<MapEntry<String, CommitEntry>>? itr =
-            commitLogInstance?.getEntries(-1);
+            await commitLogInstance?.getEntries(-1);
         itr?.moveNext();
         expect(itr?.current.value.atKey, 'location@alice');
         itr?.moveNext();
@@ -626,15 +631,17 @@ void main() async {
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
             await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
+                'test_key_true_$i.wavi@alice',
+                CommitOp.UPDATE,
+                DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(
-                CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
-                  ..commitId = i);
+            await commitLogKeystore.getBox().add(CommitEntry(
+                'test_key_true_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
+              ..commitId = i);
           }
         }
         Iterator<MapEntry<String, CommitEntry>>? changes =
-            commitLogInstance.commitLogKeyStore.getEntries(-1);
+            await commitLogInstance.commitLogKeyStore.getEntries(-1);
         //run loop to ensure all commit entries have been returned; irrespective of commitId null or not
         int i = 0;
         while (changes.moveNext()) {
