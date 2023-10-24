@@ -6,7 +6,7 @@ in pubspec.yaml
 This is file is used in GITHub actions to resolve dependencies.
 """
 import argparse
-import ruamel.yaml
+from ruamel.yaml import YAML
 from os import path, stat
 
 # Initialize parser
@@ -33,11 +33,12 @@ def main():
 
 
 def add_dependency_overrides():
+    yaml=YAML()
     with open(project_path + 'pubspec.yaml', 'r') as pubspec:
-        yaml_map = ruamel.yaml.round_trip_load(pubspec, preserve_quotes=True)
+        yaml_map = yaml.load(pubspec)
 
     with open(project_path + 'dependency-overrides.yaml', 'r') as dependency_overrides_map:
-        dependency_map = ruamel.yaml.round_trip_load(dependency_overrides_map, preserve_quotes=True)
+        dependency_map = yaml.load(dependency_overrides_map)
 
     # If dependency-overrides.yaml file is commented. Exit.
     if not dependency_map:
