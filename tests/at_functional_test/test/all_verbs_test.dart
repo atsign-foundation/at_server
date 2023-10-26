@@ -46,7 +46,7 @@ void main() async {
   });
 
   test('scan verb test $firstAtsign', () async {
-    await socket_writer(socketFirstAtsign!, 'scan');
+    await socket_writer(socketFirstAtsign!, 'scan mobile');
     var response = await read();
     print('scan verb response $response');
     expect(response, contains('"public:mobile$firstAtsign"'));
