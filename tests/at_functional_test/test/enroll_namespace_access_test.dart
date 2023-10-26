@@ -347,7 +347,7 @@ void main() {
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse, 'data:success\n');
 
-      await socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan filename.atmosphere');
       var scanResponse = await read();
       expect(scanResponse.contains(atmosphereKey), true);
     });
@@ -507,7 +507,7 @@ void main() {
       var apkamEnrollIdResponse = await read();
       expect(apkamEnrollIdResponse, 'data:success\n');
 
-      await socket_writer(socketConnection1!, 'scan');
+      await socket_writer(socketConnection1!, 'scan lastname.wavi');
       var scanResponse = await read();
       print(scanResponse);
       expect((scanResponse.contains(waviKey)), true);
