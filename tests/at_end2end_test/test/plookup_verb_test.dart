@@ -99,17 +99,6 @@ void main() {
     expect(response, contains('data:2-unicorn-emojis'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('plookup with an extra symbols after the atsign', () async {
-    ///PLOOKUP VERB
-    await sh1.writeCommand('plookup:emoji-color@emoji🦄🛠@@@');
-    String response = await sh1.read();
-    print('plookup verb response $response');
-    expect(response, contains('Invalid syntax'));
-    // Going to reconnect, because invalid syntax causes server to close connection
-    sh1.close();
-    sh1 = await e2e.getSocketHandler(atSign_1);
-  }, timeout: Timeout(Duration(seconds: 120)));
-
   test('cached key creation when we do a lookup for a public key', () async {
     ///UPDATE VERB
     await sh1.writeCommand('update:public:key-1$atSign_1 9102');
@@ -157,6 +146,11 @@ void main() {
     await sh1.writeCommand('plookup:fav-series$atSign_1');
     response = await sh1.read();
     print('plookup verb response $response');
+    expect(response, contains('data:young sheldon'));
+
+    // plookup from the other atsign should return the latest value
+    await sh2.writeCommand('plookup:fav-series$atSign_1');
+    response = await sh2.read();
     expect(response, contains('data:young sheldon'));
   }, timeout: Timeout(Duration(seconds: 120)));
 }

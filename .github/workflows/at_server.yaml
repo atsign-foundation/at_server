@@ -35,16 +35,7 @@ jobs:
       - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
         with:
           sdk: stable
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
-        with:
-          python-version: '3.8'
-      # Install python packages
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --require-hashes -r tools/requirements.txt
-
+ 
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
         working-directory: ${{ env.proot-working-directory }}
@@ -71,14 +62,6 @@ jobs:
         working-directory: ${{ env.root-working-directory }}
         run: dart test --concurrency=1
 
-      # adds dependency overrides to pubspec.yaml
-      # Runs when github action event type is pull_request or push event to trunk branch
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        run: |
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_persistence_secondary_server
-
       - name: Install dependencies in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
         run: dart pub get
@@ -90,14 +73,6 @@ jobs:
       - name: Run tests in at_persistence_secondary_server
         working-directory: ${{ env.psecondary-working-directory }}
         run: dart test --concurrency=1
-
-      # adds dependency overrides to pubspec.yaml
-      # Runs when github action event type is pull_request or push event to trunk branch
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk') }}
-        run: |
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       # Runs dart lint rules and unit tests on at_secondary_server
       - name: Install dependencies in at_secondary_server
@@ -134,12 +109,6 @@ jobs:
         with:
           sdk: stable
 
-      # Setup python
-      - name: Set up Python
-        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
-        with:
-          python-version: '3.8'
-
       - name: Install dependencies
         working-directory: ${{ env.ftest-working-directory }}
         run: dart pub get
@@ -150,14 +119,6 @@ jobs:
 
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
-
-      # Runs when github action event is pull_request or push to a trunk branch.
-      - name: Add dependency overrides on pull request
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' && contains(github.ref, 'trunk')}}
-        run: |
-          python3 -m pip install --require-hashes -r tools/requirements.txt
-          chmod +x ./tools/add_dependency_overrides.py
-          python3 ./tools/add_dependency_overrides.py -p packages/at_secondary_server
 
       - name: Generate secondary server binary
         working-directory: ${{ env.secondary-working-directory }}

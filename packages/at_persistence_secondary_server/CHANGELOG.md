@@ -1,3 +1,6 @@
+## 3.0.59
+- fix: When checking namespace authorization, gracefully handle any malformed 
+  keys which happen to be in the commit log for historical reasons
 ## 3.0.58
 - fix: Modify "lastCommittedSequenceNumberWithRegex" to return highest commitId among enrolled namespaces
 ## 3.0.57

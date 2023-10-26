@@ -38,6 +38,7 @@ jobs:
           push: true
           tags: |
             atsigncompany/root:prod
+            atsigncompany/root:prod-gha${{ github.run_number }}
             atsigncompany/root:prod-${{ env.BRANCH }}-gha${{ github.run_number }}
 
   Deploy_On_Prod_K8:
@@ -65,7 +66,8 @@ jobs:
           cluster_name: ${{ secrets.GKE_PROD_CLUSTER }}
           location: ${{ secrets.GKE_PROD_ZONE }}
 
-      # Deploy the Docker image to the GKE cluster
+      # Deploy the Docker image to the GKE cluster 
       - name: Deploy
         run: |-
-          kubectl -n root set image deployment/root root=atsigncompany/root:prod
+          kubectl -n root set image deployment/root root=atsigncompany/root:prod-gha${{ github.run_number }}
+          kubectl rollout restart deployment root -n root
