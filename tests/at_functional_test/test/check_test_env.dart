@@ -1,36 +1,34 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
 
 void main() {
   SecureSocket _secureSocket;
   var rootServer = 'vip.ve.atsign.zone';
   var atsign = '@sitaram🛠';
   var atsignPort = 25017;
-  bool arePKAMKeysLoaded = false;
   int maxRetryCount = 10;
   int retryCount = 1;
 
+  String response = '';
+
   test('checking for test environment readiness', () async {
-    _secureSocket = await secure_socket_connection(rootServer, atsignPort);
-    print('connection established');
-    socket_listener(_secureSocket);
-    String response = '';
-    while ((retryCount < maxRetryCount) &&
-        (response.isEmpty || response.startsWith('error:'))) {
-      _secureSocket.write('lookup:pkaminstalled$atsign\n');
-      response = await read();
-      print('Waiting for PKAM keys to load : $response');
-      if (response.startsWith('data:')) {
-        arePKAMKeysLoaded = true;
-        break;
+    _secureSocket = await SecureSocket.connect(rootServer, atsignPort);
+    _secureSocket.listen((data) async {
+      response = utf8.decode(data);
+      if (response == '@') {
+        return;
       }
-      await Future.delayed(Duration(seconds: 1));
-    }
-    await _secureSocket.close();
-    expect(arePKAMKeysLoaded, true,
-        reason: 'PKAM Keys are not loaded successfully');
+      print('Waiting for PKAM keys to load : $response');
+      if (response.startsWith('error') && retryCount <= maxRetryCount) {
+        retryCount = retryCount + 1;
+        await Future.delayed(Duration(seconds: 1));
+        _secureSocket.write('lookup:pkaminstalled$atsign\n');
+        return;
+      }
+      expect(response.startsWith('data:yes'), true);
+    });
+    _secureSocket.write('lookup:pkaminstalled$atsign\n');
   });
 }

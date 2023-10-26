@@ -1,52 +1,51 @@
-import 'dart:io';
-
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
+import 'package:uuid/uuid.dart';
 
 void main() async {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  Socket? socketFirstAtsign;
+  late String uniqueId;
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
 
-  setUp(() async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var firstAtsignPort =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+  setUpAll(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+  });
+
+  setUp(() {
+    uniqueId = Uuid().v4();
   });
 
   test('llookup verb on a non-existent key', () async {
     ///lookup verb alice  atsign
-    await socket_writer(socketFirstAtsign!, 'llookup:random$firstAtsign');
-    String response = await read();
-    print('llookup verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('llookup:random-$uniqueId$firstAtSign');
     expect(
         response,
         contains(
-            'key not found : random$firstAtsign does not exist in keystore'));
+            'key not found : random-$uniqueId$firstAtSign does not exist in keystore'));
   });
 
   test('update-lookup verb by giving wrong spelling - Negative case', () async {
-    ///lookup verb
-    await socket_writer(socketFirstAtsign!, 'lokup:public:phone$firstAtsign');
-    String response = await read();
-    print('lookup verb response from : $response');
+    //lookup verb
+    String response = await firstAtSignConnection
+        .sendRequestToServer('lokup:public:phone-$uniqueId$firstAtSign');
     expect(response, contains('Invalid syntax'));
   });
 
   test('plookup with an extra symbols after the atsign', () async {
-    ///PLOOKUP VERB
-    await socket_writer(
-        socketFirstAtsign!, 'plookup:emoji-color$firstAtsign@@@');
-    String response = await read();
-    print('plookup verb response $response');
+    //PLOOKUP VERB
+    String response = await firstAtSignConnection
+        .sendRequestToServer('plookup:emoji-color-$uniqueId$firstAtSign@@@');
     expect(response, contains('Invalid syntax'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  });
 }
