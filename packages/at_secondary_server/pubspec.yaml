@@ -16,7 +16,7 @@ dependencies:
   crypto: 3.0.3
   crypton: 2.2.1
   collection: 1.18.0
-  basic_utils: 5.6.1
+  basic_utils: 5.7.0
   ecdsa: 0.0.4
   encrypt: 5.0.3
   at_commons: 3.0.57
