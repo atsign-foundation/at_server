@@ -35,7 +35,10 @@ jobs:
       - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
         with:
           sdk: stable
- 
+      - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        with:
+          go-version: 'stable'
+
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
         working-directory: ${{ env.proot-working-directory }}
@@ -86,6 +89,17 @@ jobs:
       - name: Run tests in at_secondary_server, with coverage
         working-directory: ${{ env.secondary-working-directory }}
         run: dart test --concurrency=1 --coverage="coverage"
+
+      # Runs osv-scanner to find any vulnerable Dart dependencies
+      # It needs to look at pubspec.lock files, which is why it's
+      # placed here, as the `dart pub get` above will create them
+      - name: Run osv-scanner
+        run: |
+          go install github.com/google/osv-scanner/cmd/osv-scanner@6316373e47d7e3e4b4fd3630c4bbc10987738de6 # v1.4.3
+          osv-scanner --lockfile=${{ env.proot-working-directory }}/pubspec.lock
+          osv-scanner --lockfile=${{ env.root-working-directory }}/pubspec.lock
+          osv-scanner --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
+          osv-scanner --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
 
 #     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
 #      - name: Convert coverage to LCOV format
