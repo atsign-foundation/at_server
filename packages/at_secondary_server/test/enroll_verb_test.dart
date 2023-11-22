@@ -275,6 +275,7 @@ void main() {
         expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
       });
     });
+    tearDown(() async => await verbTestsTearDown());
   });
   group(
       'A group of tests to assert enroll operations cannot performed on unauthenticated connection',
@@ -750,5 +751,30 @@ void main() {
               e.message ==
                   'Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
     });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of test to verify getDelayIntervalInSeconds method', () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test(
+        'A test to verify getDelayIntervalInSeconds return delay in increment order and reset after reaching threshold',
+        () {
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 1);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 2);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 3);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 5);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 8);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 13);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 21);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 34);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 55);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 1);
+    });
+    tearDown(() async => await verbTestsTearDown());
   });
 }

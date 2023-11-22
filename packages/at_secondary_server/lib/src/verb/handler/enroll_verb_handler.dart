@@ -19,6 +19,15 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class EnrollVerbHandler extends AbstractVerbHandler {
   static Enroll enrollVerb = Enroll();
 
+  /// A list storing a series of delay intervals for handling invalid OTP series.
+  /// The series is initially set to [0, 1] and is updated using the Fibonacci sequence.
+  final _delayForInvalidOTPSeries = <int>[0, 1];
+
+  /// The threshold value for the delay interval in seconds.
+  /// When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
+  /// the series is reset to [0, 1] to prevent excessively long delay intervals.
+  final _delayIntervalThreshold = AtSecondaryConfig.delayIntervalInSeconds;
+
   EnrollVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
@@ -121,6 +130,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated == false) {
       var isValid = await isOTPValid(enrollParams.otp);
       if (!isValid) {
+        await Future.delayed(Duration(seconds: getDelayIntervalInSeconds()));
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
@@ -394,5 +404,31 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           ..data = jsonEncode(enrollDataStoreValue.toJson())
           ..metaData = enrollMetaData,
         skipCommit: true);
+  }
+
+  /// Calculates and returns the delay interval in seconds for handling
+  /// invalid OTP.
+  ///
+  /// This method updates a series of delays stored in the '_delayForInvalidOTPSeries'
+  /// list.
+  /// The delays are calculated based on the Fibonacci sequence with the
+  /// initial values [0, 1].
+  /// If the last delay in the series surpasses a predefined threshold,
+  /// the series is reset to [0, 1].
+  ///
+  /// Returns the calculated delay interval in seconds.
+
+  @visibleForTesting
+  int getDelayIntervalInSeconds() {
+    _delayForInvalidOTPSeries.add(_delayForInvalidOTPSeries.last +
+        _delayForInvalidOTPSeries[_delayForInvalidOTPSeries.length - 2]);
+
+    _delayForInvalidOTPSeries.remove(_delayForInvalidOTPSeries.first);
+
+    if (_delayForInvalidOTPSeries.last > _delayIntervalThreshold) {
+      _delayForInvalidOTPSeries.clear();
+      _delayForInvalidOTPSeries.addAll([0, 1]);
+    }
+    return _delayForInvalidOTPSeries.last;
   }
 }

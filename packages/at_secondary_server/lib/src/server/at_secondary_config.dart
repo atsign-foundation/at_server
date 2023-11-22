@@ -131,6 +131,8 @@ class AtSecondaryConfig {
 
   static final int _timeFrameInHours = 1;
 
+  static final int _delayIntervalThreshold = 55;
+
   // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
   // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
   // via the config verb
@@ -772,6 +774,18 @@ class AtSecondaryConfig {
 
   static set timeFrameInMills(int timeWindowInMills) {
     _timeFrameInMills = timeWindowInMills;
+  }
+
+  static int get delayIntervalInSeconds {
+    var result = _getIntEnvVar('enrollmentDelayIntervalThreshold');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['enrollment', 'delayIntervalThreshold']);
+    } on ElementNotFoundException {
+      return _delayIntervalThreshold;
+    }
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates

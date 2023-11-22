@@ -1,6 +1,8 @@
 import 'dart:collection';
 import 'dart:math';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:meta/meta.dart';
@@ -18,7 +20,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
   @override
-  bool accept(String command) => command == 'otp:get';
+  bool accept(String command) => command.startsWith('otp:');
 
   @override
   Verb getVerb() => otpVerb;
@@ -50,6 +52,20 @@ class OtpVerbHandler extends AbstractVerbHandler {
               ..data =
                   '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
               ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
+        break;
+      case 'put':
+        // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
+        if (!(await _isClientAuthorizedToStoreSPP(
+            atConnection.getMetaData() as InboundConnectionMetadata,
+            AtSecondaryServerImpl.getInstance().currentAtSign))) {
+          throw InvalidRequestException(
+              'Client not allowed to not store semi permanent pass code');
+        }
+        String? otp = verbParams['otp'];
+        await keyStore.put(
+            'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}',
+            AtData()..data = otp);
+        response.data = 'ok';
         break;
       default:
         throw InvalidSyntaxException('$operation is not a valid operation');
@@ -102,5 +118,28 @@ class OtpVerbHandler extends AbstractVerbHandler {
       result = result * 256 + b;
     }
     return result;
+  }
+
+  /// Only the connections which have access to the __manage namespace are allowed
+  /// to store the SPP.
+  Future<bool> _isClientAuthorizedToStoreSPP(
+      InboundConnectionMetadata atConnectionMetadata,
+      String currentAtSign) async {
+    var enrollmentKey =
+        '${atConnectionMetadata.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
+    var enrollNamespaces =
+        (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+
+    if (enrollNamespaces.isEmpty) {
+      logger.finer(
+          'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
+      return false;
+    }
+    // If enrollment namespace contains ".*" return all keys.
+    if (enrollNamespaces.containsKey(enrollManageNamespace) ||
+        enrollNamespaces.containsKey(allNamespaces)) {
+      return true;
+    }
+    return false;
   }
 }
