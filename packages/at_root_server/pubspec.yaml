@@ -10,9 +10,9 @@ environment:
 
 dependencies:
   args: 2.4.2
-  uuid: 3.0.6
+  uuid: 3.0.7
   yaml: 3.1.2
-  at_commons: 3.0.56
+  at_commons: 3.0.57
   at_utils: 3.0.15
   at_server_spec: 3.0.15
   at_persistence_root_server:
@@ -25,6 +25,6 @@ dependencies:
 dev_dependencies:
   # Adding test_cov for generating the test coverage.
   test_cov: ^1.0.1
-  lints: ^2.1.1
+  lints: ^3.0.0
   test: ^1.24.6
   coverage: ^1.6.3
