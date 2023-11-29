@@ -1,9 +1,9 @@
-<img width=250px src="https://atsign.dev/assets/img/atPlatform_logo_gray.svg?sanitize=true">
+<a href="https://atsign.com#gh-light-mode-only"><img width=250px src="https://atsign.com/wp-content/uploads/2022/05/atsign-logo-horizontal-color2022.svg#gh-light-mode-only" alt="The Atsign Foundation"></a><a href="https://atsign.com#gh-dark-mode-only"><img width=250px src="https://atsign.com/wp-content/uploads/2023/08/atsign-logo-horizontal-reverse2022-Color.svg#gh-dark-mode-only" alt="The Atsign Foundation"></a>
 
 [![Build Status](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml/badge.svg?branch=trunk)](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml)
 [![GitHub License](https://img.shields.io/badge/license-BSD3-blue.svg)](./LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server)
-[![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/6713/badge)](https://bestpractices.coreinfrastructure.org/projects/6713)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6713/badge)](https://www.bestpractices.dev/projects/6713)
 
 # at_server
 This repo contains the core software implementation of the atProtocol:
