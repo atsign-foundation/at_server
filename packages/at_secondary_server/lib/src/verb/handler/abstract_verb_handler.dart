@@ -91,8 +91,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
       if (!SecondaryUtil.isActiveKey(enrollData) &&
-          enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
-        enrollDataStoreValue.approval?.state = EnrollStatus.expired.name;
+          enrollDataStoreValue.approval!.state != EnrollmentStatus.approved.name) {
+        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
       }
       return enrollDataStoreValue;
     } on KeyNotFoundException {
@@ -127,7 +127,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
       final enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
 
-      if (enrollDataStoreValue.approval?.state != EnrollStatus.approved.name) {
+      if (enrollDataStoreValue.approval?.state != EnrollmentStatus.approved.name) {
         return false;
       }
 

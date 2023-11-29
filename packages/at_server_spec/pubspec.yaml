@@ -12,5 +12,13 @@ dependencies:
   meta: ^1.8.0
   at_commons: ^3.0.55
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: srk_commons_changes
+
+
 dev_dependencies:
   lints: ^1.0.1

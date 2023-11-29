@@ -31,7 +31,7 @@ class CramVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var atConnectionMetadata = atConnection.getMetaData();
     var sessionID = atConnectionMetadata.sessionID;
-    var digest = verbParams[AT_DIGEST];
+    var digest = verbParams[AtConstants.atDigest];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var secret = await keyStore.get('privatekey:at_secret');
 

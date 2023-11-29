@@ -404,8 +404,8 @@ void main() {
       var command = 'plookup:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test proxy_lookup getVerb', () {
@@ -428,8 +428,8 @@ void main() {
       var command = 'plookup:location@🦄';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], '🦄');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], '🦄');
     });
 
     test('test proxy_lookup with invalid atsign', () {

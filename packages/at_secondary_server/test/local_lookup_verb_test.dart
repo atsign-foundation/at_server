@@ -33,9 +33,9 @@ void main() {
       var command = 'llookup:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test lookup key-value - forAtSign with no @', () {
@@ -43,8 +43,8 @@ void main() {
       var command = 'llookup:bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'bob:email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'bob:email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test lookup key-value - without forAtSign', () {
@@ -52,8 +52,8 @@ void main() {
       var command = 'llookup:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test lookup key-value - forAtSign is public', () {
@@ -61,17 +61,17 @@ void main() {
       var command = 'llookup:public:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test lookup key-value - cached key', () {
       var command = 'llookup:cached:@bob:email@colin';
       var handler = LocalLookupVerbHandler(mockKeyStore);
       var paramsMap = handler.parse(command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
       expect(paramsMap['isCached'], 'true');
     });
 
@@ -94,9 +94,9 @@ void main() {
       var command = 'llookup:@🦄:email@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '🦄');
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.forAtSign], '🦄');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test llookup invalid syntax with emojis', () {
@@ -180,17 +180,17 @@ void main() {
           NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'phone');
-      updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => '1234');
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => 'test_user_1');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => '1234');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@test_user_1');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'phone');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@test_user_1');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'phone');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, '1234');
@@ -231,18 +231,19 @@ void main() {
           NotificationManager.getInstance());
       var updateVerbParams = HashMap<String, String>();
       var updateResponse = Response();
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_SIGN, () => 'test_user_1');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'India');
-      updateVerbParams.putIfAbsent(PUBLIC_SCOPE_PARAM, () => 'public');
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => 'test_user_1');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'India');
+      updateVerbParams.putIfAbsent(
+          AtConstants.publicScopeParam, () => 'public');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(keyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@test_user_1');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@test_user_1');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       localLookVerbParam.putIfAbsent('isPublic', () => 'true');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);

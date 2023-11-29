@@ -38,7 +38,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var enrollId = verbParams[enrollmentId];
+    var enrollId = verbParams[AtConstants.enrollmentId];
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
@@ -59,7 +59,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       publicKey = apkamResult.publicKey;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
-      var publicKeyData = await keyStore.get(AT_PKAM_PUBLIC_KEY);
+      var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
       publicKey = publicKeyData.data;
     }
 
@@ -88,13 +88,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
         '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
-    EnrollStatus? enrollStatus;
+    EnrollmentStatus? enrollStatus;
     try {
       enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
       enrollStatus = getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught exception trying to fetch enrollment key: $e');
-      enrollStatus = EnrollStatus.expired;
+      enrollStatus = EnrollmentStatus.expired;
     }
     apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
     if (apkamResult.response.isError) {
@@ -104,28 +104,28 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return apkamResult;
   }
 
-  Response _getApprovalStatus(EnrollStatus enrollStatus, enrollId) {
+  Response _getApprovalStatus(EnrollmentStatus enrollStatus, enrollId) {
     Response response = Response();
     switch (enrollStatus) {
-      case EnrollStatus.denied:
+      case EnrollmentStatus.denied:
         response.isError = true;
         response.errorCode = 'AT0025';
         response.errorMessage = 'enrollment_id: $enrollId is denied';
         break;
-      case EnrollStatus.pending:
+      case EnrollmentStatus.pending:
         response.isError = true;
         response.errorCode = 'AT0026';
         response.errorMessage = 'enrollment_id: $enrollId is pending';
         break;
-      case EnrollStatus.approved:
+      case EnrollmentStatus.approved:
         // do nothing when enrollment is approved
         break;
-      case EnrollStatus.revoked:
+      case EnrollmentStatus.revoked:
         response.isError = true;
         response.errorCode = 'AT0027';
         response.errorMessage = 'enrollment_id: $enrollId is revoked';
         break;
-      case EnrollStatus.expired:
+      case EnrollmentStatus.expired:
         response.isError = true;
         response.errorCode = 'AT0028';
         response.errorMessage = 'enrollment_id: $enrollId is expired or invalid';
@@ -142,9 +142,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
 
   Future<bool> _validateSignature(
       var verbParams, var sessionId, String atSign, String publicKey) async {
-    var signature = verbParams[AT_PKAM_SIGNATURE]!;
-    var signingAlgo = verbParams[AT_PKAM_SIGNING_ALGO];
-    var hashingAlgo = verbParams[AT_PKAM_HASHING_ALGO];
+    var signature = verbParams[AtConstants.atPkamSignature]!;
+    var signingAlgo = verbParams[AtConstants.atPkamSigningAlgo];
+    var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
     var storedSecret = await keyStore.get('private:$sessionId$atSign');
     storedSecret = storedSecret?.data;

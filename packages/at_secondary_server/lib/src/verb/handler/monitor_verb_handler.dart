@@ -47,25 +47,25 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     this.atConnection = atConnection;
     // If regex is not provided by user, set regex to ".*" to match all the possibilities
     // else set regex to the value given by the user.
-    (verbParams[AT_REGEX] == null)
+    (verbParams[AtConstants.regex] == null)
         ? regex = '.*'
-        : regex = verbParams[AT_REGEX]!;
-    final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
+        : regex = verbParams[AtConstants.regex]!;
+    final selfNotificationsFlag = verbParams[AtConstants.monitorSelfNotifications];
     AtNotificationCallback.getInstance().registerNotificationCallback(
         NotificationType.received, processAtNotification);
-    if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
+    if (selfNotificationsFlag == AtConstants.monitorSelfNotifications) {
       logger.finer('self notification callback registered');
       AtNotificationCallback.getInstance().registerNotificationCallback(
           NotificationType.self, processAtNotification);
     }
 
-    if (verbParams.containsKey(EPOCH_MILLIS) &&
-        verbParams[EPOCH_MILLIS] != null) {
+    if (verbParams.containsKey(AtConstants.epochMilliseconds) &&
+        verbParams[AtConstants.epochMilliseconds] != null) {
       // Send notifications that are already received after EPOCH_MILLIS first
       List<Notification> receivedNotificationsAfterEpochMills =
           await _getNotificationsAfterEpoch(
-              int.parse(verbParams[EPOCH_MILLIS]!),
-              selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
+              int.parse(verbParams[AtConstants.epochMilliseconds]!),
+              selfNotificationsFlag == AtConstants.monitorSelfNotifications);
       for (Notification receivedNotification
           in receivedNotificationsAfterEpochMills) {
         await _sendNotificationToClient(receivedNotification);
@@ -134,7 +134,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
         await getEnrollDataStoreValue(enrollmentKey);
     // When an enrollment is revoked, avoid sending notifications to the
     // existing monitor connection.
-    if (enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
+    if (enrollDataStoreValue.approval!.state != EnrollmentStatus.approved.name) {
       logger.finer(
           'EnrollmentId ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
       return;
@@ -297,15 +297,15 @@ class Notification {
   }
 
   Map toJson() => {
-        ID: id,
-        FROM: fromAtSign,
-        TO: toAtSign,
-        KEY: notification,
-        VALUE: value,
-        OPERATION: operation,
-        EPOCH_MILLIS: dateTime,
-        MESSAGE_TYPE: messageType,
-        IS_ENCRYPTED: isTextMessageEncrypted,
+        AtConstants.id: id,
+        AtConstants.from: fromAtSign,
+        AtConstants.to: toAtSign,
+        AtConstants.key: notification,
+        AtConstants.value: value,
+        AtConstants.operation: operation,
+        AtConstants.epochMilliseconds: dateTime,
+        AtConstants.messageType: messageType,
+        AtConstants.isEncrypted: isTextMessageEncrypted,
         "metadata": metadata
       };
 

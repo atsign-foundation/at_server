@@ -48,17 +48,17 @@ class FromVerbHandler extends AbstractVerbHandler {
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var fromAtSign = verbParams[AT_SIGN];
+    var fromAtSign = verbParams[AtConstants.atSign];
 
-    if (verbParams[CLIENT_CONFIG] != null &&
-        verbParams[CLIENT_CONFIG]!.isNotEmpty) {
-      var decodedClientConfig = jsonDecode(verbParams[CLIENT_CONFIG]!);
+    if (verbParams[AtConstants.clientConfig] != null &&
+        verbParams[AtConstants.clientConfig]!.isNotEmpty) {
+      var decodedClientConfig = jsonDecode(verbParams[AtConstants.clientConfig]!);
       atConnectionMetadata
-        ..clientVersion = decodedClientConfig[VERSION]
-        ..clientId = decodedClientConfig[CLIENT_ID]
-        ..appName = decodedClientConfig[APP_NAME]
-        ..appVersion = decodedClientConfig[APP_VERSION]
-        ..platform = decodedClientConfig[PLATFORM];
+        ..clientVersion = decodedClientConfig[AtConstants.version]
+        ..clientId = decodedClientConfig[AtConstants.clientId]
+        ..appName = decodedClientConfig[AtConstants.appName]
+        ..appVersion = decodedClientConfig[AtConstants.appVersion]
+        ..platform = decodedClientConfig[AtConstants.platform];
     }
 
     fromAtSign = AtUtils.fixAtSign(fromAtSign!);

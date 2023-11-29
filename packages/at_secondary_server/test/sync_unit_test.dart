@@ -870,7 +870,7 @@ void main() {
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
@@ -912,7 +912,7 @@ void main() {
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '-1');
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);

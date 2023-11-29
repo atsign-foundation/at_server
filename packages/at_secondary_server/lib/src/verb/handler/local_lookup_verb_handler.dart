@@ -41,10 +41,10 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var forAtSign = verbParams[FOR_AT_SIGN];
-    var atSign = verbParams[AT_SIGN];
-    var key = verbParams[AT_KEY];
-    var operation = verbParams[OPERATION];
+    var forAtSign = verbParams[AtConstants.forAtSign];
+    var atSign = verbParams[AtConstants.atSign];
+    var key = verbParams[AtConstants.atKey];
+    var operation = verbParams[AtConstants.operation];
     atSign = AtUtils.fixAtSign(atSign!);
     var keyNamespace = key?.substring(key.lastIndexOf('.') + 1);
     key = '$key$atSign';

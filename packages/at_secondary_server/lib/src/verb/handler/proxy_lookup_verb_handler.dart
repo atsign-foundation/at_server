@@ -43,10 +43,10 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atSign = verbParams[AT_SIGN];
-    var entityName = verbParams[AT_KEY];
-    var operation = verbParams[OPERATION];
-    String? byPassCacheStr = verbParams[bypassCache];
+    var atSign = verbParams[AtConstants.atSign];
+    var entityName = verbParams[AtConstants.atKey];
+    var operation = verbParams[AtConstants.operation];
+    String? byPassCacheStr = verbParams[AtConstants.bypassCache];
     // Generate query using key, atSign from verbParams
     atSign = AtUtils.formatAtSign(atSign);
     var keyName = '$entityName$atSign';

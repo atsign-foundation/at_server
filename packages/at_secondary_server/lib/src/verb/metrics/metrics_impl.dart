@@ -70,13 +70,15 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String? regex, List<String>? enrolledNamespaces}) async {
+  Future<String> getMetrics(
+      {String? regex, List<String>? enrolledNamespaces}) async {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
     if (regex != null || enrolledNamespaces != null) {
       regex ??= '.*';
-      lastCommitID =
-          await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
+      lastCommitID = await _atCommitLog?.lastCommittedSequenceNumberWithRegex(
+          regex,
+          enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
     lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
@@ -406,8 +408,8 @@ class CommitLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(commitLogCompactionKey)) {
-      AtData? atData = await keyStore.get(commitLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -437,8 +439,8 @@ class AccessLogCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(accessLogCompactionKey)) {
-      AtData? atData = await keyStore.get(accessLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -468,8 +470,9 @@ class NotificationCompactionStats implements MetricProvider {
         .getSecondaryPersistenceStore(
             AtSecondaryServerImpl.getInstance().currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(notificationCompactionKey)) {
-      AtData? atData = await keyStore.get(notificationCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+      AtData? atData =
+          await keyStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }

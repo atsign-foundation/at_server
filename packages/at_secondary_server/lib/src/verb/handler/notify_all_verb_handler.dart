@@ -37,13 +37,13 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int ttbMillis;
     int? ttrMillis;
     bool? isCascade;
-    var forAtSignList = verbParams[FOR_AT_SIGN];
-    var atSign = verbParams[AT_SIGN];
+    var forAtSignList = verbParams[AtConstants.forAtSign];
+    var atSign = verbParams[AtConstants.atSign];
     atSign = AtUtils.formatAtSign(atSign);
-    var key = verbParams[AT_KEY]!;
-    var messageType = SecondaryUtil.getMessageType(verbParams[MESSAGE_TYPE]);
-    var operation = SecondaryUtil.getOperationType(verbParams[AT_OPERATION]);
-    var value = verbParams[AT_VALUE];
+    var key = verbParams[AtConstants.atKey]!;
+    var messageType = SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
+    var operation = SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
+    var value = verbParams[AtConstants.atValue];
 
     // If messageType is key, append the atSign to key. For messageType text,
     // atSign is not appended to the key.
@@ -52,13 +52,13 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     }
 
     try {
-      ttlMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-      ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      if (verbParams[AT_TTR] != null) {
-        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+      ttlMillis = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
+      ttbMillis = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
+      if (verbParams[AtConstants.ttr] != null) {
+        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
       }
       isCascade = AtMetadataUtil.validateCascadeDelete(
-          ttrMillis, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
+          ttrMillis, AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]));
     } on InvalidSyntaxException {
       rethrow;
     }

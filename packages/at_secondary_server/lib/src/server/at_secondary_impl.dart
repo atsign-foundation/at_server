@@ -422,11 +422,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         QueueManager.getInstance().setMaxRetries(newCount);
       });
 
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
+          ?.listen((maxEnrollRequestsAllowed) {
         AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
       });
 
-      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)
+          ?.listen((timeWindowInMills) {
         AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
       });
     }
@@ -657,25 +659,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await secondaryKeyStore.initialize();
     serverContext!.isKeyStoreInitialized = true;
     var keyStore = keyStoreManager.getKeyStore();
-    if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
-      await keyStore.put(AT_CRAM_SECRET, atData);
+    if (!keyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
+      await keyStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)) {
+    if (!keyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await keyStore.put('$AT_SIGNING_PUBLIC_KEY$currentAtSign',
+      await keyStore.put('${AtConstants.atSigningPublicKey}currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
-      await keyStore.put('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign',
+      await keyStore.put(
+          '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
           AtData()..data = rsaKeypair.privateKey.toString());
-      await keyStore.put(AT_SIGNING_KEYPAIR_GENERATED, AtData()..data = 'true');
+      await keyStore.put(
+          AtConstants.atSigningKeypairGenerated, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await keyStore
-          .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
+      var signingPrivateKey = await keyStore.get(
+          '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
+          'signing key generated? ${keyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
     }
     await keyStore.deleteExpiredKeys();
   }

@@ -43,6 +43,6 @@ Map<String, dynamic> validateCacheMetadata(
       ttrMillis = AtMetadataUtil.validateTTR(ttrMillis);
     }
   }
-  var valueMap = {AT_TTR: ttrMillis, CCD: ccd};
+  var valueMap = {AtConstants.ttr: ttrMillis, AtConstants.ccd: ccd};
   return valueMap;
 }
