@@ -81,24 +81,27 @@ void main() {
       expect(enrollmentValue.namespaces.containsKey('*'), true);
     });
 
-    test('A test to verify OTP is deleted once it is used to submit an enrollment',() async {
+    test(
+        'A test to verify OTP is deleted once it is used to submit an enrollment',
+        () async {
       Response response = Response();
       // OTP Verb
       inboundConnection.getMetaData().isAuthenticated = true;
       inboundConnection.getMetaData().sessionID = 'dummy_session';
       HashMap<String, String?> otpVerbParams =
-      getVerbParam(VerbSyntax.otp, 'otp:get');
+          getVerbParam(VerbSyntax.otp, 'otp:get');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(
           response, otpVerbParams, inboundConnection);
       String otp = response.data!;
 
       String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.getMetaData().isAuthenticated = false;
-      EnrollVerbHandler enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -410,7 +413,8 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           responseObject, verbParams, inboundConnection);
-      Map<String, dynamic> enrollmentResponse = jsonDecode(responseObject.data!);
+      Map<String, dynamic> enrollmentResponse =
+          jsonDecode(responseObject.data!);
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
@@ -614,7 +618,7 @@ void main() {
     test(
         'A test to verify TTL is not set for enrollment requested on an authenticated connection',
         () async {
-          Response response = Response();
+      Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       String enrollmentRequest =

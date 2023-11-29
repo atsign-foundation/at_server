@@ -146,7 +146,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // auto approve request from connection that is CRAM authenticated.
       enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollNamespaces[allNamespaces] = 'rw';
-      enrollmentValue.approval = EnrollApproval(EnrollStatus.approved.name);
+      enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       responseJson['status'] = 'approved';
       final inboundConnectionMetadata =
           atConnection.getMetaData() as InboundConnectionMetadata;
@@ -160,7 +160,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AtData()..data = enrollParams.apkamPublicKey!);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
-      enrollmentValue.approval = EnrollApproval(EnrollStatus.pending.name);
+      enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
       enrollData = AtData()
@@ -194,7 +194,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     logger.finer(
         'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
     EnrollDataStoreValue? enrollDataStoreValue;
-    EnrollStatus? enrollStatus;
+    EnrollmentStatus? enrollStatus;
     // Fetch and returns enrollment data from the keystore.
     // Throw AtEnrollmentException, IF
     //   1. Enrollment key is not present in keystore
@@ -204,12 +204,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
-      enrollStatus = EnrollStatus.expired;
+      enrollStatus = EnrollmentStatus.expired;
     }
     enrollStatus ??=
         getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
     // Validates if enrollment is not expired
-    if (EnrollStatus.expired == enrollStatus) {
+    if (EnrollmentStatus.expired == enrollStatus) {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage =
@@ -251,7 +251,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<void> _storeEncryptionKeys(
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privKeyJson = {};
-    privKeyJson['value'] = enrollParams.encryptedDefaultEncryptedPrivateKey;
+    privKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(privKeyJson),
@@ -264,15 +264,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         skipCommit: true);
   }
 
-  EnrollStatus _getEnrollStatusEnum(String? enrollmentOperation) {
+  EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
     enrollmentOperation = enrollmentOperation?.toLowerCase();
     final operationMap = {
-      'approve': EnrollStatus.approved,
-      'deny': EnrollStatus.denied,
-      'revoke': EnrollStatus.revoked
+      'approve': EnrollmentStatus.approved,
+      'deny': EnrollmentStatus.denied,
+      'revoke': EnrollmentStatus.revoked
     };
 
-    return operationMap[enrollmentOperation] ?? EnrollStatus.pending;
+    return operationMap[enrollmentOperation] ?? EnrollmentStatus.pending;
   }
 
   /// Returns a Map where key is an enrollment key and value is a
@@ -302,7 +302,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
     } else {
-      if (enrollDataStoreValue.approval!.state != EnrollStatus.expired.name) {
+      if (enrollDataStoreValue.approval!.state !=
+          EnrollmentStatus.expired.name) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
@@ -318,7 +319,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      if (enrollDataStoreValue.approval!.state != EnrollStatus.expired.name) {
+      if (enrollDataStoreValue.approval!.state !=
+          EnrollmentStatus.expired.name) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
@@ -367,12 +369,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Throws AtEnrollmentException: If the enrollment state is different
   /// from the intended state.
   void _verifyEnrollmentStateBeforeAction(
-      String? operation, EnrollStatus enrollStatus) {
-    if (operation == 'approve' && EnrollStatus.pending != enrollStatus) {
+      String? operation, EnrollmentStatus enrollStatus) {
+    if (operation == 'approve' && EnrollmentStatus.pending != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved');
     }
-    if (operation == 'revoke' && EnrollStatus.approved != enrollStatus) {
+    if (operation == 'revoke' && EnrollmentStatus.approved != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }

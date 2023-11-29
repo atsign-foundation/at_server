@@ -34,7 +34,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var regex = verbParams[AT_REGEX];
+    var regex = verbParams[AtConstants.regex];
     int? fromDateInEpoch;
     int toDateInEpoch;
     try {

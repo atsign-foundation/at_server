@@ -54,7 +54,8 @@ class OutboundClientManager {
     }
 
     // No existing client found, and Pool has capacity - create a new client
-    var newClient = OutboundClient(inboundConnection, toAtSign, secondaryAddressFinder);
+    var newClient =
+        OutboundClient(inboundConnection, toAtSign, secondaryAddressFinder);
     _pool.add(newClient);
     return newClient;
   }

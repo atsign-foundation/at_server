@@ -66,8 +66,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     atData.data = value;
 
     final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId;
+        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollApprovalId != null) {
       if (atKey.contains('.')) {
@@ -83,8 +82,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       atKey = '$atKey$sharedBy';
     }
     // Append public: as prefix if key is public
-    if (updateParams.metadata!.isPublic != null &&
-        updateParams.metadata!.isPublic!) {
+    if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
     if (!isAuthorized) {
@@ -110,8 +108,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     var existingAtMetaData = await keyStore.getMeta(atKey);
     var cacheRefreshMetaMap = validateCacheMetadata(existingAtMetaData,
         updateParams.metadata!.ttr, updateParams.metadata!.ccd);
-    updateParams.metadata!.ttr = cacheRefreshMetaMap[AT_TTR];
-    updateParams.metadata!.ccd = cacheRefreshMetaMap[CCD];
+    updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];
+    updateParams.metadata!.ccd = cacheRefreshMetaMap[AtConstants.ccd];
 
     //If ttr is set and atsign is not equal to currentAtSign, the key is
     //cached key.
@@ -130,9 +128,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     notify(
         sharedBy,
         sharedWith,
-        verbParams[AT_KEY],
+        verbParams[AtConstants.atKey],
         value,
-        SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
+        SecondaryUtil.getNotificationPriority(verbParams[AtConstants.priority]),
         atData.metaData!);
 
     return UpdatePreProcessResult(atKey, atData);
@@ -145,44 +143,52 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       return UpdateParams.fromJson(jsonMap);
     }
     var updateParams = UpdateParams();
-    updateParams.sharedBy = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    updateParams.sharedWith = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-    updateParams.atKey = verbParams[AT_KEY];
-    updateParams.value = verbParams[AT_VALUE];
+    if (verbParams[AtConstants.atSign] != null) {
+      updateParams.sharedBy =
+          AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+    }
+    if (verbParams[AtConstants.forAtSign] != null) {
+      updateParams.sharedWith =
+          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+    }
+    updateParams.atKey = verbParams[AtConstants.atKey];
+    updateParams.value = verbParams[AtConstants.atValue];
 
     var metadata = Metadata();
-    metadata.isBinary = null;
-    if (verbParams[AT_TTL] != null) {
-      metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+    if (verbParams[AtConstants.ttl] != null) {
+      metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
     }
-    if (verbParams[AT_TTB] != null) {
-      metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+    if (verbParams[AtConstants.ttb] != null) {
+      metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
     }
-    if (verbParams[AT_TTR] != null) {
-      metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+    if (verbParams[AtConstants.ttr] != null) {
+      metadata.ttr =
+          AtMetadataUtil.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
     }
-    if (verbParams[CCD] != null) {
-      metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
+    if (verbParams[AtConstants.ccd] != null) {
+      metadata.ccd =
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]);
     }
-    metadata.dataSignature = verbParams[PUBLIC_DATA_SIGNATURE];
-    if (verbParams[IS_BINARY] != null) {
+    metadata.dataSignature = verbParams[AtConstants.publicDataSignature];
+    if (verbParams[AtConstants.isBinary] != null) {
       metadata.isBinary =
-          AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.isBinary]);
     }
-    if (verbParams[IS_ENCRYPTED] != null) {
+    if (verbParams[AtConstants.isEncrypted] != null) {
       metadata.isEncrypted =
-          AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.isEncrypted]);
     }
-    metadata.isPublic = verbParams[PUBLIC_SCOPE_PARAM] == 'public';
-    metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
-    metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
-    metadata.encoding = verbParams[ENCODING];
-    metadata.encKeyName = verbParams[ENCRYPTING_KEY_NAME];
-    metadata.encAlgo = verbParams[ENCRYPTING_ALGO];
-    metadata.ivNonce = verbParams[IV_OR_NONCE];
+    metadata.isPublic = verbParams[AtConstants.publicScopeParam] == 'public';
+    metadata.sharedKeyEnc = verbParams[AtConstants.sharedKeyEncrypted];
+    metadata.pubKeyCS = verbParams[AtConstants.sharedWithPublicKeyCheckSum];
+    metadata.encoding = verbParams[AtConstants.encoding];
+    metadata.encKeyName = verbParams[AtConstants.encryptingKeyName];
+    metadata.encAlgo = verbParams[AtConstants.encryptingAlgo];
+    metadata.ivNonce = verbParams[AtConstants.ivOrNonce];
     metadata.skeEncKeyName =
-        verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
-    metadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+        verbParams[AtConstants.sharedKeyEncryptedEncryptingKeyName];
+    metadata.skeEncAlgo =
+        verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
 
     updateParams.metadata = metadata;
     return updateParams;

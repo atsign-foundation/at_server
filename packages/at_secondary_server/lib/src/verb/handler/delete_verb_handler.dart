@@ -57,10 +57,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    String? atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    var deleteKey = verbParams[AT_KEY];
+    String atSign = '';
+    if (verbParams[AtConstants.atSign] != null) {
+      atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+    }
+    var deleteKey = verbParams[AtConstants.atKey];
     // If key is cram secret do not append atsign.
-    if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
+    if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
       deleteKey = '$deleteKey$atSign';
     }
     // fetch protected keys listed in config.yaml
@@ -72,10 +75,11 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    var keyNamespace =
-        verbParams[AT_KEY]!.substring(deleteKey.lastIndexOf('.') + 1);
-    if (verbParams[FOR_AT_SIGN] != null) {
-      deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
+    var keyNamespace = verbParams[AtConstants.atKey]!
+        .substring(deleteKey.lastIndexOf('.') + 1);
+    if (verbParams[AtConstants.forAtSign] != null) {
+      deleteKey =
+          '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
@@ -85,8 +89,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
-    if (deleteKey == AT_CRAM_SECRET) {
-      await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
+    if (deleteKey == AtConstants.atCramSecret) {
+      await keyStore.put(
+          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
     }
     final enrollApprovalId =
         (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
@@ -110,17 +115,25 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       if (!deleteKey.startsWith('@')) {
         return;
       }
-      var forAtSign = verbParams[FOR_AT_SIGN];
-      var key = verbParams[AT_KEY];
-      var atSign = verbParams[AT_SIGN];
-      forAtSign = AtUtils.formatAtSign(forAtSign);
-      atSign = AtUtils.formatAtSign(atSign);
+      var forAtSign = verbParams[AtConstants.forAtSign];
+      var key = verbParams[AtConstants.atKey];
+      var atSign = verbParams[AtConstants.atSign];
+      if (forAtSign.isNotNullOrEmpty) {
+        forAtSign = AtUtils.fixAtSign(forAtSign!);
+      }
+      if (atSign.isNotNullOrEmpty) {
+        atSign = AtUtils.fixAtSign(atSign!);
+      }
 
       // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
       if (_autoNotify && (forAtSign != atSign)) {
         try {
-          _notify(forAtSign, atSign, key,
-              SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]));
+          _notify(
+              forAtSign,
+              atSign,
+              key,
+              SecondaryUtil.getNotificationPriority(
+                  verbParams[AtConstants.priority]));
         } catch (exception) {
           logger.severe(
               'Exception while sending notification ${exception.toString()}');

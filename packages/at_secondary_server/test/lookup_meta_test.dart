@@ -25,9 +25,9 @@ void main() {
       var command = 'lookup:meta:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], 'meta');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], 'meta');
     });
 
     test('test lookup all', () {
@@ -35,9 +35,9 @@ void main() {
       var command = 'lookup:all:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], 'all');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], 'all');
     });
 
     test('test lookup data', () {
@@ -45,9 +45,9 @@ void main() {
       var command = 'lookup:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], null);
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], null);
     });
 
     test('test lookup meta command accept test without operation', () {

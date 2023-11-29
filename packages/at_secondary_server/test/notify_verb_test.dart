@@ -41,9 +41,9 @@ void main() {
       var command = 'notify:notifier:persona:@colin:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[FOR_AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.forAtSign], 'colin');
     });
 
     test('test notify for different atsign', () {
@@ -51,9 +51,9 @@ void main() {
       var command = 'notify:notifier:persona:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
   });
 
@@ -103,9 +103,9 @@ void main() {
         ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@colin');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@colin');
 
       expect(
           () => notifyVerb.processVerb(
@@ -173,9 +173,9 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
 
       expect(
           () => notifyVerb.processVerb(
@@ -192,9 +192,9 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -210,9 +210,9 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -265,9 +265,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb and value with mixed case', () {
@@ -276,9 +276,9 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb with cascade delete is true', () {
@@ -288,12 +288,12 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[OPERATION], 'update');
-      expect(paramsMap[AT_TTR], '10000');
-      expect(paramsMap[CCD], 'true');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.operation], 'update');
+      expect(paramsMap[AtConstants.ttr], '10000');
+      expect(paramsMap[AtConstants.ccd], 'true');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb with cascade delete is false', () {
@@ -303,12 +303,12 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[OPERATION], 'update');
-      expect(paramsMap[AT_TTR], '10000');
-      expect(paramsMap[CCD], 'false');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.operation], 'update');
+      expect(paramsMap[AtConstants.ttr], '10000');
+      expect(paramsMap[AtConstants.ccd], 'false');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
   });
 
@@ -361,11 +361,11 @@ void main() {
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
-      assert(notifyData[0][ID] != null);
-      assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
-      expect(notifyData[0][OPERATION], 'update');
+      assert(notifyData[0][AtConstants.id] != null);
+      assert(notifyData[0][AtConstants.epochMilliseconds] != null);
+      expect(notifyData[0][AtConstants.to], '@test_user_1');
+      expect(notifyData[0][AtConstants.key], '@test_user_1:phone@test_user_1');
+      expect(notifyData[0][AtConstants.operation], 'update');
     });
 
     test('test notify handler with delete operation', () async {
@@ -415,11 +415,11 @@ void main() {
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
-      assert(notifyData[0][ID] != null);
-      assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
-      expect(notifyData[0][OPERATION], 'delete');
+      assert(notifyData[0][AtConstants.id] != null);
+      assert(notifyData[0][AtConstants.epochMilliseconds] != null);
+      expect(notifyData[0][AtConstants.to], '@test_user_1');
+      expect(notifyData[0][AtConstants.key], '@test_user_1:phone@test_user_1');
+      expect(notifyData[0][AtConstants.operation], 'delete');
     });
 
     test(
@@ -937,7 +937,7 @@ void main() {
       firstNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
       firstNotificationVerbParams.putIfAbsent('atKey', () => 'phone');
       firstNotificationVerbParams.putIfAbsent(
-          FOR_AT_SIGN, () => '@test_user_2');
+          AtConstants.forAtSign, () => '@test_user_2');
 
       // second notification
       secondNotificationVerbParams.putIfAbsent('id', () => 'xyz-123');

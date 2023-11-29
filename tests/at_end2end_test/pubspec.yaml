@@ -7,13 +7,13 @@ environment:
   sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
-  encrypt: 5.0.1
+  encrypt: 5.0.3
   at_demo_data:
     git:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: trunk
-  at_lookup: ^3.0.32
+  at_lookup: ^3.0.44
 
 dev_dependencies:
   lints: ^1.0.1

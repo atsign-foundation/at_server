@@ -1,6 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -143,7 +143,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   void _validateChallenge(HashMap<String, String> inputs) {
     // Comparing secretLookup form other secondary and stored secret are same or not
     bool isValidChallenge = RSAPublicKey.fromString(inputs['fromPublicKey']!)
-        .verifySHA256Signature(utf8.encode(inputs['message']!) as Uint8List,
+        .verifySHA256Signature(utf8.encode(inputs['message']!),
             base64Decode(inputs['signedChallenge']!));
     logger.finer('isValidChallenge: $isValidChallenge');
     if (!isValidChallenge) {
