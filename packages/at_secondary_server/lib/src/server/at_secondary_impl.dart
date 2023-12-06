@@ -664,7 +664,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     if (!keyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await keyStore.put('${AtConstants.atSigningPublicKey}currentAtSign',
+      await keyStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
       await keyStore.put(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
