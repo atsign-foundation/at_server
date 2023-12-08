@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -23,7 +25,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.sync)}:') &&
-      command.startsWith('sync:from');
+          command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -44,7 +46,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         regex: verbParams['regex']);
 
     List<KeyStoreEntry> syncResponse = [];
-    await prepareResponse(capacity, syncResponse, commitEntryIterator);
+    await prepareResponse(capacity, syncResponse, commitEntryIterator,
+        enrollmentId: (atConnection.getMetaData() as InboundConnectionMetadata)
+            .enrollmentId);
 
     response.data = jsonEncode(syncResponse);
   }
@@ -53,11 +57,18 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
   /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
   @visibleForTesting
-  Future<void> prepareResponse(
-      int desiredMaxSyncResponseLength,
-      List<KeyStoreEntry> syncResponse,
-      Iterator<dynamic> commitEntryIterator) async {
+  Future<void> prepareResponse(int desiredMaxSyncResponseLength,
+      List<KeyStoreEntry> syncResponse, Iterator<dynamic> commitEntryIterator,
+      {String? enrollmentId}) async {
     int currentResponseLength = 0;
+    Map<String, String> enrolledNamespaces = {};
+
+    if (enrollmentId != null && enrollmentId.isNotEmpty) {
+      String enrollmentKey =
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+      enrolledNamespaces =
+          (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+    }
 
     while (commitEntryIterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
@@ -65,7 +76,24 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           enforceNameSpace: false);
       if (atKeyType == KeyType.invalidKey) {
         logger.warning(
-            '${commitEntryIterator.current.key} is an invalid key. Skipping from adding it to sync response');
+            'prepareResponse | ${commitEntryIterator.current.key} is an invalid key. Skipping.');
+        continue;
+      }
+      late AtKey parsedAtKey;
+      try {
+        parsedAtKey = AtKey.fromString(commitEntryIterator.current.key!);
+      } on InvalidSyntaxException catch (_) {
+        logger.warning(
+            'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
+        continue;
+      }
+      String? keyNamespace =
+          parsedAtKey.namespace;
+      if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
+          enrolledNamespaces.isNotEmpty &&
+          (!enrolledNamespaces.containsKey(allNamespaces) &&
+              !enrolledNamespaces.containsKey(enrollManageNamespace) &&
+              !enrolledNamespaces.containsKey(keyNamespace))) {
         continue;
       }
       var keyStoreEntry = KeyStoreEntry();
@@ -77,9 +105,10 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         // exist in keystore, skip the key to sync and continue
         if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
           logger.finer(
-              '${commitEntryIterator.current.key} does not exist in the keystore. skipping the key to sync');
+              'prepareResponse | ${commitEntryIterator.current.key} does not exist in the keystore. Skipping.');
           continue;
         }
+
         var atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
           logger.info('atData is null for ${commitEntryIterator.current.key}');

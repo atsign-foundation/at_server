@@ -1,6 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// dart run build_runner build - to generate this file
-
+// dart run build_runner build to generate this file
 part of 'enroll_datastore_value.dart';
 
 // **************************************************************************
@@ -15,9 +14,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       json['deviceName'] as String,
       json['apkamPublicKey'] as String,
     )
-      ..namespaces = (json['namespaces'] as List<dynamic>)
-          .map((e) => EnrollNamespace.fromJson(e as Map<String, dynamic>))
-          .toList()
+      ..namespaces = Map<String, String>.from(json['namespaces'] as Map)
       ..requestType =
           $enumDecodeNullable(_$EnrollRequestTypeEnumMap, json['requestType'])
       ..approval = json['approval'] == null

@@ -63,6 +63,13 @@ void main() {
     expect(sentCountAfterUpdate, sentCountBeforeUpdate + 1);
     expect(statusAfterUpdate, statusBeforeUpdate + 1);
     expect(keyCountAfterUpdate, keyCountBeforeUpdate + 1);
+
+    // notify:list on the other atsign
+    String keyRequired =
+        '"key":"$atSign_2:country$atSign_1","value":"$value","operation":"update"';
+    String response = await notification.retryCommandUntilMatchOrTimeout(
+        sh2, 'notify:list:country', keyRequired, 15000);
+    expect(response, contains(keyRequired));
   });
 
   test(
@@ -89,6 +96,14 @@ void main() {
         beforeDelete['operations']['delete'] + 1);
     expect(sentCountAfterDelete, sentCountBeforeDelete + 1);
     expect(statusAfterDelete, statusBeforeDelete + 1);
+
+    // notify:list on the other atsign
+     // notify:list on the other atsign
+    String keyRequired =
+        '"key":"$atSign_2:country$atSign_1","value":null,"operation":"delete"';
+    String response = await notification.retryCommandUntilMatchOrTimeout(
+        sh2, 'notify:list:country', keyRequired, 15000);
+    expect(response, contains(keyRequired));
   });
 
   test('stats verb for id 11 - for messageType text ', () async {
@@ -100,8 +115,7 @@ void main() {
 
     /// update command
     var value = 'Hey $lastValue';
-    await sh1.writeCommand(
-        'notify:messageType:text:ttr:-1:$atSign_2:message$atSign_1:$value');
+    await sh1.writeCommand('notify:update:messageType:text:$atSign_2:$value');
     var notifyResponse = await sh1.read();
     print('notify verb response $notifyResponse');
     assert((!notifyResponse.contains('Invalid syntax')) &&
@@ -116,8 +130,17 @@ void main() {
     expect(sentCountAfterNotify, sentCountBeforeNotify + 1);
     expect(statusAfterNotify, statusBeforeNotify + 1);
     expect(textCountAfterNotify, textCountBeforeNotify + 1);
+
+    // notify:list on the other atsign
+     // notify:list on the other atsign
+    String keyRequired =
+        'key":"$atSign_2:$value","value":null,"operation":"update"';
+    String response = await notification.retryCommandUntilMatchOrTimeout(
+        sh2, 'notify:list', keyRequired, 15000);
+    expect(response, contains(keyRequired));
   });
 
+  // this needs to be an e2e test because it tries to send notification to an invalid atsign
   test('stats verb for id 11 - for an invalid atsign ', () async {
     /// stats:11 verb response
     var beforeUpdate = await notificationStats(sh1);

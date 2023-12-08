@@ -29,6 +29,10 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
   ConfigVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
+  late AtConfig atConfigInstance;
+  late ModifiableConfigs? setConfigName;
+  late String? setConfigValue;
+
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.config)}:');

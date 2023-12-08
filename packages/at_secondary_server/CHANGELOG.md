@@ -1,7 +1,33 @@
+## 3.0.37
+- fix: In the `SyncProgressiveVerbHandler.prepareResponse` method, gracefully 
+  handle any malformed keys which happen to be in the commit log for
+  historical reasons
+- build: Take up at_persistence_secondary_server version 3.0.59 which
+  includes a similar fix when checking namespace authorization in the
+  `CommitLogKeyStore._isNamespaceAuthorised` method
+## 3.0.36
+- fix: Implement notify ephemeral changes - Send notification with value without caching the key on receiver's secondary server
+- feat: Implement AtRateLimiter to limit the enrollment requests on a particular connection
+- fix: Upgraded at_commons to 3.0.56
+- fix: Enable client to set OTP expiry via OTP verb
+- fix: Prevent reuse of OTP
+- fix: Modify sync_progressive_verb_handler to filter responses on enrolled namespaces if authenticated via APKAM 
+## 3.0.35
+- chore: Upgraded at_persistence_secondary_server to 3.0.57 for memory optimization in commit log
+- feat: APKAM keys verb implementation
+- feat: Implementation changes for latest APKAM specification
+- Allow lookup verb for only authorized namespaces when authenticated via APKAM
+- feat: Use at_lookup's CacheableSecondaryAddressFinder
+- feat: Use latest at_lookup 3.0.40 which does retries in the event of 
+  transient atDirectory connection failures while looking up atServer addresses
+## 3.0.34
+- chore: Upgraded at_persistence_spec to 2.0.14
+- chore: Upgraded at_persistence_secondary_server to 3.0.56
 ## 3.0.33
-- feat: modified monitor verb handler to process self notification for apkam
-- chore: upgraded at_persistence_secondary_server to 3.0.54, at_server_spec to 3.0.13, at_commons to 3.0.50 and at_utils 3.0.14
-- feat: apkam enroll verb handler implementation
+- feat: Modified monitor verb handler to process self notification for APKAM
+- chore: Upgraded at_persistence_secondary_server to 3.0.55 for memory optimization
+- chore: Upgraded at_server_spec to 3.0.13, at_commons to 3.0.50 and at_utils 3.0.14
+- feat: APKAM enroll verb handler implementation
 ## 3.0.32
 - fix: Enhance stats verb to return latest commitEntry of each key
 - chore: Ignore melos files

@@ -25,5 +25,5 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
   String? platform;
 
   /// A unique identifier generated for a client's APKAM enroll request
-  String? enrollApprovalId;
+  String? enrollmentId;
 }

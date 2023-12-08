@@ -1,3 +1,7 @@
+## 2.1.0
+- feat: rate limiting when looking up non-existent atSigns
+- feat: miscellaneous logging enhancements
+- fix: removed unnecessary 10-second delay during normal startup
 ## 2.0.5
 - upgrade persistence spec version
 ## 2.0.4

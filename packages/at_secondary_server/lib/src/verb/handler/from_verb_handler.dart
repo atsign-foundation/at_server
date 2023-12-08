@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -62,7 +61,6 @@ class FromVerbHandler extends AbstractVerbHandler {
         ..platform = decodedClientConfig[PLATFORM];
     }
 
-    fromAtSign = AtUtils.formatAtSign(fromAtSign);
     fromAtSign = AtUtils.fixAtSign(fromAtSign!);
     var atData = AtData();
     var keyPrefix = (fromAtSign == currentAtSign) ? 'private:' : 'public:';
@@ -113,13 +111,11 @@ class FromVerbHandler extends AbstractVerbHandler {
       String fromAtSign, InboundConnection atConnection) async {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
-    // ignore: deprecated_member_use
-    var secondaryUrl =
-        await AtLookupImpl.findSecondary(fromAtSign, _rootDomain, _rootPort!);
-    if (secondaryUrl == null) {
-      throw SecondaryNotFoundException(
-          'No secondary url found for atsign: $fromAtSign');
-    }
+    var secondaryUrl = (await AtSecondaryServerImpl.getInstance()
+            .secondaryAddressFinder
+            .findSecondary(fromAtSign))
+        .toString();
+
     logger.finer('_verifyFromAtSign secondaryUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];

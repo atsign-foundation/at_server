@@ -1,21 +1,21 @@
-# The @Protocol root server configuration
+# The atProtocol root server configuration
 root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
   url: 'root.atsign.wtf'
 
-# cicd atsign details
+# cicd atSign details
 first_atsign_server:
   first_atsign_name: 'ATSIGN_1_NAME'
-  # # The port to connect to first atsign server
+  # # The port to connect to first atServer
   first_atsign_port: ATSIGN_1_PORT
-  # # The url to connect to first atsign server
+  # # The url to connect to first atServer
   first_atsign_url: ATSIGN_1_HOST
 
 second_atsign_server:
   second_atsign_name: 'ATSIGN_2_NAME'
-  # # The port to connect to second atsign server
+  # # The port to connect to second atServer
   second_atsign_port: ATSIGN_2_PORT
-  # # The url to connect to second atsign server
+  # # The url to connect to second atServer
   second_atsign_url: ATSIGN_2_HOST

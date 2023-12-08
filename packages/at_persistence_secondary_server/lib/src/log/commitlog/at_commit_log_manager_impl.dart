@@ -17,12 +17,18 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
       {String? commitLogPath, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.
     if (!_commitLogMap.containsKey(atSign)) {
-      var commitLogKeyStore = CommitLogKeyStore(atSign);
-      commitLogKeyStore.enableCommitId = enableCommitId;
+      CommitLogKeyStore? commitLogKeyStore;
+      // Creating commit-log for client
+      if (enableCommitId) {
+        commitLogKeyStore = CommitLogKeyStore(atSign);
+        _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
+      } else {
+        commitLogKeyStore = ClientCommitLogKeyStore(atSign);
+        _commitLogMap[atSign] = ClientAtCommitLog(commitLogKeyStore);
+      }
       if (commitLogPath != null) {
         await commitLogKeyStore.init(commitLogPath, isLazy: false);
       }
-      _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
     }
     return _commitLogMap[atSign];
   }

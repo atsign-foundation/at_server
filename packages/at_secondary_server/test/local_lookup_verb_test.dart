@@ -16,8 +16,11 @@ import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
+
+import 'test_utils.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -246,6 +249,154 @@ void main() {
       expect(localLookUpResponse.data, 'India');
     });
     tearDown(() async => await tearDownFunc());
+  });
+
+  group('A group of tests related APKAM enrollment', () {
+    Response response = Response();
+    String enrollmentId = Uuid().v4();
+    setUp(() async {
+      await verbTestsSetUp();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+    });
+
+    test(
+        'A test to verify llookup verb is allowed in all namespace when access is *:r',
+        () async {
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with wavi namespace
+      String updateCommand = 'update:$alice:phone.wavi$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Update a key with buzz namespace
+      updateCommand = 'update:$alice:mobile.buzz$alice 456';
+      updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Since the namespace have only read access, setting the
+      // enrollmentId to connection after update
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      // Local Lookup a key with wavi namespace
+      String llookupCommand = 'llookup:$alice:phone.wavi$alice';
+      HashMap<String, String?> llookupVerbParams =
+          getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, '123');
+      // Local Lookup a key with buzz namespace
+      llookupCommand = 'llookup:$alice:mobile.buzz$alice';
+      llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, '456');
+    });
+
+    test(
+        'A test to verify llookup verb throws exception when namespace is not authorized',
+        () async {
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with buzz namespace
+      String updateCommand = 'update:$alice:mobile.buzz$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Since the namespace have only read access, setting the
+      // enrollmentId to connection after update
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      // Local Lookup a key with wavi namespace
+      String llookupCommand = 'llookup:$alice:mobile.buzz$alice';
+      HashMap<String, String?> llookupVerbParams =
+          getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await localLookupVerbHandler.processVerb(
+              response, llookupVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $alice:mobile.buzz$alice')));
+    });
+  });
+
+  group(
+      'A of tests to verify local-lookup a key when enrollment is pending/revoke/denied state throws exception',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    Response response = Response();
+    String enrollmentId;
+    List operationList = ['pending', 'revoked', 'denied'];
+
+    for (var operation in operationList) {
+      test(
+          'A test to verify when enrollment is $operation throws exception on a key lookup',
+          () async {
+        inboundConnection.metadata.isAuthenticated = true;
+        enrollmentId = Uuid().v4();
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+        final enrollJson = {
+          'sessionId': '123',
+          'appName': 'wavi',
+          'deviceName': 'pixel',
+          'namespaces': {'wavi': 'rw'},
+          'apkamPublicKey': 'testPublicKeyValue',
+          'requestType': 'newEnrollment',
+          'approval': {'state': operation}
+        };
+        await secondaryKeyStore.put(
+            '$enrollmentId.new.enrollments.__manage@alice',
+            AtData()..data = jsonEncode(enrollJson));
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+        String llookupCommand = 'llookup:$alice:dummykey.wavi$alice';
+        HashMap<String, String?> localLookupVerbParams =
+            getVerbParam(VerbSyntax.llookup, llookupCommand);
+        LocalLookupVerbHandler localLookupVerbHandler =
+            LocalLookupVerbHandler(secondaryKeyStore);
+        expect(
+            () async => await localLookupVerbHandler.processVerb(
+                response, localLookupVerbParams, inboundConnection),
+            throwsA(predicate((dynamic e) =>
+                e is UnAuthorizedException &&
+                e.message ==
+                    'Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: @alice:dummykey.wavi@alice')));
+      });
+    }
   });
 }
 

@@ -57,7 +57,7 @@ Future<void> main() async {
           DateTime.now().toUtc().microsecondsSinceEpoch;
 
       // Assertions
-      expect(atCompactionStats.preCompactionEntriesCount, 2);
+      expect(atCompactionStats.preCompactionEntriesCount, 1);
       expect(atCompactionStats.postCompactionEntriesCount, 1);
       expect(atCompactionStats.compactionDurationInMills > 0, true);
       expect(
@@ -76,13 +76,13 @@ Future<void> main() async {
       // Get Compaction Stats
       AtData? atData = await secondaryPersistenceStore!
           .getSecondaryKeyStore()
-          ?.get(at_commons.commitLogCompactionKey);
+          ?.get(at_commons.AtConstants.commitLogCompactionKey);
 
       // Assert Compaction Stats
       var decodedData = jsonDecode(atData!.data!) as Map;
-      expect(decodedData['deletedKeysCount'], '1');
+      expect(decodedData['deletedKeysCount'], '0');
       expect(decodedData['postCompactionEntriesCount'], '1');
-      expect(decodedData['preCompactionEntriesCount'], '2');
+      expect(decodedData['preCompactionEntriesCount'], '1');
       expect(decodedData['atCompactionType'], 'AtCommitLog');
     });
 
@@ -110,7 +110,7 @@ Future<void> main() async {
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
       AtData? atData = await secondaryPersistenceStore!
           .getSecondaryKeyStore()
-          ?.get(at_commons.accessLogCompactionKey);
+          ?.get(at_commons.AtConstants.accessLogCompactionKey);
       var data = (atData?.data);
       var decodedData = jsonDecode(data!) as Map;
       expect(decodedData["deletedKeysCount"], '3');

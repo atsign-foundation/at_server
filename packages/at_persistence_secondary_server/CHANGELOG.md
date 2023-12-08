@@ -1,3 +1,10 @@
+## 3.0.59
+- fix: When checking namespace authorization, gracefully handle any malformed 
+  keys which happen to be in the commit log for historical reasons
+## 3.0.58
+- fix: Modify "lastCommittedSequenceNumberWithRegex" to return highest commitId among enrolled namespaces
+## 3.0.57
+- fix: Refactor commit log keystore to optimize memory usage
 ## 3.0.56
 - fix: Refactor Hive keystore to optimize memory usage
 - fix: Apply Utf7.decode function to decode the keys and atSigns containing emojis.

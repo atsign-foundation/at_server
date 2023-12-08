@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:io';
 import 'dart:math';
 
@@ -5,6 +6,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
@@ -44,6 +46,17 @@ class InboundConnectionImpl extends BaseConnection
   late bool progressivelyReduceAllowableInboundIdleTime;
   AtServerTelemetryService? telemetry;
 
+  /// The maximum number of requests allowed within the specified time frame.
+  @override
+  late int maxRequestsPerTimeFrame;
+
+  /// The duration of the time frame within which requests are limited.
+  @override
+  late int timeFrameInMillis;
+
+  /// A list of timestamps representing the times when requests were made.
+  late final Queue<int> requestTimestampQueue;
+
   InboundConnectionImpl(Socket? socket, String? sessionId,
       {this.owningPool, this.telemetry})
       : super(socket) {
@@ -72,6 +85,10 @@ class InboundConnectionImpl extends BaseConnection
         secondaryContext.authenticatedInboundIdleTimeMillis;
     authenticatedMinAllowableIdleTimeMillis =
         secondaryContext.authenticatedMinAllowableIdleTimeMillis;
+
+    maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
+    timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
+    requestTimestampQueue = Queue();
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -268,5 +285,32 @@ class InboundConnectionImpl extends BaseConnection
         ? AtServerTelemetryEventType.errorResponse
         : AtServerTelemetryEventType.response;
     telemetry?.interaction(eventType: eventType, from: server, to: client);
+  }
+
+  @override
+  bool isRequestAllowed() {
+    int currentTimeInMills = DateTime.now().toUtc().millisecondsSinceEpoch;
+    _checkAndUpdateQueue(currentTimeInMills);
+    if (requestTimestampQueue.length < maxRequestsPerTimeFrame) {
+      requestTimestampQueue.addLast(currentTimeInMills);
+      return true;
+    }
+    return false;
+  }
+
+  /// Checks and updates the request timestamp queue based on the current time.
+  ///
+  /// This method removes timestamps from the queue that are older than the specified
+  /// time window.
+  ///
+  /// [currentTimeInMillis] is the current time in milliseconds since epoch.
+  void _checkAndUpdateQueue(int currentTimeInMillis) {
+    if (requestTimestampQueue.isEmpty) return;
+    int calculatedTime = (currentTimeInMillis - requestTimestampQueue.first);
+    while (calculatedTime >= timeFrameInMillis) {
+      requestTimestampQueue.removeFirst();
+      if (requestTimestampQueue.isEmpty) break;
+      calculatedTime = (currentTimeInMillis - requestTimestampQueue.first);
+    }
   }
 }

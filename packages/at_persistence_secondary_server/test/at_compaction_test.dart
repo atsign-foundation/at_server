@@ -51,12 +51,10 @@ void main() {
 
     test('A test to verify duplicate entry with lowest commit id returned',
         () async {
-      var firstEntryCommitId =
-          await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
+      await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       List<int> keysToDelete = await atCommitLog!.getKeysToDeleteOnCompaction();
-      expect(keysToDelete.length, 1);
-      expect(keysToDelete.first, firstEntryCommitId);
+      expect(keysToDelete.length, 0);
     });
 
     tearDown(() async {

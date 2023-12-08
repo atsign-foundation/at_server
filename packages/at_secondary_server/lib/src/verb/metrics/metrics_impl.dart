@@ -57,7 +57,7 @@ class OutBoundMetricImpl implements MetricProvider {
 class LastCommitIDMetricImpl implements MetricProvider {
   static final LastCommitIDMetricImpl _singleton =
       LastCommitIDMetricImpl._internal();
-  var _atCommitLog;
+  AtCommitLog? _atCommitLog;
 
   set atCommitLog(value) {
     _atCommitLog = value;
@@ -70,15 +70,16 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 
   @override
-  Future<String> getMetrics({String? regex}) async {
+  Future<String> getMetrics({String? regex, List<String>? enrolledNamespaces}) async {
     logger.finer('In commitID getMetrics...regex : $regex');
     var lastCommitID;
-    if (regex != null) {
+    if (regex != null || enrolledNamespaces != null) {
+      regex ??= '.*';
       lastCommitID =
-          await _atCommitLog.lastCommittedSequenceNumberWithRegex(regex);
+          await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog.lastCommittedSequenceNumber().toString();
+    lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
     return lastCommitID;
   }
 

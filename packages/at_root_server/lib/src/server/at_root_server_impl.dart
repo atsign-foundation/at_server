@@ -85,7 +85,7 @@ class RootServerImpl implements AtRootServer {
     logger.info('Connection from '
         '${socket.remoteAddress.address}:${socket.remotePort}');
     var client = RootClient(socket);
-    logger.info('connection successful\n');
+    logger.info('connection successful');
     client.write('@');
   }
 
@@ -130,6 +130,9 @@ class RootServerImpl implements AtRootServer {
       var certsAvailable = false;
       // if certs are unavailable then retry max 10 minutes
       while (true) {
+        if (retryCount > 0) {
+          sleep(Duration(seconds: 10));
+        }
         try {
           if (certsAvailable || retryCount > 60) {
             break;
@@ -142,7 +145,6 @@ class RootServerImpl implements AtRootServer {
           retryCount++;
           logger.info('certs unavailable. Retry count ${retryCount}');
         }
-        sleep(Duration(seconds: 10));
       }
       if (certsAvailable) {
         SecureServerSocket.bind(InternetAddress.anyIPv4, port!, secCon)
@@ -178,7 +180,12 @@ class RootServerImpl implements AtRootServer {
     serverSocket.listen((connection) {
       _handle(AtClientConnectionImpl(connection));
     }, onError: (error) {
-      logger.severe('rootServer Socket Error :' +
+      if (error is HandshakeException) {
+        // This is not unusual.
+        // See https://github.com/atsign-foundation/at_server/issues/1590
+        return;
+      }
+      logger.warning('ServerSocket stream error :' +
           error.toString() +
           'connecting to ' +
           serverSocket.address.toString());

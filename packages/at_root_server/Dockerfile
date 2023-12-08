@@ -1,4 +1,4 @@
-FROM dart:3.0.6@sha256:0334fa2254fe50fb9ddab78a362e12f5db8876e48bc25221347bf9d5bbb61c33 AS buildimage
+FROM dart:3.2.3@sha256:6f115649ce95f0df25195fc463a39d4ba74450907e1e93cb1a0d657bbbd8ce94 AS buildimage
 ENV HOMEDIR=/atsign
 ENV BINARYDIR=/usr/local/at
 ENV USER_ID=1024

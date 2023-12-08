@@ -46,7 +46,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
     if (verbParams[paramFullCommandAsReceived] == 'info') {
       String uptimeAsWords = durationToWords(uptime);
       infoMap['uptimeAsWords'] = uptimeAsWords;
-      final enrollApprovalId = atConnectionMetadata.enrollApprovalId;
+      final enrollApprovalId = atConnectionMetadata.enrollmentId;
       if (atConnectionMetadata.isAuthenticated && enrollApprovalId != null) {
         apkamMetadataKey =
             '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';

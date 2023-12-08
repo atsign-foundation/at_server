@@ -14,7 +14,7 @@ class MockHiveKeyStore extends Mock implements HiveKeystore {
   }
 
   @override
-  Future<int?> remove(String key) async {
+  Future<int?> remove(String key, {bool skipCommit = false}) async {
     dummyKeyStore.remove(key);
     return 1;
   }

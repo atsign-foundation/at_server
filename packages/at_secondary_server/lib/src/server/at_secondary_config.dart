@@ -3,10 +3,16 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:meta/meta.dart';
+import 'package:yaml/yaml.dart';
 
 class AtSecondaryConfig {
+  // Config
+  @visibleForTesting
+  static YamlMap? configYamlMap = ConfigUtil.getYaml();
   static final Map<ModifiableConfigs, ModifiableConfigurationEntry>
       _streamListeners = {};
+
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
@@ -38,17 +44,22 @@ class AtSecondaryConfig {
 
   //Notification
   static const bool _autoNotify = true;
+
   // The maximum number of retries for a notification.
   static const int _maxNotificationRetries = 30;
+
   // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
   static const int _notificationQuarantineDuration = 10;
+
   // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
   // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
   // seconds have passed since the last queue-processing run completed.
   static const int _notificationJobFrequency = 11;
+
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static const int _statsNotificationJobTimeInterval = 15;
+
   // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
   static const int _notificationExpiresAfterMins = 1440;
 
@@ -63,8 +74,10 @@ class AtSecondaryConfig {
   //Connection
   static const int _inboundMaxLimit = 200;
   static const int _outboundMaxLimit = 200;
-  static const int _unauthenticatedInboundIdleTimeMillis = 10 * 60 * 1000; // 10 minutes
-  static const int _authenticatedInboundIdleTimeMillis = 30 * 24 * 60 * 60 * 1000; // 30 days
+  static const int _unauthenticatedInboundIdleTimeMillis =
+      10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedInboundIdleTimeMillis =
+      30 * 24 * 60 * 60 * 1000; // 30 days
   static const int _outboundIdleTimeMillis = 600000;
 
   //Lookup
@@ -95,6 +108,15 @@ class AtSecondaryConfig {
   // Telemetry web hook
   static final String defaultTelemetryEventWebHook = '';
 
+  // Protected Keys
+  // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+  static final Set<String> _protectedKeys = {
+    'signing_publickey<@atsign>',
+    'signing_privatekey<@atsign>',
+    'publickey<@atsign>',
+    'at_pkam_publickey'
+  };
+
   //version
   static final String? _secondaryServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
@@ -105,6 +127,20 @@ class AtSecondaryConfig {
   static final Map<String, String> _envVars = Platform.environment;
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
+
+  // Enrollment Configurations
+  static const int _enrollmentExpiryInHours = 48;
+  static int _maxEnrollRequestsAllowed = 5;
+
+  static final int _timeFrameInHours = 1;
+
+  // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
+  // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
+  // via the config verb
+  static int _timeFrameInMills =
+      Duration(hours: _timeFrameInHours).inMilliseconds;
+
+  static int get enrollmentExpiryInHours => _enrollmentExpiryInHours;
 
   // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
   //  allow for nulls. Should fix this as has been done for logLevel
@@ -418,7 +454,8 @@ class AtSecondaryConfig {
       return result;
     }
     try {
-      return getConfigFromYaml(['connection', 'authenticated_inbound_idle_time_millis']);
+      return getConfigFromYaml(
+          ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
     }
@@ -534,7 +571,7 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get rootServerPort {
+  static int get rootServerPort {
     var result = _getIntEnvVar('rootServerPort');
     if (result != null) {
       return result;
@@ -546,9 +583,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get rootServerUrl {
+  static String get rootServerUrl {
     if (_envVars.containsKey('rootServerUrl')) {
-      return _envVars['rootServerUrl'];
+      return _envVars['rootServerUrl']!;
     }
     try {
       return getConfigFromYaml(['root_server', 'url']);
@@ -689,37 +726,104 @@ class AtSecondaryConfig {
     }
   }
 
+  static Set<String> get protectedKeys {
+    try {
+      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      Set<String> protectedKeysFromConfig = {};
+      for (var key in keys) {
+        protectedKeysFromConfig.add(key);
+      }
+      protectedKeysFromConfig.addAll(_protectedKeys);
+      return protectedKeysFromConfig;
+    } on Exception {
+      return _protectedKeys;
+    }
+  }
+
+  static int get maxEnrollRequestsAllowed {
+    // For easy of testing purpose, we need to reduce the number of requests.
+    // So, in testing mode, enable to modify the "maxEnrollRequestsAllowed"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode) {
+      return _maxEnrollRequestsAllowed;
+    }
+    var result = _getIntEnvVar('maxEnrollRequestsAllowed');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['enrollment', 'maxRequestsPerTimeFrame']);
+    } on ElementNotFoundException {
+      return _maxEnrollRequestsAllowed;
+    }
+  }
+
+  static set maxEnrollRequestsAllowed(int value) {
+    _maxEnrollRequestsAllowed = value;
+  }
+
+  static int get timeFrameInMills {
+    // For easy of testing purpose, we need to reduce the time frame.
+    // So, in testing mode, enable to modify the "timeFrameInMills"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode) {
+      return _timeFrameInMills;
+    }
+    var result = _getIntEnvVar('enrollTimeFrameInHours');
+    if (result != null) {
+      return Duration(hours: result).inMilliseconds;
+    }
+    try {
+      return Duration(
+              hours: getConfigFromYaml(['enrollment', 'timeFrameInHours']))
+          .inMilliseconds;
+    } on ElementNotFoundException {
+      return Duration(hours: _timeFrameInHours).inMilliseconds;
+    }
+  }
+
+  static set timeFrameInMills(int timeWindowInMills) {
+    _timeFrameInMills = timeWindowInMills;
+  }
+
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (!_streamListeners.containsKey(configName)) {
-      _streamListeners[configName] = ModifiableConfigurationEntry()
-        ..streamController = StreamController<dynamic>.broadcast()
-        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+    if (testingMode) {
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<dynamic>.broadcast()
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+      }
+      return _streamListeners[configName]!.streamController.stream;
     }
-    return _streamListeners[configName]!.streamController.stream;
+    return null;
   }
 
   //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    //if an entry for the config does not exist new entry is created
-    if (!_streamListeners.containsKey(configName)) {
-      _streamListeners[configName] = ModifiableConfigurationEntry()
-        ..streamController = StreamController<dynamic>.broadcast()
-        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
-    }
-    //in case of reset, the default value of that config is broadcast
-    if (isReset) {
-      _streamListeners[configName]
-          ?.streamController
-          .add(_streamListeners[configName]!.defaultValue);
-      _streamListeners[configName]?.currentValue =
-          _streamListeners[configName]!.defaultValue;
-      // this else case broadcast new config value
-    } else {
-      _streamListeners[configName]?.streamController.add(newConfigValue!);
-      _streamListeners[configName]?.currentValue = newConfigValue;
+    if (testingMode) {
+      //if an entry for the config does not exist new entry is created
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<dynamic>.broadcast()
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
+      }
+      //in case of reset, the default value of that config is broadcast
+      if (isReset) {
+        _streamListeners[configName]
+            ?.streamController
+            .add(_streamListeners[configName]!.defaultValue);
+        _streamListeners[configName]?.currentValue =
+            _streamListeners[configName]!.defaultValue;
+        // this else case broadcast new config value
+      } else {
+        _streamListeners[configName]?.streamController.add(newConfigValue!);
+        _streamListeners[configName]?.currentValue = newConfigValue;
+      }
     }
   }
 
@@ -756,6 +860,10 @@ class AtSecondaryConfig {
         return false;
       case ModifiableConfigs.telemetryEventWebHook:
         return telemetryEventWebHook;
+      case ModifiableConfigs.maxRequestsPerTimeFrame:
+        return maxEnrollRequestsAllowed;
+      case ModifiableConfigs.timeFrameInMills:
+        return Duration(hours: _timeFrameInHours).inMilliseconds;
     }
   }
 
@@ -782,7 +890,7 @@ class AtSecondaryConfig {
 }
 
 dynamic getConfigFromYaml(List<String> args) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
@@ -805,7 +913,7 @@ dynamic getConfigFromYaml(List<String> args) {
 }
 
 String? getStringValueFromYaml(List<String> keyParts) {
-  var yamlMap = ConfigUtil.getYaml();
+  var yamlMap = AtSecondaryConfig.configYamlMap;
   // ignore: prefer_typing_uninitialized_variables
   var value;
   if (yamlMap != null) {
@@ -838,7 +946,9 @@ enum ModifiableConfigs {
   checkCertificateReload(requireTestingMode: true, isInt: false),
   shouldReloadCertificates(requireTestingMode: true, isInt: false),
   doCacheRefreshNow(requireTestingMode: true, isInt: false),
-  telemetryEventWebHook(requireTestingMode: false, isInt: false);
+  telemetryEventWebHook(requireTestingMode: false, isInt: false),
+  maxRequestsPerTimeFrame,
+  timeFrameInMills;
 
   final bool requireTestingMode;
   final bool isInt;

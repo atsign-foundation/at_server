@@ -16,15 +16,19 @@ void main() {
 
   test('checking for test environment readiness', () async {
     _secureSocket = await secure_socket_connection(rootServer, atsignPort);
-    print('connection established');
     socket_listener(_secureSocket);
     String response = '';
-    while (response.isEmpty || response == 'data:null\n') {
+    while ((retryCount < maxRetryCount) &&
+        (response.isEmpty || response == 'data:null\n')) {
       _secureSocket.write('lookup:signing_publickey$atsign\n');
       response = await read();
       print('waiting for signing public key response : $response');
       await Future.delayed(Duration(milliseconds: 100));
+      if (response.startsWith('data:')) {
+        break;
+      }
     }
     await _secureSocket.close();
-  }, timeout: Timeout(Duration(minutes: 1)));
+    expect(response.startsWith('data:'), true);
+  });
 }

@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
@@ -80,48 +81,96 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  Future<List<EnrollNamespace>> getEnrollmentNamespaces(
-      String enrollmentId, String currentAtSign) async {
-    final key = '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    var enrollData;
+  /// Fetch for an enrollment key in the keystore.
+  /// If key is available returns [EnrollDataStoreValue],
+  /// else throws [KeyNotFoundException]
+  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
+      String enrollmentKey) async {
     try {
-      enrollData = await keyStore.get('$key$currentAtSign');
+      AtData enrollData = await keyStore.get(enrollmentKey);
+      EnrollDataStoreValue enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+      if (!SecondaryUtil.isActiveKey(enrollData) &&
+          enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
+        enrollDataStoreValue.approval?.state = EnrollStatus.expired.name;
+      }
+      return enrollDataStoreValue;
     } on KeyNotFoundException {
-      logger.warning('enrollment key not found in keystore $key');
-      return [];
+      logger.severe('$enrollmentKey does not exist in the keystore');
+      rethrow;
     }
-    if (enrollData != null) {
-      final atData = enrollData.data;
-
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData));
-      logger.finer('scan namespaces: ${enrollDataStoreValue.namespaces}');
-      return enrollDataStoreValue.namespaces;
-    }
-    return [];
   }
 
-  Future<bool> isAuthorized(
-      String enrollApprovalId, String keyNamespace) async {
-    final enrollNamespaces = await getEnrollmentNamespaces(
-        enrollApprovalId, AtSecondaryServerImpl.getInstance().currentAtSign);
+  /// Verifies whether the enrollment namespace for the enrollment
+  /// ID has the necessary permissions to modify, delete, or retrieve the data.
+  /// The enrollment should be in an approved state.
+  ///
+  /// To execute a data retrieval (lookup or local lookup), the namespace must have
+  /// "r" (read) privileges within the namespace.
+  /// For update or delete actions, the namespace must have "rw" (read-write) privileges.
+  ///
+  /// Returns true, if the namespace has the required read or read-write
+  /// permissions to execute lookup/local-lookup or update/delete operations
+  /// respectively
+  ///
+  /// Returns false
+  ///  - If the enrollment key is not present in the keystore.
+  ///  - If the enrollment is not in "approved" state
+  ///  - If the namespace does not have necessary permissions to perform the operation
+  ///  - If enrollment is a part of "global" or "manage" namespace
+  Future<bool> isAuthorized(String enrollmentId, String keyNamespace) async {
+    try {
+      final enrollmentKey =
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+      final fullKey =
+          '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
-    logger.finer(
-        'keyNamespace: $keyNamespace enrollNamespaces: $enrollNamespaces');
-    for (EnrollNamespace namespace in enrollNamespaces) {
-      if (namespace.name == keyNamespace) {
-        logger.finer('current verb: ${getVerb()}');
-        if (getVerb() is LocalLookup || getVerb() is Lookup) {
-          if (namespace.access == 'r' || namespace.access == 'rw') {
-            return true;
-          }
-        } else if (getVerb() is Update || getVerb() is Delete) {
-          if (namespace.access == 'rw') {
-            return true;
-          }
+      final enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
+
+      if (enrollDataStoreValue.approval?.state != EnrollStatus.approved.name) {
+        return false;
+      }
+
+      final enrollNamespaces = enrollDataStoreValue.namespaces;
+      logger.finer('enrollNamespaces:$enrollNamespaces');
+      logger.finer('keyNamespace:$keyNamespace');
+      final access = enrollNamespaces.containsKey(allNamespaces)
+          ? enrollNamespaces[allNamespaces]
+          : enrollNamespaces[keyNamespace];
+      logger.finer('access:$access');
+      if (keyNamespace != enrollManageNamespace && access != null) {
+        final verb = getVerb();
+        if ((verb is LocalLookup || verb is Lookup) &&
+            (access == 'r' || access == 'rw')) {
+          return true;
+        } else if ((verb is Update || verb is Delete) && access == 'rw') {
+          return true;
         }
       }
+      return false;
+    } on KeyNotFoundException {
+      return false;
     }
-    return false;
+  }
+
+
+  /// This function checks the validity of a provided OTP.
+  /// It returns true if the OTP is valid; otherwise, it returns false.
+  /// If the OTP is not found in the keystore, it also returns false.
+  ///
+  /// Additionally, this function removes the OTP from the keystore to prevent its reuse.
+  Future<bool> isOTPValid(String? otp) async {
+    if (otp == null) {
+      return false;
+    }
+    String otpKey =
+        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    AtData otpAtData;
+    try {
+      otpAtData = await keyStore.get(otpKey);
+    } on KeyNotFoundException {
+      return false;
+    }
+    return SecondaryUtil.isActiveKey(otpAtData);
   }
 }

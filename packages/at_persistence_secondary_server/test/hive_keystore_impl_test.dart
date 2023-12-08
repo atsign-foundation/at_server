@@ -238,7 +238,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      final result = await keyStore.put(AT_PKAM_PRIVATE_KEY, atData);
+      final result = await keyStore.put(AtConstants.atPkamPrivateKey, atData);
       expect(result, isA<int>());
     });
 

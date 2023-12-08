@@ -43,6 +43,7 @@ class MockSecureSocket extends Mock implements SecureSocket {}
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 String alice = '@alice';
+String aliceEmoji = '@alice🛠';
 String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -113,7 +114,7 @@ verbTestsSetUp() async {
   registerFallbackValue(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder,
+      mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -121,7 +122,7 @@ verbTestsSetUp() async {
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      secondaryAddressFinder: mockSecondaryAddressFinder,
+      mockSecondaryAddressFinder,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -219,7 +220,7 @@ verbTestsSetUp() async {
       .thenAnswer((invocation) {});
 }
 
-verbTestsTearDown() async {
+Future<void> verbTestsTearDown() async {
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory(storageDir).exists();
@@ -233,6 +234,11 @@ final Random testUtilsRandom = Random();
 Map decodeResponse(String sentToClient) {
   return jsonDecode(
       sentToClient.substring('data:'.length, sentToClient.indexOf('\n')));
+}
+
+List decodeResponseAsList(String serverResponse) {
+  return List<String>.from(jsonDecode(
+      serverResponse.substring('data:'.length, serverResponse.indexOf('\n'))));
 }
 
 Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
@@ -344,6 +350,7 @@ bool createRandomBoolean() {
 
 const String characters =
     '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+
 String createRandomString(int length) {
   return String.fromCharCodes(Iterable.generate(
       length,
