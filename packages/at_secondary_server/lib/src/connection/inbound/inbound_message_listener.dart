@@ -133,13 +133,13 @@ class InboundMessageListener {
       }
     } catch (e, st) {
       _buffer.clear();
-      logger.severe('exception in message handler:$e - stack trace: $st');
+      logger.severe('_messageHandler:$e - stack trace: $st');
     }
   }
 
   /// Logs the error and closes the [InboundConnection]
   Future<void> _errorHandler(error) async {
-    logger.severe(error.toString());
+    logger.severe('_errorHandler: $error');
     await _closeConnection();
   }
 

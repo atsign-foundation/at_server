@@ -364,15 +364,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtCompactionConfig atCompactionConfig,
       int newFrequency,
       AtLogType atLogType) async {
-    if (AtSecondaryConfig.testingMode) {
-      logger.finest(
-          'Received new frequency for $atLogType compaction: $newFrequency');
-      await atCompactionJob.stopCompactionJob();
-      logger.finest('Existing cron job of $atLogType compaction terminated');
-      atCompactionConfig.compactionFrequencyInMins = newFrequency;
-      atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-      logger.finest('New compaction cron job started for $atLogType');
-    }
+    logger.finest(
+        'Received new frequency for $atLogType compaction: $newFrequency');
+    await atCompactionJob.stopCompactionJob();
+    logger.finest('Existing cron job of $atLogType compaction terminated');
+    atCompactionConfig.compactionFrequencyInMins = newFrequency;
+    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
+    logger.finest('New compaction cron job started for $atLogType');
   }
 
   Future<void> initTelemetry() async {
@@ -406,88 +404,86 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> initDynamicConfigListeners() async {
-    // The following configs require testingMode to be enabled in order to be changed
     if (AtSecondaryConfig.testingMode) {
       logger.warning(
           'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
-
-      //subscriber for inbound_max_limit change
-      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
-          ?.listen((newSize) {
-        inboundConnectionFactory.init(newSize, isColdInit: false);
-        logger.finest(
-            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
-      });
-
-      //subscriber for notification keystore compaction freq change
-      logger.finest(
-          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(
-            notificationKeyStoreCompactionJobInstance,
-            atNotificationCompactionConfig,
-            newFrequency,
-            AtNotificationKeystore.getInstance());
-      });
-
-      //subscriber for access log compaction frequency change
-      logger.finest(
-          'Subscribing to dynamic changes made to accessLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.accessLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(accessLogCompactionJobInstance,
-            atAccessLogCompactionConfig, newFrequency, _accessLog);
-      });
-
-      //subscriber for commit log compaction frequency change
-      logger.finest(
-          'Subscribing to dynamic changes made to commitLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.commitLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(commitLogCompactionJobInstance,
-            atCommitLogCompactionConfig, newFrequency, _commitLog);
-      });
-
-      //subscriber for autoNotify state change
-      logger.finest('Subscribing to dynamic changes made to autoNotify');
-      late bool autoNotifyState;
-      AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
-          ?.listen((newValue) {
-        //parse bool from string
-        if (newValue.toString() == 'true') {
-          autoNotifyState = true;
-        } else if (newValue.toString() == 'false') {
-          autoNotifyState = false;
-        }
-        logger.finest(
-            'Received new value for config \'autoNotify\': $autoNotifyState');
-        AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
-        DeleteVerbHandler.setAutoNotify(autoNotifyState);
-      });
-
-      //subscriber for maxNotificationRetries count change
-      logger.finest('Subscribing to dynamic changes made to max_retries');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
-          ?.listen((newCount) {
-        logger.finest(
-            'Received new value for config \'maxNotificationRetries\': $newCount');
-        notificationResourceManager.setMaxRetries(newCount);
-        QueueManager.getInstance().setMaxRetries(newCount);
-      });
-
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
-        AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
-      });
-
-      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
-        AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
-      });
     }
+    //subscriber for inbound_max_limit change
+    logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
+    AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
+        ?.listen((newSize) {
+      inboundConnectionFactory.init(newSize, isColdInit: false);
+      logger.finest(
+          'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
+    });
+
+    //subscriber for notification keystore compaction freq change
+    logger.finest(
+        'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+    AtSecondaryConfig.subscribe(
+        ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(
+          notificationKeyStoreCompactionJobInstance,
+          atNotificationCompactionConfig,
+          newFrequency,
+          AtNotificationKeystore.getInstance());
+    });
+
+    //subscriber for access log compaction frequency change
+    logger.finest(
+        'Subscribing to dynamic changes made to accessLogCompactionFreq');
+    AtSecondaryConfig.subscribe(
+        ModifiableConfigs.accessLogCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(accessLogCompactionJobInstance,
+          atAccessLogCompactionConfig, newFrequency, _accessLog);
+    });
+
+    //subscriber for commit log compaction frequency change
+    logger.finest(
+        'Subscribing to dynamic changes made to commitLogCompactionFreq');
+    AtSecondaryConfig.subscribe(
+        ModifiableConfigs.commitLogCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(commitLogCompactionJobInstance,
+          atCommitLogCompactionConfig, newFrequency, _commitLog);
+    });
+
+    //subscriber for autoNotify state change
+    logger.finest('Subscribing to dynamic changes made to autoNotify');
+    late bool autoNotifyState;
+    AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
+        ?.listen((newValue) {
+      //parse bool from string
+      if (newValue.toString() == 'true') {
+        autoNotifyState = true;
+      } else if (newValue.toString() == 'false') {
+        autoNotifyState = false;
+      }
+      logger.finest(
+          'Received new value for config \'autoNotify\': $autoNotifyState');
+      AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
+      DeleteVerbHandler.setAutoNotify(autoNotifyState);
+    });
+
+    //subscriber for maxNotificationRetries count change
+    logger.finest('Subscribing to dynamic changes made to max_retries');
+    AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
+        ?.listen((newCount) {
+      logger.finest(
+          'Received new value for config \'maxNotificationRetries\': $newCount');
+      notificationResourceManager.setMaxRetries(newCount);
+      QueueManager.getInstance().setMaxRetries(newCount);
+    });
+
+    AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
+      AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
+    });
+
+    AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
+      AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
+    });
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket

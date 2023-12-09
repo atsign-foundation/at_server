@@ -790,7 +790,7 @@ class AtSecondaryConfig {
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (testingMode) {
+    if (testingMode || !configName.requireTestingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<dynamic>.broadcast()
@@ -805,7 +805,7 @@ class AtSecondaryConfig {
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    if (testingMode) {
+    if (testingMode || !configName.requireTestingMode) {
       //if an entry for the config does not exist new entry is created
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
@@ -947,8 +947,9 @@ enum ModifiableConfigs {
   shouldReloadCertificates(requireTestingMode: true, isInt: false),
   doCacheRefreshNow(requireTestingMode: true, isInt: false),
   telemetryEventWebHook(requireTestingMode: false, isInt: false),
-  maxRequestsPerTimeFrame,
-  timeFrameInMills;
+  maxRequestsPerTimeFrame(requireTestingMode: false, isInt: true),
+  timeFrameInMills(requireTestingMode: false, isInt: true),
+  ;
 
   final bool requireTestingMode;
   final bool isInt;
@@ -963,5 +964,5 @@ class ModifiableConfigurationEntry {
 }
 
 class ElementNotFoundException extends AtException {
-  ElementNotFoundException(message) : super(message);
+  ElementNotFoundException(super.message);
 }
