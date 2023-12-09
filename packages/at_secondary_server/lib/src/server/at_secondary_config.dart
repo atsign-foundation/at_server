@@ -105,6 +105,9 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
+  // Telemetry web hook
+  static final String defaultTelemetryEventWebHook = '';
+
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
   static final Set<String> _protectedKeys = {
@@ -712,6 +715,17 @@ class AtSecondaryConfig {
     }
   }
 
+  static String get telemetryEventWebHook {
+    if (_envVars.containsKey('telemetryEventWebHook')) {
+      return _envVars['telemetryEventWebHook']!;
+    }
+    try {
+      return getConfigFromYaml(['telemetry', 'eventWebHook']);
+    } on ElementNotFoundException {
+      return defaultTelemetryEventWebHook;
+    }
+  }
+
   static Set<String> get protectedKeys {
     try {
       YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
@@ -776,7 +790,7 @@ class AtSecondaryConfig {
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (testingMode) {
+    if (testingMode || !configName.requireTestingMode) {
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
           ..streamController = StreamController<dynamic>.broadcast()
@@ -791,7 +805,7 @@ class AtSecondaryConfig {
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    if (testingMode) {
+    if (testingMode || !configName.requireTestingMode) {
       //if an entry for the config does not exist new entry is created
       if (!_streamListeners.containsKey(configName)) {
         _streamListeners[configName] = ModifiableConfigurationEntry()
@@ -844,6 +858,8 @@ class AtSecondaryConfig {
         return false;
       case ModifiableConfigs.doCacheRefreshNow:
         return false;
+      case ModifiableConfigs.telemetryEventWebHook:
+        return telemetryEventWebHook;
       case ModifiableConfigs.maxRequestsPerTimeFrame:
         return maxEnrollRequestsAllowed;
       case ModifiableConfigs.timeFrameInMills:
@@ -920,17 +936,25 @@ String? getStringValueFromYaml(List<String> keyParts) {
 }
 
 enum ModifiableConfigs {
-  inboundMaxLimit,
-  commitLogCompactionFrequencyMins,
-  accessLogCompactionFrequencyMins,
-  notificationKeyStoreCompactionFrequencyMins,
-  autoNotify,
-  maxNotificationRetries,
-  checkCertificateReload,
-  shouldReloadCertificates,
-  doCacheRefreshNow,
-  maxRequestsPerTimeFrame,
-  timeFrameInMills
+  inboundMaxLimit(requireTestingMode: true, isInt: true),
+  commitLogCompactionFrequencyMins(requireTestingMode: true, isInt: true),
+  accessLogCompactionFrequencyMins(requireTestingMode: true, isInt: true),
+  notificationKeyStoreCompactionFrequencyMins(
+      requireTestingMode: true, isInt: true),
+  autoNotify(requireTestingMode: true, isInt: false),
+  maxNotificationRetries(requireTestingMode: true, isInt: true),
+  checkCertificateReload(requireTestingMode: true, isInt: false),
+  shouldReloadCertificates(requireTestingMode: true, isInt: false),
+  doCacheRefreshNow(requireTestingMode: true, isInt: false),
+  telemetryEventWebHook(requireTestingMode: false, isInt: false),
+  maxRequestsPerTimeFrame(requireTestingMode: false, isInt: true),
+  timeFrameInMills(requireTestingMode: false, isInt: true),
+  ;
+
+  final bool requireTestingMode;
+  final bool isInt;
+  const ModifiableConfigs(
+      {required this.requireTestingMode, required this.isInt});
 }
 
 class ModifiableConfigurationEntry {
@@ -940,5 +964,5 @@ class ModifiableConfigurationEntry {
 }
 
 class ElementNotFoundException extends AtException {
-  ElementNotFoundException(message) : super(message);
+  ElementNotFoundException(super.message);
 }

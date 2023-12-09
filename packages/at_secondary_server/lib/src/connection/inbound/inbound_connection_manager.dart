@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:uuid/uuid.dart';
 import 'package:at_commons/at_commons.dart';
@@ -29,7 +30,8 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
-  InboundConnection createConnection(Socket? socket, {String? sessionId}) {
+  InboundConnection createConnection(Socket? socket,
+      {String? sessionId, AtServerTelemetryService? telemetry}) {
     if (!_isInitialized) {
       init(defaultPoolSize);
     }
@@ -38,8 +40,8 @@ class InboundConnectionManager implements AtConnectionFactory {
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
-    var atConnection =
-        InboundConnectionImpl(socket, sessionId, owningPool: _pool);
+    var atConnection = InboundConnectionImpl(socket, sessionId,
+        owningPool: _pool, telemetry: telemetry);
     _pool.add(atConnection);
     true;
     return atConnection;

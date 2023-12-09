@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dar
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
@@ -43,6 +44,7 @@ class InboundConnectionImpl extends BaseConnection
 
   late double lowWaterMarkRatio;
   late bool progressivelyReduceAllowableInboundIdleTime;
+  AtServerTelemetryService? telemetry;
 
   /// The maximum number of requests allowed within the specified time frame.
   @override
@@ -55,7 +57,8 @@ class InboundConnectionImpl extends BaseConnection
   /// A list of timestamps representing the times when requests were made.
   late final Queue<int> requestTimestampQueue;
 
-  InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool})
+  InboundConnectionImpl(Socket? socket, String? sessionId,
+      {this.owningPool, this.telemetry})
       : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
@@ -203,7 +206,7 @@ class InboundConnectionImpl extends BaseConnection
   @override
   void acceptRequests(Function(String, InboundConnection) callback,
       Function(List<int>, InboundConnection) streamCallBack) {
-    var listener = InboundMessageListener(this);
+    var listener = InboundMessageListener(this, telemetry: telemetry);
     listener.listen(callback, streamCallBack);
   }
 
@@ -230,6 +233,10 @@ class InboundConnectionImpl extends BaseConnection
       logger.finer(logger.getAtConnectionLogMessage(
           getMetaData(), '$address:$port Disconnected'));
       getMetaData().isClosed = true;
+      telemetry?.interaction(
+          eventType: AtServerTelemetryEventType.disconnect,
+          from: client,
+          to: server);
     } on Exception {
       getMetaData().isStale = true;
       // Ignore exception on a connection close
@@ -239,6 +246,30 @@ class InboundConnectionImpl extends BaseConnection
     }
   }
 
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign!;
+
+  InboundConnectionMetadata? get inboundMetadata {
+    if (metaData is InboundConnectionMetadata) {
+      return metaData as InboundConnectionMetadata;
+    } else {
+      return null;
+    }
+  }
+
+  String get client {
+    if (inboundMetadata!.from == true) {
+      return '${inboundMetadata!.fromAtSign!}:server';
+    } else {
+      return '$serverAtSign:client:${inboundMetadata?.sessionID?.hashCode}';
+    }
+  }
+
+  String? _server;
+  String get server {
+    _server ??= '$serverAtSign:server';
+    return _server!;
+  }
+
   @override
   void write(String data) {
     super.write(data);
@@ -246,6 +277,14 @@ class InboundConnectionImpl extends BaseConnection
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
     }
+    if (data == '@') {
+      // response to initial connection
+      return;
+    }
+    AtServerTelemetryEventType eventType = data.startsWith('error:')
+        ? AtServerTelemetryEventType.errorResponse
+        : AtServerTelemetryEventType.response;
+    telemetry?.interaction(eventType: eventType, from: server, to: client);
   }
 
   @override
