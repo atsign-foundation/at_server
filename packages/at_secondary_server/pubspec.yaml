@@ -17,10 +17,10 @@ dependencies:
   crypton: 2.2.1
   collection: 1.18.0
   basic_utils: 5.7.0
-  ecdsa: 0.0.4
+  ecdsa: 0.1.0
   encrypt: 5.0.3
   at_commons: 3.0.57
-  at_utils: 3.0.15
+  at_utils: 3.0.16
   at_chops: 1.0.6
   at_lookup: 3.0.41
   at_server_spec: 3.0.15
@@ -36,20 +36,18 @@ dependencies:
 
 dependency_overrides:
   at_persistence_secondary_server:
-    git:
-      url: https://github.com/atsign-foundation/at_server.git
-      path: packages/at_persistence_secondary_server
-      ref: uptake_commons_4.0.0
+    path: ../at_persistence_secondary_server
   at_lookup:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
       path: packages/at_lookup
-      ref: srk_commons_changes
-  at_commons:
+      ref: uptake_commons_changes_into_lookup
+  at_commons: ^4.0.0
+  at_chops:
     git:
       url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_commons
-      ref: srk_commons_changes
+      path: packages/at_chops
+      ref: at_chops_dep_upgrade
 
 dev_dependencies:
   test: ^1.24.4
