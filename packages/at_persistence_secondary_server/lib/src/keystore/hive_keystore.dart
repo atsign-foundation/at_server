@@ -351,7 +351,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
       for (String element in expiredKeys) {
         try {
-          await remove(element);
+          // delete entries for expired keys will not be added to the commitLog
+          // and will be handled on the client side
+          await remove(element, skipCommit: true);
         } on KeyNotFoundException {
           continue;
         }
