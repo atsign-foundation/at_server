@@ -104,7 +104,10 @@ void main() {
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
-    tearDown(() async => await verbTestsTearDown());
+    tearDown(() async {
+      await verbTestsTearDown();
+      AtNotificationCallback.getInstance().callbackMethods.clear();
+    });
   });
 
   group(
@@ -415,7 +418,10 @@ void main() {
       await monitorVerbHandler.processAtNotification(atNotification);
       expect(inboundConnection.lastWrittenData, isEmpty);
     });
-    tearDown(() async => await verbTestsTearDown());
+    tearDown(() async {
+      await verbTestsTearDown();
+      AtNotificationCallback.getInstance().callbackMethods.clear();
+    });
   });
 
   group('A group of tests to verify exceptions thrown by monitor verb', () {
@@ -497,7 +503,120 @@ void main() {
               e.message ==
                   'Invalid regular expression. ${verbParams[AT_REGEX]} is not a valid regex')));
     });
-    tearDown(() async => await verbTestsTearDown());
+    tearDown(() async {
+      await verbTestsTearDown();
+      AtNotificationCallback.getInstance().callbackMethods.clear();
+    });
+  });
+
+  group('A test to verify invocation of callback methods', () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify self notification is written to monitor connection invoking callback method',
+        () async {
+      HashMap<String, String?> verbParams = HashMap<String, String?>();
+      verbParams[MONITOR_SELF_NOTIFICATIONS] = 'selfNotifications';
+      inboundConnection.getMetaData().isAuthenticated = true;
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.self
+            ..opType = OperationType.update
+            ..messageType = MessageType.key)
+          .build();
+      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
+      await AtNotificationCallback.getInstance()
+          .invokeCallbacks(atNotification);
+
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['id'], 'abc');
+      expect(notificationMap['from'], '@bob');
+      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['messageType'], 'MessageType.key');
+      expect(notificationMap['operation'], 'update');
+    });
+
+    test(
+        'A test to verify received notification is written to monitor connection invoking callback method',
+        () async {
+      HashMap<String, String?> verbParams = HashMap<String, String?>();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key)
+          .build();
+      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
+      await AtNotificationCallback.getInstance()
+          .invokeCallbacks(atNotification);
+
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['id'], 'abc');
+      expect(notificationMap['from'], '@bob');
+      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['messageType'], 'MessageType.key');
+      expect(notificationMap['operation'], 'update');
+    });
+
+    test(
+        'A test to verify sent notification is not written to monitor connection',
+        () async {
+      HashMap<String, String?> verbParams = HashMap<String, String?>();
+      inboundConnection.getMetaData().isAuthenticated = true;
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.sent
+            ..opType = OperationType.update
+            ..messageType = MessageType.key)
+          .build();
+      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
+      await AtNotificationCallback.getInstance()
+          .invokeCallbacks(atNotification);
+      expect(inboundConnection.lastWrittenData, null);
+    });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+      AtNotificationCallback.getInstance().callbackMethods.clear();
+    });
   });
 }
 
