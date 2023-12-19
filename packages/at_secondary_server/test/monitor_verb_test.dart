@@ -518,7 +518,7 @@ void main() {
         'A test to verify self notification is written to monitor connection invoking callback method',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[MONITOR_SELF_NOTIFICATIONS] = 'selfNotifications';
+      verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
