@@ -2,18 +2,19 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   String atsign = '@test_user_1';
-  var keyStore;
+  HiveKeystore? keyStore;
 
   group('test scenarios for expired keys', () {
     setUp(() async {
       var keyStoreManager = await getKeystoreManager(storageDir, atsign);
-      keyStore = keyStoreManager.getKeyStore();
+      keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
       assert(keyStore != null);
     });
 
@@ -25,13 +26,11 @@ void main() async {
       print(atDataResponse?.data);
       assert(atDataResponse?.data == 'abc');
       stdout.writeln('Sleeping for 1min10s');
-      var expiredKeyData = await Future.delayed(
-          Duration(minutes: 1, seconds: 10), () => getKey(keyStore, key));
+      await Future.delayed(Duration(minutes: 1, seconds: 10));
       expect(
-          () async => expiredKeyData,
+          () async => getKey(keyStore, key),
           throwsA(predicate((e) =>
               e.toString().contains('123$atsign does not exist in keystore'))));
-      print(expiredKeyData);
     }, timeout: Timeout(Duration(minutes: 2)));
 
     test('ensure expired keys deletion entry is not added to commitLog',
@@ -40,16 +39,17 @@ void main() async {
       var atData = AtData()..data = 'randomDataString';
       await keyStore?.put(key, atData, time_to_live: 2000);
       // ensure key is inserted
-      expect((await keyStore.get(key)).data, atData.data);
+      expect((await keyStore?.get(key))?.data, atData.data);
+
       await Future.delayed(Duration(seconds: 4));
       await keyStore?.deleteExpiredKeys();
       // ensure that the key is expired
       expect(
-          () async => await keyStore.get(key),
+          () async => await keyStore?.get(key),
           throwsA(predicate((e) => e.toString().contains(
               'no_commit_log_test@test_user_1 does not exist in keystore'))));
 
-      expect(keyStore?.commitLog.getSize(), 1); //commitLog has 1 entries; indicating that
+      expect(keyStore?.commitLog?.entriesCount(), 1); //commitLog has 1 entries; indicating that
       // deletion of expired keys has NOT been added to the commitLog
     });
 
@@ -59,24 +59,27 @@ void main() async {
       // -----------------insert key 1 that expires in 100ms
       String key1 = 'no_commit_1$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      int seqNum = await keyStore?.put(key1, atData, time_to_live: 100);
+      int? seqNum = await keyStore?.put(key1, atData, time_to_live: 100);
+      print(seqNum);
       await Future.delayed(Duration(seconds: 1));
       await keyStore?.deleteExpiredKeys();
       // ensure that the key is expired
       expect(
-          () async => await keyStore.get(key1),
+          () async => await keyStore?.get(key1),
           throwsA(predicate((p0) => p0 is KeyNotFoundException)));
       // ------------------insert key2 that is manually deleted
       String key2 = 'no_commit_2$atsign';
       atData = AtData()..data = 'randomDataString2';
       seqNum = await keyStore?.put(key2, atData);
+      print(seqNum);
       seqNum = await keyStore?.remove(key2);
-      // ensure that the key does not exist in keystore
+      // ensure that the second key does not exist in keystore
       expect(
-          () async => await keyStore.get(key2),
-          throwsA(predicate((p0) => p0 is KeyNotFoundException)));
+          () async => await keyStore?.get(key2),
+          throwsA(predicate((e) => e is KeyNotFoundException)));
 
-      expect(keyStore?.commitLog.getSize(), 1); //commitLog has 1 entry; indicating that
+      listCommitEntries((await AtCommitLogManagerImpl.getInstance().getCommitLog(atsign,commitLogPath: storageDir, enableCommitId: true))!.getEntries(0));
+      expect(keyStore?.commitLog?.entriesCount(), 2); //commitLog has 2 entry; indicating that
       // deletion of expired keys has NOT been added to the commitLog but the manual
           // delete operation added a commit to the commitLog
     });
@@ -96,17 +99,20 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign) async {
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
   manager.scheduleKeyExpireTask(1);
-
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var commitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atsign, commitLogPath: storageDir, enableCommitId: true);
-  // await commitLogKeyStore.init(storageDir);
-  // await commitLogKeyStore.initialize();
   keyStore.commitLog = commitLog;
   keyStoreManager.keyStore = keyStore;
   return keyStoreManager;
+}
+
+void listCommitEntries(Iterator<MapEntry<String, CommitEntry>> commitLogIterator){
+  while(commitLogIterator.moveNext()) {
+    print(commitLogIterator.current);
+  }
 }
 
 Future<void> tearDownFunc() async {

@@ -115,7 +115,7 @@ class AtNotificationKeystore
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         await Future.forEach(expiredKeys, (expiredKey) async {
-          // Delete entries will not be added to commitLog
+          // Delete entries for expired keys will not be added to commitLog
           await remove(expiredKey, skipCommit: true);
         });
       } else {
