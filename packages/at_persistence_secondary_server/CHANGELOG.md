@@ -1,3 +1,5 @@
+## 3.0.60
+_ feat: delete entries for expired keys are not committed to the commitLog
 ## 3.0.59
 - fix: When checking namespace authorization, gracefully handle any malformed 
   keys which happen to be in the commit log for historical reasons
