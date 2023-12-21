@@ -78,7 +78,6 @@ void main() async {
           () async => await keyStore?.get(key2),
           throwsA(predicate((e) => e is KeyNotFoundException)));
 
-      listCommitEntries((await AtCommitLogManagerImpl.getInstance().getCommitLog(atsign,commitLogPath: storageDir, enableCommitId: true))!.getEntries(0));
       expect(keyStore?.commitLog?.entriesCount(), 2); //commitLog has 2 entry; indicating that
       // deletion of expired keys has NOT been added to the commitLog but the manual
           // delete operation added a commit to the commitLog
@@ -107,12 +106,6 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign) async {
   keyStore.commitLog = commitLog;
   keyStoreManager.keyStore = keyStore;
   return keyStoreManager;
-}
-
-void listCommitEntries(Iterator<MapEntry<String, CommitEntry>> commitLogIterator){
-  while(commitLogIterator.moveNext()) {
-    print(commitLogIterator.current);
-  }
 }
 
 Future<void> tearDownFunc() async {
