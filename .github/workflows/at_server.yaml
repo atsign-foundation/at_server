@@ -239,7 +239,7 @@ jobs:
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
-        uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
+        uses: appleboy/ssh-action@8f949198563a347a01c65ffc60399aef2b59d4ab # v1.0.1
         with:
           host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
           username: ubuntu
