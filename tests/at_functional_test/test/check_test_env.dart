@@ -13,7 +13,7 @@ void main() {
 
   String response = '';
 
-  test('checking for test environment readiness', () async {
+  test('Checking for test environment readiness', () async {
     _secureSocket = await SecureSocket.connect(rootServer, atsignPort);
     _secureSocket.listen((data) async {
       response = utf8.decode(data);
@@ -27,7 +27,13 @@ void main() {
         _secureSocket.write('lookup:pkaminstalled$atsign\n');
         return;
       }
+      if(retryCount >= maxRetryCount){
+        _secureSocket.close();
+      }
       expect(response.startsWith('data:yes'), true);
+      if (response.startsWith('data:yes')) {
+        await _secureSocket.close();
+      }
     });
     _secureSocket.write('lookup:pkaminstalled$atsign\n');
   });

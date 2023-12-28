@@ -155,7 +155,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25019:25000-25019 -p 64:64 at_virtual_env:trunk
 
       - name: Check docker readiness to load PKAM keys
         working-directory: ${{ env.ftest-working-directory }}
