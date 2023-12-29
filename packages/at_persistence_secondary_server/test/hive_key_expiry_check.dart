@@ -21,12 +21,12 @@ void main() async {
     test('fetch expired key returns throws exception', () async {
       String key = '123$atsign';
       var atData = AtData()..data = 'abc';
-      await keyStore?.put(key, atData, time_to_live: 10 * 1000);
+      await keyStore?.put(key, atData, time_to_live: 5 * 1000);
       var atDataResponse = await keyStore?.get(key);
       print(atDataResponse?.data);
       assert(atDataResponse?.data == 'abc');
-      stdout.writeln('Sleeping for 1min10s');
-      await Future.delayed(Duration(minutes: 1, seconds: 10));
+      stdout.writeln('Sleeping for 23s');
+      await Future.delayed(Duration(seconds: 23));
       expect(
           () async => getKey(keyStore, key),
           throwsA(predicate((e) =>
@@ -97,7 +97,7 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign) async {
       .getSecondaryPersistenceStore(atsign)!;
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
-  manager.scheduleKeyExpireTask(1);
+  manager.scheduleKeyExpireTask(null, runTimeInterval: Duration(seconds: 10));
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
