@@ -113,9 +113,15 @@ class HivePersistenceManager with HiveBase {
   }
 
   //TODO change into to Duration and construct cron string dynamically
-  void scheduleKeyExpireTask(int runFrequencyMins) {
+  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval}) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
-    _cron.schedule(Schedule.parse('*/$runFrequencyMins * * * *'), () async {
+    Schedule schedule;
+    if(runTimeInterval != null){
+      schedule = Schedule(seconds: runTimeInterval.inSeconds);
+    } else {
+      schedule = Schedule.parse('*/$runFrequencyMins * * * *');
+    }
+    _cron.schedule(schedule, () async {
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)!
