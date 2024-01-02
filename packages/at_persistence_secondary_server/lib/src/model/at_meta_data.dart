@@ -90,8 +90,8 @@ class AtMetaData extends HiveObject {
       ..ttb = ttb
       ..ttr = ttr
       ..ccd = isCascade
-      ..isBinary = isBinary
-      ..isEncrypted = isEncrypted
+      ..isBinary = (isBinary == null) ? false : isBinary!
+      ..isEncrypted = (isEncrypted == null) ? false : isEncrypted!
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
