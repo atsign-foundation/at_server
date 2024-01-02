@@ -1,3 +1,7 @@
+## 3.0.60
+- build[deps]: Upgraded the following packages:
+    - at_commons to v4.0.0
+    - at_utils to v3.0.16
 ## 3.0.59
 - fix: When checking namespace authorization, gracefully handle any malformed 
   keys which happen to be in the commit log for historical reasons
