@@ -1,3 +1,5 @@
+## 3.0.16
+- build[deps]- upgraded at_commons to v4.0.0
 ## 3.0.15
 - feat: Introduce AtRateLimiter to limit the requests based on the criteria defined
 - fix: Modify InboundConnection to implement AtRateLimiter to limit requests

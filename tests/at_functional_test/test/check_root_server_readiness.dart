@@ -17,7 +17,7 @@ void main() {
 
   bool isRootServerStarted = false;
 
-  test('checking for root server readiness', () async {
+  test('Checking for root server readiness', () async {
     while (retryCount < maxRetryCount) {
       try {
         _secureSocket = await SecureSocket.connect(rootServer, rootServerPort,

@@ -1,46 +1,44 @@
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
-import 'functional_test_commons.dart';
-import 'dart:io';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-
-  Socket? socketFirstAtsign;
-
-  var firstAtsignServer =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-  var firstAtsignPort =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+  setUp(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+  });
 
   test('authenticate and verify the time taken', () async {
     var timeBeforeAuth = DateTime.now().millisecondsSinceEpoch;
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+    await firstAtSignConnection.authenticateConnection();
     var timeAfterAuth = DateTime.now().millisecondsSinceEpoch;
-    timeDifference(timeBeforeAuth, timeAfterAuth);
+    Duration timeDifferenceValue =
+        timeDifference(timeBeforeAuth, timeAfterAuth);
+    expect(timeDifferenceValue.inMilliseconds <= 1500, true);
   });
 
   test('authenticate multiple times', () async {
-    int noOfTests =10;
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    for(int i=1; i <=noOfTests; i++){
-      await prepare(socketFirstAtsign!, firstAtsign);
-    }    
+    int noOfTests = 10;
+    for (int i = 1; i <= noOfTests; i++) {
+      await firstAtSignConnection.authenticateConnection();
+    }
   });
 
-
+  tearDown(() {
+    firstAtSignConnection.close();
+  });
 }
 
-Future<void> timeDifference(var beforeCommand, var afterCommand) async {
+Duration timeDifference(var beforeCommand, var afterCommand) {
   var timeDifferenceValue = DateTime.fromMillisecondsSinceEpoch(afterCommand)
       .difference(DateTime.fromMillisecondsSinceEpoch(beforeCommand));
-  // expect(timeDifferenceValue.inMilliseconds <= 1500, true);
-  print('time difference is $timeDifferenceValue');
+  return timeDifferenceValue;
 }

@@ -1,5 +1,8 @@
 ## 3.0.60
-_ feat: delete entries for expired keys are not committed to the commitLog
+- feat: delete entries for expired keys are not committed to the commitLog [feature not enabled yet]
+- build[deps]: Upgraded the following packages:
+    - at_commons to v4.0.0
+    - at_utils to v3.0.16
 ## 3.0.59
 - fix: When checking namespace authorization, gracefully handle any malformed 
   keys which happen to be in the commit log for historical reasons

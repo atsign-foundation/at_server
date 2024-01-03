@@ -1,55 +1,34 @@
-import 'dart:io';
-
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
 
-import 'functional_test_commons.dart';
-import 'pkam_utils.dart';
-
-Socket? socketConnection1;
-
-var firstAtsignServer =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-var firstAtsignPort =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-Future<void> _connect() async {
-  // socket connection for first atsign
-  socketConnection1 =
-      await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  socket_listener(socketConnection1!);
-}
-
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  //Establish the client socket connection
-  setUp(() async {
-    await _connect();
+  setUpAll(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
   });
 
   test('update a lookup of a public key', () async {
-    await socket_writer(socketConnection1!, 'from:$firstAtsign');
-    var fromResponse = await read();
-    print('from verb response : $fromResponse');
-    fromResponse = fromResponse.replaceAll('data:', '');
-    var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-
-    await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-    var pkamResult = await read();
-    expect(pkamResult, 'data:success\n');
-    var updateKey = 'update:public:twitterid$firstAtsign';
+    var updateKey = 'update:public:twitterid$firstAtSign';
     var updateValue = 'bob-twitter';
-    await socket_writer(socketConnection1!, '$updateKey  $updateValue');
-    var updateResponse = await read();
+    String updateResponse = await firstAtSignConnection
+        .sendRequestToServer('$updateKey  $updateValue');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
 
     // llookup of reference key should display the updareref value
-    await socket_writer(
-        socketConnection1!, 'llookup:public:twitterid$firstAtsign');
-    var llookupResponse = await read();
+    String llookupResponse = await firstAtSignConnection
+        .sendRequestToServer('llookup:public:twitterid$firstAtSign');
     expect(llookupResponse, contains(updateValue));
   });
 
@@ -59,49 +38,38 @@ void main() {
   // 3. llookup of the reference key should display the value of the reference key
   // 4. lookup of the reference key without auth should display the value of the public key
   test('update and lookup of a public reference key', () async {
-    await socket_writer(socketConnection1!, 'from:$firstAtsign');
-    var fromResponse = await read();
-    print('from verb response : $fromResponse');
-    fromResponse = fromResponse.replaceAll('data:', '');
-    var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-    await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-    var pkamResult = await read();
-    expect(pkamResult, 'data:success\n');
-    var updateKey = 'update:public:landline$firstAtsign';
+    var updateKey = 'update:public:landline$firstAtSign';
     var updateValue = '040-27502234';
-    await socket_writer(socketConnection1!, '$updateKey  $updateValue');
-    var updateResponse = await read();
+    String updateResponse = await firstAtSignConnection
+        .sendRequestToServer('$updateKey  $updateValue');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
 
     // update a reference key
-    var updaterefKey = 'update:public:landlineref$firstAtsign';
-    var updaterefValue = 'atsign://landline$firstAtsign';
-    await socket_writer(socketConnection1!, '$updaterefKey  $updaterefValue');
-    updateResponse = await read();
+    var updaterefKey = 'update:public:landlineref$firstAtSign';
+    var updaterefValue = 'atsign://landline$firstAtSign';
+    updateResponse = await firstAtSignConnection
+        .sendRequestToServer('$updaterefKey  $updaterefValue');
     assert((!updateResponse.contains('Invalid syntax')) &&
         (!updateResponse.contains('null')));
 
     // llookup of reference key should display the updareref value
-    await socket_writer(
-        socketConnection1!, 'llookup:public:landlineref$firstAtsign');
-    var llookupResponse = await read();
+    String llookupResponse = await firstAtSignConnection
+        .sendRequestToServer('llookup:public:landlineref$firstAtSign');
     expect(llookupResponse, contains(updaterefValue));
-
-    socketConnection1!.destroy();
+    await firstAtSignConnection.close();
 
     // lookup of reference key should display the updatevalue
     // lookup of reference key without auth
     // looking up from a new socket connection without authentication
-    await _connect();
-    await socket_writer(socketConnection1!, 'lookup:landlineref$firstAtsign');
-    var lookupResponse = await read();
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String lookupResponse = await firstAtSignConnection
+        .sendRequestToServer('lookup:landlineref$firstAtSign');
     expect(lookupResponse, contains(updateValue));
   });
 
-  tearDown(() {
-    //Closing the client socket connection
-    clear();
-    socketConnection1!.destroy();
+  tearDownAll(() async {
+    await firstAtSignConnection.close();
   });
 }

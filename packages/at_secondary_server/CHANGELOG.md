@@ -1,3 +1,5 @@
+## 3.0.38
+- Introduce a new config key to store an atsign's blocklist
 ## 3.0.37
 - fix: In the `SyncProgressiveVerbHandler.prepareResponse` method, gracefully 
   handle any malformed keys which happen to be in the commit log for
