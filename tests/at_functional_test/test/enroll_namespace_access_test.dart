@@ -1,105 +1,65 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:at_functional_test/conf/config_util.dart';
-import 'package:test/test.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
+import 'package:at_demo_data/at_demo_data.dart';
+import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:test/test.dart';
 
-import 'at_demo_data.dart';
-import 'encryption_util.dart';
-import 'functional_test_commons.dart';
-import 'pkam_utils.dart';
-
-Socket? socketConnection1;
-Socket? socketConnection2;
-var firstAtsignServer =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-var firstAtsignPort =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-var aliceDefaultEncKey;
-var aliceSelfEncKey;
-var aliceApkamSymmetricKey;
-var encryptedDefaultEncPrivateKey;
-var encryptedSelfEncKey;
-
-Future<void> _connect() async {
-  // socket connection for first atsign
-  socketConnection1 =
-      await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  socket_listener(socketConnection1!);
-}
-
-Future<void> encryptKeys() async {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  aliceDefaultEncKey = at_demos.encryptionPrivateKeyMap[firstAtsign];
-  aliceSelfEncKey = at_demos.aesKeyMap[firstAtsign];
-  aliceApkamSymmetricKey = at_demos.apkamSymmetricKeyMap[firstAtsign];
-  encryptedDefaultEncPrivateKey =
-      EncryptionUtil.encryptValue(aliceDefaultEncKey!, aliceApkamSymmetricKey!);
-  encryptedSelfEncKey =
-      EncryptionUtil.encryptValue(aliceSelfEncKey!, aliceApkamSymmetricKey);
-}
+import 'package:at_functional_test/utils/encryption_util.dart';
 
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  //Establish the client socket connection
   setUp(() async {
-    await _connect();
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
   });
 
   group('A group of tests to verify apkam enroll namespace access', () {
     //  1. Cram authenticate and send the enroll request for wavi namespace
+    //     - When CRAM authenticated, send PKAM Public key in enrollment request->APKAM public key to
+    //       to preserve backward compatibility.
     //  2. pkam using the enroll id
     //  3. Create a public key with atmosphere namespace
     //  4. Assert update and llookup can be performed on  atmosphere namespace since cram auth connection gets access to *:rw
     test(
         'enroll request on cram authenticated connection for wavi namespace and create a key in atmosphere namespace',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-
       var enrollmentId = enrollJsonMap['enrollmentId'];
-
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      print(apkamEnrollIdResponse);
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!,
-          'update:twitter.atmosphere$firstAtsign twitterid');
-      var updateResponse = await read();
+      // close the connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      // now do the APKAM using the enrollment id
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      String updateResponse = await firstAtSignConnection.sendRequestToServer(
+          'update:twitter.atmosphere$firstAtSign twitterid');
       expect(
           updateResponse.startsWith('data:') &&
               (!updateResponse.contains('Invalid syntax')) &&
               (!updateResponse.contains('null')),
           true);
-      await socket_writer(
-          socketConnection1!, 'llookup:twitter.atmosphere$firstAtsign');
-      var llookupResponse = await read();
-      expect(llookupResponse, 'data:twitterid\n');
+      String llookupResponse = await firstAtSignConnection
+          .sendRequestToServer('llookup:twitter.atmosphere$firstAtSign');
+      expect(llookupResponse, 'data:twitterid');
     });
 
     //  1. Cram authenticate and send the enroll request for wavi namespace
@@ -109,38 +69,27 @@ void main() {
     test(
         'enroll request on authenticated connection for wavi namespace and creating a wavi key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection and create a new connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
 
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!,
-          'update:public:lastname.wavi$firstAtsign twitterid');
-      var updateResponse = await read();
-      print(updateResponse);
+      String updateResponse = await firstAtSignConnection.sendRequestToServer(
+          'update:public:lastname.wavi$firstAtSign twitterid');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
     });
@@ -150,51 +99,43 @@ void main() {
     //  2. pkam using the enroll id
     //  3. Do a llookup for a self atmosphere key
     //  4. Llookup should be successful since the enrollment gets access to *:rw
-    test(
-        'enroll request on authenticated connection for wavi namespace and llookup for a self atmosphere key',
-        () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+    try {
+      test(
+          'enroll request on authenticated connection for wavi namespace and llookup for a self atmosphere key',
+          () async {
+        await firstAtSignConnection.authenticateConnection(
+            authType: AuthType.cram);
+        // Before creating a enroll request with wavi namespace
+        // create a atmosphere key
+        String atmosphereKey = 'firstcontact.atmosphere$firstAtSign';
+        String updateResponse = await firstAtSignConnection
+            .sendRequestToServer('update:$atmosphereKey atmospherevalue');
+        assert((!updateResponse.contains('Invalid syntax')) &&
+            (!updateResponse.contains('null')));
 
-      // Before creating a enroll request with wavi namespace
-      // create a atmosphere key
-      String atmosphereKey = 'firstcontact.atmosphere$firstAtsign';
-      await socket_writer(
-          socketConnection1!, 'update:$atmosphereKey atmospherevalue');
-      var updateResponse = await read();
-      assert((!updateResponse.contains('Invalid syntax')) &&
-          (!updateResponse.contains('null')));
-
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
-      expect(enrollJsonMap['status'], 'approved');
-
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!, 'llookup:$atmosphereKey');
-      var llookupResponse = await read();
-      expect(llookupResponse, 'data:atmospherevalue\n');
-    });
+        var enrollRequest =
+            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+        String enrollResponse =
+            (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+                .replaceAll('data:', '');
+        var enrollJsonMap = jsonDecode(enrollResponse);
+        expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+        expect(enrollJsonMap['status'], 'approved');
+        String enrollmentId = enrollJsonMap['enrollmentId'];
+        // Close the connection
+        await firstAtSignConnection.close();
+        // now do the apkam using the enrollment id
+        await firstAtSignConnection.initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.authenticateConnection(
+            authType: AuthType.pkam, enrollmentId: enrollmentId);
+        String llookupResponse = await firstAtSignConnection
+            .sendRequestToServer('llookup:$atmosphereKey');
+        expect(llookupResponse, 'data:atmospherevalue');
+      });
+    } catch (e, s) {
+      print(s);
+    }
 
     // Prerequisite - create a public atmosphere key
     //  1. Authenticate and send the enroll request for wavi namespace
@@ -204,48 +145,36 @@ void main() {
     test(
         'enroll request on authenticated connection for wavi namespace and llookup for a public atmosphere key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
-      String atmosphereKey = 'public:secondcontact.atmosphere$firstAtsign';
-      await socket_writer(
-          socketConnection1!, 'update:$atmosphereKey atmospherevalue');
-      var updateResponse = await read();
+      String atmosphereKey = 'public:secondcontact.atmosphere$firstAtSign';
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$atmosphereKey atmospherevalue');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
 
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!, 'llookup:$atmosphereKey');
-      var llookupResponse = await read();
-      print(llookupResponse);
-      expect(llookupResponse, 'data:atmospherevalue\n');
+      String llookupResponse = await firstAtSignConnection
+          .sendRequestToServer('llookup:$atmosphereKey');
+      expect(llookupResponse, 'data:atmospherevalue');
     });
 
     // Prerequisite - create a wavi key
@@ -256,48 +185,37 @@ void main() {
     test(
         'enroll request on authenticated connection for wavi namespace and llookup for a wavi key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
-      String waviKey = 'firstname.wavi$firstAtsign';
+      String waviKey = 'firstname.wavi$firstAtSign';
       String waviValue = 'wavivalue';
-      await socket_writer(socketConnection1!, 'update:$waviKey $waviValue');
-      var updateResponse = await read();
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$waviKey $waviValue');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var enrollmentId = enrollJsonMap['enrollmentId'];
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      //Close the connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
 
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!, 'llookup:$waviKey');
-      var llookupResponse = await read();
-      print(llookupResponse);
-      expect(llookupResponse, 'data:$waviValue\n');
+      String llookupResponse =
+          await firstAtSignConnection.sendRequestToServer('llookup:$waviKey');
+      expect(llookupResponse, 'data:$waviValue');
     });
 
     //  1. Cram authenticate and send the enroll request for wavi namespace
@@ -308,47 +226,37 @@ void main() {
     test(
         'enroll request on cram authenticated connection for wavi namespace and scan displays atmosphere key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // Before creating a enroll request with wavi namespace
       // create a atmosphere key
-      String atmosphereKey = 'filename.atmosphere$firstAtsign';
-      await socket_writer(
-          socketConnection1!, 'update:$atmosphereKey atmospherevalue');
-      var updateResponse = await read();
+      String atmosphereKey = 'filename.atmosphere$firstAtSign';
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$atmosphereKey atmospherevalue');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection
+      await firstAtSignConnection.close();
       // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
 
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!, 'scan filename.atmosphere');
-      var scanResponse = await read();
+      String scanResponse =
+          await firstAtSignConnection.sendRequestToServer('scan');
       expect(scanResponse.contains(atmosphereKey), true);
     });
 
@@ -361,102 +269,93 @@ void main() {
     test(
         'second enroll request using otp and client approves enrollment request',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramSecret = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramSecret');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // update wavi key
-      String waviKey = 'phone.wavi$firstAtsign';
-      await socket_writer(socketConnection1!, 'update:$waviKey waviValue');
-      await read();
+      String waviKey = 'phone.wavi$firstAtSign';
+      await firstAtSignConnection
+          .sendRequestToServer('update:$waviKey waviValue');
 
+      String encryptedSelfEncKey = EncryptionUtil.encryptValue(
+          at_demos.aesKeyMap[firstAtSign]!,
+          at_demos.apkamSymmetricKeyMap[firstAtSign]!);
+      String encryptedDefaultEncPrivateKey = EncryptionUtil.encryptValue(
+          at_demos.encryptionPrivateKeyMap[firstAtSign]!,
+          at_demos.apkamSymmetricKeyMap[firstAtSign]!);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       print('enrollJsonMap: $enrollJsonMap');
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var otpRequest = 'otp:get\n';
-      await socket_writer(socketConnection1!, otpRequest);
-      var otpResponse = await read();
+      String otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
       otpResponse = otpResponse.replaceFirst('data:', '');
       otpResponse = otpResponse.trim();
 
       // connect to the second client
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory()
+              .initiateConnectionWithListener(firstAtSign, firstAtSignHost, firstAtSignPort);
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection2!, secondEnrollRequest);
-      var secondEnrollResponse = await read();
-      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+      var secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
-      var secondEnrollId = enrollJson['enrollmentId'];
+      String secondEnrollmentId = enrollJson['enrollmentId'];
 
       // connect to the first client to approve the enroll request
-      await socket_writer(socketConnection1!,
-          'enroll:approve:{"enrollmentId":"$secondEnrollId"}\n');
-      var approveResponse = await read();
-      approveResponse = approveResponse.replaceFirst('data:', '');
+      var approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId"}'))
+          .replaceAll('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
-      expect(approveJson['enrollmentId'], secondEnrollId);
+      expect(approveJson['enrollmentId'], secondEnrollmentId);
 
       // close the first connection
-      socketConnection1!.close();
-
+      firstAtSignConnection.close();
       // connect to the second client to do an apkam
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamDigest\n';
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamResponse = await read();
-      expect(apkamResponse, 'data:success\n');
-
+      await secondConnection.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
       // update buzz key
-      String buzzKey = 'email.buzz$firstAtsign';
-      await socket_writer(
-          socketConnection2!, 'update:$buzzKey test@atsign.com');
-      await read();
-
+      String buzzKey = 'email.buzz$firstAtSign';
+      await secondConnection
+          .sendRequestToServer('update:$buzzKey test@atsign.com');
       // llookup on wavi key should fail
-      await socket_writer(socketConnection2!, 'llookup:$waviKey');
-      var llookupResponse = await read();
-      expect(llookupResponse,
-          startsWith('error:AT0009-UnAuthorized client in request'));
+      String llookupResponse =
+          (await secondConnection.sendRequestToServer('llookup:$waviKey'))
+              .replaceAll('error:', '');
+      Map llookupResponseMap = jsonDecode(llookupResponse);
+      expect(llookupResponseMap['errorCode'], 'AT0009');
+      expect(llookupResponseMap['errorDescription'],
+          'UnAuthorized client in request : Enrollment Id: $secondEnrollmentId is not authorized for local lookup operation on the key: $waviKey');
 
       // delete on wavi key should fail
-      await socket_writer(socketConnection2!, 'delete:$waviKey');
-      var deleteResponse = await read();
-      expect(deleteResponse,
-          startsWith('error:AT0009-UnAuthorized client in request'));
+      String deleteResponse =
+          (await secondConnection.sendRequestToServer('delete:$waviKey'))
+              .replaceAll('error:', '');
+      Map deleteResponseMap = jsonDecode(deleteResponse);
+      expect(deleteResponseMap['errorCode'], 'AT0009');
+      expect(deleteResponseMap['errorDescription'],
+          'UnAuthorized client in request : Enrollment Id: $secondEnrollmentId is not authorized for delete operation on the key: $waviKey');
 
       // llookup on buzz key should succeed
-      await socket_writer(socketConnection2!, 'llookup:$buzzKey');
-      llookupResponse = await read();
-      print(llookupResponse);
-      expect(llookupResponse, 'data:test@atsign.com\n');
+      llookupResponse =
+          await secondConnection.sendRequestToServer('llookup:$buzzKey');
+      expect(llookupResponse, 'data:test@atsign.com');
 
       // delete on buzz key should pass
-      await socket_writer(socketConnection2!, 'delete:$buzzKey');
-      deleteResponse = await read();
-      print(deleteResponse);
+      deleteResponse =
+          await secondConnection.sendRequestToServer('delete:$buzzKey');
       assert((deleteResponse.startsWith('data:')) &&
           (!deleteResponse.contains('Invalid syntax')) &&
           (!deleteResponse.contains('null')));
@@ -470,46 +369,31 @@ void main() {
     test(
         'enroll request on authenticated connection for wavi namespace and scan should display wavi key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
 
-      String waviKey = 'lastname.wavi$firstAtsign';
+      String waviKey = 'lastname.wavi$firstAtSign';
       String value = 'checkingValue';
-      await socket_writer(socketConnection1!, 'update:$waviKey $value');
-      var updateResponse = await read();
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$waviKey $value');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
       // enroll request with wavi namespace
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
-
-      await socket_writer(socketConnection1!, 'scan lastname.wavi');
-      var scanResponse = await read();
-      print(scanResponse);
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      String scanResponse =
+          await firstAtSignConnection.sendRequestToServer('scan');
       expect((scanResponse.contains(waviKey)), true);
     });
 
@@ -521,56 +405,41 @@ void main() {
     test(
         'enroll request on authenticated connection for wavi namespace and delete a wavi key',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      print('from verb response : $fromResponse');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramDigest = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramDigest');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
 
       // create a wavi key
-      String waviKey = 'public:email.wavi$firstAtsign';
-      await socket_writer(socketConnection1!, 'update:$waviKey twitterid');
-      var updateResponse = await read();
-      print(updateResponse);
+      String waviKey = 'public:email.wavi$firstAtSign';
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$waviKey twitterid');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
-
       // enroll request with wavi namespace
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      print(enrollResponse);
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-
-      await socket_writer(socketConnection1!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection. Create a new connection and authenticate via the APKAM
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
 
       // delete the wavi key
-      await socket_writer(socketConnection1!, 'delete:$waviKey');
-      var deleteResponse = await read();
-      print(deleteResponse);
+      String deleteResponse =
+          await firstAtSignConnection.sendRequestToServer('delete:$waviKey');
       assert((!deleteResponse.contains('Invalid syntax')) &&
           (!deleteResponse.contains('null')));
     });
   });
 
   tearDown(() {
-    //Closing the socket connection
-    clear();
-    socketConnection1!.destroy();
+    firstAtSignConnection.close();
   });
 }

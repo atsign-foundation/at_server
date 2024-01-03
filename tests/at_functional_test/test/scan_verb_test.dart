@@ -1,193 +1,135 @@
-import 'dart:io';
-
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  var firstAtsignPort =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+  late String uniqueId;
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
 
-  Socket? socketFirstAtsign;
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  test('Scan verb after authentication', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+  group('A group of scan verb tests on authenticated connection', () {
+    setUpAll(() async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse = await firstAtSignConnection.authenticateConnection();
+      expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    });
 
-    ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:public:location$firstAtsign California');
-    var response = await read();
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    setUp(() {
+      uniqueId = Uuid().v4();
+    });
 
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('"public:location$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+    tearDownAll(() async {
+      await firstAtSignConnection.close();
+    });
 
-  test('scan verb before authentication', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
+    test('Scan verb after authentication', () async {
+      //UPDATE VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:public:location-$uniqueId$firstAtSign California');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      //SCAN VERB
+      response = await firstAtSignConnection.sendRequestToServer('scan');
+      expect(response, contains('"public:location-$uniqueId$firstAtSign"'));
+    });
 
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    var response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('"location$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+    test('Scan verb with only atSign and no value', () async {
+      //SCAN VERB
+      String response =
+          await firstAtSignConnection.sendRequestToServer('scan@');
+      expect(response, contains('Invalid syntax'));
+    });
 
-  test('Scan verb with only atsign and no value', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+    test('Scan verb with regex', () async {
+      //UPDATE VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:public:twitter-$uniqueId.me$firstAtSign bob_123');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      //SCAN VERB
+      response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId.me');
+      expect(response, contains('"public:twitter-$uniqueId.me$firstAtSign"'));
+    });
 
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan@');
-    var response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('Invalid syntax'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+    test('Scan verb does not return expired keys', () async {
+      //UPDATE VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttl:3000:ttlKEY-$uniqueId.me$firstAtSign 1245');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      //SCAN VERB should return the key before it expires
+      response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+      expect(
+          false,
+          response.contains(
+              '"ttlKEY-$uniqueId.me$firstAtSign"')); // server ensures lower-case
+      expect(true, response.contains('"ttlkey-$uniqueId.me$firstAtSign"'));
 
-  test('Scan verb with regex', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+      // update ttl to a lesser value so that key expires for scan
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttl:200:ttlKEY-$uniqueId.me$firstAtSign 1245');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      //  scan verb should not return the expired key
+      await Future.delayed(Duration(milliseconds: 300));
+      response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+      expect(false, response.contains('"ttlkey-$uniqueId.me$firstAtSign"'));
+      expect(false, response.contains('"ttlKEY-$uniqueId.me$firstAtSign"'));
+    });
 
-    ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:public:twitter.me$firstAtsign bob_123');
-    var response = await read();
-    print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    test('Scan verb does not return unborn keys', () async {
+      //UPDATE VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttb:4000:ttbkey-$uniqueId$firstAtSign Working?');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      // scan verb should not return the unborn key
+      response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+      expect(false, response.contains('"ttbkey-$uniqueId$firstAtSign"'));
+      // update ttb to a lesser value so that key becomes born
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttb:200:ttbkey-$uniqueId$firstAtSign Working?');
+      assert((!response.contains('Invalid syntax')) &&
+          (!response.contains('null')));
+      // scan verb should return the born key
+      await Future.delayed(Duration(milliseconds: 300));
+      response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+      expect(response, contains('"ttbkey-$uniqueId$firstAtSign"'));
+    });
+  });
 
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan .me');
-    response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('"public:twitter.me$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
+  group('A group of scan verb tests on unauthenticated connection', () {
+    setUpAll(() async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+    });
 
-  // test('Scan verb - Displays key with special characters', () async {
-  //   var firstAtsignServer =
-  //       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-  //   socketFirstAtsign =
-  //       await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  //   socket_listener(socketFirstAtsign!);
-  //   await prepare(socketFirstAtsign!, firstAtsign);
-  //
-  //   ///UPDATE VERB
-  //   await socket_writer(socketFirstAtsign!,
-  //       'update:public:verifying,commas$firstAtsign Working?');
-  //   var response = await read();
-  //   print('update verb response : $response');
-  //   assert(
-  //       (!response.contains('Invalid syntax')) && (!response.contains('null')));
-  //
-  //   ///SCAN VERB
-  //   await socket_writer(socketFirstAtsign!, 'scan');
-  //   response = await read();
-  //   print('scan verb response : $response');
-  //   expect(response, contains('"public:verifying,commas$firstAtsign"'));
-  // }, timeout: Timeout(Duration(seconds: 120)));
-
-  test('Scan verb does not return expired keys', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
-
-    ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:ttl:3000:ttlKEY.me$firstAtsign 1245');
-    var response = await read();
-    print('update verb response : $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    ///SCAN VERB should return the key before it expires
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(false, response.contains('"ttlKEY.me$firstAtsign"')); // server ensures lower-case
-    expect(true, response.contains('"ttlkey.me$firstAtsign"'));
-
-    // update ttl to a lesser value so that key expires for scan
-    await socket_writer(
-        socketFirstAtsign!, 'update:ttl:200:ttlKEY.me$firstAtsign 1245');
-    response = await read();
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    //  scan verb should not return the expired key
-    await Future.delayed(Duration(milliseconds: 300));
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(false, response.contains('"ttlkey.me$firstAtsign"'));
-    expect(false, response.contains('"ttlKEY.me$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
-
-  test('Scan verb does not return unborn keys', () async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
-
-    ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:ttb:4000:ttbkey$firstAtsign Working?');
-    var response = await read();
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    // scan verb should not return the unborn key
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(false, response.contains('"ttbkey$firstAtsign"'));
-
-    // update ttb to a lesser value so that key becomes born
-    await socket_writer(
-        socketFirstAtsign!, 'update:ttb:200:ttbkey$firstAtsign Working?');
-    response = await read();
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    //  scan verb should return the born key
-    await Future.delayed(Duration(milliseconds: 300));
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response : $response');
-    expect(response, contains('"ttbkey$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 120)));
-
-  tearDown(() {
-    //Closing the client socket connection
-    clear();
-    socketFirstAtsign!.destroy();
+    tearDownAll(() async {
+      await firstAtSignConnection.close();
+    });
+    test('scan verb before authentication', () async {
+      await firstAtSignConnection.authenticateConnection();
+      await firstAtSignConnection.sendRequestToServer(
+          'update:public:location-$uniqueId$firstAtSign California');
+      await firstAtSignConnection.close();
+      // Initiate unauthenticated connection and run scan verb
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+      expect(response, contains('location-$uniqueId$firstAtSign'));
+    });
   });
 }
