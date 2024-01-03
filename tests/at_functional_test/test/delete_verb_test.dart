@@ -1,226 +1,187 @@
-import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
-import 'dart:io';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  var secondAtsign =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
+  late String uniqueId;
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  Socket? socketFirstAtsign;
+  String secondAtSign =
+      ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
 
-  //Establish the client socket connection
-  setUp(() async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var firstAtsignPort =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+  setUpAll(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+  });
 
-    // socket connection for first atsign
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    print('socket created: ${socketFirstAtsign == null ? false : true}');
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+  setUp(() {
+    // Generates Unique Id for each test that will be appended to keys to prevent
+    // same keys being reused.
+    uniqueId = Uuid().v4().hashCode.toString();
   });
 
   test('Delete verb for public key', () async {
     ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:public:location$firstAtsign Bengaluru');
-    var response = await read();
-    print('update verb response : $response');
+    String response = await firstAtSignConnection.sendRequestToServer(
+        'update:public:location-$uniqueId$firstAtSign Bengaluru');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response before delete : $response');
-    expect(response, contains('public:location$firstAtsign'));
+    response = await firstAtSignConnection
+        .sendRequestToServer('scan location-$uniqueId');
+        expect(response, contains('public:location-$uniqueId$firstAtSign'));
 
     ///DELETE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'delete:public:location$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:public:location-$uniqueId$firstAtSign');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response after delete : $response');
-    expect(response, isNot('public:location$firstAtsign'));
-  }, timeout: Timeout(Duration(seconds: 50)));
+    response = await firstAtSignConnection
+        .sendRequestToServer('scan location-$uniqueId$firstAtSign');
+    expect(response, isNot('public:location$firstAtSign'));
+  });
 
   test('delete verb with incorrect spelling - negative scenario', () async {
     ///Delete verb
-    await socket_writer(socketFirstAtsign!, 'deete:phone$firstAtsign');
-    var response = await read();
-    print('delete verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('deete:phone$firstAtSign');
     expect(response, contains('Invalid syntax'));
   });
 
   test('delete verb for an emoji key', () async {
-    ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:public:🦄🦄$firstAtsign 2emojis');
-    var response = await read();
-    print('update verb response $response');
+    //UPDATE VERB
+    String response = await firstAtSignConnection.sendRequestToServer(
+        'update:public:🦄🦄-$uniqueId$firstAtSign 2emojis');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    // ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response is :$response');
-    expect(response, contains('public:🦄🦄$firstAtsign'));
+    //SCAN VERB
+    response =
+        await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    expect(response, contains('public:🦄🦄-$uniqueId$firstAtSign'));
 
-    ///DELETE VERB
-    await socket_writer(socketFirstAtsign!, 'delete:public:🦄🦄$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
+    //DELETE VERB
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:public:🦄🦄-$uniqueId$firstAtSign');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response is :$response');
-    expect(response, isNot('public:🦄🦄$firstAtsign'));
+    //SCAN VERB
+    response =
+        await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    expect(response, isNot('public:🦄🦄-$uniqueId$firstAtSign'));
   });
 
   test('delete verb when ccd is true', () async {
-    ///UPDATE VERB
-    await socket_writer(socketFirstAtsign!,
-        'update:ttr:-1:ccd:true:$secondAtsign:hobby$firstAtsign photography');
-    var response = await read();
-    print('update verb response : $response');
+    // UPDATE VERB
+    String response = await firstAtSignConnection.sendRequestToServer(
+        'update:ttr:-1:ccd:true:$secondAtSign:hobby-$uniqueId$firstAtSign photography');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
-    ///SCAN VERB in the first atsign
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response before delete : $response');
-    expect(response, contains('"$secondAtsign:hobby$firstAtsign"'));
+    // SCAN VERB in the first atsign
+    response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    expect(response, contains('"$secondAtSign:hobby-$uniqueId$firstAtSign"'));
 
-    // ///DELETE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'delete:$secondAtsign:hobby$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
+    // DELETE VERB
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:$secondAtSign:hobby-$uniqueId$firstAtSign');
     assert(!response.contains('data:null'));
 
-    // ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response after delete : $response');
-    expect(response, isNot('"$secondAtsign:hobby$firstAtsign"'));
-  }, timeout: Timeout(Duration(seconds: 60)));
+    //SCAN VERB
+    response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    expect(response, isNot('"$secondAtSign:hobby-$uniqueId$firstAtSign"'));
+  });
 
   test('Delete verb - delete non existent key', () async {
     ///UPDATE VERB
-    await socket_writer(
-        socketFirstAtsign!, 'update:location$firstAtsign India');
-    var response = await read();
-    print('update verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('update:location-$uniqueId$firstAtSign India');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response before delete : $response');
-    expect(response, contains('location$firstAtsign'));
+    response =
+        await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    expect(response, contains('location-$uniqueId$firstAtSign'));
 
     ///DELETE VERB
-    await socket_writer(socketFirstAtsign!, 'delete:location$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:location-$uniqueId$firstAtSign');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///DELETE VERB AGAIN
-    await socket_writer(socketFirstAtsign!, 'delete:location$firstAtsign');
-    response = await read();
-    print('delete verb response : $response');
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:location-$uniqueId$firstAtSign');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-  }, timeout: Timeout(Duration(seconds: 50)));
+  });
 
   test('delete verb for an protected key - signing_publickey', () async {
     // attempt to delete the key
-    await socket_writer(
-        socketFirstAtsign!, 'delete:public:signing_publickey$firstAtsign');
-    var response = await read();
-    print('delete verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('delete:public:signing_publickey$firstAtSign');
     // error is an expected behaviour
     assert((response.contains(
             'UnAuthorized client in request : Cannot delete protected key')) &&
         (response.contains('error')));
 
     // verify that the key is not deleted
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response is :$response');
-    assert(response.contains('public:signing_publickey$firstAtsign'));
+    response = await firstAtSignConnection.sendRequestToServer('scan');
+    assert(response.contains('public:signing_publickey$firstAtSign'));
   });
 
   test('delete verb for an protected key - signing_privatekey', () async {
     // attempt to delete the key
-    await socket_writer(
-        socketFirstAtsign!, 'delete:$firstAtsign:signing_privatekey$firstAtsign');
-    var response = await read();
-    print('delete verb response : $response');
+    String response = await firstAtSignConnection.sendRequestToServer(
+        'delete:$firstAtSign:signing_privatekey$firstAtSign');
     // the error is an expected behaviour
     assert((response.contains(
-        'UnAuthorized client in request : Cannot delete protected key')) &&
+            'UnAuthorized client in request : Cannot delete protected key')) &&
         (response.contains('error')));
 
     ///SCAN VERB
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response is :$response');
+    response = await firstAtSignConnection.sendRequestToServer('scan');
     // ensure that the signing_publickey is not deleted
-    assert(response.contains('$firstAtsign:signing_privatekey$firstAtsign'));
+    assert(response.contains('$firstAtSign:signing_privatekey$firstAtSign'));
   });
 
   test('delete verb for an protected key - encryption_publickey', () async {
     // attempt to delete the key
-    await socket_writer(
-        socketFirstAtsign!, 'delete:public:publickey$firstAtsign');
-    var response = await read();
-    print('delete verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('delete:public:publickey$firstAtSign');
     // error is an expected behaviour
     assert((response.contains(
-        'UnAuthorized client in request : Cannot delete protected key')) &&
+            'UnAuthorized client in request : Cannot delete protected key')) &&
         (response.contains('error')));
 
     // verify that the key is not deleted
-    await socket_writer(socketFirstAtsign!, 'scan');
-    response = await read();
-    print('scan verb response is :$response');
-    assert(response.contains('public:publickey$firstAtsign'));
+    response = await firstAtSignConnection.sendRequestToServer('scan');
+    assert(response.contains('public:publickey$firstAtSign'));
   });
 
   test('delete verb for an protected key - pkam_publickey', () async {
     // attempt to delete the key
-    await socket_writer(
-        socketFirstAtsign!, 'delete:privatekey:at_pkam_publickey');
-    var response = await read();
-    print('delete verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('delete:privatekey:at_pkam_publickey');
     // the error is an expected behaviour
     assert((response.contains('Invalid syntax')));
   });
 
-  tearDown(() {
-    //Closing the client socket connection
-    clear();
-    socketFirstAtsign!.destroy();
+  tearDownAll(() {
+    firstAtSignConnection.close();
   });
 }

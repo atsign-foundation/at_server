@@ -1,65 +1,50 @@
 import 'dart:convert';
-import 'dart:io';
-
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-  Socket? socketFirstAtsign;
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-// second atsign details
-  var secondAtsign =
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
+  String secondAtSign =
+      ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
 
-  setUp(() async {
-    var firstAtsignServer = ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    var firstAtsignPort =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+  setUpAll(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
   });
 
   test('config verb for adding a atsign to blocklist', () async {
     /// CONFIG VERB
-    await socket_writer(
-        socketFirstAtsign!, 'config:block:add:$secondAtsign');
-    var response = await read();
-    print('config verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('config:block:add:$secondAtSign');
     expect(response, contains('data:success'));
-
     ///CONFIG VERB -SHOW BLOCK LIST
-    await socket_writer(socketFirstAtsign!, 'config:block:show');
-    response = await read();
-    print('config verb response $response');
-    expect(response, contains('data:["$secondAtsign"]'));
+    response =
+        await firstAtSignConnection.sendRequestToServer('config:block:show');
+    expect(response, contains('data:["$secondAtSign"]'));
   });
 
   test('config verb for deleting a atsign from blocklist', () async {
     /// CONFIG VERB
-    await socket_writer(
-        socketFirstAtsign!, 'config:block:add:$secondAtsign');
-    var response = await read();
-    print('config verb response : $response');
+    String response = await firstAtSignConnection
+        .sendRequestToServer('config:block:add:$secondAtSign');
     expect(response, contains('data:success'));
-
     /// CONFIG VERB - REMOVE FROM BLOCKLIST
-    await socket_writer(
-        socketFirstAtsign!, 'config:block:remove:$secondAtsign');
-    response = await read();
-    print('config verb response : $response');
+    response = await firstAtSignConnection
+        .sendRequestToServer('config:block:remove:$secondAtSign');
     expect(response, contains('data:success'));
-
     ///CONFIG VERB -SHOW BLOCK LIST
-    await socket_writer(socketFirstAtsign!, 'config:block:show');
-    response = await read();
-    print('config verb response $response');
+    response =
+        await firstAtSignConnection.sendRequestToServer('config:block:show');
     expect(response, contains('data:null'));
   });
 
@@ -67,11 +52,10 @@ void main() {
       'config verb for adding a atsign to blocklist without giving a atsign (Negative case)',
       () async {
     /// CONFIG VERB
-    await socket_writer(socketFirstAtsign!, 'config:block:add:');
-    var response = await read();
+    String response =
+        await firstAtSignConnection.sendRequestToServer('config:block:add:');
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);
-    print('config verb response : $response');
     expect(errorMap['errorCode'], 'AT0003');
     assert(errorMap['errorDescription'].contains('Invalid syntax'));
   });
@@ -80,29 +64,25 @@ void main() {
       'config verb for adding a atsign to blocklist by giving 2 @ in the atsign (Negative case)',
       () async {
     /// CONFIG VERB
-    await socket_writer(socketFirstAtsign!, 'config:block:add:@@kevin');
-    var response = await read();
+    String response = await firstAtSignConnection
+        .sendRequestToServer('config:block:add:@@kevin');
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);
-    print('config verb response : $response');
     expect(errorMap['errorCode'], 'AT0003');
     assert(errorMap['errorDescription'].contains('Invalid syntax'));
   });
 
   test('config verb by giving list instead of show (Negative case)', () async {
     /// CONFIG VERB
-    await socket_writer(socketFirstAtsign!, 'config:block:list');
-    var response = await read();
+    String response =
+        await firstAtSignConnection.sendRequestToServer('config:block:list');
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);
-    print('config verb response : $response');
     expect(errorMap['errorCode'], 'AT0003');
     assert(errorMap['errorDescription'].contains('Invalid syntax'));
   });
 
-  tearDown(() {
-    //Closing the client socket connection
-    clear();
-    socketFirstAtsign!.destroy();
+  tearDownAll(() {
+    firstAtSignConnection.close();
   });
 }

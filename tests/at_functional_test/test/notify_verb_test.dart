@@ -1,99 +1,75 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
-
-import 'functional_test_commons.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
-  var firstAtsign =
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
+  late String uniqueId;
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
 
-  Socket? socketFirstAtsign;
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  //Establish the client socket connection
-  setUp(() async {
-    var firstAtsignServer =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-    firstAtsignServer = firstAtsignServer.toString().trim();
-    var firstAtsignPort =
-        ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
+  setUpAll(() async {
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+  });
 
-    // socket connection for first atsign
-    socketFirstAtsign =
-        await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-    socket_listener(socketFirstAtsign!);
-    await prepare(socketFirstAtsign!, firstAtsign);
+  setUp(() {
+    uniqueId = Uuid().v4();
   });
 
   group('A group of negative tests of notify verb', () {
     test('notify verb without giving message type value', () async {
       /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:messageType:notifier:system:ttr:-1:$firstAtsign:email$firstAtsign');
-      String response = await read();
-      print('notify verb response : $response');
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:messageType:notifier:system:ttr:-1:$firstAtSign:email-$uniqueId$firstAtSign');
       assert((response.contains('Invalid syntax')));
-      // // Invalid syntax results in a closed connection so let's do some housekeeping
-      // sh1.close();
-      // sh1 = await e2e.getSocketHandler(atSign_1);
     });
 
     test('notify verb without giving notifier for strategy latest', () async {
-      //   /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:messageType:key:strategy:latest:ttr:-1:$firstAtsign:email$firstAtsign');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:messageType:key:strategy:latest:ttr:-1:$firstAtSign:email-$uniqueId$firstAtSign');
       assert((response.contains('Invalid syntax')));
-      // Invalid syntax results in a closed connection so let's do some housekeeping
-      // sh1.close();
-      // sh1 = await e2e.getSocketHandler(atSign_1);
     });
 
     test('notify verb in an incorrect order', () async {
-      /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:messageType:key:update:notifier:system:ttr:-1:$firstAtsign:email$firstAtsign');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:messageType:key:update:notifier:system:ttr:-1:$firstAtSign:email-$uniqueId$firstAtSign');
       assert((response.contains('Invalid syntax')));
-      // // Invalid syntax results in a closed connection so let's do some housekeeping
-      // sh1.close();
-      // sh1 = await e2e.getSocketHandler(atSign_1);
     });
 
     test('notify verb with notification expiry in an incorrect spelling',
         () async {
-      //   /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:ttlnn:5000:ttr:-1:$firstAtsign:message$firstAtsign:Hey!');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:ttlnn:5000:ttr:-1:$firstAtSign:message-$uniqueId$firstAtSign:Hey!');
       expect(response, contains('Invalid syntax'));
-      // Invalid syntax results in a closed connection so let's do some housekeeping
-      // sh2.close();
-      // sh2 = await e2e.getSocketHandler(atSign_2);
     });
 
     test('notify verb with notification expiry without value for ttln',
         () async {
-      //   /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:ttln:ttr:-1:$firstAtsign:message$firstAtsign:Hey!');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:ttln:ttr:-1:$firstAtSign:message-$uniqueId$firstAtSign:Hey!');
       expect(response, contains('Invalid syntax'));
     });
 
     test('notify verb with notification expiry in an incorrect order',
         () async {
-      //   /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:ttb:3000:ttr:-1:ttln:10000:$firstAtsign:message$firstAtsign:Hey!');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:ttb:3000:ttr:-1:ttln:10000:$firstAtSign:message-$uniqueId$firstAtSign:Hey!');
       expect(response, contains('Invalid syntax'));
     });
   });
@@ -102,18 +78,18 @@ void main() {
     test('A test to verify notification shared to current atSign is fetched',
         () async {
       // Store notification
-      await socket_writer(
-          socketFirstAtsign!, 'notify:$firstAtsign:phone.me$firstAtsign');
-      var notificationId = await read();
+      var notificationId = await firstAtSignConnection
+          .sendRequestToServer('notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
       notificationId = notificationId.replaceFirst('data:', '');
       // Fetch notification using notification id
-      await socket_writer(socketFirstAtsign!, 'notify:fetch:$notificationId');
-      var response = await read();
+      String response = await firstAtSignConnection
+          .sendRequestToServer('notify:fetch:$notificationId');
+
       response = response.replaceFirst('data:', '');
       var atNotificationMap = jsonDecode(response);
       expect(atNotificationMap['id'], notificationId.trim());
-      expect(atNotificationMap['fromAtSign'], firstAtsign);
-      expect(atNotificationMap['toAtSign'], firstAtsign);
+      expect(atNotificationMap['fromAtSign'], firstAtSign);
+      expect(atNotificationMap['toAtSign'], firstAtSign);
       expect(atNotificationMap['type'], 'NotificationType.received');
       expect(atNotificationMap['messageType'], "MessageType.key");
       expect(atNotificationMap['priority'], "NotificationPriority.low");
@@ -124,8 +100,8 @@ void main() {
     test('A test to verify fetching notification that is deleted', () async {
       var notificationId = '124-abc';
       // Fetch notification using notification id that does not exist
-      await socket_writer(socketFirstAtsign!, 'notify:fetch:$notificationId');
-      var response = await read();
+      var response = await firstAtSignConnection
+          .sendRequestToServer('notify:fetch:$notificationId');
       response = response.replaceFirst('data:', '');
       var atNotificationMap = jsonDecode(response);
       expect(atNotificationMap['id'], notificationId.trim());
@@ -138,58 +114,46 @@ void main() {
     test(
         'notify verb without ttr and without value for operation type update (self notification)',
         () async {
-      /// NOTIFY VERB
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:$firstAtsign:nottrkey$firstAtsign');
-      String response = await read();
-      print('notify verb response : $response');
+      // NOTIFY VERB
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:$firstAtSign:nottrkey-$uniqueId$firstAtSign');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
-
       // notify status
-      await socket_writer(socketFirstAtsign!, 'notify:status:$notificationId');
-      response = await read(maxWaitMilliSeconds: 15000);
-      print('notify status response : $response');
+      response = await firstAtSignConnection
+          .sendRequestToServer('notify:status:$notificationId');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
-      await socket_writer(socketFirstAtsign!, 'notify:list:nottrkey');
-      response = await read(maxWaitMilliSeconds: 15000);
-      print('notify list verb response : $response');
+      response = await firstAtSignConnection
+          .sendRequestToServer('notify:list:nottrkey');
       expect(
           response,
           contains(
-              '"key":"$firstAtsign:nottrkey$firstAtsign","value":null,"operation":"update"'));
+              '"key":"$firstAtSign:nottrkey-$uniqueId$firstAtSign","value":null,"operation":"update"'));
     });
 
     test(
         'notify verb without ttr and with value for operation type update (self notification)',
         () async {
-      /// NOTIFY VERB
+      // NOTIFY VERB
       var value = 'no-ttr';
-      await socket_writer(socketFirstAtsign!,
-          'notify:update:$firstAtsign:nottrkey$firstAtsign:$value');
-      String response = await read();
-      print('notify verb response : $response');
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:$firstAtSign:nottrkey-$uniqueId$firstAtSign:$value');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
-
       // notify status
-      await socket_writer(socketFirstAtsign!, 'notify:status:$notificationId');
-      response = await read();
-      print('notify status response : $response');
+      response = await firstAtSignConnection
+          .sendRequestToServer('notify:status:$notificationId');
       assert(response.contains('data:delivered'));
-
-      ///notify:list verb
-      await socket_writer(socketFirstAtsign!, 'notify:list');
-      response = await read();
-      print('notify list verb response : $response');
+      //notify:list verb
+      response = await firstAtSignConnection.sendRequestToServer('notify:list');
       expect(
           response,
           contains(
-              '"key":"$firstAtsign:nottrkey$firstAtsign","value":"$value","operation":"update"'));
+              '"key":"$firstAtSign:nottrkey-$uniqueId$firstAtSign","value":"$value","operation":"update"'));
     });
   });
 
@@ -197,23 +161,17 @@ void main() {
     test('A test to verify two notification to self has correct date time',
         () async {
       // Sending first notification
-      await socket_writer(
-          socketFirstAtsign!, 'notify:$firstAtsign:phone.me$firstAtsign');
-      var response = await read();
-
+      String response = await firstAtSignConnection
+          .sendRequestToServer('notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
       await (Future.delayed(Duration(milliseconds: 5)));
-
       var dateTimeAfterFirstNotification = DateTime.now();
-
       await (Future.delayed(Duration(milliseconds: 5)));
-
       // Sending second notification
-      await socket_writer(
-          socketFirstAtsign!, 'notify:$firstAtsign:about.me$firstAtsign');
-      var notificationId = await read();
+      String notificationId = await firstAtSignConnection
+          .sendRequestToServer('notify:$firstAtSign:about-$uniqueId.me$firstAtSign');
       notificationId = notificationId.replaceFirst('data:', '');
-      await socket_writer(socketFirstAtsign!, 'notify:fetch:$notificationId');
-      response = await read();
+      response = await firstAtSignConnection
+          .sendRequestToServer('notify:fetch:$notificationId');
       response = response.replaceFirst('data:', '');
       var atNotificationMap = jsonDecode(response);
       expect(atNotificationMap['id'], notificationId.trim());
@@ -224,5 +182,9 @@ void main() {
               dateTimeAfterFirstNotification.microsecondsSinceEpoch,
           true);
     });
+  });
+
+  tearDownAll(() async {
+    await firstAtSignConnection.close();
   });
 }
