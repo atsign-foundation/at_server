@@ -26,5 +26,9 @@ void main() async {
       AtSignLogger atLogger = AtSignLogger('test');
       expect(atLogger.logger.level, equals(logging.Level.WARNING));
     });
+
+    test('verify *optimizeCommitsForExpiredKeys* is set to FALSE', () {
+      expect(AtSecondaryConfig.optimizeCommitsForExpiredKeys, false);
+    });
   });
 }
