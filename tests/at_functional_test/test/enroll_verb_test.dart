@@ -214,7 +214,7 @@ void main() {
           authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');

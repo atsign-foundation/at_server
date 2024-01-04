@@ -30,7 +30,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     InboundConnection atConnection,
   ) async {
-    final keyVisibility = verbParams[visibility];
+    final keyVisibility = verbParams[AtConstants.visibility];
     final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     bool hasManageAccess = false;
     var connectionMetadata =
@@ -56,13 +56,13 @@ class KeysVerbHandler extends AbstractVerbHandler {
           enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
     }
 
-    final value = verbParams[keyValue];
+    final value = verbParams[AtConstants.keyValue];
     final valueJson = {
       'value': value,
-      'keyType': verbParams[keyType],
-      enrollmentId: enrollIdFromMetadata
+      'keyType': verbParams[AtConstants.keyType],
+      AtConstants.enrollmentId: enrollIdFromMetadata
     };
-    final operation = verbParams[AT_OPERATION];
+    final operation = verbParams[AtConstants.operation];
 
     switch (operation) {
       case 'put':
@@ -97,7 +97,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
   ) async {
     final keyName = _getKeyName(verbParams, atSign, keyVisibility);
     if (keyName != null) {
-      valueJson['encryptionKeyName'] = verbParams[encryptionKeyName];
+      valueJson['encryptionKeyName'] =
+          verbParams[AtConstants.encryptionKeyName];
       final atData = AtData()..data = jsonEncode(valueJson);
       final result = await keyStore.put(keyName, atData, skipCommit: true);
       response.data = result.toString();
@@ -111,7 +112,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     Response response,
     String enrollIdFromMetadata,
   ) async {
-    final keyNameFromParams = verbParams[keyName];
+    final keyNameFromParams = verbParams[AtConstants.keyName];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
@@ -150,9 +151,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
     final keyMap = {
       'private':
-          '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
+          '$enrollIdFromMetadata.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
       'self':
-          '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+          '$enrollIdFromMetadata.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
     };
 
     final keyString = keyMap[keyVisibility];
@@ -173,7 +174,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     Response response,
   ) async {
-    final keyNameFromParams = verbParams[keyName];
+    final keyNameFromParams = verbParams[AtConstants.keyName];
     response.data =
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
@@ -186,7 +187,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final value = await keyStore.get(key);
     if (value != null && value.data != null) {
       final valueJson = jsonDecode(value.data);
-      if (valueJson[enrollmentId] == enrollIdFromMetadata) {
+      if (valueJson[AtConstants.enrollmentId] == enrollIdFromMetadata) {
         filteredKeys.add(key);
       }
     }
@@ -210,15 +211,15 @@ class KeysVerbHandler extends AbstractVerbHandler {
   }
 
   String _getPublicKeyName(HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[visibility]}:${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.visibility]}:${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 
   String _getPrivateKeyName(
       HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[visibility]}:${verbParams[APP_NAME]}.${verbParams[deviceName]}.${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.visibility]}:${verbParams[AtConstants.appName]}.${verbParams[AtConstants.deviceName]}.${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 
   String _getSelfKeyName(HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[APP_NAME]}.${verbParams[deviceName]}.${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.appName]}.${verbParams[AtConstants.deviceName]}.${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 }

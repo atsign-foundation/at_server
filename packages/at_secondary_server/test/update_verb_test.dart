@@ -64,10 +64,10 @@ void main() {
       var command = 'update:location@alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[FOR_AT_SIGN], isNull);
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.forAtSign], isNull);
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update local key-value with self atsign', () {
@@ -75,10 +75,10 @@ void main() {
       var command = 'update:@alice:location@alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'alice');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'alice');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update key-value with another user atsign', () {
@@ -86,10 +86,10 @@ void main() {
       var command = 'update:@bob:location@alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update local key-value with public', () {
@@ -97,10 +97,10 @@ void main() {
       var command = 'update:public:location@alice new york';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], isNull);
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'new york');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], isNull);
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'new york');
     });
 
     test('test update local key-value with private key', () {
@@ -109,8 +109,9 @@ void main() {
           'update:privatekey:at_pkam_publickey MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'privatekey:at_pkam_publickey');
-      expect(paramsMap[AT_VALUE], 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB');
+      expect(paramsMap[AtConstants.atKey], 'privatekey:at_pkam_publickey');
+      expect(paramsMap[AtConstants.atValue],
+          'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB');
     });
 
     test('test update verb with emoji', () {
@@ -118,9 +119,9 @@ void main() {
       var command = 'update:public:phone@🦄 emoji';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🦄');
-      expect(paramsMap[AT_VALUE], 'emoji');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🦄');
+      expect(paramsMap[AtConstants.atValue], 'emoji');
     });
 
     test('test update verb with emoji', () {
@@ -128,10 +129,10 @@ void main() {
       var command = 'update:@🦓:phone@🦄 emoji';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '🦓');
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🦄');
-      expect(paramsMap[AT_VALUE], 'emoji');
+      expect(paramsMap[AtConstants.forAtSign], '🦓');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🦄');
+      expect(paramsMap[AtConstants.atValue], 'emoji');
     });
 
     test('test update with multiple : in key - should fail', () {
@@ -149,7 +150,7 @@ void main() {
       var command = 'update:location us';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
+      expect(paramsMap[AtConstants.atKey], 'location');
     });
 
     test('test update key- key with colon - should fail', () {
@@ -172,10 +173,10 @@ void main() {
       var verb = handler.getVerb();
       expect(verb is Update, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[FOR_AT_SIGN], null);
-      expect(verbParameters[AT_KEY], 'location');
-      expect(verbParameters[AT_SIGN], 'alice');
-      expect(verbParameters[AT_VALUE], 'us');
+      expect(verbParameters[AtConstants.forAtSign], null);
+      expect(verbParameters[AtConstants.atKey], 'location');
+      expect(verbParameters[AtConstants.atSign], 'alice');
+      expect(verbParameters[AtConstants.atValue], 'us');
     });
 
     test('test update verb handler- public update', () {
@@ -187,11 +188,11 @@ void main() {
 
       expect(verb is Update, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[PUBLIC_SCOPE_PARAM], 'public');
-      expect(verbParameters[FOR_AT_SIGN], null);
-      expect(verbParameters[AT_KEY], 'location');
-      expect(verbParameters[AT_SIGN], 'alice');
-      expect(verbParameters[AT_VALUE], 'us');
+      expect(verbParameters[AtConstants.publicScopeParam], 'public');
+      expect(verbParameters[AtConstants.forAtSign], null);
+      expect(verbParameters[AtConstants.atKey], 'location');
+      expect(verbParameters[AtConstants.atSign], 'alice');
+      expect(verbParameters[AtConstants.atValue], 'us');
     });
 
     test('update verb with upper case', () {
@@ -200,10 +201,10 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'US');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'US');
     });
 
     test('update verb and value with mixed case', () {
@@ -212,10 +213,10 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
@@ -319,11 +320,11 @@ void main() {
           'update:ttl:20000:ttb:20000:public:location.city@alice Hyderabad:TG';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location.city');
-      expect(paramsMap[AT_TTL], '20000');
-      expect(paramsMap[AT_TTB], '20000');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad:TG');
+      expect(paramsMap[AtConstants.atKey], 'location.city');
+      expect(paramsMap[AtConstants.ttl], '20000');
+      expect(paramsMap[AtConstants.ttb], '20000');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad:TG');
     });
 
     test('adding ttl to the update verb', () {
@@ -332,11 +333,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '100');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '100');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttb to the update verb', () {
@@ -345,11 +346,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttl and ttb to the update verb', () {
@@ -358,12 +359,12 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '300');
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '300');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttl and ttb to the update verb with public key', () {
@@ -372,11 +373,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '300');
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '300');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding 0 ttl and ttb to the update verb with public key', () {
@@ -385,11 +386,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '0');
-      expect(paramsMap[AT_TTB], '0');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '0');
+      expect(paramsMap[AtConstants.ttb], '0');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
@@ -484,11 +485,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTR], '1000');
-      expect(paramsMap[CCD], 'true');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttr], '1000');
+      expect(paramsMap[AtConstants.ccd], 'true');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttr and ccd false to the update verb with public key', () {
@@ -498,11 +499,11 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTR], '1000');
-      expect(paramsMap[CCD], 'false');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttr], '1000');
+      expect(paramsMap[AtConstants.ccd], 'false');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
@@ -628,11 +629,11 @@ void main() {
       int ttl = 50; // in milliseconds
       int ttb = 50; // in milliseconds
 
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTL, () => ttl.toString());
-      updateVerbParams.putIfAbsent(AT_TTB, () => ttb.toString());
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttl, () => ttl.toString());
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => ttb.toString());
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
 
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
@@ -641,8 +642,8 @@ void main() {
       var localLookUpResponseBeforeTtb = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseBeforeTtb, localLookVerbParam, atConnection);
       expect(localLookUpResponseBeforeTtb.data,
@@ -651,8 +652,8 @@ void main() {
       //LLOOKUP Verb - After TTB
       await Future.delayed(Duration(milliseconds: ttb));
       var localLookUpResponseAfterTtb = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtb, localLookVerbParam, atConnection);
       expect(localLookUpResponseAfterTtb.data,
@@ -661,8 +662,8 @@ void main() {
       //LLOOKUP Verb - After TTL
       await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponseAfterTtl = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtl, localLookVerbParam, atConnection);
       expect(localLookUpResponseAfterTtl.data,
@@ -701,32 +702,32 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '60000');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => '60000');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - TTB
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, null);
       //Reset TTB
       updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '0');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => '0');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - After TTB
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'hyderabad');
@@ -774,16 +775,18 @@ void main() {
       var value = 'alice@atsign.com';
       var updateBuilder = UpdateVerbBuilder()
         ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..pubKeyChecksum = pubKeyCS
-        ..sharedKeyEncrypted = ske
-        ..encKeyName = 'some_key'
-        ..encAlgo = 'some_algo'
-        ..ivNonce = 'some_iv'
-        ..skeEncKeyName = skeEncKeyName
-        ..skeEncAlgo = skeEncAlgo;
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()
+            ..pubKeyCS = pubKeyCS
+            ..sharedKeyEnc = ske
+            ..encKeyName = 'some_key'
+            ..encAlgo = 'some_algo'
+            ..ivNonce = 'some_iv'
+            ..skeEncKeyName = skeEncKeyName
+            ..skeEncAlgo = skeEncAlgo));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
@@ -813,7 +816,7 @@ void main() {
       expect(mapSentToClient['data'], value);
       expect(
           AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
-          updateBuilder.metadata);
+          updateBuilder.atKey.metadata);
 
       // 2. update just the value and verify
       updateBuilder.value = value = 'alice@wowzer.net';
@@ -826,16 +829,17 @@ void main() {
       expect(mapSentToClient['data'], value);
       expect(
           AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
-          updateBuilder.metadata);
+          updateBuilder.atKey.metadata);
 
       // 3. update just some of the metadata and verify
       // Setting few metadata to 'null' to reset them
-      updateBuilder.skeEncKeyName = 'null';
-      updateBuilder.skeEncAlgo = 'null';
-      updateBuilder.sharedKeyEncrypted = 'null';
-      updateBuilder.encAlgo = 'WOW/MUCH/ENCRYPTION';
-      updateBuilder.encKeyName = 'such_secret_key';
-      updateBuilder.dataSignature = 'data_signature_to_validate_public_data';
+      updateBuilder.atKey.metadata.skeEncKeyName = 'null';
+      updateBuilder.atKey.metadata.skeEncAlgo = 'null';
+      updateBuilder.atKey.metadata.sharedKeyEnc = 'null';
+      updateBuilder.atKey.metadata.encAlgo = 'WOW/MUCH/ENCRYPTION';
+      updateBuilder.atKey.metadata.encKeyName = 'such_secret_key';
+      updateBuilder.atKey.metadata.dataSignature =
+          'data_signature_to_validate_public_data';
       await updateHandler.process(
           updateBuilder.buildCommand().trim(), inboundConnection);
       await llookupHandler.process(
@@ -853,11 +857,11 @@ void main() {
       expect(receivedMetadata.skeEncKeyName, null);
 
       // 4. let's update the value and a load of random metadata, and verify
-      updateBuilder.atKeyObj.metadata = createRandomCommonsMetadata();
+      updateBuilder.atKey.metadata = createRandomCommonsMetadata();
       // Setting ttb to null to test existing value is fetched and updated.
-      updateBuilder.ttb = null;
-      updateBuilder.dataSignature = null;
-      updateBuilder.ttr = 10;
+      updateBuilder.atKey.metadata.ttb = null;
+      updateBuilder.atKey.metadata.dataSignature = null;
+      updateBuilder.atKey.metadata.ttr = 10;
       updateBuilder.value = value = 'alice@wonder.land';
       await updateHandler.process(
           updateBuilder.buildCommand().trim(), inboundConnection);
@@ -889,10 +893,11 @@ void main() {
       var value = 'alice@atsign.com';
       var updateBuilder = UpdateVerbBuilder()
         ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..ivNonce = 'some_iv';
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()..ivNonce = 'some_iv'));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
@@ -918,11 +923,13 @@ void main() {
 
       // 2. Update the metadata of a different metadata attribute
       updateBuilder = UpdateVerbBuilder()
-        ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..sharedKeyEncrypted = 'shared_key_encrypted';
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()..sharedKeyEnc = 'shared_key_encrypted'))
+        ..value = value;
+
       updateCommand = updateBuilder.buildCommand().trim();
       updateHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);

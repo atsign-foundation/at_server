@@ -62,7 +62,7 @@ void main() {
     });
 
     test('send null as arguments', () {
-      var args;
+      List<String>? args;
       expect(() => CommandLineParser().getParserResults(args),
           throwsA(predicate((dynamic e) => e is ArgParserException)));
     });

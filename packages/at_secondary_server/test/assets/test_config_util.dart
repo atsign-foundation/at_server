@@ -17,7 +17,7 @@ class TestConfigUtil {
   static ApplicationConfiguration testConfig2 =
       ApplicationConfiguration(testConfigPath2);
   static ApplicationConfiguration testConfig3 =
-  ApplicationConfiguration(testConfigPath3);
+      ApplicationConfiguration(testConfigPath3);
 
   /// sets [testConfig1] as the [AtSecondaryConfig.configYamlMap]
   static Future<void> setTestConfig(int configFlavour) async {

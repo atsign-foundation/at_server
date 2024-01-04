@@ -209,35 +209,35 @@ class ResourceManager {
     if (atMetaData != null) {
       if (atNotification.atMetadata!.skeEncAlgo != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';
+            '${AtConstants.sharedKeyEncryptedEncryptingAlgo}:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';
       }
       if (atNotification.atMetadata!.skeEncKeyName != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.skeEncKeyName}:$commandBody';
+            '${AtConstants.sharedKeyEncryptedEncryptingKeyName}:${atNotification.atMetadata!.skeEncKeyName}:$commandBody';
       }
       if (atNotification.atMetadata!.ivNonce != null) {
         commandBody =
-            '$IV_OR_NONCE:${atNotification.atMetadata!.ivNonce}:$commandBody';
+            '${AtConstants.ivOrNonce}:${atNotification.atMetadata!.ivNonce}:$commandBody';
       }
       if (atNotification.atMetadata!.encAlgo != null) {
         commandBody =
-            '$ENCRYPTING_ALGO:${atNotification.atMetadata!.encAlgo}:$commandBody';
+            '${AtConstants.encryptingAlgo}:${atNotification.atMetadata!.encAlgo}:$commandBody';
       }
       if (atNotification.atMetadata!.encKeyName != null) {
         commandBody =
-            '$ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.encKeyName}:$commandBody';
+            '${AtConstants.encryptingKeyName}:${atNotification.atMetadata!.encKeyName}:$commandBody';
       }
       if (atNotification.atMetadata!.pubKeyCS != null) {
         commandBody =
-            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
+            '${AtConstants.sharedWithPublicKeyCheckSum}:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
       }
       if (atNotification.atMetadata!.sharedKeyEnc != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
+            '${AtConstants.sharedKeyEncrypted}:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
       if (atNotification.atMetadata!.isEncrypted != null &&
           atNotification.atMetadata!.isEncrypted == true) {
-        commandBody = '$IS_ENCRYPTED:true:$commandBody';
+        commandBody = '${AtConstants.isEncrypted}:true:$commandBody';
       }
       if (atMetaData.ttr != null) {
         commandBody =

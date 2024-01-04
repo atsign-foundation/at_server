@@ -26,11 +26,11 @@ class NotificationUtil {
 
   /// Load the notification into the map to notify on server start-up.
   static Future<void> loadNotificationMap() async {
-    var _notificationLog = AtNotificationKeystore.getInstance();
-    if (_notificationLog.isEmpty()) {
+    var notificationLog = AtNotificationKeystore.getInstance();
+    if (notificationLog.isEmpty()) {
       return;
     }
-    var values = await _notificationLog.getValues();
+    var values = await notificationLog.getValues();
     for (var element in values) {
       //_notificationLog.getValues().forEach((element) {
       // If notifications are sent and not delivered, add to notificationQueue.

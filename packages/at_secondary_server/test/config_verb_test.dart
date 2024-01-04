@@ -19,8 +19,8 @@ void main() {
       var command = 'config:block:add:@alice @bob';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_SIGN], '@alice @bob');
-      expect(paramsMap[AT_OPERATION], 'add');
+      expect(paramsMap[AtConstants.atSign], '@alice @bob');
+      expect(paramsMap[AtConstants.operation], 'add');
     });
 
     test('test config remove operation', () {
@@ -28,8 +28,8 @@ void main() {
       var command = 'config:block:remove:@alice';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_SIGN], '@alice');
-      expect(paramsMap[AT_OPERATION], 'remove');
+      expect(paramsMap[AtConstants.atSign], '@alice');
+      expect(paramsMap[AtConstants.operation], 'remove');
     });
 
     test('test config show operation', () {
@@ -37,8 +37,8 @@ void main() {
       var command = 'config:block:show';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_SIGN], isNull);
-      expect(paramsMap[AT_OPERATION], 'show');
+      expect(paramsMap[AtConstants.atSign], isNull);
+      expect(paramsMap[AtConstants.operation], 'show');
     });
 
     test('test config with wrong show syntax', () {
@@ -67,8 +67,8 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_SIGN], '@alice @bob');
-      expect(paramsMap[AT_OPERATION], 'add');
+      expect(paramsMap[AtConstants.atSign], '@alice @bob');
+      expect(paramsMap[AtConstants.operation], 'add');
     });
   });
 
@@ -77,8 +77,8 @@ void main() {
     var command = 'config:block:add:@🦄 @🐫🐫';
     var regex = verb.syntax();
     var paramsMap = getVerbParam(regex, command);
-    expect(paramsMap[AT_SIGN], '@🦄 @🐫🐫');
-    expect(paramsMap[AT_OPERATION], 'add');
+    expect(paramsMap[AtConstants.atSign], '@🦄 @🐫🐫');
+    expect(paramsMap[AtConstants.operation], 'add');
   });
 
   test('config verb with emoji with invalid syntax', () {
@@ -109,8 +109,8 @@ void main() {
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[AT_SIGN], '@alice @bob');
-      expect(verbParameters[AT_OPERATION], 'add');
+      expect(verbParameters[AtConstants.atSign], '@alice @bob');
+      expect(verbParameters[AtConstants.operation], 'add');
     });
 
     test('test config verb handler - remove config', () {
@@ -120,8 +120,8 @@ void main() {
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[AT_SIGN], '@alice @bob');
-      expect(verbParameters[AT_OPERATION], 'remove');
+      expect(verbParameters[AtConstants.atSign], '@alice @bob');
+      expect(verbParameters[AtConstants.operation], 'remove');
     });
 
     test('test config verb handler - show config', () {
@@ -131,8 +131,8 @@ void main() {
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[AT_SIGN], isNull);
-      expect(verbParameters[AT_OPERATION], 'show');
+      expect(verbParameters[AtConstants.atSign], isNull);
+      expect(verbParameters[AtConstants.operation], 'show');
     });
 
     test('test config key- invalid add command', () {

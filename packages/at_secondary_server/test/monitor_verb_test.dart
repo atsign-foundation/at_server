@@ -61,7 +61,7 @@ void main() {
         'A test to verify monitor verb writes only notifications that matches regex',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[AT_REGEX] = 'wavi';
+      verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
@@ -121,7 +121,7 @@ void main() {
         'A test to verify only notification matching the namespace in enrollment is pushed',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[AT_REGEX] = 'wavi';
+      verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.getMetaData().isAuthenticated = true;
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
           .enrollmentId = await setEnrollmentKey(jsonEncode({"wavi": "r"}));
@@ -230,7 +230,7 @@ void main() {
         'A test to verify only notification matching the regex is pushed when multiple namespaces are given in enrollment',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[AT_REGEX] = 'wavi';
+      verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.getMetaData().isAuthenticated = true;
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
               .enrollmentId =
@@ -448,7 +448,7 @@ void main() {
         'verify InvalidSyntaxException is thrown on PKAM auth connection when invalid regex is supplied',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[AT_REGEX] = '[';
+      verbParams[AtConstants.regex] = '[';
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
@@ -470,14 +470,14 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid regular expression. ${verbParams[AT_REGEX]} is not a valid regex')));
+                  'Invalid regular expression. ${verbParams[AtConstants.regex]} is not a valid regex')));
     });
 
     test(
         'Verify InvalidSyntaxException is thrown on APKAM auth connection when invalid regex is supplied',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[AT_REGEX] = '[';
+      verbParams[AtConstants.regex] = '[';
       inboundConnection.getMetaData().isAuthenticated = true;
       (inboundConnection.getMetaData() as InboundConnectionMetadata)
           .enrollmentId = await setEnrollmentKey(jsonEncode({"wavi": "r"}));
@@ -501,7 +501,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
-                  'Invalid regular expression. ${verbParams[AT_REGEX]} is not a valid regex')));
+                  'Invalid regular expression. ${verbParams[AtConstants.regex]} is not a valid regex')));
     });
     tearDown(() async {
       await verbTestsTearDown();
@@ -518,7 +518,7 @@ void main() {
         'A test to verify self notification is written to monitor connection invoking callback method',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      verbParams[MONITOR_SELF_NOTIFICATIONS] = 'selfNotifications';
+      verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.getMetaData().isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
