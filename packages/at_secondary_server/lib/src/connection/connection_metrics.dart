@@ -10,6 +10,8 @@ class ConnectionMetricsImpl implements ConnectionMetrics {
 
   @override
   int getOutboundConnections() {
-    return AtSecondaryServerImpl.getInstance().outboundClientManager.getActiveConnectionSize();
+    return AtSecondaryServerImpl.getInstance()
+        .outboundClientManager
+        .getActiveConnectionSize();
   }
 }

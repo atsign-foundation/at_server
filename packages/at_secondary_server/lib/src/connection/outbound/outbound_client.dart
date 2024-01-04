@@ -51,8 +51,8 @@ class OutboundClient {
 
   late OutboundConnectionFactory _outboundConnectionFactory;
 
-  OutboundClient(this.inboundConnection, this.toAtSign,
-      this.secondaryAddressFinder,
+  OutboundClient(
+      this.inboundConnection, this.toAtSign, this.secondaryAddressFinder,
       {OutboundConnectionFactory? outboundConnectionFactory}) {
     outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
     _outboundConnectionFactory = outboundConnectionFactory;

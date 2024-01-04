@@ -18,7 +18,8 @@ void main() {
     test('test outbound client manager - create new client ', () {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
-      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
+      var clientManager =
+          AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient = clientManager.getClient('bob', inboundConnection);
       expect(outBoundClient.toAtSign, 'bob');
@@ -79,7 +80,8 @@ void main() {
         () {
       Socket? dummySocket;
       var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
-      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
+      var clientManager =
+          AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       inboundConnection.close();
@@ -91,7 +93,8 @@ void main() {
         () {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
-      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
+      var clientManager =
+          AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
@@ -105,7 +108,8 @@ void main() {
         () {
       Socket? dummySocket_1, dummySocket_2;
       var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
-      var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
+      var clientManager =
+          AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =

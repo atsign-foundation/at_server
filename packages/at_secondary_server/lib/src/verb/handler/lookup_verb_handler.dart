@@ -47,12 +47,12 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(thisServersAtSign);
-    String keyOwnersAtSign = verbParams[AT_SIGN]!;
+    String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
-    var entity = verbParams[AT_KEY];
+    var entity = verbParams[AtConstants.atKey];
     var keyAtAtSign = '$entity$keyOwnersAtSign';
-    var operation = verbParams[OPERATION];
-    String? byPassCacheStr = verbParams[bypassCache];
+    var operation = verbParams[AtConstants.operation];
+    String? byPassCacheStr = verbParams[AtConstants.bypassCache];
 
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
@@ -143,7 +143,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
     //Resolving value references to correct values
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
           response.data!, atConnectionMetadata.fromAtSign!);
     }
@@ -182,7 +183,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
     //Resolving value references to correct values
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(response.data!, 'public:');
     }
     //Omit all keys starting with '_' to record in access log
@@ -208,7 +210,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
       Response response,
       String? operation,
       String? byPassCacheStr) async {
-    String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
+    String cachedKeyName =
+        '${AtConstants.cached}:$thisServersAtSign:$keyAtAtSign';
     //Get cached value.
     AtData? cachedValue =
         await cacheManager.get(cachedKeyName, applyMetadataRules: true);
@@ -240,7 +243,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var lookupValue = await keyStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
     //Resolving value references to correct value
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
           response.data.toString(), thisServersAtSign);
     }
@@ -288,7 +292,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var resolutionCount = 1;
 
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
-    while (value.contains(AT_VALUE_REFERENCE) &&
+    while (value.contains(AtConstants.atValueReference) &&
         resolutionCount <= depthOfResolution!) {
       var index = value.indexOf('/');
       var keyToResolve = value.substring(index + 2, value.length);
@@ -304,6 +308,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
       value = lookupValue?.data;
       resolutionCount++;
     }
-    return value.contains(AT_VALUE_REFERENCE) ? null : value;
+    return value.contains(AtConstants.atValueReference) ? null : value;
   }
 }

@@ -54,7 +54,8 @@ class NotifyConnectionsPool {
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
-    var newClient = OutboundClient(inboundConnection, toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+    var newClient = OutboundClient(inboundConnection, toAtSign,
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
     _outboundClientPool.add(newClient);
     return newClient;
   }

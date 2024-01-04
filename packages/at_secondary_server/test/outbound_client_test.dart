@@ -19,7 +19,8 @@ void main() {
         () {
       Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob', AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var client = OutboundClient(connection1, 'bob',
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
       connection1.close();
       expect(client.isInValid(), true);
@@ -28,7 +29,8 @@ void main() {
     test('test outbound client - invalid outbound client idle', () {
       Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob', AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var client = OutboundClient(connection1, 'bob',
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
@@ -41,7 +43,8 @@ void main() {
     test('test outbound client - valid outbound client', () {
       Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob', AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var client = OutboundClient(connection1, 'bob',
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
       expect(client.isInValid(), false);
     });
@@ -51,7 +54,8 @@ void main() {
         () {
       Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob', AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var client = OutboundClient(connection1, 'bob',
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
       client.outboundConnection!.getMetaData().isStale = true;
       expect(
@@ -65,7 +69,8 @@ void main() {
         () {
       Socket? dummySocket;
       var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob', AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var client = OutboundClient(connection1, 'bob',
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
       client.outboundConnection!.getMetaData().isClosed = true;
       expect(

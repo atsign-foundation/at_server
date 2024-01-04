@@ -25,7 +25,7 @@ class NotifyRemoveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var id = verbParams[ID];
+    var id = verbParams[AtConstants.id];
     if (id == null || id.isEmpty) {
       throw IllegalArgumentException('Notification Id cannot be null or empty');
     }

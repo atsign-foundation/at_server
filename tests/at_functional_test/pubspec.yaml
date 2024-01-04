@@ -14,9 +14,9 @@ dependencies:
       url: https://github.com/atsign-foundation/at_demos.git
       path: at_demo_data
       ref: trunk
-  at_chops: ^1.0.1
-  at_lookup: ^3.0.32
-  at_commons: ^3.0.55
+  at_chops: ^1.0.7
+  at_lookup: ^3.0.44
+  at_commons: ^4.0.0
   uuid: ^3.0.7
   elliptic: ^0.3.8
 

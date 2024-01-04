@@ -113,7 +113,7 @@ void main() {
       verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
       var response = Response();
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent(AT_FROM_COMMIT_SEQUENCE, () => '0');
+      verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
       verbParams.putIfAbsent('limit', () => '10');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);

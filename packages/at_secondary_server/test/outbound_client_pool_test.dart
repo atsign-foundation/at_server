@@ -37,8 +37,8 @@ void main() async {
     Socket? dummySocket;
     OutboundClient newOutboundClient(String toAtSign) {
       var inboundConnection = InboundConnectionImpl(dummySocket, toAtSign);
-      OutboundClient outboundClient =
-          OutboundClient(inboundConnection, toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      OutboundClient outboundClient = OutboundClient(inboundConnection,
+          toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       outboundClient.outboundConnection =
           OutboundConnectionImpl(dummySocket, toAtSign);
 

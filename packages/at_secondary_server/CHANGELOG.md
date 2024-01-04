@@ -1,3 +1,11 @@
+## 3.0.39
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.0
+  - at_utils to v3.0.16
+  - at_lookup to v3.0.44
+  - at_chops to v1.0.7
+  - at_persistence_secondary_server to v3.0.60
+  - at_server_spec to 3.0.16
 ## 3.0.38
 - Introduce a new config key to store an atsign's blocklist
 ## 3.0.37

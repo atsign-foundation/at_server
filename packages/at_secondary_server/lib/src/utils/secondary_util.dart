@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
@@ -96,8 +95,7 @@ class SecondaryUtil {
   static String signChallenge(String challenge, String privateKey) {
     var key = RSAPrivateKey.fromString(privateKey);
     challenge = challenge.trim();
-    var signature =
-        key.createSHA256Signature(utf8.encode(challenge) as Uint8List);
+    var signature = key.createSHA256Signature(utf8.encode(challenge));
     return base64Encode(signature);
   }
 

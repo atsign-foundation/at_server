@@ -527,8 +527,8 @@ void main() {
       var command = 'lookup:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test lookup getVerb', () {
@@ -571,8 +571,8 @@ void main() {
       var command = 'lookup:email@🐼';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], '🐼');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], '🐼');
     });
 
     test('test lookup with emoji-invalid syntax', () {

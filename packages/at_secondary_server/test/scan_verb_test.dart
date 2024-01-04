@@ -91,8 +91,8 @@ void main() {
       var command = 'scan:@bob ^@kevin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '@bob');
-      expect(paramsMap[AT_REGEX], '^@kevin');
+      expect(paramsMap[AtConstants.forAtSign], '@bob');
+      expect(paramsMap[AtConstants.regex], '^@kevin');
     });
 
     test('test scan verb with emoji in forAtSign and regular expression', () {
@@ -100,8 +100,8 @@ void main() {
       var command = 'scan:@🐼 ^@kevin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '@🐼');
-      expect(paramsMap[AT_REGEX], '^@kevin');
+      expect(paramsMap[AtConstants.forAtSign], '@🐼');
+      expect(paramsMap[AtConstants.regex], '^@kevin');
     });
     tearDownAll(() async {
       await verbTestsTearDown();

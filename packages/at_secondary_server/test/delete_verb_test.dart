@@ -25,9 +25,9 @@ void main() {
       var command = 'delete:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test delete getVerb', () {
@@ -71,9 +71,9 @@ void main() {
       var command = 'delete:@🦄:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[FOR_AT_SIGN], '🦄');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.forAtSign], '🦄');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -81,8 +81,8 @@ void main() {
       var command = 'delete:public:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -90,8 +90,8 @@ void main() {
       var command = 'delete:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete-key with no atsign', () {
@@ -99,7 +99,7 @@ void main() {
       var command = 'delete:privatekey:at_secret';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'privatekey:at_secret');
+      expect(paramsMap[AtConstants.atKey], 'privatekey:at_secret');
     });
   });
 
@@ -113,7 +113,7 @@ void main() {
     });
 
     test('verify deletion of signing public key', () {
-      var command = 'delete:$AT_SIGNING_PUBLIC_KEY@alice';
+      var command = 'delete:${AtConstants.atSigningPublicKey}@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
 
       expect(
@@ -123,7 +123,7 @@ void main() {
     });
 
     test('verify deletion of signing private key', () {
-      var command = 'delete:@alice:$AT_SIGNING_PRIVATE_KEY@alice';
+      var command = 'delete:@alice:${AtConstants.atSigningPrivateKey}@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
       expect(
           () => handler.processVerb(Response(), paramsMap, inboundConnection),
@@ -132,7 +132,7 @@ void main() {
     });
 
     test('verify deletion of encryption public key', () {
-      var command = 'delete:$AT_ENCRYPTION_PUBLIC_KEY@alice';
+      var command = 'delete:${AtConstants.atEncryptionPublicKey}@alice';
       var paramsMap = getVerbParam(Delete().syntax(), command);
       expect(
           () => handler.processVerb(Response(), paramsMap, inboundConnection),
@@ -143,7 +143,7 @@ void main() {
     // the following test throws a syntax exception since delete verb handler
     // expects a key to contain its atsign; but at_pkam_publickey does not
     test('verify deletion of pkam public key', () {
-      var command = 'delete:$AT_PKAM_PUBLIC_KEY';
+      var command = 'delete:${AtConstants.atPkamPublicKey}';
       try {
         var paramsMap = getVerbParam(Delete().syntax(), command);
         handler.processVerb(Response(), paramsMap, inboundConnection);

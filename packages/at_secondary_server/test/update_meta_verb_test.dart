@@ -29,12 +29,12 @@ void main() {
       var command = 'update:meta:@bob:location@kevin:ttl:123:ttb:124:ttr:125';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'kevin');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_TTL], '123');
-      expect(paramsMap[AT_TTB], '124');
-      expect(paramsMap[AT_TTR], '125');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'kevin');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.ttl], '123');
+      expect(paramsMap[AtConstants.ttb], '124');
+      expect(paramsMap[AtConstants.ttr], '125');
     });
 
     test('test update with ttl with no value', () {

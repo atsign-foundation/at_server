@@ -316,7 +316,7 @@ void main() {
       atCompactionStats.atCompactionType =
           (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
               .toString();
-      await keyStore?.put(commitLogCompactionKey,
+      await keyStore?.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats.getInstance().getMetrics();
@@ -369,7 +369,7 @@ void main() {
       atCompactionStats.atCompactionType =
           (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
               .toString();
-      await keyStore?.put(accessLogCompactionKey,
+      await keyStore?.put(AtConstants.accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await AccessLogCompactionStats.getInstance().getMetrics();
@@ -414,7 +414,7 @@ void main() {
       atCompactionStats.preCompactionEntriesCount = 1;
       atCompactionStats.atCompactionType =
           AtNotificationKeystore.getInstance().toString();
-      await keyStore?.put(commitLogCompactionKey,
+      await keyStore?.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats.getInstance().getMetrics();

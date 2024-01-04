@@ -56,9 +56,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.getMetaData() as InboundConnectionMetadata;
-    var forAtSign = verbParams[FOR_AT_SIGN];
-    var scanRegex = verbParams[AT_REGEX];
-    var showHiddenKeys = verbParams[showHidden] == 'true' ? true : false;
+    var forAtSign = verbParams[AtConstants.forAtSign];
+    var scanRegex = verbParams[AtConstants.regex];
+    var showHiddenKeys =
+        verbParams[AtConstants.showHidden] == 'true' ? true : false;
 
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;

@@ -52,7 +52,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
         currentAtSign);
     dynamic result;
-    var operation = verbParams[AtConstants.atOperation];
+    var operation = verbParams[AtConstants.operation];
     var atsigns = verbParams[AtConstants.atSign];
     String? setOperation = verbParams[AtConstants.setOperation];
 
