@@ -105,6 +105,8 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
+  static final bool _optimizeCommitLog = false;
+
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
   static final Set<String> _protectedKeys = {
@@ -772,6 +774,10 @@ class AtSecondaryConfig {
 
   static set timeFrameInMills(int timeWindowInMills) {
     _timeFrameInMills = timeWindowInMills;
+  }
+
+  static get optimizeCommitsForExpiredKeys{
+    return _optimizeCommitLog;
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates
