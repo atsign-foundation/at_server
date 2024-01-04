@@ -23,7 +23,6 @@ void main() async {
       var atData = AtData()..data = 'abc';
       await keyStore?.put(key, atData, time_to_live: 5 * 1000);
       var atDataResponse = await keyStore?.get(key);
-      print(atDataResponse?.data);
       assert(atDataResponse?.data == 'abc');
       stdout.writeln('Sleeping for 23s');
       await Future.delayed(Duration(seconds: 23));
@@ -31,7 +30,7 @@ void main() async {
           () async => getKey(keyStore, key),
           throwsA(predicate((e) =>
               e.toString().contains('123$atsign does not exist in keystore'))));
-    }, timeout: Timeout(Duration(minutes: 2)));
+    }, timeout: Timeout(Duration(minutes: 1)));
 
     test('ensure expired keys deletion entry is not added to commitLog',
         () async {
@@ -77,9 +76,9 @@ void main() async {
       expect(
           () async => await keyStore?.get(key2),
           throwsA(predicate((e) => e is KeyNotFoundException)));
-
+      /// ToDo: need to verify specific comments rather than the entreies count
       expect(keyStore?.commitLog?.entriesCount(), 2); //commitLog has 2 entry; indicating that
-      // deletion of expired keys has NOT been added to the commitLog but the manual
+      // deletion of expired keys has NOT been added to the comList<CommitEntry> commits = keyStore?.commitLog?.mitLog but the manual
           // delete operation added a commit to the commitLog
     });
 
@@ -97,7 +96,7 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign) async {
       .getSecondaryPersistenceStore(atsign)!;
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
-  manager.scheduleKeyExpireTask(null, runTimeInterval: Duration(seconds: 10));
+  manager.scheduleKeyExpireTask(null, runTimeInterval: Duration(seconds: 10), optimizeCommits: true);
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
