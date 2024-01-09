@@ -39,7 +39,7 @@ dependency_overrides:
       git:
         url: https://github.com/atsign-foundation/at_server.git
         path: packages/at_persistence_secondary_server
-        ref: b1c9493
+        ref: delete_commit_nosync
 
 dev_dependencies:
   test: ^1.24.4
