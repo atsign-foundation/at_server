@@ -121,7 +121,6 @@ class HivePersistenceManager with HiveBase {
     } else {
       schedule = Schedule.parse('*/$runFrequencyMins * * * *');
     }
-    schedule = Schedule(seconds: runTimeInterval!.inSeconds);
     _cron.schedule(schedule, () async {
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
