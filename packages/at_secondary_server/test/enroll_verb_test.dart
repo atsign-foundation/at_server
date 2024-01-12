@@ -759,7 +759,7 @@ void main() {
       await verbTestsSetUp();
     });
     test(
-        'A test to verify getDelayIntervalInSeconds return delay in increment order and reset after reaching threshold',
+        'A test to verify getDelayIntervalInSeconds return delay in increment order',
         () {
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -773,7 +773,85 @@ void main() {
       expect(enrollVerbHandler.getDelayIntervalInSeconds(), 21);
       expect(enrollVerbHandler.getDelayIntervalInSeconds(), 34);
       expect(enrollVerbHandler.getDelayIntervalInSeconds(), 55);
-      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 1);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 55);
+      expect(enrollVerbHandler.getDelayIntervalInSeconds(), 55);
+    });
+
+    test(
+        'A test to verify getDelayIntervalInSeconds is reset only after threshold is met',
+        () async {
+      Response response = Response();
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentResponseDelayIntervalInSeconds = 5;
+      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      // First Invalid request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      try {
+        await enrollVerbHandler.processVerb(
+            response, enrollVerbParams, inboundConnection);
+        // Do nothing on exception
+      } on AtEnrollmentException {}
+      expect(enrollVerbHandler.getEnrollmentResponseDelayInSeconds(), 1);
+      // Second Invalid request and verify the delay response interval is incremented.
+      enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+
+      try {
+        await enrollVerbHandler.processVerb(
+            response, enrollVerbParams, inboundConnection);
+      } on AtEnrollmentException {}
+      expect(enrollVerbHandler.getEnrollmentResponseDelayInSeconds(), 2);
+      // Third Invalid request and verify the delay response interval is incremented.
+      enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      try {
+        await enrollVerbHandler.processVerb(
+            response, enrollVerbParams, inboundConnection);
+      } on AtEnrollmentException {}
+      expect(enrollVerbHandler.getEnrollmentResponseDelayInSeconds(), 3);
+
+      // Get OTP and send a valid enrollment request. Verify the delay response is
+      // not reset because the threshold is not met.
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      inboundConnection.getMetaData().isAuthenticated = true;
+      await otpVerbHandler.processVerb(
+          response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
+      print('OTP: ${response.data}');
+
+      inboundConnection.getMetaData().isAuthenticated = false;
+      enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['status'], 'pending');
+      // When threshold limit is not met, assert the delay interval is not reset.
+      expect(enrollVerbHandler.getEnrollmentResponseDelayInSeconds(), 3);
+      // Wait for 5 seconds to for threshold to met to reset the delay in response.
+      await Future.delayed(Duration(seconds: 5));
+      // Get OTP and send a valid Enrollment request
+      inboundConnection.getMetaData().isAuthenticated = true;
+      await otpVerbHandler.processVerb(
+          response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
+      print('OTP: ${response.data}');
+      inboundConnection.getMetaData().isAuthenticated = false;
+      enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      enrollmentResponse = jsonDecode(response.data!);
+      expect(enrollmentResponse['status'], 'pending');
+      // When threshold limit is met, assert the delay interval is reset.
+      expect(enrollVerbHandler.getEnrollmentResponseDelayInSeconds(), 1);
     });
     tearDown(() async => await verbTestsTearDown());
   });

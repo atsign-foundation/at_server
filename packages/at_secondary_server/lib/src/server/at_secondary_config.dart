@@ -131,7 +131,7 @@ class AtSecondaryConfig {
 
   static final int _timeFrameInHours = 1;
 
-  static final int _delayIntervalThreshold = 55;
+  static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
   // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
@@ -776,7 +776,7 @@ class AtSecondaryConfig {
     _timeFrameInMills = timeWindowInMills;
   }
 
-  static int get delayIntervalInSeconds {
+  static int get enrollmentResponseDelayIntervalInSeconds {
     var result = _getIntEnvVar('enrollmentDelayIntervalThreshold');
     if (result != null) {
       return result;
@@ -784,7 +784,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['enrollment', 'delayIntervalThreshold']);
     } on ElementNotFoundException {
-      return _delayIntervalThreshold;
+      return _enrollmentResponseDelayIntervalInSeconds;
     }
   }
 

@@ -26,7 +26,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The threshold value for the delay interval in seconds.
   /// When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
   /// the series is reset to [0, 1] to prevent excessively long delay intervals.
-  final _delayIntervalThreshold = AtSecondaryConfig.delayIntervalInSeconds;
+  @visibleForTesting
+  int enrollmentResponseDelayIntervalInSeconds =
+      AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds;
 
   EnrollVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -39,6 +41,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   int enrollmentExpiryInMills =
       Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours).inMilliseconds;
+
+  int _lastInvalidOtpReceivedInMills = 0;
 
   @override
   Future<void> processVerb(
@@ -130,10 +134,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.getMetaData().isAuthenticated == false) {
       var isValid = await isOTPValid(enrollParams.otp);
       if (!isValid) {
+        _lastInvalidOtpReceivedInMills =
+            DateTime.now().toUtc().millisecondsSinceEpoch;
         await Future.delayed(Duration(seconds: getDelayIntervalInSeconds()));
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
+    }
+
+    // Set to the delay to 0 after the last invalid OTP receiving time exceeds the threshold limit
+    if (DateTime.now()
+            .toUtc()
+            .difference(DateTime.fromMillisecondsSinceEpoch(
+                _lastInvalidOtpReceivedInMills))
+            .inSeconds >=
+        enrollmentResponseDelayIntervalInSeconds) {
+      _lastInvalidOtpReceivedInMills = 0;
+      _delayForInvalidOTPSeries.clear();
+      _delayForInvalidOTPSeries.addAll([0, 1]);
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
@@ -420,15 +438,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   @visibleForTesting
   int getDelayIntervalInSeconds() {
+    if (_delayForInvalidOTPSeries.last >=
+        enrollmentResponseDelayIntervalInSeconds) {
+      return _delayForInvalidOTPSeries.last;
+    }
     _delayForInvalidOTPSeries.add(_delayForInvalidOTPSeries.last +
         _delayForInvalidOTPSeries[_delayForInvalidOTPSeries.length - 2]);
 
     _delayForInvalidOTPSeries.remove(_delayForInvalidOTPSeries.first);
 
-    if (_delayForInvalidOTPSeries.last > _delayIntervalThreshold) {
-      _delayForInvalidOTPSeries.clear();
-      _delayForInvalidOTPSeries.addAll([0, 1]);
-    }
+    return _delayForInvalidOTPSeries.last;
+  }
+
+  /// NOT a part of API. Used for unit tests
+  @visibleForTesting
+  int getEnrollmentResponseDelayInSeconds() {
     return _delayForInvalidOTPSeries.last;
   }
 }
