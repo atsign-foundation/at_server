@@ -4,7 +4,7 @@ ENV GROUP_ID=1024
 WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
-## sudo sudo docker buildx build --platform linux/arm64/v8,linux/amd64 \
+## sudo docker buildx build --platform linux/arm64/v8,linux/amd64 \
 ## -t atsigncompany/virtualenv:vip \
 ## -f tools/build_virtual_environment/ve/Dockerfile.vip -o type=registry .
 COPY . .
