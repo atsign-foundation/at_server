@@ -26,6 +26,7 @@ jobs:
       - name: Checkout latest production tag
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
+          fetch-depth: 0
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
       - name: Copy latest certs from trunk
