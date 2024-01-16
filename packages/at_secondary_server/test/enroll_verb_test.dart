@@ -828,7 +828,6 @@ void main() {
       inboundConnection.getMetaData().isAuthenticated = true;
       await otpVerbHandler.processVerb(
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
-      print('OTP: ${response.data}');
 
       inboundConnection.getMetaData().isAuthenticated = false;
       enrollmentRequest =
@@ -846,7 +845,6 @@ void main() {
       inboundConnection.getMetaData().isAuthenticated = true;
       await otpVerbHandler.processVerb(
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
-      print('OTP: ${response.data}');
       inboundConnection.getMetaData().isAuthenticated = false;
       enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';

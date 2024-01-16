@@ -19,19 +19,18 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class EnrollVerbHandler extends AbstractVerbHandler {
   static Enroll enrollVerb = Enroll();
 
-  /// Defaulting the initial delay to 1000 in milliseconds (1 second).
+  /// Defaulting the initial delay to 1000 milliseconds (1 second).
   @visibleForTesting
   static int initialDelayInMilliseconds = 1000;
 
   /// A list storing a series of delay intervals for handling invalid OTP series.
-  /// The series is initially set to [0, 1000] and is updated using the Fibonacci sequence.
-  /// where 1000 represents the 1 second in milli-seconds.
+  /// The series is initially set to [0, [initialDelayInMilliseconds]] and is updated using the Fibonacci sequence.
   @visibleForTesting
   List<int> delayForInvalidOTPSeries = <int>[0, initialDelayInMilliseconds];
 
-  /// The threshold value for the delay interval in seconds.
+  /// The threshold value for the delay interval in milliseconds.
   /// When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
-  /// the series is reset to [0, 1] to prevent excessively long delay intervals.
+  /// the series is reset to [0, initialDelayInMilliseconds] to prevent excessively long delay intervals.
   @visibleForTesting
   int enrollmentResponseDelayIntervalInMillis = Duration(
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
@@ -435,17 +434,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ///
   /// This method updates a series of delays stored in the '_delayForInvalidOTPSeries'
   /// list.
-  /// The delays are calculated based on the Fibonacci sequence with the
-  /// initial values [0, 1000].
-  /// If the last delay in the series surpasses a predefined threshold,
-  /// the series is reset to [0, 1000].
+  /// The delays are calculated based on the Fibonacci sequence. If the last delay in the
+  /// series surpasses a predefined threshold, the series is reset to default value.
   ///
   /// Returns the calculated delay interval in milliseconds.
 
   @visibleForTesting
   int getDelayIntervalInMilliseconds() {
-    // If the last digit in "delayForInvalidOTPSeries" list reaches the threshold (enrollmentResponseDelayIntervalInMillis)
-    // then return the same without further incrementing the delay.
+    // If the last digit in "delayForInvalidOTPSeries" list reaches the threshold
+    // (enrollmentResponseDelayIntervalInMillis) then return the same without
+    // further incrementing the delay.
     if (delayForInvalidOTPSeries.last >=
         enrollmentResponseDelayIntervalInMillis) {
       return delayForInvalidOTPSeries.last;
