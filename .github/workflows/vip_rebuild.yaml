@@ -39,7 +39,7 @@ jobs:
           push: true
           tags: |
             atsigncompany/vebase:latest
-            atsigncompany/vebase:GHA${{ github.run_number }}
+            atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
@@ -92,7 +92,7 @@ jobs:
           provenance: false
           tags: |
             atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:GHA${{ github.run_number }}
+            atsigncompany/virtualenv:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
