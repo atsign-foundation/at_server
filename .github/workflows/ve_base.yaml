@@ -8,7 +8,7 @@ permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  docker:
+  ve_base:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
