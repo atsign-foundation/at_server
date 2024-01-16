@@ -160,7 +160,7 @@ enrollment:
   # The duration of the time window in hours.
   timeFrameInHours: 1
   # The threshold value for the delay interval in seconds.
-  # When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
-  # the delay in responding for Invalid OTP is reset to 1 second to prevent
-  #  excessively long delay intervals.
+  # If the time elapsed between the reception of the last invalid OTP and the
+  # current date and time surpasses the delayIntervalThreshold, initiate a reset
+  # to the default value.
   delayIntervalThreshold: 55

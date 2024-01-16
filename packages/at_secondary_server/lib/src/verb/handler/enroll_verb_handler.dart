@@ -19,16 +19,23 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 class EnrollVerbHandler extends AbstractVerbHandler {
   static Enroll enrollVerb = Enroll();
 
+  /// Defaulting the initial delay to 1000 in milliseconds (1 second).
+  @visibleForTesting
+  static int initialDelayInMilliseconds = 1000;
+
   /// A list storing a series of delay intervals for handling invalid OTP series.
-  /// The series is initially set to [0, 1] and is updated using the Fibonacci sequence.
-  final _delayForInvalidOTPSeries = <int>[0, 1];
+  /// The series is initially set to [0, 1000] and is updated using the Fibonacci sequence.
+  /// where 1000 represents the 1 second in milli-seconds.
+  @visibleForTesting
+  List<int> delayForInvalidOTPSeries = <int>[0, initialDelayInMilliseconds];
 
   /// The threshold value for the delay interval in seconds.
   /// When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
   /// the series is reset to [0, 1] to prevent excessively long delay intervals.
   @visibleForTesting
-  int enrollmentResponseDelayIntervalInSeconds =
-      AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds;
+  int enrollmentResponseDelayIntervalInMillis = Duration(
+          seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
+      .inMilliseconds;
 
   EnrollVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -136,22 +143,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       if (!isValid) {
         _lastInvalidOtpReceivedInMills =
             DateTime.now().toUtc().millisecondsSinceEpoch;
-        await Future.delayed(Duration(seconds: getDelayIntervalInSeconds()));
+        await Future.delayed(
+            Duration(milliseconds: getDelayIntervalInMilliseconds()));
         throw AtEnrollmentException(
             'invalid otp. Cannot process enroll request');
       }
     }
 
-    // Set to the delay to 0 after the last invalid OTP receiving time exceeds the threshold limit
-    if (DateTime.now()
-            .toUtc()
-            .difference(DateTime.fromMillisecondsSinceEpoch(
-                _lastInvalidOtpReceivedInMills))
-            .inSeconds >=
-        enrollmentResponseDelayIntervalInSeconds) {
+    // When threshold is met, set "_lastInvalidOtpReceivedInMills" and "delayForInvalidOTPSeries"
+    // to default values.
+    if (((DateTime.now().toUtc().millisecondsSinceEpoch) -
+            _lastInvalidOtpReceivedInMills) >=
+        enrollmentResponseDelayIntervalInMillis) {
       _lastInvalidOtpReceivedInMills = 0;
-      _delayForInvalidOTPSeries.clear();
-      _delayForInvalidOTPSeries.addAll([0, 1]);
+      delayForInvalidOTPSeries.clear();
+      delayForInvalidOTPSeries.addAll([0, initialDelayInMilliseconds]);
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
@@ -424,35 +430,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         skipCommit: true);
   }
 
-  /// Calculates and returns the delay interval in seconds for handling
+  /// Calculates and returns the delay interval in milliseconds for handling
   /// invalid OTP.
   ///
   /// This method updates a series of delays stored in the '_delayForInvalidOTPSeries'
   /// list.
   /// The delays are calculated based on the Fibonacci sequence with the
-  /// initial values [0, 1].
+  /// initial values [0, 1000].
   /// If the last delay in the series surpasses a predefined threshold,
-  /// the series is reset to [0, 1].
+  /// the series is reset to [0, 1000].
   ///
-  /// Returns the calculated delay interval in seconds.
+  /// Returns the calculated delay interval in milliseconds.
 
   @visibleForTesting
-  int getDelayIntervalInSeconds() {
-    if (_delayForInvalidOTPSeries.last >=
-        enrollmentResponseDelayIntervalInSeconds) {
-      return _delayForInvalidOTPSeries.last;
+  int getDelayIntervalInMilliseconds() {
+    // If the last digit in "delayForInvalidOTPSeries" list reaches the threshold (enrollmentResponseDelayIntervalInMillis)
+    // then return the same without further incrementing the delay.
+    if (delayForInvalidOTPSeries.last >=
+        enrollmentResponseDelayIntervalInMillis) {
+      return delayForInvalidOTPSeries.last;
     }
-    _delayForInvalidOTPSeries.add(_delayForInvalidOTPSeries.last +
-        _delayForInvalidOTPSeries[_delayForInvalidOTPSeries.length - 2]);
+    delayForInvalidOTPSeries.add(delayForInvalidOTPSeries.last +
+        delayForInvalidOTPSeries[delayForInvalidOTPSeries.length - 2]);
+    delayForInvalidOTPSeries.remove(delayForInvalidOTPSeries.first);
 
-    _delayForInvalidOTPSeries.remove(_delayForInvalidOTPSeries.first);
-
-    return _delayForInvalidOTPSeries.last;
+    return delayForInvalidOTPSeries.last;
   }
 
   /// NOT a part of API. Used for unit tests
   @visibleForTesting
-  int getEnrollmentResponseDelayInSeconds() {
-    return _delayForInvalidOTPSeries.last;
+  int getEnrollmentResponseDelayInMilliseconds() {
+    return delayForInvalidOTPSeries.last;
   }
 }
