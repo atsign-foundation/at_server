@@ -13,35 +13,11 @@ permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  push_prod_virtualenv_image:
+  ve_base:
     runs-on: ubuntu-latest
     steps:
-      - name: Get latest production tag
-        id: prod_tag
-        run: |
-          REPO="https://api.github.com/repos/atsign-foundation/at_server/releases/latest"
-          PROD_TAG=$(curl -s ${REPO} | jq -r .tag_name)
-          echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Checkout latest production tag
+      - name: Checkout trunk
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          ref: ${{ steps.prod_tag.outputs.prod_tag}}
-
-      - name: Copy latest certs from trunk
-        run: |
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/cert.pem
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/fullchain.pem
-          git checkout trunk \
-            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/privkey.pem
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
@@ -63,7 +39,7 @@ jobs:
           push: true
           tags: |
             atsigncompany/vebase:latest
-            atsigncompany/vebase:GHA${{ github.run_number }}
+            atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
@@ -78,6 +54,34 @@ jobs:
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
 
+  push_prod_virtualenv_image:
+    needs: [ ve_base ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest production tag
+        id: prod_tag
+        run: |
+          REPO="https://api.github.com/repos/atsign-foundation/at_server/releases/latest"
+          PROD_TAG=$(curl -s ${REPO} | jq -r .tag_name)
+          echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Checkout latest production tag
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          ref: ${{ steps.prod_tag.outputs.prod_tag}}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build and push vip
         id: docker_build_vip
         uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
@@ -88,7 +92,7 @@ jobs:
           provenance: false
           tags: |
             atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:GHA${{ github.run_number }}
+            atsigncompany/virtualenv:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
