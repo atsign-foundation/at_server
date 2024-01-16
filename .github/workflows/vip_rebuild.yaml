@@ -55,8 +55,31 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
-        id: docker_build
+      - name: Build and push new VE base
+        id: docker_build_base
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        with:
+          file: tools/build_virtual_environment/ve_base/Dockerfile
+          push: true
+          tags: |
+            atsigncompany/vebase:latest
+            atsigncompany/vebase:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest VE base
+        run: echo ${{ steps.docker_build_base.outputs.digest }}
+
+      - name: Google Chat Notification VE base
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: New Docker base image for vebase:latest
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
+
+      - name: Build and push vip
+        id: docker_build_vip
         uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
@@ -70,10 +93,10 @@ jobs:
             linux/amd64
             linux/arm64/v8
 
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
+      - name: Image digest vip
+        run: echo ${{ steps.docker_build_vip.outputs.digest }}
 
-      - name: Google Chat Notification
+      - name: Google Chat Notification vip
         uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
         with:
           name: New Docker image for atsigncompany/virtualenv:vip
