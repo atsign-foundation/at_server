@@ -1,0 +1,104 @@
+name: vip_rebuild
+# Creates a new image for atsigncompany/virtualenv:vip whenever updated
+# certificates are merged to trunk
+on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - 'tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem'
+  workflow_dispatch:
+
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  push_prod_virtualenv_image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest production tag
+        id: prod_tag
+        run: |
+          REPO="https://api.github.com/repos/atsign-foundation/at_server/releases/latest"
+          PROD_TAG=$(curl -s ${REPO} | jq -r .tag_name)
+          echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Checkout latest production tag
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          ref: ${{ steps.prod_tag.outputs.prod_tag}}
+
+      - name: Copy latest certs from trunk
+        run: |
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/cert.pem
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/fullchain.pem
+          git checkout trunk \
+            tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/privkey.pem
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push new VE base
+        id: docker_build_base
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        with:
+          file: tools/build_virtual_environment/ve_base/Dockerfile
+          push: true
+          tags: |
+            atsigncompany/vebase:latest
+            atsigncompany/vebase:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest VE base
+        run: echo ${{ steps.docker_build_base.outputs.digest }}
+
+      - name: Google Chat Notification VE base
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: New Docker base image for vebase:latest
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
+
+      - name: Build and push vip
+        id: docker_build_vip
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        with:
+          file: tools/build_virtual_environment/ve/Dockerfile.vip
+          context: .
+          push: true
+          provenance: false
+          tags: |
+            atsigncompany/virtualenv:vip
+            atsigncompany/virtualenv:GHA${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest vip
+        run: echo ${{ steps.docker_build_vip.outputs.digest }}
+
+      - name: Google Chat Notification vip
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: New Docker image for atsigncompany/virtualenv:vip
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
