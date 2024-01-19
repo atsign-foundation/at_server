@@ -34,6 +34,14 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+#TODO - replace with published version
+dependency_overrides:
+  at_chops:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      path: packages/at_chops
+      ref: pass_optional_key_params
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1
