@@ -1,6 +1,11 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:test/test.dart';
@@ -76,7 +81,7 @@ void main() {
       await verbTestsSetUp();
     });
     test(
-        'A test to verify UnAuthorizedException is thrown when topt verb is executed on an unauthenticated conn',
+        'A test to verify UnAuthorizedException is thrown when opt verb is executed on an unauthenticated conn',
         () {
       Response response = Response();
       HashMap<String, String?> verbParams =
@@ -127,6 +132,70 @@ void main() {
       String otp = 'ABC123';
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       expect(await otpVerbHandler.isOTPValid(otp), false);
+    });
+
+    test('A test to verify otp is removed from the keystore after use',
+        () async {
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      inboundConnection.getMetaData().isAuthenticated = true;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      String? otp = response.data;
+      expect(await otpVerbHandler.isOTPValid(otp), true);
+      expect(await otpVerbHandler.isOTPValid(otp), false);
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to semi-permanent pass codes', () {
+    String enrollmentId = 'dummy-enrollment-key';
+    setUp(() async {
+      await verbTestsSetUp();
+      String enrollmentKey =
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy_session_id', 'dummy-app', 'dummy-device', 'dummy-apkam-key')
+        ..namespaces = {enrollManageNamespace: 'rw'};
+      await secondaryKeyStore.put(
+          enrollmentKey, AtData()..data = jsonEncode(enrollDataStoreValue));
+    });
+    test('A test to set a pass code and verify isOTPValid returns true',
+        () async {
+      String passcode = 'abc123';
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
+      inboundConnection.getMetaData().isAuthenticated = true;
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+      // Adding expect again to ensure the Semi-permanent passcodes are not deleted
+      // after one time use.
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+    });
+
+    test('A test to verify pass code can be updated', () async {
+      String passcode = 'abc123';
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
+      inboundConnection.getMetaData().isAuthenticated = true;
+      (inboundConnection.getMetaData() as InboundConnectionMetadata)
+          .enrollmentId = enrollmentId;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+      // Update the pass-code
+      passcode = 'xyz987';
+      response = Response();
+      verbParams = getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
+      otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
     });
     tearDown(() async => await verbTestsTearDown());
   });
