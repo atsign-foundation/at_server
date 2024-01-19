@@ -77,6 +77,9 @@ class AtMetaData extends HiveObject {
   @HiveField(23)
   String? skeEncAlgo;
 
+  @HiveField(24)
+  PublicKeyHash? publicKeyCheckSum;
+
   @override
   String toString() {
     return toJson().toString();
@@ -151,6 +154,7 @@ class AtMetaData extends HiveObject {
     map[AtConstants.ivOrNonce] = ivNonce;
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map['publicKeyCheckSum'] = publicKeyCheckSum;
     return map;
   }
 
@@ -205,7 +209,7 @@ class AtMetaData extends HiveObject {
     ivNonce = json[AtConstants.ivOrNonce];
     skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
-
+    publicKeyCheckSum = json['publicKeyCheckSum'];
     return this;
   }
 
@@ -301,13 +305,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..encAlgo = fields[20]
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
-      ..skeEncAlgo = fields[23];
+      ..skeEncAlgo = fields[23]
+      ..publicKeyCheckSum = fields[24];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -355,6 +360,61 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(22)
       ..write(obj.skeEncKeyName)
       ..writeByte(23)
-      ..write(obj.skeEncAlgo);
+      ..write(obj.skeEncAlgo)
+      ..writeByte(24)
+      ..write(obj.publicKeyCheckSum);
+  }
+}
+
+@HiveType(typeId: 11)
+class   PublicKeyHash extends HiveObject {
+  String? hash;
+  String? hashingAlgo;
+  PublicKeyHash();
+  Map toJson() {
+    Map map = {};
+    map['hash'] = hash;
+    map['hashingAlgo'] = hashingAlgo;
+    return map;
+  }
+
+  factory PublicKeyHash.fromJson(Map json) {
+    return PublicKeyHash().fromJson(json);
+  }
+
+  PublicKeyHash fromJson(Map json) {
+    hash = json['hash'];
+    hashingAlgo = json['hashingAlgo'];
+    return this;
+  }
+  @override
+  String toString() {
+    return toJson().toString();
+  }
+}
+
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
+  @override
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
+
+  @override
+  PublicKeyHash read(BinaryReader reader) {
+    var numOfFields = reader.readByte();
+    var fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return PublicKeyHash()
+      ..hash = fields[0] as String?
+      ..hashingAlgo = fields[1] as String?;
+  }
+
+  @override
+  void write(BinaryWriter writer, PublicKeyHash obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.hash)
+      ..writeByte(1)
+      ..write(obj.hashingAlgo);
   }
 }

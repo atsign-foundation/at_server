@@ -13,6 +13,27 @@ void main() async {
   group('A group of tests to verify at_metadata fields', () {
     setUpAll(() async => await setUpFunc(storageDir));
 
+    test('Sample test', () async {
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
+      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)!
+          .getSecondaryKeyStore();
+      var key = '@bob:phone@alice';
+      var value = '9878123321';
+      var checkSum = PublicKeyHash()
+        ..hash = 'testHash'
+        ..hashingAlgo = 'sha512';
+      var atMetaData = AtMetaData()..publicKeyCheckSum = checkSum;
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = value
+            ..metaData = atMetaData);
+      var atData = await hiveKeyStore?.get(key);
+      expect(atData?.data, value);
+      print(atData);
+    });
+
     /// The below test is to verify the default fields in the metadata are populated
     /// on creation of a new key
     /// The default fields are:
