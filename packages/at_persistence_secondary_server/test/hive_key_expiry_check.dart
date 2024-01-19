@@ -15,7 +15,8 @@ void main() async {
       () {
     // verifies that deletion of expired keys does NOT create/update commit entries
     setUp(() async {
-      var keyStoreManager = await getKeystoreManager(storageDir, atsign, optimizeCommits: true);
+      var keyStoreManager =
+          await getKeystoreManager(storageDir, atsign, optimizeCommits: true);
       keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
       assert(keyStore != null);
     });
@@ -90,9 +91,10 @@ void main() async {
 
   group('test scenarios for expired keys - CASE: optimizeCommits set to FALSE',
       () {
-        // verifies that deletion of expired keys creates/updates commit entries
-        setUp(() async {
-      var keyStoreManager = await getKeystoreManager(storageDir, atsign, optimizeCommits: false);
+    // verifies that deletion of expired keys creates/updates commit entries
+    setUp(() async {
+      var keyStoreManager =
+          await getKeystoreManager(storageDir, atsign, optimizeCommits: false);
       keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
       assert(keyStore != null);
     });
@@ -141,8 +143,7 @@ void main() async {
       expect(() async => await keyStore?.get(key2),
           throwsA(predicate((e) => e is KeyNotFoundException)));
       expect(commitLog.getLatestCommitEntry(key2)?.operation, CommitOp.DELETE);
-      expect(keyStore?.commitLog?.entriesCount(),
-          2);
+      expect(keyStore?.commitLog?.entriesCount(), 2);
     });
 
     tearDown(() async => await tearDownFunc());
@@ -154,8 +155,8 @@ Future<String?> getKey(keyStore, key) async {
   return atData?.data;
 }
 
-Future<SecondaryKeyStoreManager> getKeystoreManager(
-    storageDir, atsign, {required bool optimizeCommits}) async {
+Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
+    {required bool optimizeCommits}) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(atsign)!;
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
