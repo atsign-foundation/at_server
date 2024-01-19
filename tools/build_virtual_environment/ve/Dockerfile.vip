@@ -1,11 +1,12 @@
-FROM dart:3.2.4@sha256:a310da69472710ceaa8015add37ef99d16d9ec51e9b67f87fe3b11a7e9596a50 AS buildimage
+FROM dart:3.2.5@sha256:622d0e15b24a1f060ef3b968f22f9ee5cb5e424dff94a2dcb3824f609780ec25 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
-## sudo docker build -t atsigncompany/virtualenv:vip \
-## -f tools/build_virtual_environment/ve/Dockerfile.vip .
+## sudo docker buildx build --platform linux/arm64/v8,linux/amd64 \
+## -t atsigncompany/virtualenv:vip \
+## -f tools/build_virtual_environment/ve/Dockerfile.vip -o type=registry .
 COPY . .
 RUN \
   cd /app/packages/at_persistence_secondary_server ; \

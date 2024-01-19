@@ -185,7 +185,7 @@ jobs:
       # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v4.0.0
+        uses: actions/upload-artifact@694cdabd8bdb0f10b2cea11669e1bf5453eed0a6 # v4.2.0
         with:
           name: secondary-server
           path: packages/at_secondary_server/secondary
@@ -879,7 +879,7 @@ jobs:
           provenance: false
           tags: |
             atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:GHA${{ github.run_number }}
+            atsigncompany/virtualenv:at_server-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8

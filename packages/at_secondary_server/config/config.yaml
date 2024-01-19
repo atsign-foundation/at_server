@@ -159,3 +159,7 @@ enrollment:
   maxRequestsPerTimeFrame: 5
   # The duration of the time window in hours.
   timeFrameInHours: 1
+  # The threshold value for the delay interval in seconds.
+  # If the duration between the last received invalid OTP and the current date-time
+  # exceeds the delayIntervalThreshold, trigger a reset to the default value.
+  delayIntervalThreshold: 55

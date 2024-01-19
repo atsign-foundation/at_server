@@ -159,11 +159,24 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// It returns true if the OTP is valid; otherwise, it returns false.
   /// If the OTP is not found in the keystore, it also returns false.
   ///
-  /// Additionally, this function removes the OTP from the keystore to prevent its reuse.
+  /// Additionally, this function removes the OTP from the keystore to prevent
+  /// its reuse.
   Future<bool> isOTPValid(String? otp) async {
     if (otp == null) {
       return false;
     }
+    // Check if user have configured SPP(Semi-Permanent Pass-code).
+    // If SPP key is available, check if the otp sent is a valid pass code.
+    // If yes, return true, else check it is a valid OTP.
+    String sppKey =
+        'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    if (keyStore.isKeyExists(sppKey)) {
+      AtData atData = await keyStore.get(sppKey);
+      if (atData.data?.toLowerCase() == otp.toLowerCase()) {
+        return true;
+      }
+    }
+    // If SPP is not valid, then check if the provided otp is valid.
     String otpKey =
         'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
     AtData otpAtData;
@@ -172,6 +185,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on KeyNotFoundException {
       return false;
     }
-    return SecondaryUtil.isActiveKey(otpAtData);
+    bool isOTPValid = SecondaryUtil.isActiveKey(otpAtData);
+    // Remove the OTP after it is used.
+    // NOTE: SPP code should NOT be deleted. only OTPs should be
+    // deleted after use.
+    await keyStore.remove(otpKey);
+
+    return isOTPValid;
   }
 }

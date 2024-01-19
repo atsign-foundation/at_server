@@ -8,7 +8,7 @@ permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  docker:
+  ve_base:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
@@ -31,7 +31,7 @@ jobs:
           push: true
           tags: |
             atsigncompany/vebase:latest
-            atsigncompany/vebase:GHA${{ github.run_number }}
+            atsigncompany/vebase:ve_base-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
