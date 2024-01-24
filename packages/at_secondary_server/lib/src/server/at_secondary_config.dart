@@ -778,8 +778,9 @@ class AtSecondaryConfig {
     _timeFrameInMills = timeWindowInMills;
   }
 
-  static get optimizeCommitsForExpiredKeys{
+  static get optimizeCommitsForExpiredKeys {
     return _optimizeCommitLog;
+  }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
     var result = _getIntEnvVar('enrollmentDelayIntervalThreshold');
