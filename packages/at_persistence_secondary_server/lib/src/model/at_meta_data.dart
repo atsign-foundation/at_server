@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
@@ -87,8 +88,8 @@ class AtMetaData extends HiveObject {
 
   AtMetaData();
 
-  Metadata toCommonsMetadata() {
-    return Metadata()
+  at_commons.Metadata toCommonsMetadata() {
+    return at_commons.Metadata()
       ..ttl = ttl
       ..ttb = ttb
       ..ttr = ttr
@@ -98,8 +99,11 @@ class AtMetaData extends HiveObject {
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
-      // name conflict between PublicKeyHash of persistence and at_commons
-      //..pubKeyHash = publicKeyHash
+      //#TODO handle null objects
+      ..pubKeyHash = (at_commons.PublicKeyHash()
+        ..hash = publicKeyHash?.hash
+        ..publicKeyHashingAlgo =
+            PublicKeyHashingAlgo.values.byName(publicKeyHash!.hashingAlgo!))
       ..encoding = encoding
       ..encKeyName = encKeyName
       ..encAlgo = encAlgo
@@ -108,7 +112,7 @@ class AtMetaData extends HiveObject {
       ..skeEncAlgo = skeEncAlgo;
   }
 
-  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+  factory AtMetaData.fromCommonsMetadata(at_commons.Metadata metadata) {
     var atMetadata = AtMetaData();
     atMetadata
       ..ttl = metadata.ttl
@@ -120,6 +124,9 @@ class AtMetaData extends HiveObject {
       ..dataSignature = metadata.dataSignature
       ..sharedKeyEnc = metadata.sharedKeyEnc
       ..pubKeyCS = metadata.pubKeyCS
+      ..publicKeyHash = (PublicKeyHash()
+        ..hash = metadata.pubKeyHash!.hash
+        ..hashingAlgo = metadata.pubKeyHash!.publicKeyHashingAlgo!.name)
       ..encoding = metadata.encoding
       ..encKeyName = metadata.encKeyName
       ..encAlgo = metadata.encAlgo
@@ -141,22 +148,24 @@ class AtMetaData extends HiveObject {
     map['refreshAt'] = refreshAt?.toUtc().toString();
     map['status'] = status;
     map['version'] = version;
-    map[AtConstants.ttl] = ttl;
-    map[AtConstants.ttb] = ttb;
-    map[AtConstants.ttr] = ttr;
-    map[AtConstants.ccd] = isCascade;
-    map[AtConstants.isBinary] = isBinary;
-    map[AtConstants.isEncrypted] = isEncrypted;
-    map[AtConstants.publicDataSignature] = dataSignature;
-    map[AtConstants.sharedKeyEncrypted] = sharedKeyEnc;
-    map[AtConstants.sharedWithPublicKeyCheckSum] = pubKeyCS;
-    map[AtConstants.encoding] = encoding;
-    map[AtConstants.encryptingKeyName] = encKeyName;
-    map[AtConstants.encryptingAlgo] = encAlgo;
-    map[AtConstants.ivOrNonce] = ivNonce;
-    map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
-    map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
-    map[AtConstants.sharedWithPublicKeyHash] = publicKeyHash;
+    map[at_commons.AtConstants.ttl] = ttl;
+    map[at_commons.AtConstants.ttb] = ttb;
+    map[at_commons.AtConstants.ttr] = ttr;
+    map[at_commons.AtConstants.ccd] = isCascade;
+    map[at_commons.AtConstants.isBinary] = isBinary;
+    map[at_commons.AtConstants.isEncrypted] = isEncrypted;
+    map[at_commons.AtConstants.publicDataSignature] = dataSignature;
+    map[at_commons.AtConstants.sharedKeyEncrypted] = sharedKeyEnc;
+    map[at_commons.AtConstants.sharedWithPublicKeyCheckSum] = pubKeyCS;
+    map[at_commons.AtConstants.encoding] = encoding;
+    map[at_commons.AtConstants.encryptingKeyName] = encKeyName;
+    map[at_commons.AtConstants.encryptingAlgo] = encAlgo;
+    map[at_commons.AtConstants.ivOrNonce] = ivNonce;
+    map[at_commons.AtConstants.sharedKeyEncryptedEncryptingKeyName] =
+        skeEncKeyName;
+    map[at_commons.AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map[at_commons.AtConstants.sharedWithPublicKeyHash] =
+        publicKeyHash?.toJson();
     return map;
   }
 
@@ -184,34 +193,35 @@ class AtMetaData extends HiveObject {
         : (json['version'] == null)
             ? 0
             : json['version'];
-    ttl = (json[AtConstants.ttl] is String)
-        ? int.parse(json[AtConstants.ttl])
-        : (json[AtConstants.ttl] == null)
+    ttl = (json[at_commons.AtConstants.ttl] is String)
+        ? int.parse(json[at_commons.AtConstants.ttl])
+        : (json[at_commons.AtConstants.ttl] == null)
             ? null
-            : json[AtConstants.ttl];
-    ttb = (json[AtConstants.ttb] is String)
-        ? int.parse(json[AtConstants.ttb])
-        : (json[AtConstants.ttb] == null)
+            : json[at_commons.AtConstants.ttl];
+    ttb = (json[at_commons.AtConstants.ttb] is String)
+        ? int.parse(json[at_commons.AtConstants.ttb])
+        : (json[at_commons.AtConstants.ttb] == null)
             ? null
-            : json[AtConstants.ttb];
-    ttr = (json[AtConstants.ttr] is String)
-        ? int.parse(json[AtConstants.ttr])
-        : (json[AtConstants.ttr] == null)
+            : json[at_commons.AtConstants.ttb];
+    ttr = (json[at_commons.AtConstants.ttr] is String)
+        ? int.parse(json[at_commons.AtConstants.ttr])
+        : (json[at_commons.AtConstants.ttr] == null)
             ? null
-            : json[AtConstants.ttr];
-    isCascade = json[AtConstants.ccd];
-    isBinary = json[AtConstants.isBinary];
-    isEncrypted = json[AtConstants.isEncrypted];
-    dataSignature = json[AtConstants.publicDataSignature];
-    sharedKeyEnc = json[AtConstants.sharedKeyEncrypted];
-    pubKeyCS = json[AtConstants.sharedWithPublicKeyCheckSum];
-    encoding = json[AtConstants.encoding];
-    encKeyName = json[AtConstants.encryptingKeyName];
-    encAlgo = json[AtConstants.encryptingAlgo];
-    ivNonce = json[AtConstants.ivOrNonce];
-    skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
-    skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
-    publicKeyHash = json[AtConstants.sharedWithPublicKeyHash];
+            : json[at_commons.AtConstants.ttr];
+    isCascade = json[at_commons.AtConstants.ccd];
+    isBinary = json[at_commons.AtConstants.isBinary];
+    isEncrypted = json[at_commons.AtConstants.isEncrypted];
+    dataSignature = json[at_commons.AtConstants.publicDataSignature];
+    sharedKeyEnc = json[at_commons.AtConstants.sharedKeyEncrypted];
+    pubKeyCS = json[at_commons.AtConstants.sharedWithPublicKeyCheckSum];
+    encoding = json[at_commons.AtConstants.encoding];
+    encKeyName = json[at_commons.AtConstants.encryptingKeyName];
+    encAlgo = json[at_commons.AtConstants.encryptingAlgo];
+    ivNonce = json[at_commons.AtConstants.ivOrNonce];
+    skeEncKeyName =
+        json[at_commons.AtConstants.sharedKeyEncryptedEncryptingKeyName];
+    skeEncAlgo = json[at_commons.AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    publicKeyHash = json[at_commons.AtConstants.sharedWithPublicKeyHash];
     return this;
   }
 
