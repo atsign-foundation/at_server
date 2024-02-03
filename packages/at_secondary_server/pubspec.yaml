@@ -10,7 +10,10 @@ environment:
 
 dependency_overrides:
   at_server_spec:
-    path: ../at_server_spec
+    git:
+      ref: gkc/alpn
+      url: https://github.com/atsign-foundation/at_server
+      path: packages/at_server_spec
 
 dependencies:
   args: 2.4.2
