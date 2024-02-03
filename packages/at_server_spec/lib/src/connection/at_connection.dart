@@ -4,11 +4,11 @@ abstract class AtConnection<T> {
   /// @throws [AtIOException] for any exception during the operation
   void write(String data);
 
-  /// Retrieves the socket of underlying connection
-  T getSocket();
+  /// The underlying connection
+  T get underlying;
 
   /// Gets the connection metadata
-  AtConnectionMetaData getMetaData();
+  AtConnectionMetaData get metaData;
 
   /// closes the underlying connection
   Future<void> close();
