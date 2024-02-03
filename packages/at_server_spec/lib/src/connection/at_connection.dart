@@ -1,13 +1,11 @@
-import 'dart:io';
-
-abstract class AtConnection {
+abstract class AtConnection<T> {
   /// Write a data to the underlying socket of the connection
   /// @param - data - Data to write to the socket
   /// @throws [AtIOException] for any exception during the operation
   void write(String data);
 
   /// Retrieves the socket of underlying connection
-  Socket getSocket();
+  T getSocket();
 
   /// Gets the connection metadata
   AtConnectionMetaData getMetaData();
