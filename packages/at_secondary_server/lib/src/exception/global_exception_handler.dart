@@ -121,11 +121,10 @@ class GlobalExceptionHandler {
         // For example if @alice performs lookup verb to @bob and @bob returns key not found exception
         // add error description only on @alice (not on @bob)
         // When connecting to other secondaries for lookup verb, a pol authenticated connection
-        // is established. atConnection.getMetaData().isPolAuthenticated is set to true.
+        // is established. atConnection.metaData.isPolAuthenticated is set to true.
         // When a user connects to his own secondary, an authenticate connection is created.
-        // atConnection.getMetaData().isAuthenticated is set to true.
-        if (exception is AtException &&
-            atConnection.getMetaData().isAuthenticated) {
+        // atConnection.metaData.isAuthenticated is set to true.
+        if (exception is AtException && atConnection.metaData.isAuthenticated) {
           errorDescription =
               '${getErrorDescription(errorCode)} : ${exception.message}';
         } else {
@@ -137,7 +136,7 @@ class GlobalExceptionHandler {
   }
 
   String _getPrompt(AtConnection atConnection) {
-    var isAuthenticated = atConnection.getMetaData().isAuthenticated;
+    var isAuthenticated = atConnection.metaData.isAuthenticated;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var prompt = isAuthenticated ? '$atSign@' : '@';
     return prompt;
@@ -153,13 +152,13 @@ class GlobalExceptionHandler {
 
   void _writeToSocket(AtConnection atConnection, String prompt,
       String? errorCode, String errorDescription) {
-    if (atConnection.getMetaData().clientVersion ==
+    if (atConnection.metaData.clientVersion ==
         AtConnectionMetaData.clientVersionNotAvailable) {
       atConnection.write('error:$errorCode-$errorDescription\n$prompt');
       return;
     }
     // The JSON encoding of error message is supported by the client versions greater than 3.0.37
-    if (Version.parse(atConnection.getMetaData().clientVersion) >
+    if (Version.parse(atConnection.metaData.clientVersion) >
         Version(3, 0, 37)) {
       logger.info(
           'Client version supports json encoding.. returning Json encoded error message');

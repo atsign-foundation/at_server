@@ -22,14 +22,14 @@ void main() {
     test('A test to verify enroll requests get different enrollment ids',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       // Enroll request
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
@@ -46,7 +46,7 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
@@ -64,9 +64,9 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -86,8 +86,8 @@ void main() {
         () async {
       Response response = Response();
       // OTP Verb
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       HashMap<String, String?> otpVerbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
@@ -99,7 +99,7 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
@@ -120,9 +120,9 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -143,8 +143,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -153,8 +153,8 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
 
       String enrollmentList = 'enroll:list';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       verbParams = getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
@@ -165,14 +165,14 @@ void main() {
         'A test to verify enrollment list without __manage namespace returns enrollment info of given enrollmentId',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       // Enroll request
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
@@ -190,7 +190,7 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
@@ -199,14 +199,14 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollment);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, approveEnrollmentVerbParams, inboundConnection);
       // Enroll list
       String enrollmentList = 'enroll:list';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
@@ -232,8 +232,8 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
 
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       // OTP Verb
       HashMap<String, String?> otpVerbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
@@ -256,7 +256,7 @@ void main() {
             'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
         HashMap<String, String?> enrollmentRequestVerbParams =
             getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-        inboundConnection.getMetaData().isAuthenticated = false;
+        inboundConnection.metaData.isAuthenticated = false;
         EnrollVerbHandler enrollVerbHandler =
             EnrollVerbHandler(secondaryKeyStore);
         await enrollVerbHandler.processVerb(
@@ -267,7 +267,7 @@ void main() {
             'enroll:$operation:{"enrollmentId":"$enrollmentId"}';
         HashMap<String, String?> approveEnrollmentVerbParams =
             getVerbParam(VerbSyntax.enroll, approveEnrollment);
-        inboundConnection.getMetaData().isAuthenticated = true;
+        inboundConnection.metaData.isAuthenticated = true;
         enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
         await enrollVerbHandler.processVerb(
             response, approveEnrollmentVerbParams, inboundConnection);
@@ -289,8 +289,8 @@ void main() {
       String enrollmentRequest = 'enroll:approve:enrollmentid:123';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -309,8 +309,8 @@ void main() {
       String enrollmentRequest = 'enroll:deny:enrollmentid:123';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -328,8 +328,8 @@ void main() {
       String enrollmentRequest = 'enroll:revoke:enrollmentid:123';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -347,8 +347,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -374,10 +374,10 @@ void main() {
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = '123';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -404,11 +404,11 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = '123';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
       Response responseObject = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -431,11 +431,11 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = '123';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -453,7 +453,7 @@ void main() {
     test('A test to ensure enroll approval is not added to commit log',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       // GET OTP
       HashMap<String, String?> otpVerbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
@@ -465,8 +465,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"buzz":"rw"},"encryptedAPKAMSymmetricKey":"dummy_apkam_symmetric_key","apkamPublicKey":"dummy_apkam_public_key","otp":"${response.data}"}';
       HashMap<String, String?> enrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
@@ -477,8 +477,8 @@ void main() {
       String approveEnrollment =
           'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
       enrollmentVerbParams = getVerbParam(VerbSyntax.enroll, approveEnrollment);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       await enrollVerbHandler.processVerb(
           response, enrollmentVerbParams, inboundConnection);
       var approveEnrollmentResponse = jsonDecode(response.data!);
@@ -504,7 +504,7 @@ void main() {
       HashMap<String, String?> totpVerbParams =
           getVerbParam(VerbSyntax.otp, totpCommand);
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       Response defaultResponse = Response();
       await otpVerbHandler.processVerb(
           defaultResponse, totpVerbParams, inboundConnection);
@@ -520,8 +520,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -533,8 +533,8 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
@@ -554,8 +554,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id1';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id1';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -567,8 +567,8 @@ void main() {
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       expect(response.isError, true);
@@ -588,8 +588,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -606,8 +606,8 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       // Verify TTL is reset
@@ -626,9 +626,9 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -656,7 +656,7 @@ void main() {
       HashMap<String, String?> totpVerbParams =
           getVerbParam(VerbSyntax.otp, totpCommand);
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(
           defaultResponse, totpVerbParams, inboundConnection);
       otp = defaultResponse.data;
@@ -667,8 +667,8 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           defaultResponse, enrollVerbParams, inboundConnection);
       enrollmentId = jsonDecode(defaultResponse.data!)['enrollmentId'];
@@ -682,8 +682,8 @@ void main() {
       String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
@@ -693,8 +693,8 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
@@ -711,8 +711,8 @@ void main() {
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
           response, approveEnrollVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
@@ -741,8 +741,8 @@ void main() {
       String denyEnrollmentCommand =
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
@@ -789,8 +789,8 @@ void main() {
         EnrollVerbHandler.initialDelayInMilliseconds
       ];
       enrollVerbHandler.enrollmentResponseDelayIntervalInMillis = 500;
-      inboundConnection.getMetaData().isAuthenticated = false;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       // First Invalid request
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
@@ -825,11 +825,11 @@ void main() {
       // Get OTP and send a valid enrollment request. Verify the delay response is
       // not reset because the threshold is not met.
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
 
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
@@ -842,10 +842,10 @@ void main() {
       // Wait for 5 seconds to for threshold to met to reset the delay in response.
       await Future.delayed(Duration(milliseconds: 500));
       // Get OTP and send a valid Enrollment request
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);

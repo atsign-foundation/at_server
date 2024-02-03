@@ -47,7 +47,7 @@ class FromVerbHandler extends AbstractVerbHandler {
         currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var fromAtSign = verbParams[AtConstants.atSign];
 
     if (verbParams[AtConstants.clientConfig] != null &&
@@ -120,14 +120,13 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer('_verifyFromAtSign secondaryUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
-    var secSocket = atConnection.getSocket() as SecureSocket;
+    var secSocket = atConnection.underlying as SecureSocket;
     logger.finer('secSocket : $secSocket');
     var cn = secSocket.peerCertificate;
     logger.finer('CN : $cn');
     if (cn == null) {
-      logger.finer(
-          'CN is null.stream flag ${atConnection.getMetaData().isStream}');
-      return atConnection.getMetaData().isStream;
+      logger.finer('CN is null.stream flag ${atConnection.metaData.isStream}');
+      return atConnection.metaData.isStream;
     }
 
     if (clientCertificateRequired!) {
@@ -147,7 +146,8 @@ class FromVerbHandler extends AbstractVerbHandler {
     var x509Pem = cn.pem;
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
-    var subjectAlternativeName = data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
+    var subjectAlternativeName =
+        data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
     logger.finer('SAN: $subjectAlternativeName');
     if (subjectAlternativeName.contains(host)) {
       return true;

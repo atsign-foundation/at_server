@@ -146,13 +146,13 @@ verbTestsSetUp() async {
   AtConnectionMetaData outboundConnectionMetadata =
       OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
-  when(() => mockOutboundConnection.getMetaData())
+  when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
   when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
 
   mockSecureSocket = MockSecureSocket();
-  when(() => mockOutboundConnection.getSocket())
+  when(() => mockOutboundConnection.underlying)
       .thenAnswer((_) => mockSecureSocket);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 

@@ -119,7 +119,7 @@ void main() {
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -135,7 +135,7 @@ void main() {
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -151,7 +151,7 @@ void main() {
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data.startsWith('proof:$inBoundSessionId@nairobi'), true);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata = atConnection.metaData;
       expect(connectionMetadata.from, true);
       expect(connectionMetadata.fromAtSign, '@nairobi');
     });*/
@@ -175,7 +175,7 @@ void main() {
       expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
     });
 
@@ -217,7 +217,7 @@ void main() {
       atConnection = InboundConnectionImpl(null, inBoundSessionId);
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data.startsWith('proof:$inBoundSessionId@bob'), true);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata = atConnection.metaData;
       expect(connectionMetadata.from, true);
       expect(connectionMetadata.fromAtSign, '@bob');
     });
@@ -233,7 +233,7 @@ void main() {
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
       expect(response.data.startsWith('proof:$inBoundSessionId@bob'), true);
-      InboundConnectionMetadata connectionMetadata = atConnection.getMetaData();
+      InboundConnectionMetadata connectionMetadata = atConnection.metaData;
       expect(connectionMetadata.from, true);
       expect(connectionMetadata.fromAtSign, '@bob');
       await AtConfig.getInstance().addToBlockList({'@bob'});

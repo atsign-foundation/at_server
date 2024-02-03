@@ -574,7 +574,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -621,7 +621,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
@@ -698,7 +698,7 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb

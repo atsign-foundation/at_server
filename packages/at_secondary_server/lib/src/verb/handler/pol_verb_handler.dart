@@ -52,7 +52,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     InboundConnectionMetadata atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
 

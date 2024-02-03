@@ -101,12 +101,12 @@ void main() async {
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.2)
                   .floor()));
-      print('connection 1: ${connection1.getMetaData().created} '
-          '${connection1.getMetaData().lastAccessed} ${connection1.isInValid()}');
-      print('connection 2: ${connection2.getMetaData().created} '
-          '${connection2.getMetaData().lastAccessed} ${connection2.isInValid()}');
-      print('connection 3: ${connection3.getMetaData().created} '
-          '${connection3.getMetaData().lastAccessed} ${connection3.isInValid()}');
+      print('connection 1: ${connection1.metaData.created} '
+          '${connection1.metaData.lastAccessed} ${connection1.isInValid()}');
+      print('connection 2: ${connection2.metaData.created} '
+          '${connection2.metaData.lastAccessed} ${connection2.isInValid()}');
+      print('connection 3: ${connection3.metaData.created} '
+          '${connection3.metaData.lastAccessed} ${connection3.isInValid()}');
       poolInstance.clearInvalidConnections();
       expect(poolInstance.getCurrentSize(), 1);
     });
@@ -123,7 +123,8 @@ void main() async {
           (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio)
               .floor();
       for (int i = 0; i < lowWaterMark; i++) {
-        var mockConnection = MockInboundConnectionImpl(mockSocket, 'mock session $i');
+        var mockConnection =
+            MockInboundConnectionImpl(mockSocket, 'mock session $i');
         connections.add(mockConnection);
         poolInstance.add(mockConnection);
       }
@@ -166,9 +167,10 @@ void main() async {
       int desiredPoolSize = (maxPoolSize * 0.9).floor();
       int numUnauthenticated = 0;
       for (int i = 0; i < desiredPoolSize; i++) {
-        var mockConnection = MockInboundConnectionImpl(mockSocket, 'mock session $i');
+        var mockConnection =
+            MockInboundConnectionImpl(mockSocket, 'mock session $i');
         if (i.isEven) {
-          mockConnection.getMetaData().isAuthenticated = true;
+          mockConnection.metaData.isAuthenticated = true;
         } else {
           numUnauthenticated++;
         }
@@ -289,11 +291,11 @@ class MockInboundConnectionImpl extends InboundConnectionImpl {
 
   @override
   Future<void> close() async {
-    getMetaData().isClosed = true;
+    metaData.isClosed = true;
   }
 
   @override
   void write(String data) {
-    getMetaData().lastAccessed = DateTime.now().toUtc();
+    metaData.lastAccessed = DateTime.now().toUtc();
   }
 }

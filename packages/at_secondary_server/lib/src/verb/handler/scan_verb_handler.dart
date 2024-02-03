@@ -55,7 +55,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var forAtSign = verbParams[AtConstants.forAtSign];
     var scanRegex = verbParams[AtConstants.regex];
     var showHiddenKeys =

@@ -32,8 +32,8 @@ void main() {
       connManager.init(5);
       var createdConnection =
           connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
-      expect(createdConnection.getMetaData().sessionID, 'aaa');
-      expect(createdConnection.getMetaData().isCreated, true);
+      expect(createdConnection.metaData.sessionID, 'aaa');
+      expect(createdConnection.metaData.isCreated, true);
     });
 
     test('test inbound connection manager - current pool size', () {
@@ -54,7 +54,8 @@ void main() {
       connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
       connManager.createSocketConnection(mockSocket, sessionId: 'bbb');
       expect(
-          () => connManager.createSocketConnection(mockSocket, sessionId: 'ccc'),
+          () =>
+              connManager.createSocketConnection(mockSocket, sessionId: 'ccc'),
           throwsA(predicate((dynamic e) =>
               e is InboundConnectionLimitException &&
               e.message == 'max limit reached on inbound pool')));

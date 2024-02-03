@@ -18,17 +18,17 @@ class OutboundMessageListener {
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() async {
-    outboundClient.outboundConnection?.getSocket().listen(_messageHandler,
+    outboundClient.outboundConnection?.underlying.listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
-    outboundClient.outboundConnection?.getMetaData().isListening = true;
+    outboundClient.outboundConnection?.metaData.isListening = true;
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
   Future<void> _messageHandler(data) async {
     //ignore the data if connection is closed or stale
-    if (outboundClient.outboundConnection!.getMetaData().isStale ||
-        outboundClient.outboundConnection!.getMetaData().isClosed) {
+    if (outboundClient.outboundConnection!.metaData.isStale ||
+        outboundClient.outboundConnection!.metaData.isClosed) {
       _buffer.clear();
       return;
     }

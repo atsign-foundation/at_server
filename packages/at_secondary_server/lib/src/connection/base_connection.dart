@@ -7,6 +7,7 @@ import 'package:at_utils/at_logger.dart';
 /// Base class for common socket operations
 abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
   late final T _socket;
+  @override
   late AtConnectionMetaData metaData;
   late AtSignLogger logger;
 
@@ -16,31 +17,24 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
   }
 
   @override
-  AtConnectionMetaData getMetaData() {
-    return metaData;
-  }
-
-  @override
   Future<void> close() async {
     try {
-      var address = getSocket().remoteAddress;
-      var port = getSocket().remotePort;
+      var address = underlying.remoteAddress;
+      var port = underlying.remotePort;
       await _socket.close();
       logger.finer('$address:$port Disconnected');
-      getMetaData().isClosed = true;
+      metaData.isClosed = true;
     } on Exception {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore exception on a connection close
     } on Error {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore error on a connection close
     }
   }
 
   @override
-  T getSocket() {
-    return _socket;
-  }
+  T get underlying => _socket;
 
   @override
   void write(String data) {
@@ -48,10 +42,10 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      getSocket().write(data);
-      getMetaData().lastAccessed = DateTime.now().toUtc();
+      underlying.write(data);
+      metaData.lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       logger.severe(e.toString());
       throw AtIOException(e.toString());
     }

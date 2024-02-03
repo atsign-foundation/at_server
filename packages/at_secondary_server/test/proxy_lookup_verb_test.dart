@@ -69,7 +69,7 @@ void main() {
           () async {});
 
       test('plookup - not in cache and does not exist on remote', () async {
-        inboundConnection.getMetaData().isAuthenticated =
+        inboundConnection.metaData.isAuthenticated =
             true; // owner connection, authenticated
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))

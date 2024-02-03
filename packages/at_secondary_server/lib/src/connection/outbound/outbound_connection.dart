@@ -4,7 +4,8 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 // Represent an OutboundConnection to another atServer
-abstract class OutboundSocketConnection<T extends Socket> extends BaseSocketConnection {
+abstract class OutboundSocketConnection<T extends Socket>
+    extends BaseSocketConnection {
   OutboundSocketConnection(T socket) : super(socket);
 }
 

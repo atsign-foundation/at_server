@@ -127,7 +127,7 @@ void main() {
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
           'public:location.wavi@alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
@@ -152,7 +152,7 @@ void main() {
         'A test to verify only keys matching the regex are returned when regex is supplied to scan',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
           'public:location.wavi@alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
@@ -175,7 +175,7 @@ void main() {
         'A test to verify public hidden keys are returned when showhidden set to true',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
           'public:__phone.wavi@alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
@@ -194,7 +194,7 @@ void main() {
         'A test to verify public hidden keys are not returned when showhidden set to false',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
           'public:__phone.wavi@alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
@@ -222,9 +222,9 @@ void main() {
     test(
         'A test to verify keys specific to forAtSign are returned on pol authenticated connection',
         () async {
-      inboundConnection.getMetaData().isPolAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .fromAtSign = '@bob';
+      inboundConnection.metaData.isPolAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).fromAtSign =
+          '@bob';
 
       await secondaryKeyStore.put(
           '@bob:phone.wavi@alice', AtData()..data = 'dummy-value');
@@ -238,7 +238,7 @@ void main() {
           'city.wavi@alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
-          inboundConnection.getMetaData() as InboundConnectionMetadata,
+          inboundConnection.metaData as InboundConnectionMetadata,
           '.*',
           false,
           alice);
@@ -249,9 +249,9 @@ void main() {
     test(
         'A test to verify regex applied on pol authenticated connection returns only keys specific to forAtSign that matches the regex',
         () async {
-      inboundConnection.getMetaData().isPolAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .fromAtSign = '@bob';
+      inboundConnection.metaData.isPolAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).fromAtSign =
+          '@bob';
 
       await secondaryKeyStore.put(
           '@bob:phone.wavi@alice', AtData()..data = 'dummy-value');
@@ -267,7 +267,7 @@ void main() {
           'city.wavi@alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
-          inboundConnection.getMetaData() as InboundConnectionMetadata,
+          inboundConnection.metaData as InboundConnectionMetadata,
           'wavi',
           false,
           alice);
@@ -328,8 +328,8 @@ void main() {
     test(
         'A test to verify scan does not return the enrollment keys when enrollment namespace has __manage',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -349,8 +349,8 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -366,8 +366,8 @@ void main() {
     test(
         'A test to verify scan returns only the keys whose namespaces are authorized in enrollment request',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -390,8 +390,8 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -404,9 +404,9 @@ void main() {
     test(
         'A test to verify scan returns enrollment keys on a CRAM authenticated connection',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.authType = AuthType.cram;
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -435,10 +435,10 @@ void main() {
 
     test('A test to verify enrollment has *:rw access', () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -467,10 +467,10 @@ void main() {
         'A test to verify scan returns all keys when enrollment has *:rw access',
         () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -514,10 +514,10 @@ void main() {
         'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
         () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -556,8 +556,8 @@ void main() {
     test(
         'A test to verify keys without namespace are not returned when enrollmentId is supplied',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -582,8 +582,8 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]

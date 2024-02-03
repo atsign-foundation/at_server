@@ -60,7 +60,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     //Approve, deny, revoke or list enrollments only on authenticated connections
-    if (operation != 'request' && !atConnection.getMetaData().isAuthenticated) {
+    if (operation != 'request' && !atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
@@ -137,7 +137,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
-    if (atConnection.getMetaData().isAuthenticated == false) {
+    if (atConnection.metaData.isAuthenticated == false) {
       var isValid = await isOTPValid(enrollParams.otp);
       if (!isValid) {
         _lastInvalidOtpReceivedInMills =
@@ -167,22 +167,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     responseJson['enrollmentId'] = newEnrollmentId;
     final enrollmentValue = EnrollDataStoreValue(
-        atConnection.getMetaData().sessionID!,
+        atConnection.metaData.sessionID!,
         enrollParams.appName!,
         enrollParams.deviceName!,
         enrollParams.apkamPublicKey!);
     enrollmentValue.namespaces = enrollNamespaces;
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
     AtData enrollData;
-    if (atConnection.getMetaData().authType != null &&
-        atConnection.getMetaData().authType == AuthType.cram) {
+    if (atConnection.metaData.authType != null &&
+        atConnection.metaData.authType == AuthType.cram) {
       // auto approve request from connection that is CRAM authenticated.
       enrollNamespaces[enrollManageNamespace] = 'rw';
       enrollNamespaces[allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       responseJson['status'] = 'approved';
       final inboundConnectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
@@ -314,7 +314,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       AtConnection atConnection, String currentAtSign) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     List<String> enrollmentKeysList =
         keyStore.getKeys(regex: newEnrollmentKeyPattern) as List<String>;
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.

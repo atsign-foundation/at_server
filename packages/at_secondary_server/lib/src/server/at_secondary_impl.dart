@@ -448,8 +448,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
-        connection = inBoundConnectionManager.createSocketConnection(clientSocket,
-            sessionId: sessionID);
+        connection = inBoundConnectionManager
+            .createSocketConnection(clientSocket, sessionId: sessionID);
         connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
         connection.write('@');
       } on InboundConnectionLimitException catch (e) {
@@ -515,7 +515,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
     logger.finer(logger.getAtConnectionLogMessage(
-        connection.getMetaData(), 'inside _executeVerbCallBack: $command'));
+        connection.metaData, 'inside _executeVerbCallBack: $command'));
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
@@ -546,9 +546,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    var streamId = sender.getMetaData().streamId;
+    var streamId = sender.metaData.streamId;
     logger.finer(logger.getAtConnectionLogMessage(
-        sender.getMetaData(), 'stream id:$streamId'));
+        sender.metaData, 'stream id:$streamId'));
     if (_isPaused) {
       GlobalExceptionHandler.getInstance().handle(
           ServerIsPausedException(
@@ -557,7 +557,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       return;
     }
     if (streamId != null) {
-      StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
+      StreamManager.receiverSocketMap[streamId]!.underlying.add(data);
     }
   }
 

@@ -37,7 +37,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
     }
     switch (operation) {
       case 'get':
-        if (!atConnection.getMetaData().isAuthenticated) {
+        if (!atConnection.metaData.isAuthenticated) {
           throw UnAuthenticatedException(
               'otp:get requires authenticated connection');
         }
@@ -56,7 +56,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
       case 'put':
         // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
         if (!(await _isClientAuthorizedToStoreSPP(
-            atConnection.getMetaData() as InboundConnectionMetadata,
+            atConnection.metaData as InboundConnectionMetadata,
             AtSecondaryServerImpl.getInstance().currentAtSign))) {
           throw InvalidRequestException(
               'Client not allowed to not store semi permanent pass code');

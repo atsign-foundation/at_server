@@ -22,7 +22,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -36,7 +36,7 @@ void main() {
         Response response = Response();
         HashMap<String, String?> verbParams =
             getVerbParam(VerbSyntax.otp, 'otp:get');
-        inboundConnection.getMetaData().isAuthenticated = true;
+        inboundConnection.metaData.isAuthenticated = true;
         OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
         await otpVerbHandler.processVerb(
             response, verbParams, inboundConnection);
@@ -52,7 +52,7 @@ void main() {
     test('A test to verify otp:get with TTL set is active before TTL is met',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1000');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
@@ -64,7 +64,7 @@ void main() {
     test('A test to verify otp:get with TTL set expires after the TTL is met',
         () async {
       Response response = Response();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
@@ -106,7 +106,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isOTPValid(response.data), true);
@@ -117,7 +117,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       otpVerbHandler.otpExpiryInMills = 1;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
@@ -139,7 +139,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
@@ -167,9 +167,9 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isOTPValid(passcode), true);
@@ -183,9 +183,9 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isOTPValid(passcode), true);

@@ -5,7 +5,8 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:uuid/uuid.dart';
 
-class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection {
+class OutboundConnectionImpl<T extends Socket>
+    extends OutboundSocketConnection {
   static int? outboundIdleTime =
       AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
 
@@ -19,8 +20,8 @@ class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection 
   }
 
   int _getIdleTimeMillis() {
-    var lastAccessedTime = getMetaData().lastAccessed;
-    lastAccessedTime ??= getMetaData().created;
+    var lastAccessedTime = metaData.lastAccessed;
+    lastAccessedTime ??= metaData.created;
     var currentTime = DateTime.now().toUtc();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
@@ -31,7 +32,7 @@ class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection 
 
   @override
   bool isInValid() {
-    return _isIdle() || getMetaData().isClosed || getMetaData().isStale;
+    return _isIdle() || metaData.isClosed || metaData.isStale;
   }
 
   @override
@@ -40,22 +41,22 @@ class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection 
     // behaviour for outbound connections for now, not inbound connections
 
     // Some defensive code just in case we accidentally call close multiple times
-    if (getMetaData().isClosed) {
+    if (metaData.isClosed) {
       return;
     }
 
     try {
-      var socket = getSocket();
+      var socket = underlying;
       var address = socket.remoteAddress;
       var port = socket.remotePort;
       socket.destroy();
       logger.finer('$address:$port Disconnected');
-      getMetaData().isClosed = true;
+      metaData.isClosed = true;
     } on Exception {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore exception on a connection close
     } on Error {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore error on a connection close
     }
   }
@@ -64,6 +65,6 @@ class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection 
   void write(String data) {
     super.write(data);
     logger.info(logger.getAtConnectionLogMessage(
-        getMetaData(), 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }
 }

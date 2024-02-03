@@ -10,7 +10,6 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-
 void main() {
   late MockSocket mockSocket;
 
@@ -62,7 +61,7 @@ void main() {
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
-      client.outboundConnection!.getMetaData().isStale = true;
+      client.outboundConnection!.metaData.isStale = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(
@@ -76,7 +75,7 @@ void main() {
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
-      client.outboundConnection!.getMetaData().isClosed = true;
+      client.outboundConnection!.metaData.isClosed = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(

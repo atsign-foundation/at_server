@@ -66,7 +66,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       await processNotificationMutex.acquire();
       atNotificationBuilder.reset();
       var atConnectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
