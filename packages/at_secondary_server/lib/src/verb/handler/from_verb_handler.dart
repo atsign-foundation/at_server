@@ -147,12 +147,12 @@ class FromVerbHandler extends AbstractVerbHandler {
     var x509Pem = cn.pem;
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
-    var subjectAlternativeName = data.subjectAlternativNames!;
+    var subjectAlternativeName = data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
     logger.finer('SAN: $subjectAlternativeName');
     if (subjectAlternativeName.contains(host)) {
       return true;
     }
-    var commonName = data.subject['2.5.4.3']!;
+    var commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
     logger.finer('CN: $commonName');
     if (commonName.contains(host)) {
       return true;

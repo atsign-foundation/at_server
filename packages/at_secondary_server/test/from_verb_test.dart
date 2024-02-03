@@ -10,17 +10,23 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
-
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+import 'package:test/test.dart';
+import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  late SecondaryKeyStore mockKeyStore;
+  late MockSocket mockSocket;
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  setUp(() async {
+    mockKeyStore = MockSecondaryKeyStore();
+    mockSocket = MockSocket();
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+    keyStoreManager = await setUpFunc(storageDir);
+  });
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
       var verb = From();
@@ -106,7 +112,7 @@ void main() {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
@@ -121,7 +127,7 @@ void main() {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
@@ -161,7 +167,7 @@ void main() {
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@alice');
       var response = Response();
@@ -182,7 +188,7 @@ void main() {
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '123';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => '@bob');
       var response = Response();

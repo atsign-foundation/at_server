@@ -10,16 +10,20 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_server_spec/verbs.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
@@ -46,7 +50,7 @@ void main() {
       await AtNotificationKeystore.getInstance().put('122', notificationObj);
 
       // Dummy Inbound connection
-      var atConnection = InboundConnectionImpl(null, '123')
+      var atConnection = InboundConnectionImpl(mockSocket, '123')
         ..metaData = (InboundConnectionMetadata()
           ..fromAtSign = '@alice'
           ..isAuthenticated = true);

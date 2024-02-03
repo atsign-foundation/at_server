@@ -7,12 +7,22 @@ import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.da
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+
+import 'test_utils.dart';
 
 void main() async {
   // ignore: prefer_typing_uninitialized_variables
   late OutboundClientPool outboundClientPool;
   final int outboundIdleTimeMillis = 200;
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
+
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
@@ -34,13 +44,12 @@ void main() async {
       expect(outboundClientPool.getCurrentSize(), 0);
     });
 
-    Socket? dummySocket;
     OutboundClient newOutboundClient(String toAtSign) {
-      var inboundConnection = InboundConnectionImpl(dummySocket, toAtSign);
+      var inboundConnection = InboundConnectionImpl(mockSocket, toAtSign);
       OutboundClient outboundClient = OutboundClient(inboundConnection,
           toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
       outboundClient.outboundConnection =
-          OutboundConnectionImpl(dummySocket, toAtSign);
+          OutboundConnectionImpl(mockSocket, toAtSign);
 
       return outboundClient;
     }

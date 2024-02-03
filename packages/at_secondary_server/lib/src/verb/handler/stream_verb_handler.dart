@@ -50,8 +50,6 @@ class StreamVerbHandler extends AbstractVerbHandler {
         senderConnection.getMetaData().isStream = true;
         senderConnection.getMetaData().streamId = streamId;
         atConnection.getMetaData().streamId = streamId;
-        senderConnection.receiverSocket =
-            StreamManager.receiverSocketMap[streamId]!.getSocket();
         logger.info('writing stream ack');
         senderConnection.getSocket().write('stream:ack $streamId\n');
         break;

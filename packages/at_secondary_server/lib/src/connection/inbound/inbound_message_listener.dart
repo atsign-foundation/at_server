@@ -27,10 +27,6 @@ class InboundMessageListener {
     onBufferEndCallBack = callback;
     connection.getSocket().listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
-    connection
-        .getSocket()
-        .done
-        .onError((error, stackTrace) => (_errorHandler(error)));
     connection.getMetaData().isListening = true;
   }
 
@@ -77,7 +73,7 @@ class InboundMessageListener {
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
         logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
-            'RCVD: ${BaseConnection.truncateForLogging(command)}'));
+            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();

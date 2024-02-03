@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
@@ -24,13 +25,16 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  late SecondaryKeyStore mockKeyStore;
+  late MockSocket mockSocket;
 
   setUpAll(() async {
     await verbTestsSetUpAll();
+    mockKeyStore = MockSecondaryKeyStore();
+    mockSocket = MockSocket();
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
   });
 
   setUp(() async {
@@ -523,7 +527,7 @@ void main() {
           keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
+      var atConnection = InboundConnectionImpl(mockSocket, null);
       expect(
           () => handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
@@ -554,7 +558,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
@@ -601,7 +605,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
@@ -678,7 +682,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
@@ -962,7 +966,7 @@ void main() {
           keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
+      var atConnection = InboundConnectionImpl(mockSocket, null);
       await expectLater(
           () async =>
               await handler.processVerb(response, verbParams, atConnection),
@@ -986,7 +990,7 @@ void main() {
           keyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
+      var atConnection = InboundConnectionImpl(mockSocket, null);
       await handler.processVerb(response, verbParams, atConnection);
       expect(response.isError, false);
     });

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -14,12 +15,20 @@ import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
 void main() {
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
+
   group('A group of scan verb tests', () {
     setUpAll(() async {
       await verbTestsSetUp();
@@ -71,7 +80,7 @@ void main() {
 
     test('test scan verb - invalid syntax', () {
       var command = 'scann';
-      var inbound = InboundConnectionImpl(null, null);
+      var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
           secondaryKeyStore,

@@ -14,7 +14,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 import 'dummy_inbound_connection.dart';
 
-class InboundConnectionImpl extends BaseConnection
+class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     implements InboundConnection {
   @override
   bool? isMonitor = false;
@@ -55,7 +55,7 @@ class InboundConnectionImpl extends BaseConnection
   /// A list of timestamps representing the times when requests were made.
   late final Queue<int> requestTimestampQueue;
 
-  InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool})
+  InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
       : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
@@ -207,9 +207,6 @@ class InboundConnectionImpl extends BaseConnection
     listener.listen(callback, streamCallBack);
   }
 
-  @override
-  Socket? receiverSocket;
-
   bool? isStream;
 
   @override
@@ -244,7 +241,7 @@ class InboundConnectionImpl extends BaseConnection
     super.write(data);
     if (metaData is InboundConnectionMetadata) {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
+          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
     }
   }
 

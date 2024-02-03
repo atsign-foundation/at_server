@@ -24,13 +24,17 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
@@ -98,7 +102,7 @@ void main() {
         () {
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
@@ -167,7 +171,7 @@ void main() {
     test('test notify verb - invalid ttl value', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
@@ -186,7 +190,7 @@ void main() {
     test('test notify verb - invalid ttb value', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
@@ -204,7 +208,7 @@ void main() {
     test('test notify verb - ttr = -2 invalid value ', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
@@ -240,7 +244,7 @@ void main() {
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
 
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
@@ -323,7 +327,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -377,7 +381,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -430,7 +434,7 @@ void main() {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       atConnection.metaData.isAuthenticated = true;
 
       var command = 'notify:update:messagetype:text:@bob:hello';
@@ -929,7 +933,7 @@ void main() {
       notifyFetch = NotifyFetchVerbHandler(keyStore);
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
 
       // first notification
       firstNotificationVerbParams.putIfAbsent('id', () => 'abc-123');

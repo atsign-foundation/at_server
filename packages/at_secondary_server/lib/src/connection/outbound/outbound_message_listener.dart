@@ -61,7 +61,7 @@ class OutboundMessageListener {
       _buffer.clear();
       logger.info(logger.getAtConnectionLogMessage(
           outboundClient.outboundConnection!.metaData,
-          'RCVD: ${BaseConnection.truncateForLogging(result)}'));
+          'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
       _queue.add(result);
     }
   }

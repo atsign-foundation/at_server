@@ -275,11 +275,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       // fromAtSign represents who sent the notification.
       // on sender, fromAtSign is same as currentAtSign and on receiver side,
-      // If notification is of messageType "key" fromAtSign is fetched from verbparams
+      // If notification is of messageType "key" fromAtSign is fetched from verbParams
       // If notification is of messageType "text" fromAtSign is fetched from atConnectionMetadata.fromAtSign
       {String fromAtSign = ''}) {
     atNotificationBuilder = atNotificationBuilder
-      ..toAtSign = AtUtils.formatAtSign(verbParams[AtConstants.forAtSign])
+      ..toAtSign = AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? '')
       ..fromAtSign = fromAtSign
       ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
       ..notification = _getFullFormedAtKey(
@@ -291,7 +291,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..notificationStatus = NotificationStatus.queued
       ..atMetaData = _getAtMetadataForNotification(verbParams)
       ..type = _getNotificationType(
-          AtUtils.formatAtSign(verbParams[AtConstants.forAtSign])!,
+          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
           AtSecondaryServerImpl.getInstance().currentAtSign)
       ..ttl =
           getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])

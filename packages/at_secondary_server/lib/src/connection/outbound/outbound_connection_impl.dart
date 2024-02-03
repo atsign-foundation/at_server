@@ -5,11 +5,11 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:uuid/uuid.dart';
 
-class OutboundConnectionImpl extends OutboundConnection {
+class OutboundConnectionImpl<T extends Socket> extends OutboundSocketConnection {
   static int? outboundIdleTime =
       AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
 
-  OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket) {
+  OutboundConnectionImpl(T socket, String? toAtSign) : super(socket) {
     var sessionId = '_${Uuid().v4()}';
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
@@ -64,6 +64,6 @@ class OutboundConnectionImpl extends OutboundConnection {
   void write(String data) {
     super.write(data);
     logger.info(logger.getAtConnectionLogMessage(
-        getMetaData(), 'SENT: ${BaseConnection.truncateForLogging(data)}'));
+        getMetaData(), 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }
 }

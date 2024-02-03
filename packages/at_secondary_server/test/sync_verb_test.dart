@@ -13,10 +13,17 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   group('A group of sync verb regex test', () {
     test('test sync correct syntax', () {
@@ -116,7 +123,7 @@ void main() {
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
       verbParams.putIfAbsent('limit', () => '10');
       var inBoundSessionId = '123';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       Map syncResponseMap = (jsonDecode(response.data!)).first;

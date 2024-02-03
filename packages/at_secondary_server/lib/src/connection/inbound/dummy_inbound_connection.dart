@@ -60,9 +60,6 @@ class DummyInboundConnection implements InboundConnection {
   bool isStream = false;
 
   @override
-  Socket? receiverSocket;
-
-  @override
   bool isRequestAllowed() {
     return true;
   }

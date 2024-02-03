@@ -800,7 +800,7 @@ void main() {
         await enrollVerbHandler.processVerb(
             response, enrollVerbParams, inboundConnection);
         // Do nothing on exception
-      } on AtEnrollmentException {}
+      } on AtEnrollmentException catch (_) {}
       expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 100);
       // Second Invalid request and verify the delay response interval is incremented.
       enrollmentRequest =
@@ -810,7 +810,7 @@ void main() {
       try {
         await enrollVerbHandler.processVerb(
             response, enrollVerbParams, inboundConnection);
-      } on AtEnrollmentException {}
+      } on AtEnrollmentException catch (_) {}
       expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 200);
       // Third Invalid request and verify the delay response interval is incremented.
       enrollmentRequest =
@@ -819,7 +819,7 @@ void main() {
       try {
         await enrollVerbHandler.processVerb(
             response, enrollVerbParams, inboundConnection);
-      } on AtEnrollmentException {}
+      } on AtEnrollmentException catch (_) {}
       expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 300);
 
       // Get OTP and send a valid enrollment request. Verify the delay response is

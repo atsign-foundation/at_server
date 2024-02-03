@@ -448,7 +448,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.finer(
             'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
         var inBoundConnectionManager = InboundConnectionManager.getInstance();
-        connection = inBoundConnectionManager.createConnection(clientSocket,
+        connection = inBoundConnectionManager.createSocketConnection(clientSocket,
             sessionId: sessionID);
         connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
         connection.write('@');
