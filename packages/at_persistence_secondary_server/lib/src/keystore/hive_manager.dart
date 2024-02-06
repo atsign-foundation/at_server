@@ -31,6 +31,9 @@ class HivePersistenceManager with HiveBase {
       if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
       }
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapter());
+      }
 
       var secret = await _getHiveSecretFromFile(_atsign!, storagePath);
       _boxName = AtUtils.getShaForAtSign(_atsign!);
