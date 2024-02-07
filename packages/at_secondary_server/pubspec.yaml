@@ -34,6 +34,18 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_persistence_secondary_server:
+    path: ../../packages/at_persistence_secondary_server
+#    git:
+#      url: https://github.com/atsign-foundation/at_server
+#      path: packages/at_persistence_secondary_server
+#      ref: at_persistence_replace_md5
+  at_commons:
+    path: ../../../at_libraries/packages/at_commons
+  at_persistence_spec:
+    path: ../../packages/at_persistence_spec
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1

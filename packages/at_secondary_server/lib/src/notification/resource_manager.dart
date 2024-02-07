@@ -231,6 +231,10 @@ class ResourceManager {
         commandBody =
             '${AtConstants.sharedWithPublicKeyCheckSum}:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
       }
+      if (atNotification.atMetadata!.publicKeyHash != null) {
+        commandBody =
+        '${AtConstants.sharedWithPublicKeyHash}:${atNotification.atMetadata!.publicKeyHash!.hash}:${AtConstants.sharedWithPublicKeyHashAlgo}:${atNotification.atMetadata!.publicKeyHash!.hashingAlgo}:$commandBody';
+      }
       if (atNotification.atMetadata!.sharedKeyEnc != null) {
         commandBody =
             '${AtConstants.sharedKeyEncrypted}:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';

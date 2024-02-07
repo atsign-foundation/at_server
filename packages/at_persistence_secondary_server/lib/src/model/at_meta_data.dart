@@ -1,4 +1,5 @@
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_commons/at_commons.dart' show AtConstants, Metadata;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
@@ -77,6 +78,9 @@ class AtMetaData extends HiveObject {
   @HiveField(23)
   String? skeEncAlgo;
 
+  @HiveField(24)
+  PublicKeyHash? publicKeyHash;
+
   @override
   String toString() {
     return toJson().toString();
@@ -95,6 +99,7 @@ class AtMetaData extends HiveObject {
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
+      ..pubKeyHash = _toCommonsPublicKeyHash(publicKeyHash)
       ..encoding = encoding
       ..encKeyName = encKeyName
       ..encAlgo = encAlgo
@@ -102,6 +107,16 @@ class AtMetaData extends HiveObject {
       ..skeEncKeyName = skeEncKeyName
       ..skeEncAlgo = skeEncAlgo;
   }
+
+  at_commons.PublicKeyHash? _toCommonsPublicKeyHash(
+          PublicKeyHash? publicKeyHash) =>
+      publicKeyHash != null
+          ? at_commons.PublicKeyHash(
+              publicKeyHash.hash,
+              at_commons.PublicKeyHashingAlgo.values
+                  .byName(publicKeyHash.hashingAlgo),
+            )
+          : null;
 
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
     var atMetadata = AtMetaData();
@@ -115,6 +130,10 @@ class AtMetaData extends HiveObject {
       ..dataSignature = metadata.dataSignature
       ..sharedKeyEnc = metadata.sharedKeyEnc
       ..pubKeyCS = metadata.pubKeyCS
+      ..publicKeyHash = (metadata.pubKeyHash != null
+          ? PublicKeyHash(metadata.pubKeyHash!.hash,
+              metadata.pubKeyHash!.publicKeyHashingAlgo.name)
+          : null)
       ..encoding = metadata.encoding
       ..encKeyName = metadata.encKeyName
       ..encAlgo = metadata.encAlgo
@@ -151,6 +170,7 @@ class AtMetaData extends HiveObject {
     map[AtConstants.ivOrNonce] = ivNonce;
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map[AtConstants.sharedWithPublicKeyHash] = publicKeyHash?.toJson();
     return map;
   }
 
@@ -205,7 +225,8 @@ class AtMetaData extends HiveObject {
     ivNonce = json[AtConstants.ivOrNonce];
     skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
-
+    publicKeyHash =
+        PublicKeyHash.fromJson(json[AtConstants.sharedWithPublicKeyHash]);
     return this;
   }
 
@@ -232,6 +253,7 @@ class AtMetaData extends HiveObject {
           dataSignature == other.dataSignature &&
           sharedKeyEnc == other.sharedKeyEnc &&
           pubKeyCS == other.pubKeyCS &&
+          publicKeyHash == other.publicKeyHash &&
           encoding == other.encoding &&
           encKeyName == other.encKeyName &&
           encAlgo == other.encAlgo &&
@@ -259,6 +281,7 @@ class AtMetaData extends HiveObject {
       dataSignature.hashCode ^
       sharedKeyEnc.hashCode ^
       pubKeyCS.hashCode ^
+      publicKeyHash.hashCode ^
       encoding.hashCode ^
       encKeyName.hashCode ^
       encAlgo.hashCode ^
@@ -301,13 +324,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..encAlgo = fields[20]
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
-      ..skeEncAlgo = fields[23];
+      ..skeEncAlgo = fields[23]
+      ..publicKeyHash = fields[24];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -355,6 +379,68 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(22)
       ..write(obj.skeEncKeyName)
       ..writeByte(23)
-      ..write(obj.skeEncAlgo);
+      ..write(obj.skeEncAlgo)
+      ..writeByte(24)
+      ..write(obj.publicKeyHash);
+  }
+}
+
+@HiveType(typeId: 11)
+class PublicKeyHash extends HiveObject {
+  String hash;
+  String hashingAlgo;
+  PublicKeyHash(this.hash, this.hashingAlgo);
+  Map toJson() {
+    Map map = {};
+    map['hash'] = hash;
+    map['hashingAlgo'] = hashingAlgo;
+    return map;
+  }
+
+  static PublicKeyHash? fromJson(Map? json) {
+    if (json == null) {
+      return null;
+    }
+    return PublicKeyHash(json['hash'], json['hashingAlgo']);
+  }
+
+  @override
+  String toString() {
+    return toJson().toString();
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PublicKeyHash &&
+          runtimeType == other.runtimeType &&
+          hash == other.hash &&
+          hashingAlgo == other.hashingAlgo;
+
+  @override
+  int get hashCode => hash.hashCode ^ hashingAlgo.hashCode;
+}
+
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
+  @override
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
+
+  @override
+  PublicKeyHash read(BinaryReader reader) {
+    var numOfFields = reader.readByte();
+    var fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return PublicKeyHash(fields[0] as String, fields[1] as String);
+  }
+
+  @override
+  void write(BinaryWriter writer, PublicKeyHash obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.hash)
+      ..writeByte(1)
+      ..write(obj.hashingAlgo);
   }
 }

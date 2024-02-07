@@ -57,6 +57,10 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
           sharedKeyEncrypted:
               updatePreProcessResult.atData.metaData!.sharedKeyEnc,
           publicKeyChecksum: updatePreProcessResult.atData.metaData!.pubKeyCS,
+          publicKeyHash:
+              updatePreProcessResult.atData.metaData!.publicKeyHash?.hash,
+          publicKeyHashAlgo: updatePreProcessResult
+              .atData.metaData!.publicKeyHash?.hashingAlgo,
           encoding: updatePreProcessResult.atData.metaData!.encoding,
           encKeyName: updatePreProcessResult.atData.metaData!.encKeyName,
           encAlgo: updatePreProcessResult.atData.metaData!.encAlgo,

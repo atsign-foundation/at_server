@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:ffi';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' as at_commons;
+import 'package:at_commons/at_commons.dart'
+    show AtConstants, KeyType, InvalidAtKeyException;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
@@ -34,7 +37,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   }
 
   Future<UpdatePreProcessResult> preProcessAndNotify(
-      Response response,
+      at_commons.Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     // Sets Response bean to the response bean in ChangeVerbHandler
@@ -42,7 +45,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     var updateParams = getUpdateParams(verbParams);
     if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
-      throw InvalidSyntaxException('atKey.key not supplied');
+      throw at_commons.InvalidSyntaxException('atKey.key not supplied');
     }
 
     if (updateParams.sharedBy != null &&
@@ -86,11 +89,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       atKey = 'public:$atKey';
     }
     if (!isAuthorized) {
-      throw UnAuthorizedException(
+      throw at_commons.UnAuthorizedException(
           'Enrollment Id: $enrollApprovalId is not authorized for update operation on the key: ${atKey.toString()}');
     }
 
-    var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
+    var keyType = at_commons.AtKey.getKeyType(atKey, enforceNameSpace: false);
     switch (keyType) {
       case KeyType.selfKey:
       case KeyType.sharedKey:
@@ -136,13 +139,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return UpdatePreProcessResult(atKey, atData);
   }
 
-  UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
+  at_commons.UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
       var jsonString = verbParams['json']!;
       Map jsonMap = jsonDecode(jsonString);
-      return UpdateParams.fromJson(jsonMap);
+      return at_commons.UpdateParams.fromJson(jsonMap);
     }
-    var updateParams = UpdateParams();
+    var updateParams = at_commons.UpdateParams();
     if (verbParams[AtConstants.atSign] != null) {
       updateParams.sharedBy =
           AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
@@ -154,7 +157,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     updateParams.atKey = verbParams[AtConstants.atKey];
     updateParams.value = verbParams[AtConstants.atValue];
 
-    var metadata = Metadata();
+    var metadata = at_commons.Metadata();
     if (verbParams[AtConstants.ttl] != null) {
       metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
     }
@@ -181,6 +184,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     metadata.isPublic = verbParams[AtConstants.publicScopeParam] == 'public';
     metadata.sharedKeyEnc = verbParams[AtConstants.sharedKeyEncrypted];
     metadata.pubKeyCS = verbParams[AtConstants.sharedWithPublicKeyCheckSum];
+    if (verbParams[AtConstants.sharedWithPublicKeyHash] != null) {
+      metadata.pubKeyHash = at_commons.PublicKeyHash(
+          verbParams[AtConstants.sharedWithPublicKeyHashValue]!,
+          at_commons.PublicKeyHashingAlgo.values
+              .byName(verbParams[AtConstants.sharedWithPublicKeyHashAlgo]!));
+    }
     metadata.encoding = verbParams[AtConstants.encoding];
     metadata.encKeyName = verbParams[AtConstants.encryptingKeyName];
     metadata.encAlgo = verbParams[AtConstants.encryptingAlgo];
