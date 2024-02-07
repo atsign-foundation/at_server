@@ -29,12 +29,17 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dart-channel: [stable,beta]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
       - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-channel}}
+
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: 'stable'
@@ -117,12 +122,16 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dart-channel: [stable,beta]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
       - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-channel}}
 
       - name: Install dependencies
         working-directory: ${{ env.ftest-working-directory }}
