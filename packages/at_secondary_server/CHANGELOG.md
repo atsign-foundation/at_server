@@ -1,3 +1,6 @@
+## 3.0.40
+- build[deps]: Upgraded the following packages: 
+   - at_chops to 2.0.0 
 ## 3.0.39
 - build[deps]: Upgraded the following packages:
   - at_commons to v4.0.0
