@@ -29,7 +29,7 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
-  InboundConnection createConnection(Socket? socket, {String? sessionId}) {
+  InboundConnection createSocketConnection(Socket socket, {String? sessionId}) {
     if (!_isInitialized) {
       init(defaultPoolSize);
     }

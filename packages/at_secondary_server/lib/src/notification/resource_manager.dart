@@ -140,7 +140,7 @@ class ResourceManager {
     } on Exception catch (e) {
       var msg = 'Connection failed to $toAtSign with exception: $e';
       logger.warning(msg);
-      outBoundClient.inboundConnection.getMetaData().isClosed = true;
+      outBoundClient.inboundConnection.metaData.isClosed = true;
       throw ConnectionInvalidException(msg);
     }
   }

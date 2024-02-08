@@ -4,9 +4,22 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() {
+  MockSocket mockSocket_1 = MockSocket();
+  MockSocket mockSocket_2 = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket_1.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+    when(() => mockSocket_2.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
+
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.unauthenticatedInboundIdleTimeMillis = 50;
@@ -16,8 +29,7 @@ void main() {
 
   group('A group of outbound client manager tests', () {
     test('test outbound client manager - create new client ', () {
-      Socket? dummySocket;
-      var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
+      var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
@@ -28,7 +40,7 @@ void main() {
 
     // test('test outbound client manager - get existing client ', () {
     //   var dummySocket = DummySocket(1);
-    //   var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
+    //   var inboundConnection = InboundConnectionImpl(mockSocket, 'aaa');
     //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
     //   clientManager.init(5);
     //   var outBoundClient_1 =
@@ -42,9 +54,9 @@ void main() {
     // });
 
     // test('test outbound client manager - add multiple clients ', () {
-    //   var dummySocket_1 = DummySocket(1);
+    //   var mockSocket_1 = DummySocket(1);
     //   var dummySocket_2 = DummySocket(2);
-    //   var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
+    //   var inboundConnection_1 = InboundConnectionImpl(mockSocket_1, 'aaa');
     //   var inboundConnection_2 = InboundConnectionImpl(dummySocket_2, 'bbb');
     //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
     //   clientManager.init(5);
@@ -58,10 +70,10 @@ void main() {
     // });
 
     // test('test outbound client manager - capacity exceeded ', () {
-    //   //var dummySocket_1 = DummySocket(1);
+    //   //var mockSocket_1 = DummySocket(1);
     //   var dummySocket_2 = DummySocket(2);
     //   var dummySocket_3 = DummySocket(3);
-    //   var inboundConnection_1 = InboundConnectionImpl(dummySocket_1, 'aaa');
+    //   var inboundConnection_1 = InboundConnectionImpl(mockSocket_1, 'aaa');
     //   var inboundConnection_2 = InboundConnectionImpl(dummySocket_2, 'bbb');
     //   var inboundConnection_3 = InboundConnectionImpl(dummySocket_3, 'ccc');
     //   var clientManager = AtSecondaryServerImpl.getInstance().outboundClientManager;
@@ -78,8 +90,7 @@ void main() {
     test(
         'test outbound client manager - inbound is closed, outbound client is invalid',
         () {
-      Socket? dummySocket;
-      var inboundConnection = InboundConnectionImpl(dummySocket, 'aaa');
+      var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
@@ -91,14 +102,13 @@ void main() {
     test(
         'test outbound client manager - outbound client is closed, inbound is still valid',
         () {
-      Socket? dummySocket_1, dummySocket_2;
-      var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
+      var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
-          OutboundConnectionImpl(dummySocket_2, 'bob');
+          OutboundConnectionImpl(mockSocket_2, 'bob');
       outBoundClient_1.close();
       expect(inboundConnection.isInValid(), false);
     });
@@ -106,14 +116,13 @@ void main() {
     test(
         'test outbound client manager - outbound client is idle and becomes invalid',
         () {
-      Socket? dummySocket_1, dummySocket_2;
-      var inboundConnection = InboundConnectionImpl(dummySocket_1, 'aaa');
+      var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
       var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
       outBoundClient_1.outboundConnection =
-          OutboundConnectionImpl(dummySocket_2, 'bob');
+          OutboundConnectionImpl(mockSocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()

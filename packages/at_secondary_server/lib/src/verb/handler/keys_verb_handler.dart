@@ -33,8 +33,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final keyVisibility = verbParams[AtConstants.visibility];
     final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     bool hasManageAccess = false;
-    var connectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+    var connectionMetadata = atConnection.metaData as InboundConnectionMetadata;
     final enrollIdFromMetadata = connectionMetadata.enrollmentId;
     if (enrollIdFromMetadata == null) {
       throw AtEnrollmentException(

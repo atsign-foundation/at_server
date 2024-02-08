@@ -24,16 +24,16 @@ import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
-
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   group('A group of stats verb tests', () {
     test('test stats getVerb', () {
@@ -106,7 +106,7 @@ void main() {
 
     test('test stats verb - invalid syntax', () {
       var command = 'statsn';
-      var inbound = InboundConnectionImpl(null, null);
+      var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
           mockKeyStore,
@@ -257,7 +257,7 @@ void main() {
       var verbParams2 = getVerbParam(regex, command2);
       var verbParams3 = getVerbParam(regex, command3);
       var verbParams4 = getVerbParam(regex, command4);
-      var atConnection = InboundConnectionImpl(null, '12345')
+      var atConnection = InboundConnectionImpl(mockSocket, '12345')
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(

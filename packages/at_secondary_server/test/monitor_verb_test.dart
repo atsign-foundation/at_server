@@ -27,7 +27,7 @@ void main() {
     });
     test('A test to verify monitor verb writes all notifications', () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -62,7 +62,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -122,9 +122,9 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          await setEnrollmentKey(jsonEncode({"wavi": "r"}));
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
@@ -171,9 +171,8 @@ void main() {
         'A test to verify notifications matching multiple namespaces in enrollment are pushed',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-              .enrollmentId =
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
 
       MonitorVerbHandler monitorVerbHandler =
@@ -231,9 +230,8 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-              .enrollmentId =
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
 
       MonitorVerbHandler monitorVerbHandler =
@@ -285,15 +283,15 @@ void main() {
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      inboundConnection.getMetaData().authType = AuthType.cram;
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session_id';
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          jsonDecode(response.data!)['enrollmentId'];
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       MonitorVerbHandler monitorVerbHandler =
@@ -432,7 +430,7 @@ void main() {
         'Verify unauthenticated exception is thrown when connection is not authenticated',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = false;
+      inboundConnection.metaData.isAuthenticated = false;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       expect(
@@ -449,7 +447,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = '[';
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -478,9 +476,9 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = '[';
-      inboundConnection.getMetaData().isAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          await setEnrollmentKey(jsonEncode({"wavi": "r"}));
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -519,7 +517,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -555,7 +553,7 @@ void main() {
         'A test to verify received notification is written to monitor connection invoking callback method',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -591,7 +589,7 @@ void main() {
         'A test to verify sent notification is not written to monitor connection',
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
       await monitorVerbHandler.processVerb(
@@ -623,8 +621,8 @@ void main() {
 Future<String> setEnrollmentKey(String namespace) async {
   Response response = Response();
   EnrollVerbHandler enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
-  inboundConnection.getMetaData().isAuthenticated = true;
-  inboundConnection.getMetaData().sessionID = 'dummy_session';
+  inboundConnection.metaData.isAuthenticated = true;
+  inboundConnection.metaData.sessionID = 'dummy_session';
   // OTP Verb
   HashMap<String, String?> totpVerbParams =
       getVerbParam(VerbSyntax.otp, 'otp:get');
@@ -635,7 +633,7 @@ Future<String> setEnrollmentKey(String namespace) async {
       'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-  inboundConnection.getMetaData().isAuthenticated = false;
+  inboundConnection.metaData.isAuthenticated = false;
   enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
   await enrollVerbHandler.processVerb(
       response, enrollmentRequestVerbParams, inboundConnection);
@@ -645,7 +643,7 @@ Future<String> setEnrollmentKey(String namespace) async {
       'enroll:approve:{"enrollmentId":"$enrollmentId"}';
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
-  inboundConnection.getMetaData().isAuthenticated = true;
+  inboundConnection.metaData.isAuthenticated = true;
   enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
   await enrollVerbHandler.processVerb(
       response, approveEnrollmentVerbParams, inboundConnection);

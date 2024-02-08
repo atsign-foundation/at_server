@@ -40,7 +40,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    if (!atConnection.getMetaData().isAuthenticated) {
+    if (!atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Failed to execute verb. monitor requires authentication');
     }
@@ -88,8 +88,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   ///      matches the pattern.
   Future<void> _sendNotificationToClient(Notification notification) async {
     // If enrollmentId is null, then connection is authenticated via PKAM
-    if ((atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId ==
+    if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId ==
         null) {
       _sendLegacyNotification(notification);
     } else {
@@ -130,7 +129,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Notification notification) async {
     // Fetch namespaces that are associated with the enrollmentId.
     var enrollmentKey =
-        '${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+        '${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
     EnrollDataStoreValue enrollDataStoreValue =
         await getEnrollDataStoreValue(enrollmentKey);
     // When an enrollment is revoked, avoid sending notifications to the
@@ -138,19 +137,19 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     if (enrollDataStoreValue.approval!.state !=
         EnrollmentStatus.approved.name) {
       logger.finer(
-          'EnrollmentId ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
+          'EnrollmentId ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
       return;
     }
     if (enrollDataStoreValue.namespaces.isEmpty) {
       logger.finer('No namespaces are enrolled for the enrollmentId:'
-          ' ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}');
+          ' ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}');
       return;
     }
     // If notification does not contain ".", it indicates namespace is not present.
     // Do nothing.
     if (!notification.notification!.contains('.')) {
       logger.finest(
-          'For enrollmentId: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}'
+          'For enrollmentId: ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
           'Failed to send notification because the key ${notification.notification} do not contain namespace');
       return;
     }

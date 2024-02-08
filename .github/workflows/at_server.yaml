@@ -29,12 +29,17 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dart-channel: [stable,beta]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v1.6.1
+
+      - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-channel}}
+
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: 'stable'
@@ -117,12 +122,16 @@ jobs:
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dart-channel: [stable,beta]
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v1.6.1
+
+      - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-channel}}
 
       - name: Install dependencies
         working-directory: ${{ env.ftest-working-directory }}
@@ -184,8 +193,8 @@ jobs:
 
       # On push event, upload secondary server binary
       - name: upload secondary server
-        if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        if: ${{ github.event_name == 'push' && matrix.dart-channel == 'stable' }}
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
         with:
           name: secondary-server
           path: packages/at_secondary_server/secondary
@@ -258,7 +267,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v 1.6.1
+      - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v 1.6.2
         with:
           sdk: stable
 
@@ -287,7 +296,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v1.6.1
+      - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
           sdk: stable
 
@@ -316,7 +325,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v1.6.1
+      - uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
           sdk: stable
 
@@ -369,7 +378,7 @@ jobs:
           fi
 
       - name: Install Dart
-        uses: dart-lang/setup-dart@ca7e6fee45ffbd82b555a7ebfc236d2c86439f5b # v1.6.1
+        uses: dart-lang/setup-dart@fedb1266e91cf51be2fdb382869461a434b920a3 # v1.6.2
         with:
           sdk: stable
 

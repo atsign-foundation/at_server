@@ -46,7 +46,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<Response> processInternal(
       String command, InboundConnection atConnection) async {
     var response = Response();
-    var atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata = atConnection.metaData;
     if (getVerb().requiresAuth() && !atConnectionMetadata.isAuthenticated) {
       throw UnAuthenticatedException('Command cannot be executed without auth');
     }

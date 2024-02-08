@@ -38,7 +38,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var enrollId = verbParams[AtConstants.enrollmentId];
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;

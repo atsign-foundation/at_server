@@ -47,8 +47,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
 
     List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(capacity, syncResponse, commitEntryIterator,
-        enrollmentId: (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId);
+        enrollmentId:
+            (atConnection.metaData as InboundConnectionMetadata).enrollmentId);
 
     response.data = jsonEncode(syncResponse);
   }

@@ -6,13 +6,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();

@@ -14,7 +14,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 import 'dummy_inbound_connection.dart';
 
-class InboundConnectionImpl extends BaseConnection
+class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     implements InboundConnection {
   @override
   bool? isMonitor = false;
@@ -55,7 +55,7 @@ class InboundConnectionImpl extends BaseConnection
   /// A list of timestamps representing the times when requests were made.
   late final Queue<int> requestTimestampQueue;
 
-  InboundConnectionImpl(Socket? socket, String? sessionId, {this.owningPool})
+  InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
       : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
@@ -99,9 +99,9 @@ class InboundConnectionImpl extends BaseConnection
     // Without the above check, we were getting runtime errors on the next check
     // since DummyInboundConnection.getSocket throws a "not implemented" error
 
-    if (getSocket().remoteAddress.address ==
-            connection.getSocket().remoteAddress.address &&
-        getSocket().remotePort == connection.getSocket().remotePort) {
+    if (underlying.remoteAddress.address ==
+            connection.underlying.remoteAddress.address &&
+        underlying.remotePort == connection.underlying.remotePort) {
       return true;
     }
 
@@ -111,7 +111,7 @@ class InboundConnectionImpl extends BaseConnection
   /// Returning true indicates to the caller that this connection **can** be closed if needed
   @override
   bool isInValid() {
-    if (getMetaData().isClosed || getMetaData().isStale) {
+    if (metaData.isClosed || metaData.isStale) {
       return true;
     }
 
@@ -134,7 +134,7 @@ class InboundConnectionImpl extends BaseConnection
     // We're past the low water mark. Let's use some fancier logic to mark connections invalid increasingly aggressively.
     double idleTimeReductionFactor =
         1 - (numConnectionsOverLwm / (poolMaxConnections - lowWaterMark));
-    if (!getMetaData().isAuthenticated && !getMetaData().isPolAuthenticated) {
+    if (!metaData.isAuthenticated && !metaData.isPolAuthenticated) {
       // For **unauthenticated** connections, we deem invalid if idle time is greater than
       // ((maxIdleTime - minIdleTime) * (1 - numConnectionsOverLwm / (maxConnections - connectionsLowWaterMark))) + minIdleTime
       //
@@ -182,9 +182,9 @@ class InboundConnectionImpl extends BaseConnection
 
   /// Get the idle time of the inbound connection since last write operation
   int _getIdleTimeMillis() {
-    var lastAccessedTime = getMetaData().lastAccessed;
+    var lastAccessedTime = metaData.lastAccessed;
     // if lastAccessedTime is not set, use created time
-    lastAccessedTime ??= getMetaData().created;
+    lastAccessedTime ??= metaData.created;
     var currentTime = DateTime.now().toUtc();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
@@ -193,7 +193,7 @@ class InboundConnectionImpl extends BaseConnection
   /// false otherwise
   bool _idleForLongerThanMax() {
     var idleTimeMillis = _getIdleTimeMillis();
-    if (getMetaData().isAuthenticated || getMetaData().isPolAuthenticated) {
+    if (metaData.isAuthenticated || metaData.isPolAuthenticated) {
       return idleTimeMillis > authenticatedMaxAllowableIdleTimeMillis;
     } else {
       return idleTimeMillis > unauthenticatedMaxAllowableIdleTimeMillis;
@@ -207,9 +207,6 @@ class InboundConnectionImpl extends BaseConnection
     listener.listen(callback, streamCallBack);
   }
 
-  @override
-  Socket? receiverSocket;
-
   bool? isStream;
 
   @override
@@ -219,22 +216,22 @@ class InboundConnectionImpl extends BaseConnection
     // (Note however that, at time of writing, outbound_connection_impl also calls socket.destroy)
 
     // Some defensive code just in case we accidentally call close multiple times
-    if (getMetaData().isClosed) {
+    if (metaData.isClosed) {
       return;
     }
 
     try {
-      var address = getSocket().remoteAddress;
-      var port = getSocket().remotePort;
-      getSocket().destroy();
+      var address = underlying.remoteAddress;
+      var port = underlying.remotePort;
+      underlying.destroy();
       logger.finer(logger.getAtConnectionLogMessage(
-          getMetaData(), '$address:$port Disconnected'));
-      getMetaData().isClosed = true;
+          metaData, '$address:$port Disconnected'));
+      metaData.isClosed = true;
     } on Exception {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore exception on a connection close
     } on Error {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore error on a connection close
     }
   }
@@ -244,7 +241,7 @@ class InboundConnectionImpl extends BaseConnection
     super.write(data);
     if (metaData is InboundConnectionMetadata) {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseConnection.truncateForLogging(data)}'));
+          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
     }
   }
 

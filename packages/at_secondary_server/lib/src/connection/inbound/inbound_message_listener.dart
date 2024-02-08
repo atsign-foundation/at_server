@@ -25,20 +25,16 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    connection.getSocket().listen(_messageHandler,
+    connection.underlying.listen(_messageHandler,
         onDone: _finishedHandler, onError: _errorHandler);
-    connection
-        .getSocket()
-        .done
-        .onError((error, stackTrace) => (_errorHandler(error)));
-    connection.getMetaData().isListening = true;
+    connection.metaData.isListening = true;
   }
 
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(data) async {
     //ignore the data read if the connection is stale or closed
-    if (connection.getMetaData().isStale || connection.getMetaData().isClosed) {
+    if (connection.metaData.isStale || connection.metaData.isClosed) {
       //clear buffer as data is redundant
       _buffer.clear();
       return;
@@ -46,14 +42,14 @@ class InboundMessageListener {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
+      logger.info(logger.getAtConnectionLogMessage(connection.metaData,
           'Inbound connection is invalid. Closing the connection'));
       await GlobalExceptionHandler.getInstance().handle(
           ConnectionInvalidException('Connection is invalid'),
           atConnection: connection);
       return;
     }
-    if (connection.getMetaData().isStream) {
+    if (connection.metaData.isStream) {
       await onStreamCallBack(data, connection);
       return;
     }
@@ -76,8 +72,8 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
-            'RCVD: ${BaseConnection.truncateForLogging(command)}'));
+        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();
