@@ -29,7 +29,7 @@ class CramVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata = atConnection.metaData;
     var sessionID = atConnectionMetadata.sessionID;
     var digest = verbParams[AtConstants.atDigest];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;

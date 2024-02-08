@@ -5,33 +5,39 @@ import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.da
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() {
+  late MockSocket mockSocket;
+
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = 50;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+    mockSocket = MockSocket();
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
   });
 
   group('A group of outbound client tests', () {
     test('test outbound client - invalid outbound client if inbound is invalid',
         () {
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
-      client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
+      client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       connection1.close();
       expect(client.isInValid(), true);
     });
 
     test('test outbound client - invalid outbound client idle', () {
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
-      client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
+      client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
                   .serverContext!
@@ -41,23 +47,21 @@ void main() {
     });
 
     test('test outbound client - valid outbound client', () {
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
-      client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
+      client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       expect(client.isInValid(), false);
     });
 
     test(
         'test outbound client - stale connection - connection invalid exception',
         () {
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
-      client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection!.getMetaData().isStale = true;
+      client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
+      client.outboundConnection!.metaData.isStale = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(
@@ -67,12 +71,11 @@ void main() {
     test(
         'test outbound client - closed connection - connection invalid exception',
         () {
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
           AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
-      client.outboundConnection = OutboundConnectionImpl(dummySocket, 'bob');
-      client.outboundConnection!.getMetaData().isClosed = true;
+      client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
+      client.outboundConnection!.metaData.isClosed = true;
       expect(
           () => client.lookUp('test', handshake: false),
           throwsA(predicate(

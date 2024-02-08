@@ -20,6 +20,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
+import 'test_utils.dart';
+
 // How the server processes updates from the client (including the responses it generates) and what the expectations
 // are - i.e. can we reject? what happens when we reject? and more
 // How items are added to the commit log on the server such that they are available for sync to the clients
@@ -45,15 +47,15 @@ Future<void> setUpMethod() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
 }
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
-
 void main() {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   group(
       'A group of tests to validate how server process the updates from the client',
@@ -300,7 +302,7 @@ void main() {
 
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var batchVerbParams = HashMap<String, String>();
         batchVerbParams.putIfAbsent('json', () => batchRequestCommand);
@@ -366,7 +368,7 @@ void main() {
             verbHandlerManager);
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var batchVerbParams = HashMap<String, String>();
         batchVerbParams.putIfAbsent('json', () => batchRequestCommand);
@@ -436,7 +438,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -476,7 +478,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -518,7 +520,7 @@ void main() {
         syncProgressiveVerbHandler.capacity = 275;
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -557,7 +559,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -631,7 +633,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -694,7 +696,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -734,7 +736,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -773,7 +775,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -820,7 +822,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -865,7 +867,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;
@@ -908,7 +910,7 @@ void main() {
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
             enrollmentId;

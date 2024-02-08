@@ -5,13 +5,21 @@ import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() {
+  late MockSocket mockSocket;
+
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.unauthenticatedInboundIdleTimeMillis = 10000;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+    mockSocket = MockSocket();
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
   });
 
   tearDown(() {
@@ -21,19 +29,17 @@ void main() {
   group('A group of inbound connection manager tests', () {
     test('test inbound connection manager - create connection ', () {
       var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
       connManager.init(5);
       var createdConnection =
-          connManager.createConnection(dummySocket, sessionId: 'aaa');
-      expect(createdConnection.getMetaData().sessionID, 'aaa');
-      expect(createdConnection.getMetaData().isCreated, true);
+          connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
+      expect(createdConnection.metaData.sessionID, 'aaa');
+      expect(createdConnection.metaData.isCreated, true);
     });
 
     test('test inbound connection manager - current pool size', () {
       var connManager = InboundConnectionManager.getInstance();
       connManager.init(2);
-      Socket? dummySocket;
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
+      connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
       expect(ConnectionUtil.getActiveConnectionSize(), 1);
     });
 
@@ -44,12 +50,12 @@ void main() {
 
     test('test inbound connection manager - connect limit test', () {
       var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
       connManager.init(2);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
+      connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
+      connManager.createSocketConnection(mockSocket, sessionId: 'bbb');
       expect(
-          () => connManager.createConnection(dummySocket, sessionId: 'ccc'),
+          () =>
+              connManager.createSocketConnection(mockSocket, sessionId: 'ccc'),
           throwsA(predicate((dynamic e) =>
               e is InboundConnectionLimitException &&
               e.message == 'max limit reached on inbound pool')));
@@ -57,31 +63,28 @@ void main() {
 
     test('test inbound connection manager - has capacity true', () {
       var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
       connManager.init(5);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
+      connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
+      connManager.createSocketConnection(mockSocket, sessionId: 'bbb');
+      connManager.createSocketConnection(mockSocket, sessionId: 'ccc');
       expect(connManager.hasCapacity(), true);
     });
 
     test('test inbound connection manager - has capacity false', () {
       var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
       connManager.init(3);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
+      connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
+      connManager.createSocketConnection(mockSocket, sessionId: 'bbb');
+      connManager.createSocketConnection(mockSocket, sessionId: 'ccc');
       expect(connManager.hasCapacity(), false);
     });
 
     test('test inbound connection manager -clear connections', () {
       var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
       connManager.init(3);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
+      connManager.createSocketConnection(mockSocket, sessionId: 'aaa');
+      connManager.createSocketConnection(mockSocket, sessionId: 'bbb');
+      connManager.createSocketConnection(mockSocket, sessionId: 'ccc');
       connManager.removeAllConnections();
       expect(ConnectionUtil.getActiveConnectionSize(), 0);
     });

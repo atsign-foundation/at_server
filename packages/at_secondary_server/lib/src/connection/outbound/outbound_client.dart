@@ -26,7 +26,7 @@ class OutboundClient {
 
   String? toHost;
   String? toPort;
-  OutboundConnection? outboundConnection;
+  OutboundSocketConnection? outboundConnection;
   bool isConnectionCreated = false;
   bool isHandShakeDone = false;
   DateTime lastUsed = DateTime.now();
@@ -374,13 +374,13 @@ class OutboundClient {
 }
 
 abstract class OutboundConnectionFactory {
-  Future<OutboundConnection> createOutboundConnection(
+  Future<OutboundSocketConnection> createOutboundConnection(
       String host, int port, String toAtSign);
 }
 
 class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   @override
-  Future<OutboundConnection> createOutboundConnection(
+  Future<OutboundSocketConnection> createOutboundConnection(
       String host, int port, String toAtSign) async {
     AtSecurityContextImpl securityContext = AtSecurityContextImpl();
     SecurityContext secConConnect = SecurityContext();

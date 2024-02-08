@@ -36,9 +36,11 @@ class MockSecondaryAddressFinder extends Mock
 class MockOutboundConnectionFactory extends Mock
     implements OutboundConnectionFactory {}
 
-class MockOutboundConnection extends Mock implements OutboundConnection {}
+class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
+
+class MockSocket extends Mock implements Socket {}
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
@@ -144,13 +146,13 @@ verbTestsSetUp() async {
   AtConnectionMetaData outboundConnectionMetadata =
       OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
-  when(() => mockOutboundConnection.getMetaData())
+  when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
   when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
 
   mockSecureSocket = MockSecureSocket();
-  when(() => mockOutboundConnection.getSocket())
+  when(() => mockOutboundConnection.underlying)
       .thenAnswer((_) => mockSecureSocket);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 

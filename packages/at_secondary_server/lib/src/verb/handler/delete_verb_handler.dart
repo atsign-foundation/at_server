@@ -94,7 +94,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           AtConstants.atCramSecretDeleted, AtData()..data = 'true');
     }
     final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollApprovalId != null) {
       isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);

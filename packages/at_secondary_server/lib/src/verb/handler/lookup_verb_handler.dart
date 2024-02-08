@@ -43,7 +43,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(thisServersAtSign);
@@ -99,7 +99,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     bool isAuthorized = await _isAuthorizedToViewData(atConnection, lookupKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not authorized for lookup operation on the key: $lookupKey');
+          'Enrollment Id: ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId} is not authorized for lookup operation on the key: $lookupKey');
     }
     if (keyOwnersAtSign == thisServersAtSign) {
       // We're looking up data owned by this server's atSign
@@ -272,7 +272,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       return true;
     }
     final enrollmentId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollmentId != null) {
       // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is

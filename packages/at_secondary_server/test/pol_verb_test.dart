@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -14,16 +16,18 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
@@ -54,7 +58,7 @@ void main() {
 
   test('test pol verb - invalid syntax', () {
     var command = 'poll';
-    var inbound = InboundConnectionImpl(null, null);
+    var inbound = InboundConnectionImpl(mockSocket, null);
     var defaultVerbExecutor = DefaultVerbExecutor();
     var defaultVerbHandlerManager = DefaultVerbHandlerManager(
         mockKeyStore,
