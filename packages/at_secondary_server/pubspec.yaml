@@ -8,13 +8,6 @@ publish_to: none
 environment:
   sdk: '>=2.15.0 <4.0.0'
 
-dependency_overrides:
-  at_server_spec:
-    git:
-      ref: gkc/alpn
-      url: https://github.com/atsign-foundation/at_server
-      path: packages/at_server_spec
-
 dependencies:
   args: 2.4.2
   uuid: 3.0.7
@@ -30,7 +23,7 @@ dependencies:
   at_utils: 3.0.16
   at_chops: 2.0.0
   at_lookup: 3.0.45
-  at_server_spec: 3.0.16
+  at_server_spec: 4.0.1
   at_persistence_spec: 2.0.14
   at_persistence_secondary_server: 3.0.60
   intl: ^0.18.1
