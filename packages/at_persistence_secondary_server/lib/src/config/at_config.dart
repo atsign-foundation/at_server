@@ -26,7 +26,8 @@ class AtConfig {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)!
         .getHivePersistenceManager()!;
-    configKey = HiveKeyStoreHelper.getInstance().prepareKey('private:blocklist$_atSign');
+    configKey = HiveKeyStoreHelper.getInstance()
+        .prepareKey('private:blocklist$_atSign');
   }
 
   ///Returns 'success' on adding unique [blockList] into blocklist.
@@ -132,8 +133,9 @@ class AtConfig {
     var newData = AtData();
     newData.data = jsonEncode(config);
 
-    newData = HiveKeyStoreHelper.getInstance()
-        .prepareDataForKeystoreOperation(newData, existingAtData: existingData);
+    newData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
+        newData,
+        existingMetaData: existingData?.metdata);
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
@@ -167,7 +169,7 @@ class AtConfig {
           AtData newAtData = AtData()..data = existingData.data;
           HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
               newAtData,
-              existingAtData: existingData);
+              existingMetaData: existingData.metaData);
           // store the existing data with the new key
           await persistenceManager.getBox().put(configKey, newAtData);
           logger.info('Successfully migrated configKey data to new key format');

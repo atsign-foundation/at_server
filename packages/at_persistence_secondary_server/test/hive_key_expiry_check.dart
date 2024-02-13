@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_commons/at_commons.dart';
 
 void main() async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
@@ -20,7 +21,7 @@ void main() async {
   atData.data = 'abc';
   await keyStoreManager
       .getKeyStore()
-      .put('123', atData, time_to_live: 30 * 1000);
+      .put('123', atData, metadata: Metadata()..ttl = 30 * 1000);
   print('end');
   var atDataResponse = await keyStoreManager.getKeyStore().get('123');
   print(atDataResponse?.data);

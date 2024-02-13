@@ -185,7 +185,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
   }
 
-  bool _isNamespaceAuthorised(String atKeyAsString, List<String>? enrolledNamespace) {
+  bool _isNamespaceAuthorised(
+      String atKeyAsString, List<String>? enrolledNamespace) {
     // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
     if (atKeyAsString.toLowerCase() == 'configkey') {
       return true;

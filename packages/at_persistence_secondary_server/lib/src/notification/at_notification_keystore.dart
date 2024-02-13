@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -67,44 +68,14 @@ class AtNotificationKeystore
 
   @override
   Future<dynamic> put(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
 
   @override
   Future<dynamic> create(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 
@@ -172,7 +143,7 @@ class AtNotificationKeystore
                 ..atMetaData = value.atMetadata
                 ..ttl = value.ttl)
               .build();
-          put(key, newNotification);
+          put(key, newNotification, metadata: Metadata());
         }
       });
 

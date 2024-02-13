@@ -210,7 +210,7 @@ void main() async {
       var atData = AtData();
       atData.data = '123';
       await keyStore.create('phone.wavi@test_user_1', atData,
-          time_to_live: 6000);
+          metadata: Metadata()..ttl = 6000);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -223,8 +223,11 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
+      var metaData = Metadata()
+        ..sharedKeyEnc = 'abc'
+        ..pubKeyCS = 'xyz';
       await keyStore.create('phone.wavi@test_user_1', atData,
-          sharedKeyEncrypted: 'abc', publicKeyChecksum: 'xyz');
+          metadata: metaData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -601,7 +604,7 @@ void main() async {
           ..ttl = 0
           ..ttr = -1);
       await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,
-          time_to_born: null);
+          metadata: Metadata()..ttb = null);
       AtMetaData? atMetaData =
           await keystore?.getMeta('dummykey.wavi@test_user_1');
       expect(atMetaData?.ttr, -1);
@@ -673,11 +676,13 @@ void main() async {
       //inserting sample keys
       for (int i = 0; i < 30; i++) {
         //inserting random metaData to induce variance in data
+        var newMetadata = Metadata()
+          ..ttl = 12000 + i.toInt()
+          ..ttb = i
+          ..isBinary = true;
         metaData = AtMetadataBuilder(
-                ttl: 12000 + i.toInt(),
-                ttb: i,
-                atSign: '@atsign_$i',
-                isBinary: true)
+                newMetaData: AtMetaData.fromCommonsMetadata(newMetadata),
+                atSign: '@atsign_$i')
             .build();
 
         atData.data = 'value_test_$i';

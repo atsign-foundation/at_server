@@ -91,22 +91,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// hive does not support directly storing emoji characters. So keys are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   Future<dynamic> put(String key, AtData? value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -119,22 +104,23 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     CommitOp commitOp = CommitOp.UPDATE;
 
     // Set CommitOp to UPDATE_META if any of the metadata args are not null
+    metadata ??= Metadata();
     var hasNonNullMetadata = ObjectsUtil.anyNotNull({
-      time_to_live,
-      time_to_born,
-      time_to_refresh,
-      isCascade,
-      isBinary,
-      isEncrypted,
-      dataSignature,
-      sharedKeyEncrypted,
-      publicKeyChecksum,
-      encoding,
-      encKeyName,
-      encAlgo,
-      ivNonce,
-      skeEncKeyName,
-      skeEncAlgo
+      metadata.ttl,
+      metadata.ttb,
+      metadata.ttr,
+      metadata.ccd,
+      metadata.isBinary,
+      metadata.isEncrypted,
+      metadata.dataSignature,
+      metadata.sharedKeyEnc,
+      metadata.pubKeyHash,
+      metadata.encoding,
+      metadata.encKeyName,
+      metadata.encAlgo,
+      metadata.ivNonce,
+      metadata.skeEncKeyName,
+      metadata.skeEncAlgo
     });
     if (hasNonNullMetadata) {
       commitOp = CommitOp.UPDATE_META;
@@ -149,42 +135,13 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // else update existing key.
       if (!isKeyExists(key)) {
         result = await create(key, value,
-            time_to_live: time_to_live,
-            time_to_born: time_to_born,
-            time_to_refresh: time_to_refresh,
-            isCascade: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted,
-            dataSignature: dataSignature,
-            sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum,
-            encoding: encoding,
-            encKeyName: encKeyName,
-            encAlgo: encAlgo,
-            ivNonce: ivNonce,
-            skeEncKeyName: skeEncKeyName,
-            skeEncAlgo: skeEncAlgo,
-            skipCommit: skipCommit);
+            metadata: metadata, skipCommit: skipCommit);
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
-            existingAtData: existingData!,
-            ttl: time_to_live,
-            ttb: time_to_born,
-            ttr: time_to_refresh,
-            isCascade: isCascade,
-            isBinary: isBinary,
-            isEncrypted: isEncrypted,
-            dataSignature: dataSignature,
-            sharedKeyEncrypted: sharedKeyEncrypted,
-            publicKeyChecksum: publicKeyChecksum,
-            encoding: encoding,
-            encKeyName: encKeyName,
-            encAlgo: encAlgo,
-            ivNonce: ivNonce,
-            skeEncKeyName: skeEncKeyName,
-            skeEncAlgo: skeEncAlgo,
+            existingMetaData: existingData?.metaData,
+            newMetaData: AtMetaData.fromCommonsMetadata(metadata),
             atSign: persistenceManager?.atsign);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
@@ -213,22 +170,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @server
   Future<dynamic> create(String key, AtData? value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -238,62 +180,53 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
+    metadata ??= Metadata();
     var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(value!,
-        atSign: persistenceManager?.atsign,
-        ttl: time_to_live,
-        ttb: time_to_born,
-        ttr: time_to_refresh,
-        isCascade: isCascade,
-        isBinary: isBinary,
-        isEncrypted: isEncrypted,
-        dataSignature: dataSignature,
-        sharedKeyEncrypted: sharedKeyEncrypted,
-        publicKeyChecksum: publicKeyChecksum,
-        encoding: encoding,
-        encKeyName: encKeyName,
-        encAlgo: encAlgo,
-        ivNonce: ivNonce,
-        skeEncKeyName: skeEncKeyName,
-        skeEncAlgo: skeEncAlgo);
+        atSign: persistenceManager?.atsign);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
     // Setting metadata defined in values
     if (value.metaData != null) {
-      time_to_live ??= value.metaData!.ttl;
-      time_to_born ??= value.metaData!.ttb;
-      time_to_refresh ??= value.metaData!.ttr;
-      isCascade ??= value.metaData!.isCascade;
-      isBinary ??= value.metaData!.isBinary;
-      isEncrypted ??= value.metaData!.isEncrypted;
-      dataSignature ??= value.metaData!.dataSignature;
-      sharedKeyEncrypted ??= value.metaData!.sharedKeyEnc;
-      publicKeyChecksum ??= value.metaData!.pubKeyCS;
-      encoding ??= value.metaData!.encoding;
-      encKeyName ??= value.metaData!.encKeyName;
-      encAlgo ??= value.metaData!.encAlgo;
-      ivNonce ??= value.metaData!.ivNonce;
-      skeEncKeyName ??= value.metaData!.skeEncKeyName;
-      skeEncAlgo ??= value.metaData!.skeEncAlgo;
+      metadata.ttl ??= value.metaData!.ttl;
+      metadata.ttb ??= value.metaData!.ttb;
+      metadata.ttr ??= value.metaData!.ttr;
+      metadata.ccd ??= value.metaData!.isCascade;
+      metadata.isBinary = ((value.metaData!.isBinary != null)
+          ? value.metaData!.isBinary
+          : false)!;
+      metadata.isEncrypted = ((value.metaData!.isEncrypted != null)
+          ? value.metaData!.isEncrypted
+          : false)!;
+      metadata.dataSignature ??= value.metaData!.dataSignature;
+      metadata.sharedKeyEnc ??= value.metaData!.sharedKeyEnc;
+      metadata.pubKeyCS ??= value.metaData!.pubKeyCS;
+      metadata.encoding ??= value.metaData!.encoding;
+      metadata.encKeyName ??= value.metaData!.encKeyName;
+      metadata.encAlgo ??= value.metaData!.encAlgo;
+      metadata.ivNonce ??= value.metaData!.ivNonce;
+      metadata.skeEncKeyName ??= value.metaData!.skeEncKeyName;
+      metadata.skeEncAlgo ??= value.metaData!.skeEncAlgo;
     }
 
     // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
     if (ObjectsUtil.anyNotNull({
-      time_to_live,
-      time_to_born,
-      time_to_refresh,
-      isCascade,
-      isBinary,
-      isEncrypted,
-      dataSignature,
-      sharedKeyEncrypted,
-      publicKeyChecksum,
-      encoding,
-      encKeyName,
-      encAlgo,
-      ivNonce,
-      skeEncKeyName,
-      skeEncAlgo
+      metadata.ttl,
+      metadata.ttb,
+      metadata.ttr,
+      metadata.ccd,
+      metadata.isBinary,
+      metadata.isEncrypted,
+      metadata.dataSignature,
+      metadata.sharedKeyEnc,
+      metadata.pubKeyCS,
+      metadata.pubKeyHash,
+      metadata.encoding,
+      metadata.encKeyName,
+      metadata.encAlgo,
+      metadata.ivNonce,
+      metadata.skeEncKeyName,
+      metadata.skeEncAlgo
     })) {
       commitOp = CommitOp.UPDATE_ALL;
     }
@@ -452,7 +385,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         existingData = await get(key);
       }
       value!.metaData = AtMetadataBuilder(
-              newAtMetaData: metadata,
+              newMetaData: metadata,
               existingMetaData: existingData?.metaData,
               atSign: persistenceManager?.atsign)
           .build();
@@ -480,7 +413,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // So, fetch the value from the existing key and set the same value.
       AtData newData = existingData ?? AtData();
       newData.metaData = AtMetadataBuilder(
-              newAtMetaData: metadata,
+              newMetaData: metadata,
               existingMetaData: existingData?.metaData,
               atSign: persistenceManager?.atsign)
           .build();

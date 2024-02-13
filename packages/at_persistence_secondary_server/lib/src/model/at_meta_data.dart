@@ -121,7 +121,7 @@ class AtMetaData extends HiveObject {
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo;
-    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+    return AtMetadataBuilder(newMetaData: atMetadata).build();
   }
 
   Map toJson() {
