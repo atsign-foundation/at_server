@@ -1,3 +1,5 @@
+## 2.1.1
+- dependency upgrade in pubspec for at_commons, at_server_spec
 ## 2.1.0
 - feat: rate limiting when looking up non-existent atSigns
 - feat: miscellaneous logging enhancements
