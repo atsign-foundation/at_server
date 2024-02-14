@@ -135,7 +135,7 @@ class AtConfig {
 
     newData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
         newData,
-        existingMetaData: existingData?.metdata);
+        existingMetaData: existingData?.metaData);
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);

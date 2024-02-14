@@ -173,11 +173,10 @@ class AtMetaData extends HiveObject {
         ? null
         : DateTime.parse(json['availableAt']);
     status = json['status'];
+    // convert to int for non-null value.
     version = (json['version'] is String)
         ? int.parse(json['version'])
-        : (json['version'] == null)
-            ? 0
-            : json['version'];
+        : json['version'];
     ttl = (json[AtConstants.ttl] is String)
         ? int.parse(json[AtConstants.ttl])
         : (json[AtConstants.ttl] == null)

@@ -104,23 +104,21 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     CommitOp commitOp = CommitOp.UPDATE;
 
     // Set CommitOp to UPDATE_META if any of the metadata args are not null
-    metadata ??= Metadata();
     var hasNonNullMetadata = ObjectsUtil.anyNotNull({
-      metadata.ttl,
-      metadata.ttb,
-      metadata.ttr,
-      metadata.ccd,
-      metadata.isBinary,
-      metadata.isEncrypted,
-      metadata.dataSignature,
-      metadata.sharedKeyEnc,
-      metadata.pubKeyHash,
-      metadata.encoding,
-      metadata.encKeyName,
-      metadata.encAlgo,
-      metadata.ivNonce,
-      metadata.skeEncKeyName,
-      metadata.skeEncAlgo
+      metadata?.ttl,
+      metadata?.ttb,
+      metadata?.ttr,
+      metadata?.ccd,
+      metadata?.isBinary,
+      metadata?.isEncrypted,
+      metadata?.dataSignature,
+      metadata?.sharedKeyEnc,
+      metadata?.encoding,
+      metadata?.encKeyName,
+      metadata?.encAlgo,
+      metadata?.ivNonce,
+      metadata?.skeEncKeyName,
+      metadata?.skeEncAlgo
     });
     if (hasNonNullMetadata) {
       commitOp = CommitOp.UPDATE_META;
@@ -137,12 +135,20 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         result = await create(key, value,
             metadata: metadata, skipCommit: skipCommit);
       } else {
+        var newMetaData = value?.metaData;
+        metadata ??= Metadata();
+        newMetaData ??= AtMetaData.fromCommonsMetadata(metadata);
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingMetaData: existingData?.metaData,
-            newMetaData: AtMetaData.fromCommonsMetadata(metadata),
+            newMetaData: newMetaData,
             atSign: persistenceManager?.atsign);
+        // The version indicates the number of updates a key has received.
+        // Version is set to 0 for a new key and for each update the key receives,
+        // the version increases by 1
+        hive_value.metaData!.version =
+            (existingData?.metaData?.version ?? 0) + 1; // Increase version by 1
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
@@ -180,58 +186,41 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
+    // use metadata from value object if set. Otherwise use passed in metadata or construct new Metadata.
+    AtMetaData? newMetaData;
+    newMetaData = value?.metaData;
     metadata ??= Metadata();
+    newMetaData ??= AtMetaData.fromCommonsMetadata(metadata);
+
     var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(value!,
-        atSign: persistenceManager?.atsign);
+        newMetaData: newMetaData, atSign: persistenceManager?.atsign);
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
-    // Setting metadata defined in values
-    if (value.metaData != null) {
-      metadata.ttl ??= value.metaData!.ttl;
-      metadata.ttb ??= value.metaData!.ttb;
-      metadata.ttr ??= value.metaData!.ttr;
-      metadata.ccd ??= value.metaData!.isCascade;
-      metadata.isBinary = ((value.metaData!.isBinary != null)
-          ? value.metaData!.isBinary
-          : false)!;
-      metadata.isEncrypted = ((value.metaData!.isEncrypted != null)
-          ? value.metaData!.isEncrypted
-          : false)!;
-      metadata.dataSignature ??= value.metaData!.dataSignature;
-      metadata.sharedKeyEnc ??= value.metaData!.sharedKeyEnc;
-      metadata.pubKeyCS ??= value.metaData!.pubKeyCS;
-      metadata.encoding ??= value.metaData!.encoding;
-      metadata.encKeyName ??= value.metaData!.encKeyName;
-      metadata.encAlgo ??= value.metaData!.encAlgo;
-      metadata.ivNonce ??= value.metaData!.ivNonce;
-      metadata.skeEncKeyName ??= value.metaData!.skeEncKeyName;
-      metadata.skeEncAlgo ??= value.metaData!.skeEncAlgo;
-    }
-
     // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
     if (ObjectsUtil.anyNotNull({
-      metadata.ttl,
-      metadata.ttb,
-      metadata.ttr,
-      metadata.ccd,
-      metadata.isBinary,
-      metadata.isEncrypted,
-      metadata.dataSignature,
-      metadata.sharedKeyEnc,
-      metadata.pubKeyCS,
-      metadata.pubKeyHash,
-      metadata.encoding,
-      metadata.encKeyName,
-      metadata.encAlgo,
-      metadata.ivNonce,
-      metadata.skeEncKeyName,
-      metadata.skeEncAlgo
+      newMetaData.ttl,
+      newMetaData.ttb,
+      newMetaData.ttr,
+      newMetaData.isCascade,
+      newMetaData.isBinary,
+      newMetaData.isEncrypted,
+      newMetaData.dataSignature,
+      newMetaData.sharedKeyEnc,
+      newMetaData.pubKeyCS,
+      newMetaData.encoding,
+      newMetaData.encKeyName,
+      newMetaData.encAlgo,
+      newMetaData.ivNonce,
+      newMetaData.skeEncKeyName,
+      newMetaData.skeEncAlgo
     })) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 
     try {
+      //version for new key creation is 0
+      hive_data.metaData!.version = 0;
       await persistenceManager!.getBox().put(hive_key, hive_data);
       _updateMetadataCache(key, hive_data.metaData);
       if (skipCommit) {
@@ -369,38 +358,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  @client
-  Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
-    key = key.toLowerCase();
-    final atKeyType = AtKey.getKeyType(key, enforceNameSpace: false);
-    if (atKeyType == KeyType.invalidKey) {
-      logger.warning('Key $key is invalid');
-      throw InvalidAtKeyException('Key $key is invalid');
-    }
-    try {
-      int? result;
-      String hive_key = keyStoreHelper.prepareKey(key);
-      AtData? existingData;
-      if (isKeyExists(key)) {
-        existingData = await get(key);
-      }
-      value!.metaData = AtMetadataBuilder(
-              newMetaData: metadata,
-              existingMetaData: existingData?.metaData,
-              atSign: persistenceManager?.atsign)
-          .build();
-      await persistenceManager!.getBox().put(hive_key, value);
-      _updateMetadataCache(key, value.metaData);
-      result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
-      return result;
-    } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
-      await _restartHiveBox(error);
-      throw DataStoreException(error.message);
-    }
-  }
-
-  @override
   Future<int?> putMeta(String key, AtMetaData? metadata) async {
     key = key.toLowerCase();
     try {
@@ -418,6 +375,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
               atSign: persistenceManager?.atsign)
           .build();
 
+      newData.metaData!.version =
+          (existingData?.metaData?.version ?? 0) + 1; // Increase version by 1
       await persistenceManager!.getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);

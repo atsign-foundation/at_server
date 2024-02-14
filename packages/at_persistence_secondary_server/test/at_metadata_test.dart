@@ -106,35 +106,6 @@ void main() async {
       expect(atData.metaData!.createdBy, atSign);
       expect(atData.metaData!.version, 1);
     });
-
-    test(
-        'A test to verify version field in metadata is set to 1 when using putAll method',
-        () async {
-      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
-      var key = '@bob:city@alice';
-      await hiveKeyStore?.putAll(
-          key, AtData()..data = '9878123322', AtMetaData());
-      // Update the same key
-      var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putAll(
-          key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
-      expect(atData?.data, '9878123322');
-      expect(
-          atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(
-          atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
-              updateKeyDateTime.millisecondsSinceEpoch,
-          true);
-      expect(atData.metaData!.createdBy, atSign);
-      expect(atData.metaData!.version, 1);
-      expect(atData.metaData!.ttl, 10000);
-    });
     tearDownAll(() async => await tearDownFunc());
   });
   group('A group of tests to verify at_metadata adapter', () {
