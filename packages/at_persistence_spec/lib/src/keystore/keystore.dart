@@ -23,7 +23,8 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param metadata - Metadata associated with the specified key.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> put(K key, V value, Metadata metadata);
+  Future<dynamic> put(K key, V value,
+      {Metadata metadata, bool skipCommit = false});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -32,7 +33,8 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param metadata - Metadata associated with the specified key.
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> create(K key, V value, Metadata metadata);
+  Future<dynamic> create(K key, V value,
+      {Metadata metadata, bool skipCommit = false});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
@@ -45,8 +47,6 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
 
 abstract class SynchronizableKeyStore<K, V, T> {
   Future<dynamic> putMeta(K key, T metadata);
-
-  Future<dynamic> putAll(K key, V value, T metadata);
 
   Future<T> getMeta(K key);
 }
