@@ -35,7 +35,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
     Map infoMap = {};
     String? apkamMetadataKey;
     String? result;
-    InboundConnectionMetadata atConnectionMetadata = atConnection.getMetaData()
+    InboundConnectionMetadata atConnectionMetadata = atConnection.metaData
         as InboundConnectionMetadata; // structure of what is returned is documented in the [Info] verb in at_server_spec
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
 

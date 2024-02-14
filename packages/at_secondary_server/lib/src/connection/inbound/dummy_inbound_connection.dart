@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -30,12 +28,10 @@ class DummyInboundConnection implements InboundConnection {
   }
 
   @override
-  AtConnectionMetaData getMetaData() {
-    return metadata;
-  }
+  AtConnectionMetaData get metaData => metadata;
 
   @override
-  Socket getSocket() {
+  dynamic get underlying {
     throw UnimplementedError(
         "DummyInboundConnection.getSocket is not implemented");
   }
@@ -58,9 +54,6 @@ class DummyInboundConnection implements InboundConnection {
   String? initiatedBy;
 
   bool isStream = false;
-
-  @override
-  Socket? receiverSocket;
 
   @override
   bool isRequestAllowed() {

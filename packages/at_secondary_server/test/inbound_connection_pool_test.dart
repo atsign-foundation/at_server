@@ -5,14 +5,19 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_utils/at_utils.dart';
+
+import 'test_utils.dart';
 
 var serverContext = AtSecondaryContext();
 
 AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 
 void main() async {
+  late MockSocket mockSocket;
+
   setUpAll(() {
     serverContext.unauthenticatedInboundIdleTimeMillis = 250;
     serverContext.authenticatedInboundIdleTimeMillis = 500;
@@ -21,6 +26,10 @@ void main() async {
     serverContext.authenticatedMinAllowableIdleTimeMillis = 100;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     InboundConnectionPool.getInstance().init(10);
+
+    mockSocket = MockSocket();
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
   });
   tearDown(() {
     InboundConnectionPool.getInstance().clearAllConnections();
@@ -35,9 +44,8 @@ void main() async {
     test('test connection pool add connections', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(5);
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = InboundConnectionImpl(dummySocket, 'bbb');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
+      var connection2 = InboundConnectionImpl(mockSocket, 'bbb');
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       expect(poolInstance.getCapacity(), 5);
@@ -46,8 +54,7 @@ void main() async {
     test('test connection pool has capacity', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       poolInstance.add(connection1);
       expect(poolInstance.hasCapacity(), true);
     });
@@ -55,9 +62,8 @@ void main() async {
     test('test connection pool has no capacity', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      Socket? dummySocket;
-      var connection1 = InboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = InboundConnectionImpl(dummySocket, 'bbb');
+      var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
+      var connection2 = InboundConnectionImpl(mockSocket, 'bbb');
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       expect(poolInstance.hasCapacity(), false);
@@ -66,9 +72,8 @@ void main() async {
     test('test connection pool - clear closed connection', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(2);
-      Socket? dummySocket;
-      var connection1 = MockInboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = MockInboundConnectionImpl(dummySocket, 'bbb');
+      var connection1 = MockInboundConnectionImpl(mockSocket, 'aaa');
+      var connection2 = MockInboundConnectionImpl(mockSocket, 'bbb');
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       expect(poolInstance.getCurrentSize(), 2);
@@ -80,10 +85,9 @@ void main() async {
     test('test connection pool - clear idle connection', () {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(10);
-      Socket? dummySocket;
-      var connection1 = MockInboundConnectionImpl(dummySocket, 'aaa');
-      var connection2 = MockInboundConnectionImpl(dummySocket, 'bbb');
-      var connection3 = MockInboundConnectionImpl(dummySocket, 'ccc');
+      var connection1 = MockInboundConnectionImpl(mockSocket, 'aaa');
+      var connection2 = MockInboundConnectionImpl(mockSocket, 'bbb');
+      var connection3 = MockInboundConnectionImpl(mockSocket, 'ccc');
       poolInstance.add(connection1);
       poolInstance.add(connection2);
       poolInstance.add(connection3);
@@ -97,12 +101,12 @@ void main() async {
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.2)
                   .floor()));
-      print('connection 1: ${connection1.getMetaData().created} '
-          '${connection1.getMetaData().lastAccessed} ${connection1.isInValid()}');
-      print('connection 2: ${connection2.getMetaData().created} '
-          '${connection2.getMetaData().lastAccessed} ${connection2.isInValid()}');
-      print('connection 3: ${connection3.getMetaData().created} '
-          '${connection3.getMetaData().lastAccessed} ${connection3.isInValid()}');
+      print('connection 1: ${connection1.metaData.created} '
+          '${connection1.metaData.lastAccessed} ${connection1.isInValid()}');
+      print('connection 2: ${connection2.metaData.created} '
+          '${connection2.metaData.lastAccessed} ${connection2.isInValid()}');
+      print('connection 3: ${connection3.metaData.created} '
+          '${connection3.metaData.lastAccessed} ${connection3.isInValid()}');
       poolInstance.clearInvalidConnections();
       expect(poolInstance.getCurrentSize(), 1);
     });
@@ -119,7 +123,8 @@ void main() async {
           (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio)
               .floor();
       for (int i = 0; i < lowWaterMark; i++) {
-        var mockConnection = MockInboundConnectionImpl(null, 'mock session $i');
+        var mockConnection =
+            MockInboundConnectionImpl(mockSocket, 'mock session $i');
         connections.add(mockConnection);
         poolInstance.add(mockConnection);
       }
@@ -162,9 +167,10 @@ void main() async {
       int desiredPoolSize = (maxPoolSize * 0.9).floor();
       int numUnauthenticated = 0;
       for (int i = 0; i < desiredPoolSize; i++) {
-        var mockConnection = MockInboundConnectionImpl(null, 'mock session $i');
+        var mockConnection =
+            MockInboundConnectionImpl(mockSocket, 'mock session $i');
         if (i.isEven) {
-          mockConnection.getMetaData().isAuthenticated = true;
+          mockConnection.metaData.isAuthenticated = true;
         } else {
           numUnauthenticated++;
         }
@@ -279,17 +285,17 @@ int calcActualAllowableIdleTime(
 }
 
 class MockInboundConnectionImpl extends InboundConnectionImpl {
-  MockInboundConnectionImpl(Socket? socket, String sessionId)
+  MockInboundConnectionImpl(Socket socket, String sessionId)
       : super(socket, sessionId,
             owningPool: InboundConnectionPool.getInstance());
 
   @override
   Future<void> close() async {
-    getMetaData().isClosed = true;
+    metaData.isClosed = true;
   }
 
   @override
   void write(String data) {
-    getMetaData().lastAccessed = DateTime.now().toUtc();
+    metaData.lastAccessed = DateTime.now().toUtc();
   }
 }

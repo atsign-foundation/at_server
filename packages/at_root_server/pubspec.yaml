@@ -12,15 +12,15 @@ dependencies:
   args: 2.4.2
   uuid: 3.0.7
   yaml: 3.1.2
-  at_commons: 3.0.57
-  at_utils: 3.0.15
-  at_server_spec: 3.0.15
+  at_commons: 4.0.1
+  at_utils: 3.0.16
+  at_server_spec: 4.0.1
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: packages/at_persistence_root_server
       ref: trunk
-      version: ^2.0.5
+      version: ^2.0.6
 
 dev_dependencies:
   # Adding test_cov for generating the test coverage.

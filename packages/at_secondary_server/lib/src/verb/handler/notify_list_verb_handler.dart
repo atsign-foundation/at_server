@@ -54,7 +54,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('Invalid date format');
     }
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign

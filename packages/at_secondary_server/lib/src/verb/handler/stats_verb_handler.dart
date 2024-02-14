@@ -156,11 +156,10 @@ class StatsVerbHandler extends AbstractVerbHandler {
       }
       var result = [];
       List<String> enrolledNamespaces = [];
-      if ((atConnection.getMetaData() as InboundConnectionMetadata)
-              .enrollmentId !=
+      if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId !=
           null) {
         var enrollmentKey =
-            '${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+            '${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
         enrolledNamespaces = (await getEnrollDataStoreValue(enrollmentKey))
             .namespaces
             .keys

@@ -1,3 +1,6 @@
+## 3.0.40
+- build[deps]: Upgraded the following packages: 
+   - at_chops to 2.0.0 
 ## 3.0.39
 - build[deps]: Upgraded the following packages:
   - at_commons to v4.0.0
@@ -6,6 +9,7 @@
   - at_chops to v1.0.7
   - at_persistence_secondary_server to v3.0.60
   - at_server_spec to 3.0.16
+- feat: Improve enrollment usability by adding ability to create multi-use 'semi-permanent' enrollment passcodes
 ## 3.0.38
 - Introduce a new config key to store an atsign's blocklist
 ## 3.0.37

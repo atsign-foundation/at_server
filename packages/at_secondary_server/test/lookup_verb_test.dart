@@ -349,7 +349,7 @@ void main() {
           'all', bobData,
           key: '$alice:$keyName')!;
 
-      inboundConnection.getMetaData().isAuthenticated =
+      inboundConnection.metaData.isAuthenticated =
           true; // owner connection, authenticated
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
@@ -377,7 +377,7 @@ void main() {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
 
-      inboundConnection.getMetaData().isAuthenticated =
+      inboundConnection.metaData.isAuthenticated =
           true; // owner connection, authenticated
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
@@ -406,7 +406,7 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(keyName), false);
       expect(secondaryKeyStore.isKeyExists('$bob:$keyName'), true);
 
-      inboundConnection.getMetaData().isPolAuthenticated =
+      inboundConnection.metaData.isPolAuthenticated =
           true; // connection from @bob atServer to @alice atServer, polAuthenticated
       inboundConnection.metadata.self = false;
       inboundConnection.metadata.from = true;

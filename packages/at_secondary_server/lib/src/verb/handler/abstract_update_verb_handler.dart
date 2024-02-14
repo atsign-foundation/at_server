@@ -66,7 +66,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     atData.data = value;
 
     final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
     if (enrollApprovalId != null) {
       if (atKey.contains('.')) {

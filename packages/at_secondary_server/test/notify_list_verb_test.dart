@@ -14,13 +14,17 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  MockSocket mockSocket = MockSocket();
+
+  setUpAll(() {
+    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
+        .thenReturn(true);
+  });
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
@@ -133,7 +137,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
@@ -220,7 +224,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
@@ -300,7 +304,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
@@ -370,7 +374,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyListVerbHandler.processVerb(
@@ -416,7 +420,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyFetchVerbHandler.processVerb(
@@ -443,7 +447,7 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@alice'
         ..isAuthenticated = true;
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId)
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
       await notifyFetchVerbHandler.processVerb(
