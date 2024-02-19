@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:crypton/crypton.dart';
 
 class SecondaryUtil {
@@ -22,7 +23,7 @@ class SecondaryUtil {
         secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
     await keyStore.put('public:$key', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+        metadata: Metadata()..ttl = 60 * 1000); //expire in 1 min
   }
 
   static List<String> getSecondaryInfo(String url) {

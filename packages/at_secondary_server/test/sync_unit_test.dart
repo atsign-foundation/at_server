@@ -607,23 +607,25 @@ void main() {
         ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 0,
         ///    "operation": "*"
+        var newMetadata = Metadata()
+          ..ttl = 1000
+          ..ttb = 2000
+          ..ttr = 3000
+          ..ccd = true
+          ..dataSignature = 'dummy_data_signature'
+          ..sharedKeyEnc = 'dummy_shared_key'
+          ..pubKeyCS = 'dummy_checksum'
+          ..encoding = 'base64'
+          ..encKeyName = 'an_encrypting_key_name'
+          ..encAlgo = 'an_encrypting_algorithm_name'
+          ..ivNonce = 'an_iv_or_nonce'
+          ..skeEncKeyName =
+              'an_encrypting_key_name_for_the_inlined_encrypted_shared_key'
+          ..skeEncAlgo =
+              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key';
         AtMetaData atMetadata = AtMetadataBuilder(
-          ttl: 1000,
-          ttb: 2000,
-          ttr: 3000,
-          ccd: true,
-          dataSignature: 'dummy_data_signature',
-          sharedKeyEncrypted: 'dummy_shared_key',
-          publicKeyChecksum: 'dummy_checksum',
-          encoding: 'base64',
-          encKeyName: 'an_encrypting_key_name',
-          encAlgo: 'an_encrypting_algorithm_name',
-          ivNonce: 'an_iv_or_nonce',
-          skeEncKeyName:
-              'an_encrypting_key_name_for_the_inlined_encrypted_shared_key',
-          skeEncAlgo:
-              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key',
-        ).build();
+                newMetaData: AtMetaData.fromCommonsMetadata(newMetadata))
+            .build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
             AtData()
