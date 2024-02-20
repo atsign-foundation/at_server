@@ -54,20 +54,34 @@ class AtMetadataBuilder {
     atMetaData.isBinary = newAtMetaData?.isBinary ?? existingMetaData?.isBinary;
     atMetaData.isEncrypted =
         newAtMetaData?.isEncrypted ?? existingMetaData?.isEncrypted;
-    atMetaData.dataSignature =
-        newAtMetaData?.dataSignature ?? existingMetaData?.dataSignature;
-    atMetaData.sharedKeyEnc =
-        newAtMetaData?.sharedKeyEnc ?? existingMetaData?.sharedKeyEnc;
-    atMetaData.pubKeyCS = newAtMetaData?.pubKeyCS ?? existingMetaData?.pubKeyCS;
-    atMetaData.encoding = newAtMetaData?.encoding ?? existingMetaData?.encoding;
-    atMetaData.encKeyName =
-        newAtMetaData?.encKeyName ?? existingMetaData?.encKeyName;
-    atMetaData.encAlgo = newAtMetaData?.encAlgo ?? existingMetaData?.encAlgo;
-    atMetaData.ivNonce = newAtMetaData?.ivNonce ?? existingMetaData?.ivNonce;
-    atMetaData.skeEncKeyName =
-        newAtMetaData?.skeEncKeyName ?? existingMetaData?.skeEncKeyName;
-    atMetaData.skeEncAlgo =
-        newAtMetaData?.skeEncAlgo ?? existingMetaData?.skeEncAlgo;
+    atMetaData.dataSignature = newAtMetaData?.dataSignature == "null"
+        ? null
+        : newAtMetaData?.dataSignature ?? existingMetaData?.dataSignature;
+    atMetaData.sharedKeyEnc = newAtMetaData?.sharedKeyEnc == "null"
+        ? null
+        : newAtMetaData?.sharedKeyEnc ?? existingMetaData?.sharedKeyEnc;
+    atMetaData.pubKeyCS = newAtMetaData?.pubKeyCS == "null"
+        ? null
+        : newAtMetaData?.pubKeyCS ?? existingMetaData?.pubKeyCS;
+
+    atMetaData.encoding = newAtMetaData?.encoding == "null"
+        ? null
+        : newAtMetaData?.encoding ?? existingMetaData?.encoding;
+    atMetaData.encKeyName = newAtMetaData?.encKeyName == "null"
+        ? null
+        : newAtMetaData?.encKeyName ?? existingMetaData?.encKeyName;
+    atMetaData.encAlgo = newAtMetaData?.encAlgo == "null"
+        ? null
+        : newAtMetaData?.encAlgo ?? existingMetaData?.encAlgo;
+    atMetaData.ivNonce = newAtMetaData?.ivNonce == "null"
+        ? null
+        : newAtMetaData?.ivNonce ?? existingMetaData?.ivNonce;
+    atMetaData.skeEncKeyName = newAtMetaData?.skeEncKeyName == "null"
+        ? null
+        : newAtMetaData?.skeEncKeyName ?? existingMetaData?.skeEncKeyName;
+    atMetaData.skeEncAlgo = newAtMetaData?.skeEncAlgo == "null"
+        ? null
+        : newAtMetaData?.skeEncAlgo ?? existingMetaData?.skeEncAlgo;
     atMetaData.version = newAtMetaData?.version ?? existingMetaData?.version;
   }
 
