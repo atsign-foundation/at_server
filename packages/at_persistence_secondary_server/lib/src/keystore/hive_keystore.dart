@@ -341,7 +341,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   @server
   @client
-  Future<bool> deleteExpiredKeys({bool? optimizeCommits = false}) async {
+  Future<bool> deleteExpiredKeys({bool? skipCommit = false}) async {
     logger.finer('Removing expired keys');
     bool result = true;
     try {
@@ -353,8 +353,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       for (String element in expiredKeys) {
         try {
           // delete entries for expired keys will not be added to the commitLog
-          // and will be handled on the client side
-          await remove(element, skipCommit: optimizeCommits!);
+          // Removal of expired keys will be handled on the client side
+          await remove(element, skipCommit: skipCommit!);
         } on KeyNotFoundException {
           continue;
         }

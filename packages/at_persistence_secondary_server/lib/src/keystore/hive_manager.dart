@@ -113,7 +113,7 @@ class HivePersistenceManager with HiveBase {
   }
 
   //TODO change into to Duration and construct cron string dynamically
-  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval, bool optimizeCommits = false}) {
+  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval, bool skipCommits = false}) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     Schedule schedule;
     if(runTimeInterval != null){
@@ -126,7 +126,7 @@ class HivePersistenceManager with HiveBase {
       var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(_atsign)!
           .getSecondaryKeyStore()!;
-      await hiveKeyStore.deleteExpiredKeys(optimizeCommits: optimizeCommits);
+      await hiveKeyStore.deleteExpiredKeys(skipCommit: skipCommits);
     });
   }
 
