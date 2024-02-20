@@ -43,7 +43,7 @@ void main() async {
       expect((await keyStore?.get(key))?.data, atData.data);
 
       await Future.delayed(Duration(seconds: 4));
-      await keyStore?.deleteExpiredKeys(optimizeCommits: true);
+      await keyStore?.deleteExpiredKeys(skipCommit: true);
       // ensure that the key is expired
       expect(
           () async => await keyStore?.get(key),
@@ -65,7 +65,7 @@ void main() async {
       int? seqNum = await keyStore?.put(key1, atData, time_to_live: 100);
       print(seqNum);
       await Future.delayed(Duration(seconds: 1));
-      await keyStore?.deleteExpiredKeys(optimizeCommits: true);
+      await keyStore?.deleteExpiredKeys(skipCommit: true);
       // ensure that the key is expired
       expect(() async => await keyStore?.get(key1),
           throwsA(predicate((p0) => p0 is KeyNotFoundException)));
@@ -162,7 +162,7 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
-      runTimeInterval: Duration(seconds: 10), optimizeCommits: optimizeCommits);
+      runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
