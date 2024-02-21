@@ -1,3 +1,5 @@
+## 3.0.61
+- feat: delete entries for expired keys are not committed to the commitLog [feature not enabled yet]
 ## 3.0.60
 - build[deps]: Upgraded the following packages:
     - at_commons to v4.0.0
