@@ -105,7 +105,7 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
-  static final bool _optimizeCommitLog = false;
+  static final bool _skipCommitsForExpiredKeys = false;
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
@@ -778,8 +778,8 @@ class AtSecondaryConfig {
     _timeFrameInMills = timeWindowInMills;
   }
 
-  static get optimizeCommitsForExpiredKeys {
-    return _optimizeCommitLog;
+  static get skipCommitsForExpiredKeys {
+    return _skipCommitsForExpiredKeys;
   }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
