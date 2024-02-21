@@ -45,6 +45,10 @@ class AtMetadataBuilder {
     }
   }
 
+  // if existing metadata field is NOT null and new metadata field is null object, then set existing metadata field
+  // if existing metadata field is NOT null and new metadata field is not null object, then set new metadata field
+  // if existing metadata field is null and new metadata field is NOT null, then set new metadata field
+  // if existing metadata field is NOT null and new metadata field is null string, then set new metadata field (unset scenario)
   void _copyMetadata(AtMetaData? existingMetaData, AtMetaData? newAtMetaData) {
     atMetaData.ttl = _getOrDefault(newAtMetaData?.ttl, existingMetaData?.ttl);
     atMetaData.ttb = newAtMetaData?.ttb ?? existingMetaData?.ttb;
