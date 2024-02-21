@@ -57,60 +57,27 @@ class AtMetadataBuilder {
     }
     bool? isBinary;
     isBinary ??= newMetaData.isBinary;
-    if (isBinary == null && existingMetaData != null) {
-      isBinary = existingMetaData.isBinary;
-    }
     bool? isEncrypted;
     isEncrypted ??= newMetaData.isEncrypted;
-    if (isEncrypted == null && existingMetaData != null) {
-      isEncrypted = existingMetaData.isEncrypted;
-    }
     String? dataSignature;
     dataSignature ??= newMetaData.dataSignature;
-    if (dataSignature == null && existingMetaData != null) {
-      dataSignature = existingMetaData.dataSignature;
-    }
     String? sharedKeyEncrypted;
     sharedKeyEncrypted ??= newMetaData.sharedKeyEnc;
-    if (sharedKeyEncrypted == null && existingMetaData != null) {
-      sharedKeyEncrypted = existingMetaData.sharedKeyEnc;
-    }
     String? publicKeyChecksum;
     publicKeyChecksum ??= newMetaData.pubKeyCS;
-    if (publicKeyChecksum == null && existingMetaData != null) {
-      publicKeyChecksum = existingMetaData.pubKeyCS;
-    }
     String? encoding;
     encoding ??= newMetaData.encoding;
-    if (encoding == null && existingMetaData != null) {
-      encoding = existingMetaData.encoding;
-    }
     String? encKeyName;
     encKeyName ??= newMetaData.encKeyName;
-    if (encKeyName == null && existingMetaData != null) {
-      encKeyName = existingMetaData.encKeyName;
-    }
     String? encAlgo;
     encAlgo ??= newMetaData.encAlgo;
-    if (encAlgo == null && existingMetaData != null) {
-      encAlgo = existingMetaData.encAlgo;
-    }
     String? ivNonce;
     ivNonce ??= newMetaData.ivNonce;
-    if (ivNonce == null && existingMetaData != null) {
-      ivNonce = existingMetaData.ivNonce;
-    }
     String? skeEncKeyName;
     skeEncKeyName ??= newMetaData.skeEncKeyName;
 
-    if (skeEncKeyName == null && existingMetaData != null) {
-      skeEncKeyName = existingMetaData.skeEncKeyName;
-    }
     String? skeEncAlgo;
     skeEncAlgo ??= newMetaData.skeEncAlgo;
-    if (skeEncAlgo == null && existingMetaData != null) {
-      skeEncAlgo = existingMetaData.skeEncAlgo;
-    }
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
     }
