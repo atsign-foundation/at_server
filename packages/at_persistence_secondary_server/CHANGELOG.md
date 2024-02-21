@@ -1,3 +1,5 @@
+## 4.0.0
+- [Breaking Change] feat: Implement changes for keystore put/create method signature change to replace optional metadata params 
 ## 3.0.60
 - build[deps]: Upgraded the following packages:
     - at_commons to v4.0.0
