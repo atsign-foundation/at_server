@@ -135,20 +135,24 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         result = await create(key, value,
             metadata: metadata, skipCommit: skipCommit);
       } else {
-        var newMetaData = value?.metaData;
-        metadata ??= Metadata();
-        newMetaData ??= AtMetaData.fromCommonsMetadata(metadata);
+        var newMetaData;
         AtData? existingData = await get(key);
+
+        if (metadata != null) {
+          newMetaData = AtMetaData.fromCommonsMetadata(metadata);
+        }
         String hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
-            existingMetaData: existingData?.metaData,
+            existingAtData: existingData,
             newMetaData: newMetaData,
             atSign: persistenceManager?.atsign);
         // The version indicates the number of updates a key has received.
         // Version is set to 0 for a new key and for each update the key receives,
         // the version increases by 1
-        hive_value.metaData!.version =
+        hive_value.metaData?.version =
             (existingData?.metaData?.version ?? 0) + 1; // Increase version by 1
+        hive_value.metaData?.updatedAt ??=
+            DateTime.now().toUtcMillisecondsPrecision();
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await persistenceManager!.getBox().put(hive_key, hive_value);
@@ -220,7 +224,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     try {
       //version for new key creation is 0
-      hive_data.metaData!.version = 0;
+      hive_data.metaData?.version = 0;
+      hive_data.metaData?.createdAt ??=
+          DateTime.now().toUtcMillisecondsPrecision();
       await persistenceManager!.getBox().put(hive_key, hive_data);
       _updateMetadataCache(key, hive_data.metaData);
       if (skipCommit) {
@@ -369,14 +375,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // putMeta is intended to updates only the metadata of a key.
       // So, fetch the value from the existing key and set the same value.
       AtData newData = existingData ?? AtData();
-      newData.metaData = AtMetadataBuilder(
-              newMetaData: metadata,
-              existingMetaData: existingData?.metaData,
-              atSign: persistenceManager?.atsign)
-          .build();
+      newData.metaData = metadata;
 
-      newData.metaData!.version =
+      newData.metaData?.version =
           (existingData?.metaData?.version ?? 0) + 1; // Increase version by 1
+      newData.metaData?.updatedAt = DateTime.now().toUtcMillisecondsPrecision();
       await persistenceManager!.getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);

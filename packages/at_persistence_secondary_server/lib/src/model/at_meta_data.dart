@@ -86,6 +86,8 @@ class AtMetaData extends HiveObject {
 
   Metadata toCommonsMetadata() {
     return Metadata()
+      ..createdAt = createdAt
+      ..updatedAt = updatedAt
       ..ttl = ttl
       ..ttb = ttb
       ..ttr = ttr
@@ -106,6 +108,8 @@ class AtMetaData extends HiveObject {
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
     var atMetadata = AtMetaData();
     atMetadata
+      ..createdAt = metadata.createdAt
+      ..updatedAt = metadata.updatedAt
       ..ttl = metadata.ttl
       ..ttb = metadata.ttb
       ..ttr = metadata.ttr
@@ -121,7 +125,7 @@ class AtMetaData extends HiveObject {
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo;
-    return AtMetadataBuilder(newMetaData: atMetadata).build();
+    return atMetadata;
   }
 
   Map toJson() {
@@ -161,8 +165,12 @@ class AtMetaData extends HiveObject {
   AtMetaData fromJson(Map json) {
     createdBy = json['createdBy'];
     updatedBy = json['updatedBy'];
-    createdAt = DateTime.parse(json['createdAt']);
-    updatedAt = DateTime.parse(json['updatedAt']);
+    createdAt = (json['createdAt'] == null || json['createdAt'] == 'null')
+        ? null
+        : DateTime.parse(json['createdAt']);
+    updatedAt = (json['updatedAt'] == null || json['updatedAt'] == 'null')
+        ? null
+        : DateTime.parse(json['updatedAt']);
     expiresAt = (json['expiresAt'] == null || json['expiresAt'] == 'null')
         ? null
         : DateTime.parse(json['expiresAt']);

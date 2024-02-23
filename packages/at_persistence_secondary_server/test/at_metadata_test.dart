@@ -30,15 +30,16 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:phone@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      var atMetadata = AtMetaData()..createdBy = atSign;
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = value
+            ..metaData = atMetadata);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(
-          atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
               keyCreationDateTime.millisecondsSinceEpoch,
           true);
       expect(atData.metaData!.createdBy, atSign);
@@ -62,10 +63,19 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:mobile@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      var atMetaData = AtMetaData()..createdBy = atSign;
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = value
+            ..metaData = atMetaData);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.put(key, AtData()..data = '9878123322');
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = '9878123322'
+            ..metaData = atMetaData);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
       expect(
@@ -89,10 +99,17 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:country@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      var atMetaData = AtMetaData()
+        ..createdAt = keyCreationDateTime
+        ..createdBy = atSign;
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = value
+            ..metaData = atMetaData);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
+      await hiveKeyStore?.putMeta(key, atMetaData);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, value);
       expect(

@@ -590,37 +590,43 @@ void main() async {
 
     test('A test to verify new metadata is returned when TTL is unset',
         () async {
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
+      var metaData = Metadata()
+        ..ttl = 10000
+        ..createdAt = keyCreationDateTime;
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData()
-        ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 10000);
-      await keystore?.put('dummykey.wavi@test_user_1', atData);
-      AtData updatedAtData = AtData()
-        ..data = 'updated_value'
-        ..metaData = (AtMetaData()
-          ..ttl = 0
-          ..ttr = -1);
+      AtData atData = AtData()..data = 'dummy_value';
+      await keystore?.put('dummykey.wavi@test_user_1', atData,
+          metadata: metaData);
+      metaData.ttl = 0;
+      metaData.ttr = -1;
+      metaData.ttb = null;
+      metaData.updatedAt = DateTime.now().toUtcMillisecondsPrecision();
+      AtData updatedAtData = AtData()..data = 'updated_value';
       await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,
-          metadata: Metadata()..ttb = null);
-      AtMetaData? atMetaData =
+          metadata: metaData);
+      AtMetaData? latestMetaData =
           await keystore?.getMeta('dummykey.wavi@test_user_1');
-      expect(atMetaData?.ttr, -1);
-      expect(atMetaData?.ttl, 0);
+      expect(latestMetaData?.ttr, -1);
+      expect(latestMetaData?.ttl, 0);
     });
 
     test(
         'A test to verify getExpiredKeys method returns the keys whose TTL is met eventually',
         () async {
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 1500);
+        ..metaData = (AtMetaData()
+          ..ttl = 1500
+          ..createdAt = keyCreationDateTime);
       await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
       var expiredKeysList = await keystore?.getExpiredKeys();
       expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
@@ -680,13 +686,13 @@ void main() async {
           ..ttl = 12000 + i.toInt()
           ..ttb = i
           ..isBinary = true;
-        metaData = AtMetadataBuilder(
-                newMetaData: AtMetaData.fromCommonsMetadata(newMetadata),
-                atSign: '@atsign_$i')
-            .build();
+        // metaData = AtMetadataBuilder(
+        //         newMetaData: AtMetaData.fromCommonsMetadata(newMetadata),
+        //         atSign: '@atsign_$i')
+        //     .build();
 
         atData.data = 'value_test_$i';
-        atData.metaData = metaData;
+        atData.metaData = AtMetaData.fromCommonsMetadata(newMetadata);
         await keystore?.put('key_test_$i.wavi$atSign', atData);
       }
 

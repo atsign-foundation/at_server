@@ -129,13 +129,13 @@ class AtConfig {
   }
 
   ///Returns 'success' after successfully persisting data into secondary.
-  Future<String> prepareAndStoreData(config, [existingData]) async {
+  Future<String> prepareAndStoreData(config, AtData? existingData) async {
     var newData = AtData();
     newData.data = jsonEncode(config);
+    newData.metaData = existingData?.metaData;
 
-    newData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
-        newData,
-        existingMetaData: existingData?.metaData);
+    newData = HiveKeyStoreHelper.getInstance()
+        .prepareDataForKeystoreOperation(newData);
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
@@ -167,9 +167,8 @@ class AtConfig {
         existingData = await get(oldConfigKey);
         if (existingData != null && existingData.data != null) {
           AtData newAtData = AtData()..data = existingData.data;
-          HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
-              newAtData,
-              existingMetaData: existingData.metaData);
+          HiveKeyStoreHelper.getInstance()
+              .prepareDataForKeystoreOperation(newAtData);
           // store the existing data with the new key
           await persistenceManager.getBox().put(configKey, newAtData);
           logger.info('Successfully migrated configKey data to new key format');
