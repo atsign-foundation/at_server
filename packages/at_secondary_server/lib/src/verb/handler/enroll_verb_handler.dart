@@ -376,6 +376,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var notificationValue = {};
       notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
           enrollParams.encryptedAPKAMSymmetricKey;
+      notificationValue[AtConstants.appName] = enrollParams.appName;
+      notificationValue[AtConstants.deviceName] = enrollParams.deviceName;
+      notificationValue[AtConstants.namespace] = enrollParams.namespaces;
       logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
             ..notification = key
