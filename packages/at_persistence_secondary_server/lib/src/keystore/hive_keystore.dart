@@ -134,7 +134,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         result = await create(key, value,
             metadata: metadata, skipCommit: skipCommit);
       } else {
-        var newMetaData;
+        AtMetaData? newMetaData;
         AtData? existingData = await get(key);
 
         if (metadata != null) {

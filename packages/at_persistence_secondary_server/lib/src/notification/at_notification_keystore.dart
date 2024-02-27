@@ -218,11 +218,6 @@ class AtNotificationKeystore
   }
 
   @override
-  Future putAll(key, value, metadata) {
-    throw UnimplementedError();
-  }
-
-  @override
   Future putMeta(key, metadata) {
     throw UnimplementedError();
   }
