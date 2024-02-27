@@ -201,24 +201,24 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
-    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
+    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null/set to true
     if (ObjectsUtil.anyNotNull({
-      newMetaData.ttl,
-      newMetaData.ttb,
-      newMetaData.ttr,
-      newMetaData.isCascade,
-      newMetaData.isBinary,
-      newMetaData.isEncrypted,
-      newMetaData.dataSignature,
-      newMetaData.sharedKeyEnc,
-      newMetaData.pubKeyCS,
-      newMetaData.encoding,
-      newMetaData.encKeyName,
-      newMetaData.encAlgo,
-      newMetaData.ivNonce,
-      newMetaData.skeEncKeyName,
-      newMetaData.skeEncAlgo
-    })) {
+          newMetaData.ttl,
+          newMetaData.ttb,
+          newMetaData.ttr,
+          newMetaData.isCascade,
+          newMetaData.dataSignature,
+          newMetaData.sharedKeyEnc,
+          newMetaData.pubKeyCS,
+          newMetaData.encoding,
+          newMetaData.encKeyName,
+          newMetaData.encAlgo,
+          newMetaData.ivNonce,
+          newMetaData.skeEncKeyName,
+          newMetaData.skeEncAlgo
+        }) ||
+        (newMetaData.isEncrypted == true) ||
+        (newMetaData.isBinary == true)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 

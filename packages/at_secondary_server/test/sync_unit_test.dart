@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/metadata/at_metadata_builder.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -77,21 +78,17 @@ void main() {
         /// 5. The entry in commitLog should be created with CommitOp.Update
         // Setup
         DateTime currentDateTime = DateTime.now();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone@alice', AtData()..data = '123');
+        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+            '@alice:phone@alice',
+            AtData()
+              ..data = '123'
+              ..metaData = (AtMetaData()..createdBy = '@alice'));
         // verify metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
             .get('@alice:phone@alice');
         expect(
             atData!.metaData!.createdAt!
-                    .difference(currentDateTime)
-                    .inMilliseconds >
-                1,
-            true);
-        expect(
-            atData.metaData!.updatedAt!
                     .difference(currentDateTime)
                     .inMilliseconds >
                 1,
@@ -120,14 +117,15 @@ void main() {
           /// 2. The value and metadata of the existing key should be updated
           /// 3. The commit log should have a new entry
           /// 4. The version of the key is set to 1
-          /// 5. The "createdAt" is less than now()
-          /// 6. The "updatedAt" is populated and is less than now()
-          /// 7. The "createdBy" is assigned to currentAtSign
+          /// 5. The "createdAt" is less than now() when key is created
+          /// 6. The "updatedAt" is populated and is less than now() when key is updated
+          /// 7. The "createdBy" is assigned to currentAtSign when key is created
           // Inserting a new key into keystore
-          var keyCreationDateTime = DateTime.now().toUtc();
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('@alice:phone@alice', AtData()..data = '123');
+          await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+              '@alice:phone@alice',
+              AtData()
+                ..data = '123'
+                ..metaData = (AtMetaData()..createdBy = '@alice'));
           // Assert commit entry before update
           // The "getChanges" method is specific to the client operations. Hence
           // replaced with "getEntries" method
@@ -141,7 +139,9 @@ void main() {
               '@alice:phone@alice',
               AtData()
                 ..data = '345'
-                ..metaData = (AtMetaData()..ttl = 10000));
+                ..metaData = (AtMetaData()
+                  ..ttl = 10000
+                  ..updatedBy = '@alice'));
           // Assert the metadata
           AtData? atDataAfterUpdate = await secondaryPersistenceStore!
               .getSecondaryKeyStore()!
@@ -149,11 +149,7 @@ void main() {
           expect(atDataAfterUpdate!.data, '345');
           expect(atDataAfterUpdate.metaData!.ttl, 10000);
           expect(atDataAfterUpdate.metaData!.version, 1);
-          expect(atDataAfterUpdate.metaData!.createdBy, atSign);
-          expect(
-              atDataAfterUpdate.metaData!.createdAt!.millisecondsSinceEpoch >=
-                  keyCreationDateTime.millisecondsSinceEpoch,
-              true);
+          expect(atDataAfterUpdate.metaData!.updatedBy, atSign);
           expect(
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdateDateTime.millisecondsSinceEpoch,
@@ -185,14 +181,11 @@ void main() {
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
         // Inserting a new key into keystore
         var keyCreationDateTime = DateTime.now().toUtc();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone@alice', AtData()..data = '123');
-        // Updating the existing key
-        var keyUpdateDateTime = DateTime.now().toUtc();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
+        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+            '@alice:phone@alice',
+            AtData()
+              ..data = '123'
+              ..metaData = (AtMetaData()..createdBy = '@alice'));
         // verify the metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
@@ -201,12 +194,21 @@ void main() {
             atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
                 keyCreationDateTime.millisecondsSinceEpoch,
             true);
+        expect(atData.metaData!.createdBy, atSign);
+        // Updating the existing key
+        var keyUpdateDateTime = DateTime.now().toUtc();
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
+        atData = await secondaryPersistenceStore!
+            .getSecondaryKeyStore()!
+            .get('@alice:phone@alice');
         expect(
-            atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
+            atData!.metaData!.updatedAt!.millisecondsSinceEpoch >=
                 keyUpdateDateTime.millisecondsSinceEpoch,
             true);
         expect(atData.metaData!.version, 1);
-        expect(atData.metaData!.createdBy, atSign);
+
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
@@ -607,23 +609,25 @@ void main() {
         ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 0,
         ///    "operation": "*"
+        var newMetadata = Metadata()
+          ..ttl = 1000
+          ..ttb = 2000
+          ..ttr = 3000
+          ..ccd = true
+          ..dataSignature = 'dummy_data_signature'
+          ..sharedKeyEnc = 'dummy_shared_key'
+          ..pubKeyCS = 'dummy_checksum'
+          ..encoding = 'base64'
+          ..encKeyName = 'an_encrypting_key_name'
+          ..encAlgo = 'an_encrypting_algorithm_name'
+          ..ivNonce = 'an_iv_or_nonce'
+          ..skeEncKeyName =
+              'an_encrypting_key_name_for_the_inlined_encrypted_shared_key'
+          ..skeEncAlgo =
+              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key';
         AtMetaData atMetadata = AtMetadataBuilder(
-          ttl: 1000,
-          ttb: 2000,
-          ttr: 3000,
-          ccd: true,
-          dataSignature: 'dummy_data_signature',
-          sharedKeyEncrypted: 'dummy_shared_key',
-          publicKeyChecksum: 'dummy_checksum',
-          encoding: 'base64',
-          encKeyName: 'an_encrypting_key_name',
-          encAlgo: 'an_encrypting_algorithm_name',
-          ivNonce: 'an_iv_or_nonce',
-          skeEncKeyName:
-              'an_encrypting_key_name_for_the_inlined_encrypted_shared_key',
-          skeEncAlgo:
-              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key',
-        ).build();
+                newMetaData: AtMetaData.fromCommonsMetadata(newMetadata))
+            .build();
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
             AtData()

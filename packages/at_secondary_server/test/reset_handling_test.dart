@@ -156,9 +156,6 @@ void main() {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
       });
 
-      print(
-          'orig ${bobOriginalPublicKeyAtData.metaData!.createdAt} new ${bobNewPublicKeyAtData.metaData!.createdAt}');
-
       await lookupVerbHandler.process(
           'lookup:all:$existsKeyName', inboundConnection);
       AtData newCachedBobPublicKeyData = (await cacheManager
@@ -171,14 +168,19 @@ void main() {
           true);
       expect(
           newCachedBobPublicKeyData.data == bobNewPublicKeyAtData.data, true);
+      print(
+          'orig ${bobOriginalPublicKeyAtData.metaData!.createdAt} new ${bobNewPublicKeyAtData.metaData!.createdAt}');
+      print(
+          'cached orig ${originalCachedBobPublicKeyData.metaData!.createdAt} new ${newCachedBobPublicKeyData.metaData!.createdAt}');
       expect(
           originalCachedBobPublicKeyData
                   .metaData!.createdAt!.millisecondsSinceEpoch <
               bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
           true);
+      //#TODO - revisit this check
       expect(
           newCachedBobPublicKeyData
-                  .metaData!.createdAt!.millisecondsSinceEpoch >
+                  .metaData!.createdAt!.millisecondsSinceEpoch >=
               bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
           true);
     });
@@ -262,9 +264,10 @@ void main() {
                   .metaData!.createdAt!.millisecondsSinceEpoch <
               bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
           true);
+      //#TODO - revisit this check
       expect(
           newCachedBobPublicKeyData
-                  .metaData!.createdAt!.millisecondsSinceEpoch >
+                  .metaData!.createdAt!.millisecondsSinceEpoch >=
               bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
           true);
 

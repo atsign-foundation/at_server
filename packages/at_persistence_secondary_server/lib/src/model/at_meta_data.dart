@@ -86,8 +86,6 @@ class AtMetaData extends HiveObject {
 
   Metadata toCommonsMetadata() {
     return Metadata()
-      ..createdAt = createdAt
-      ..updatedAt = updatedAt
       ..ttl = ttl
       ..ttb = ttb
       ..ttr = ttr
