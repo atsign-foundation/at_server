@@ -41,7 +41,6 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @Deprecated("Use [initialize]")
-
   /// Deprecated. Use [initialize]
   Future<void> init() async {
     await initialize();
@@ -269,7 +268,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   @override
   @server
-  Future<bool> deleteExpiredKeys() async {
+  @client
+  Future<bool> deleteExpiredKeys({bool? skipCommit = false}) async {
+    logger.finer('Removing expired keys');
     bool result = true;
     try {
       List<String> expiredKeys = await getExpiredKeys();
@@ -279,7 +280,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
       for (String element in expiredKeys) {
         try {
-          await remove(element);
+          // delete entries for expired keys will not be added to the commitLog
+          // Removal of expired keys will be handled on the client side
+          await remove(element, skipCommit: skipCommit!);
         } on KeyNotFoundException {
           continue;
         }
