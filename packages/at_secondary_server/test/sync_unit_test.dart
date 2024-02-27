@@ -78,11 +78,9 @@ void main() {
         /// 5. The entry in commitLog should be created with CommitOp.Update
         // Setup
         DateTime currentDateTime = DateTime.now();
-        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            '@alice:phone@alice',
-            AtData()
-              ..data = '123'
-              ..metaData = (AtMetaData()..createdBy = '@alice'));
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('@alice:phone@alice', AtData()..data = '123');
         // verify metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
@@ -121,11 +119,9 @@ void main() {
           /// 6. The "updatedAt" is populated and is less than now() when key is updated
           /// 7. The "createdBy" is assigned to currentAtSign when key is created
           // Inserting a new key into keystore
-          await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-              '@alice:phone@alice',
-              AtData()
-                ..data = '123'
-                ..metaData = (AtMetaData()..createdBy = '@alice'));
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('@alice:phone@alice', AtData()..data = '123');
           // Assert commit entry before update
           // The "getChanges" method is specific to the client operations. Hence
           // replaced with "getEntries" method
@@ -181,11 +177,9 @@ void main() {
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
         // Inserting a new key into keystore
         var keyCreationDateTime = DateTime.now().toUtc();
-        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            '@alice:phone@alice',
-            AtData()
-              ..data = '123'
-              ..metaData = (AtMetaData()..createdBy = '@alice'));
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('@alice:phone@alice', AtData()..data = '123');
         // verify the metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!

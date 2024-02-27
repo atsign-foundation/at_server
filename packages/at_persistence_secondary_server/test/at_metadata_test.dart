@@ -30,12 +30,7 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:phone@alice';
       var value = '9878123321';
-      var atMetadata = AtMetaData()..createdBy = atSign;
-      await hiveKeyStore?.put(
-          key,
-          AtData()
-            ..data = value
-            ..metaData = atMetadata);
+      await hiveKeyStore?.put(key, AtData()..data = value);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, value);
       expect(
@@ -63,19 +58,10 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:mobile@alice';
       var value = '9878123321';
-      var atMetaData = AtMetaData()..createdBy = atSign;
-      await hiveKeyStore?.put(
-          key,
-          AtData()
-            ..data = value
-            ..metaData = atMetaData);
+      await hiveKeyStore?.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.put(
-          key,
-          AtData()
-            ..data = '9878123322'
-            ..metaData = atMetaData);
+      await hiveKeyStore?.put(key, AtData()..data = '9878123322');
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, '9878123322');
       expect(
@@ -101,12 +87,8 @@ void main() async {
       var value = '9878123321';
       var atMetaData = AtMetaData()
         ..createdAt = keyCreationDateTime
-        ..createdBy = atSign;
-      await hiveKeyStore?.put(
-          key,
-          AtData()
-            ..data = value
-            ..metaData = atMetaData);
+        ..createdBy = '@alice';
+      await hiveKeyStore?.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
       await hiveKeyStore?.putMeta(key, atMetaData);

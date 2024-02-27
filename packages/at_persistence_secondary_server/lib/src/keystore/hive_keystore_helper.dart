@@ -31,6 +31,9 @@ class HiveKeyStoreHelper {
     // 3. Use metadata from fetched data if 1 and 2 are null
     metaDataToUpdate ??= existingAtData?.metaData;
     atData.metaData = metaDataToUpdate;
+    // set createdBy and updatedBy
+    atData.metaData?.createdBy ??= atSign;
+    atData.metaData?.updatedBy = atSign;
     // set derived fields
     if (atData.metaData?.ttl != null) {
       atData.metaData?.expiresAt = _getExpiresAt(

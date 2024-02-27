@@ -29,10 +29,16 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
     var updatePreProcessResult =
         await super.preProcessAndNotify(response, verbParams, atConnection);
     final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    AtData existingData = await keyStore.get(updatePreProcessResult.atKey);
+    AtData? existingData;
+
+    try {
+      existingData = await keyStore.get(updatePreProcessResult.atKey);
+    } on KeyNotFoundException {
+      // do nothing
+    }
     var newMetadata = AtMetadataBuilder(
             newMetaData: updatePreProcessResult.atData.metaData!,
-            existingMetaData: existingData.metaData,
+            existingMetaData: existingData?.metaData,
             atSign: atSign)
         .build();
     // update the key in data store
