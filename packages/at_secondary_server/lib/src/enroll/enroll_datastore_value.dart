@@ -15,6 +15,7 @@ class EnrollDataStoreValue {
   late String apkamPublicKey;
   EnrollRequestType? requestType;
   EnrollApproval? approval;
+  String? encryptedAPKAMSymmetricKey;
 
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
