@@ -887,9 +887,9 @@ void main() {
     }
 
     test('update with all metadata', () async {
-     // for (int i = 0; i < 100; i++) {
+      for (int i = 0; i < 100; i++) {
         await doit();
-      //}
+      }
     });
 
     test('A test to verify existing metadata is retained after an update',

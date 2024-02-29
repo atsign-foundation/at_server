@@ -190,10 +190,12 @@ void main() {
             true);
         expect(atData.metaData!.createdBy, atSign);
         // Updating the existing key
+        var newMetaData = atData.metaData;
+        newMetaData!.ttl = 10000;
         var keyUpdateDateTime = DateTime.now().toUtc();
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
+            ?.putMeta('@alice:phone@alice', newMetaData);
         atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
             .get('@alice:phone@alice');
@@ -202,7 +204,7 @@ void main() {
                 keyUpdateDateTime.millisecondsSinceEpoch,
             true);
         expect(atData.metaData!.version, 1);
-
+        expect(atData.metaData!.createdBy, atSign);
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =

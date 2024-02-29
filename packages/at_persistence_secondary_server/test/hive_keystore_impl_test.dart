@@ -686,10 +686,6 @@ void main() async {
           ..ttl = 12000 + i.toInt()
           ..ttb = i
           ..isBinary = true;
-        // metaData = AtMetadataBuilder(
-        //         newMetaData: AtMetaData.fromCommonsMetadata(newMetadata),
-        //         atSign: '@atsign_$i')
-        //     .build();
 
         atData.data = 'value_test_$i';
         atData.metaData = AtMetaData.fromCommonsMetadata(newMetadata);

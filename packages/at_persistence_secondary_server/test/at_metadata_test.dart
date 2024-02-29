@@ -16,11 +16,9 @@ void main() async {
     /// The below test is to verify the default fields in the metadata are populated
     /// on creation of a new key
     /// The default fields are:
-    ///   For new key createdAt and UpdatedAt are same
     /// a) CreatedAt - DateTime when the key is created
-    /// b) UpdatedAt - DateTime when the key is updated
-    /// c) CreatedBy - The atSign which created the key
-    /// d) version - Indicates the number of times the key is updated.
+    /// b) CreatedBy - The atSign which created the key
+    /// c) version - Indicates the number of times the key is updated.
     ///              For a new key version is set to 0
     test('A test to default field in metadata is set on a new key creation',
         () async {

@@ -375,7 +375,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       if (isKeyExists(key)) {
         existingData = await get(key);
       }
-      // putMeta is intended to updates only the metadata of a key.
+      // putMeta is intended to update only the metadata of a key.
       // So, fetch the value from the existing key and set the same value.
       AtData newData = existingData ?? AtData();
       newData.metaData = metadata;
