@@ -28,6 +28,9 @@ void main() {
         at_demos.apkamSymmetricKeyMap[firstAtSign]!),
     'encryptedSelfEncKey': EncryptionUtil.encryptValue(
         at_demos.aesKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedApkamSymmetricKey': EncryptionUtil.encryptValue(
+        at_demos.aesKeyMap[firstAtSign]!,
         at_demos.apkamSymmetricKeyMap[firstAtSign]!)
   };
 
@@ -44,7 +47,7 @@ void main() {
           authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -148,7 +151,7 @@ void main() {
           authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -283,6 +286,48 @@ void main() {
           true);
     });
 
+    test(
+        'enroll request on APKAM authenticated connection and verify enroll:list',
+        () async {
+      int randomNumber = Uuid().v4().hashCode;
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam);
+      // send an enroll request with the keys from the setEncryptionKeys method
+      String enrollRequest =
+          'enroll:request:{"appName":"atmosphere-$randomNumber","deviceName":"pixel-$randomNumber","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$randomNumber"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      var enrollmentId = enrollJsonMap['enrollmentId'];
+      expect(enrollmentId, isNotEmpty);
+      expect(enrollJsonMap['status'], 'pending');
+      // enroll:list
+      String enrollListResponse =
+          await firstAtSignConnection.sendRequestToServer('enroll:list');
+      enrollListResponse = enrollListResponse.replaceAll('data:', '');
+      var enrollListResponseMap = jsonDecode(enrollListResponse);
+      expect(
+          enrollListResponseMap[
+              '$enrollmentId.new.enrollments.__manage$firstAtSign']['appName'],
+          'atmosphere-$randomNumber');
+      expect(
+          enrollListResponseMap[
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['deviceName'],
+          'pixel-$randomNumber');
+      expect(
+          enrollListResponseMap[
+          '$enrollmentId.new.enrollments.__manage$firstAtSign']
+          ['namespace']['wavi'],
+          'rw');
+      expect(
+          enrollListResponseMap[
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['encryptedAPKAMSymmetricKey'],
+          'dummy_apkam_$randomNumber');
+    });
+
     // Purpose of the tests
     // 1. Do a pkam authentication
     // 2. Send an enroll request
@@ -295,7 +340,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');
@@ -313,7 +358,7 @@ void main() {
               firstAtSign, firstAtSignHost, firstAtSignPort);
       //send second enroll request with otp
       String secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
       String secondEnrollResponse =
           (await socketConnection2.sendRequestToServer(secondEnrollRequest))
               .replaceFirst('data:', '');
@@ -362,13 +407,13 @@ void main() {
           await firstAtSignConnection.sendRequestToServer('otp:get');
       otpResponse = otpResponse.replaceFirst('data:', '');
       otpResponse = otpResponse.trim();
-      firstAtSignConnection.close();
+      await firstAtSignConnection.close();
       // Connect to unauthenticated socket to send an enrollment request
       firstAtSignConnection = await OutboundConnectionFactory()
           .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedApkamSymmetricKey']}"}';
       var secondEnrollResponse =
           await firstAtSignConnection.sendRequestToServer(secondEnrollRequest);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -400,6 +445,13 @@ void main() {
               serverResponse.contains(
                   '${enrollJson['enrollmentId']}.new.enrollments.__manage'),
               true);
+          Map notificationValue = jsonDecode(jsonDecode(
+              serverResponse.replaceAll('notification: ', ''))['value']);
+          expect(notificationValue['appName'], 'buzz');
+          expect(notificationValue['deviceName'], 'pixel');
+          expect(notificationValue['namespace'], {'buzz': 'rw'});
+          expect(notificationValue['encryptedApkamSymmetricKey'],
+              apkamEncryptedKeysMap['encryptedApkamSymmetricKey']);
           monitorSocket.close();
         }
         /* Setting count to 4 to wait until server returns 4 responses
@@ -417,7 +469,7 @@ void main() {
           authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');
@@ -474,7 +526,7 @@ void main() {
         await firstAtSignConnection.authenticateConnection(
             authType: AuthType.cram);
         String enrollRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
         String enrollmentResponse =
             await firstAtSignConnection.sendRequestToServer(enrollRequest);
         String enrollmentId = jsonDecode(
@@ -484,9 +536,10 @@ void main() {
         OutboundConnectionFactory socketConnection2 =
             await OutboundConnectionFactory().initiateConnectionWithListener(
                 firstAtSign, firstAtSignHost, firstAtSignPort);
-        socketConnection2.authenticateConnection(
+        String authResponse = await socketConnection2.authenticateConnection(
             authType: AuthType.apkam, enrollmentId: enrollmentId);
-        socketConnection2.close();
+        expect(authResponse.trim(), 'data:success');
+        await socketConnection2.close();
 
         // Revoke the enrollment
         String revokeEnrollmentCommand =
@@ -524,7 +577,7 @@ void main() {
             await OutboundConnectionFactory().initiateConnectionWithListener(
                 firstAtSign, firstAtSignHost, firstAtSignPort);
         String revokeEnrollmentCommand =
-            'enroll:revoke:enrollmentid:$enrollmentId';
+            'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
         String revokeEnrollmentResponse = await socketConnection2
             .sendRequestToServer(revokeEnrollmentCommand);
         expect(revokeEnrollmentResponse.trim(),

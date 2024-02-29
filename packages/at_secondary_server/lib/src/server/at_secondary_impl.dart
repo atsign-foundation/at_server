@@ -63,6 +63,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
+  static final skipCommitsForExpiredKeys =
+      AtSecondaryConfig.skipCommitsForExpiredKeys;
 
   late SecondaryAddressFinder secondaryAddressFinder;
   late OutboundClientManager outboundClientManager;
@@ -642,7 +644,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    manager.scheduleKeyExpireTask(expiryRunRandomMins);
+    manager.scheduleKeyExpireTask(3,
+        skipCommits: skipCommitsForExpiredKeys);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;

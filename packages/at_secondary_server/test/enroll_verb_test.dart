@@ -117,7 +117,7 @@ void main() {
 
     test('A test to verify enrollment list', () async {
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
@@ -134,7 +134,11 @@ void main() {
       verbParams = getVerbParam(VerbSyntax.enroll, enrollmentList);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
+      var responseMap = jsonDecode(response.data!);
       expect(response.data?.contains(enrollmentId), true);
+      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['appName'],'wavi');
+      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['deviceName'],'mydevice');
+      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['namespace']['wavi'],'r');
     });
 
     test('A test to verify enrollment list with enrollmentId is populated',
@@ -187,7 +191,7 @@ void main() {
       print('OTP: ${response.data}');
       // Enroll request
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey":"default_apkam_symmetric_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -218,6 +222,7 @@ void main() {
       expect(responseTest['appName'], 'wavi');
       expect(responseTest['deviceName'], 'mydevice');
       expect(responseTest['namespace']['wavi'], 'r');
+      expect(responseTest['encryptedAPKAMSymmetricKey'],'default_apkam_symmetric_key');
       expect(
           enrollListResponse.containsKey(
               '$enrollmentIdOne.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'),
