@@ -254,7 +254,7 @@ void main() {
       Map llookupResponseMap = jsonDecode(llookupResponse);
       expect(llookupResponseMap['errorCode'], 'AT0009');
       expect(llookupResponseMap['errorDescription'],
-          'UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $enrollmentKey');
+          'UnAuthorized client in request : Connection with enrollment ID $enrollmentId is not authorized to llookup key: $enrollmentKey');
 
       // keys:get:self should return default self encryption key
       var selfKey = '$enrollmentId.default_self_enc_key.__manage$firstAtSign';

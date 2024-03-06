@@ -337,7 +337,7 @@ void main() {
       Map llookupResponseMap = jsonDecode(llookupResponse);
       expect(llookupResponseMap['errorCode'], 'AT0009');
       expect(llookupResponseMap['errorDescription'],
-          'UnAuthorized client in request : Enrollment Id: $secondEnrollmentId is not authorized for local lookup operation on the key: $waviKey');
+          'UnAuthorized client in request : Connection with enrollment ID $secondEnrollmentId is not authorized to llookup key: $waviKey');
 
       // delete on wavi key should fail
       String deleteResponse =
