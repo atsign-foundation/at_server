@@ -346,7 +346,7 @@ void main() {
       Map deleteResponseMap = jsonDecode(deleteResponse);
       expect(deleteResponseMap['errorCode'], 'AT0009');
       expect(deleteResponseMap['errorDescription'],
-          'UnAuthorized client in request : Enrollment Id: $secondEnrollmentId is not authorized for delete operation on the key: $waviKey');
+          'UnAuthorized client in request : Connection with enrollment ID $secondEnrollmentId is not authorized to delete key: $waviKey');
 
       // llookup on buzz key should succeed
       llookupResponse =
