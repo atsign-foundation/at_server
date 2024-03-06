@@ -140,22 +140,23 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return true;
     }
 
+    final enrollmentKey =
+        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
+    final fullKey =
+        '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
+
     final EnrollDataStoreValue enrollDataStoreValue;
     try {
-      final enrollmentKey =
-          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-      final fullKey =
-          '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
-
       enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data');
+      logger.shout('Could not retrieve enrollment data for $fullKey');
       return false;
     }
 
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.shout('Enrollment state is ${enrollDataStoreValue.approval?.state}');
+      logger.warning('Enrollment state for $fullKey'
+          ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
 
