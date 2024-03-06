@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -102,57 +103,93 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
-  /// Verifies whether the enrollment namespace for the enrollment
-  /// ID has the necessary permissions to modify, delete, or retrieve the data.
-  /// The enrollment should be in an approved state.
+  /// Verifies whether the current connection has permission to
+  /// modify, delete, or retrieve the data in a given namespace.
   ///
-  /// To execute a data retrieval (lookup or local lookup), the namespace must have
-  /// "r" (read) privileges within the namespace.
-  /// For update or delete actions, the namespace must have "rw" (read-write) privileges.
+  /// The connection's enrollment should be in an approved state.
   ///
-  /// Returns true, if the namespace has the required read or read-write
-  /// permissions to execute lookup/local-lookup or update/delete operations
-  /// respectively
+  /// To execute a data retrieval (lookup or local lookup), the connection
+  /// must have "r" or "rw" (read / read-write) access for the namespace.
   ///
-  /// Returns false
-  ///  - If the enrollment key is not present in the keystore.
-  ///  - If the enrollment is not in "approved" state
-  ///  - If the namespace does not have necessary permissions to perform the operation
+  /// For update or delete, the connection must have "rw" (read-write) access.
+  ///
+  /// Returns true if
+  /// - EITHER the connection has no enrollment ID (i.e. it was the first enrolled
+  ///   app)
+  /// - OR the connection has the required read or read-write
+  ///   permissions to execute lookup/local-lookup or update/delete operations
+  ///   respectively
+  ///
+  /// The connection will be deemed not to have permission if any of the
+  /// following are true:
+  ///  - the enrollment key is not present in the keystore.
+  ///  - the enrollment is not in "approved" state
+  ///  - the connection has no permissions for this namespace
+  ///  - the connection has insufficient permission for this namespace
+  ///    (for example, has "r" but needs "rw" for a delete operation)
   ///  - If enrollment is a part of "global" or "manage" namespace
-  Future<bool> isAuthorized(String enrollmentId, String keyNamespace) async {
+  Future<bool> isAuthorized(
+    InboundConnectionMetadata connectionMetadata,
+    String keyNamespace,
+  ) async {
+    final Verb verb = getVerb();
+
+    final enrollmentId = connectionMetadata.enrollmentId;
+
+    if (enrollmentId == null) {
+      return true;
+    }
+
+    final EnrollDataStoreValue enrollDataStoreValue;
     try {
       final enrollmentKey =
           '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
       final fullKey =
           '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
-      final enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
-
-      if (enrollDataStoreValue.approval?.state !=
-          EnrollmentStatus.approved.name) {
-        return false;
-      }
-
-      final enrollNamespaces = enrollDataStoreValue.namespaces;
-      logger.finer('enrollNamespaces:$enrollNamespaces');
-      logger.finer('keyNamespace:$keyNamespace');
-      final access = enrollNamespaces.containsKey(allNamespaces)
-          ? enrollNamespaces[allNamespaces]
-          : enrollNamespaces[keyNamespace];
-      logger.finer('access:$access');
-      if (keyNamespace != enrollManageNamespace && access != null) {
-        final verb = getVerb();
-        if ((verb is LocalLookup || verb is Lookup) &&
-            (access == 'r' || access == 'rw')) {
-          return true;
-        } else if ((verb is Update || verb is Delete) && access == 'rw') {
-          return true;
-        }
-      }
-      return false;
+      enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
     } on KeyNotFoundException {
+      logger.shout('Could not retrieve enrollment data');
       return false;
     }
+
+    if (enrollDataStoreValue.approval?.state !=
+        EnrollmentStatus.approved.name) {
+      logger.shout('Enrollment state is ${enrollDataStoreValue.approval?.state}');
+      return false;
+    }
+
+    final enrollNamespaces = enrollDataStoreValue.namespaces;
+    logger.finer('enrollNamespaces:$enrollNamespaces');
+    logger.finer('keyNamespace:$keyNamespace');
+    final access = enrollNamespaces.containsKey(allNamespaces)
+        ? enrollNamespaces[allNamespaces]
+        : enrollNamespaces[keyNamespace];
+    logger.finer('access:$access');
+
+    logger.shout('Verb: $verb, keyNamespace: $keyNamespace, access: $access');
+
+    if (access == null) {
+      return false;
+    }
+
+    if (keyNamespace == enrollManageNamespace) {
+      if (verb is! Otp && verb is! Enroll) {
+        // Only spp and enroll operations are allowed to access
+        // the enrollManageNamespace
+        return false;
+      }
+      return access == 'r' || access == 'rw';
+    }
+
+    if ((verb is LocalLookup || verb is Lookup) &&
+        access == 'r' || access == 'rw') {
+      return true;
+    } else if ((verb is Update || verb is Delete) && access == 'rw') {
+      return true;
+    }
+
+    return false;
   }
 
   /// This function checks the validity of a provided OTP.

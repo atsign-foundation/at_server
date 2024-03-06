@@ -93,15 +93,19 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       await keyStore.put(
           AtConstants.atCramSecretDeleted, AtData()..data = 'true');
     }
-    final enrollApprovalId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollApprovalId != null) {
-      isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
-    }
+
+    InboundConnectionMetadata inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+
+    bool isAuthorized = await super.isAuthorized(
+      inboundConnectionMetadata,
+      keyNamespace,
+    );
+
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for delete operation on the key: $deleteKey');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+              ' is not authorized to delete key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);
