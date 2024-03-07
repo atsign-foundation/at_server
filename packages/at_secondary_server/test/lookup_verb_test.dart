@@ -842,7 +842,7 @@ void main() {
           throwsA(predicate((e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for lookup operation on the key: @alice:some_key.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@alice')));
     });
 
     test(
@@ -875,7 +875,7 @@ void main() {
           throwsA(predicate((e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for lookup operation on the key: @alice:some_key.buzz@bob')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -924,7 +924,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for lookup operation on the key: @alice:dummykey.wavi@bob')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:dummykey.wavi@bob')));
       });
     }
   });

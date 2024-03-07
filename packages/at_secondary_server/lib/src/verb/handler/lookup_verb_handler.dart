@@ -99,7 +99,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     bool isAuthorized = await _isAuthorizedToViewData(atConnection, lookupKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId} is not authorized for lookup operation on the key: $lookupKey');
+          'Connection with enrollment ID ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
+              ' is not authorized to lookup key: $lookupKey');
     }
     if (keyOwnersAtSign == thisServersAtSign) {
       // We're looking up data owned by this server's atSign
@@ -271,17 +272,13 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (!lookupKey.contains('.')) {
       return true;
     }
-    final enrollmentId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollmentId != null) {
-      // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
-      // is the namespace.
-      String keyNamespace = lookupKey.substring(
-          lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
-      isAuthorized = await super.isAuthorized(enrollmentId, keyNamespace);
-    }
-    return isAuthorized;
+
+    // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
+    // is the namespace.
+    String keyNamespace = lookupKey.substring(
+        lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
+
+    return await super.isAuthorized(atConnection.metaData as InboundConnectionMetadata, keyNamespace);
   }
 
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.

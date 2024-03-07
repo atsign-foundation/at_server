@@ -356,7 +356,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $alice:mobile.buzz$alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to llookup key: $alice:mobile.buzz$alice')));
     });
   });
 
@@ -401,7 +401,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to llookup key: @alice:dummykey.wavi@alice')));
       });
     }
   });

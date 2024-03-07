@@ -568,10 +568,10 @@ void main() {
       expect(status, 'pending');
       //Deny enrollment
       await Future.delayed(Duration(milliseconds: 1));
-      String approveEnrollmentCommand =
+      String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
-          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+          getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(

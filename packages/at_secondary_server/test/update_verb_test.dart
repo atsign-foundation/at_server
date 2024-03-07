@@ -1071,7 +1071,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:phone.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:phone.buzz@alice')));
     });
 
     group('A group of tests when "*" namespace have only read access', () {
@@ -1110,7 +1110,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
       });
 
       test(
@@ -1131,7 +1131,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
       });
       tearDown(() async => await verbTestsTearDown());
     });
@@ -1174,7 +1174,7 @@ void main() {
               throwsA(predicate((dynamic e) =>
                   e is UnAuthorizedException &&
                   e.message ==
-                      'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
+                      'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
         });
       }
       tearDown(() async => await verbTestsTearDown());
