@@ -1162,9 +1162,10 @@ void main() {
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
     test(
-        'A test to verify enrollment with no write access to namepace throws exception',
+        'A test to verify enrollment with no write access to namespace throws exception',
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -1215,7 +1216,6 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      // Update a key with wavi namespace
       String updateCommand = 'update:$bob:shared_key$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
@@ -1224,6 +1224,7 @@ void main() {
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
     test(
         'A test to verify write access is allowed to a key without a namespace for an enrollment with * namespace access',
@@ -1244,7 +1245,6 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      // Update a key with wavi namespace
       String updateCommand = 'update:$alice:secretdata$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
@@ -1253,6 +1253,7 @@ void main() {
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
     test(
         'A test to verify write access is denied to a key without a namespace for an enrollment with specific namespace access',
@@ -1273,7 +1274,6 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      // Update a key with wavi namespace
       String updateCommand = 'update:$alice:secretdata$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);

@@ -128,7 +128,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///  - the connection has insufficient permission for this namespace
   ///    (for example, has "r" but needs "rw" for a delete operation)
   ///  - If enrollment is a part of "global" or "manage" namespace
-  ///  - the connection does not have access to * namespace and namespace is not set or key has no namespace
+  ///  - the connection does not have access to * namespace and key has no namespace
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(
       InboundConnectionMetadata connectionMetadata, String? atKey,
