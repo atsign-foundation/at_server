@@ -258,7 +258,7 @@ void main() {
     tearDown(() async => await tearDownFunc());
   });
 
-  group('A group of tests related APKAM enrollment', () {
+  group('A group of tests related APKAM enrollment and authorization', () {
     Response response = Response();
     String enrollmentId = Uuid().v4();
     setUp(() async {
@@ -357,6 +357,101 @@ void main() {
               e is UnAuthorizedException &&
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to llookup key: $alice:mobile.buzz$alice')));
+    });
+
+    test('A test to verify read access is allowed if key is a reserved key',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String updateCommand = 'update:$bob:shared_key$alice somesharedkey';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      var llookupCommand = 'llookup:$bob:shared_key$alice';
+      var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, 'somesharedkey');
+    });
+
+    test(
+        'A test to verify read access is allowed on a reserved key for an enrollment with a specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$bob:shared_key$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+      var llookupCommand = 'llookup:$bob:shared_key$alice';
+      var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, '123');
+    });
+    test(
+        'A test to verify read access is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$alice:secretdata$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+      var llookupCommand = 'llookup:$alice:secretdata$alice';
+      var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, '123');
     });
   });
 
