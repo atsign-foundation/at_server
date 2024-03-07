@@ -877,6 +877,26 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
     });
+    test('A test to verify read access is allowed if key is a reserved key',
+        () async {
+      //#TODO
+    });
+    test(
+        'A test to verify read access is allowed on a reserved key for an enrollment with a specific namespace access',
+        () async {
+      //#TODO
+    });
+
+    test(
+        'A test to verify read access is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      //#TODO
+    });
+    test(
+        'A test to verify read access is denied to a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      //#TODO
+    });
     tearDown(() async => await verbTestsTearDown());
   });
 

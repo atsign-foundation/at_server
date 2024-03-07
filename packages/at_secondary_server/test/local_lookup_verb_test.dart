@@ -453,6 +453,13 @@ void main() {
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
     });
+    test(
+        'A test to verify read access is denied to a key without a namespace for an enrollment with specific namespace access',
+            () async {
+      // create an enrollment(should have * access) and update key without namespace
+      // create an enrollment with wavi namespace and llookup the key
+      //#TODO
+    });
   });
 
   group(
