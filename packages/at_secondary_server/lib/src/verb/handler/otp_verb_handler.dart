@@ -125,6 +125,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   Future<bool> _isClientAuthorizedToStoreSPP(
       InboundConnectionMetadata atConnectionMetadata,
       String currentAtSign) async {
-    return super.isAuthorized(atConnectionMetadata, enrollManageNamespace);
+    return super.isAuthorized(atConnectionMetadata, null,
+        namespace: enrollManageNamespace);
   }
 }

@@ -46,7 +46,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AtConstants.atKey];
     var operation = verbParams[AtConstants.operation];
     atSign = AtUtils.fixAtSign(atSign!);
-    var keyNamespace = key?.substring(key.lastIndexOf('.') + 1);
+    // var keyNamespace = key?.substring(key.lastIndexOf('.') + 1);
     key = '$key$atSign';
     bool isPublic = false;
     if (forAtSign != null) {
@@ -66,14 +66,14 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
 
     bool isAuthorized = true; // for legacy clients allow access by default
 
-    if (!isPublic && keyNamespace != null) {
-      isAuthorized = await super.isAuthorized(inboundConnectionMetadata, keyNamespace);
+    if (!isPublic) {
+      isAuthorized = await super.isAuthorized(inboundConnectionMetadata, key);
     }
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-              ' is not authorized to llookup key: $key');
+          ' is not authorized to llookup key: $key');
     }
     AtData? atData = await keyStore.get(key);
     var isActive = false;

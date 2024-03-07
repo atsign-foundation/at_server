@@ -128,15 +128,16 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///  - the connection has insufficient permission for this namespace
   ///    (for example, has "r" but needs "rw" for a delete operation)
   ///  - If enrollment is a part of "global" or "manage" namespace
+  ///  - the connection does not have access to * namespace and namespace is not set or key has no namespace
+  /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(
-    InboundConnectionMetadata connectionMetadata,
-    String keyNamespace,
-  ) async {
+      InboundConnectionMetadata connectionMetadata, String? atKey,
+      {String? namespace}) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
 
-    if (enrollmentId == null) {
+    if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
 
@@ -161,6 +162,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     final enrollNamespaces = enrollDataStoreValue.namespaces;
+    // set passed namespace. If passed namespace is null, get namespace from atKey
+    final keyNamespace =
+        namespace ?? (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    if (keyNamespace == null && atKey == null) {
+      logger.shout('Both key and namespace are null');
+      return false;
+    }
+
     logger.finer('enrollNamespaces:$enrollNamespaces');
     logger.finer('keyNamespace:$keyNamespace');
     final access = enrollNamespaces.containsKey(allNamespaces)
@@ -174,23 +183,37 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
 
+    // Only spp and enroll operations are allowed to access
+    // the enrollManageNamespace
     if (keyNamespace == enrollManageNamespace) {
-      if (verb is! Otp && verb is! Enroll) {
-        // Only spp and enroll operations are allowed to access
-        // the enrollManageNamespace
-        return false;
+      return (verb is Otp || verb is Enroll)
+          ? (access == 'r' || access == 'rw')
+          : false;
+    }
+
+    // if there is no namespace, connection should have * in namespace for access
+    if (keyNamespace == null && enrollNamespaces.containsKey(allNamespaces)) {
+      if (_isReadAllowed(verb, access) || _isWriteAllowed(verb, access)) {
+        return true;
       }
-      return access == 'r' || access == 'rw';
+      return false;
     }
+    return _isReadAllowed(verb, access) || _isWriteAllowed(verb, access);
+  }
 
-    if ((verb is LocalLookup || verb is Lookup) &&
-        access == 'r' || access == 'rw') {
-      return true;
-    } else if ((verb is Update || verb is Delete) && access == 'rw') {
-      return true;
-    }
+  bool _isReadAllowed(Verb verb, String access) {
+    return (verb is LocalLookup || verb is Lookup) &&
+        (access == 'r' || access == 'rw');
+  }
 
-    return false;
+  bool _isWriteAllowed(Verb verb, String access) {
+    return (verb is Update || verb is Delete) && access == 'rw';
+  }
+
+  bool _isReservedKey(String? atKey) {
+    return atKey == null
+        ? false
+        : AtKey.getKeyType(atKey) == KeyType.reservedKey;
   }
 
   /// This function checks the validity of a provided OTP.

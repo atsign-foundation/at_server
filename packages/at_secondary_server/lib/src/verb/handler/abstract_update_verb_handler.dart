@@ -70,14 +70,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    if (atKey.contains('.')) {
-      var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
-      isAuthorized = await super.isAuthorized(
-        inboundConnectionMetadata,
-        keyNamespace,
-      );
-    }
-
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -89,10 +81,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
+    isAuthorized = await super.isAuthorized(inboundConnectionMetadata, atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-              ' is not authorized to update key: ${atKey.toString()}');
+          ' is not authorized to update key: ${atKey.toString()}');
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);

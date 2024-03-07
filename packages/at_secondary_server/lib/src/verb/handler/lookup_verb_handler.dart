@@ -100,7 +100,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
-              ' is not authorized to lookup key: $lookupKey');
+          ' is not authorized to lookup key: $lookupKey');
     }
     if (keyOwnersAtSign == thisServersAtSign) {
       // We're looking up data owned by this server's atSign
@@ -264,21 +264,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// otherwise, returns false.
   Future<bool> _isAuthorizedToViewData(
       InboundConnection atConnection, String lookupKey) async {
-    // When a connection is authenticated via APKAM, only keys with namespaces that are authorized
-    // are allowed to fetch the data. However, the keys that do not have namespaces (for example
-    // reserved keys) the client is authorized and are allowed to fetch the data.
-    //
-    // Therefore, absence of "." indicates lack of namespace in the key. Return true.
-    if (!lookupKey.contains('.')) {
-      return true;
-    }
-
-    // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
-    // is the namespace.
-    String keyNamespace = lookupKey.substring(
-        lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
-
-    return await super.isAuthorized(atConnection.metaData as InboundConnectionMetadata, keyNamespace);
+    return await super.isAuthorized(
+        atConnection.metaData as InboundConnectionMetadata, lookupKey);
   }
 
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.
