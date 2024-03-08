@@ -34,13 +34,15 @@ import 'package:crypton/crypton.dart';
 import 'package:uuid/uuid.dart';
 import 'package:meta/meta.dart';
 
+import 'pseudo_server_socket.dart';
+
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
-      AtSecondaryServerImpl._internal();
+  AtSecondaryServerImpl._internal();
   static final inboundConnectionFactory =
-      InboundConnectionManager.getInstance();
+  InboundConnectionManager.getInstance();
   static final String? storagePath = AtSecondaryConfig.storagePath;
   static final String? commitLogPath = AtSecondaryConfig.commitLogPath;
   static final String? accessLogPath = AtSecondaryConfig.accessLogPath;
@@ -192,9 +194,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
-          AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
+      AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
       ..compactionFrequencyInMins =
-          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
+      AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
@@ -297,13 +299,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // clean up malformed keys from keystore
     await removeMalformedKeys();
 
+    if (!useTLS!) {
+      throw AtServerException('Only TLS is supported; useTLS must be true');
+    }
     try {
       _isRunning = true;
-      if (useTLS!) {
-        await _startSecuredServer();
-      } else {
-        await _startUnSecuredServer();
-      }
+      await _startSecuredServer();
     } on Exception catch (e, stacktrace) {
       _isRunning = false;
       logger.severe('AtSecondaryServer().start exception: ${e.toString()}');
@@ -368,7 +369,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+          ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(
             notificationKeyStoreCompactionJobInstance,
@@ -381,7 +382,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to accessLogCompactionFreq');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.accessLogCompactionFrequencyMins)
+          ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(accessLogCompactionJobInstance,
             atAccessLogCompactionConfig, newFrequency, _accessLog);
@@ -391,7 +392,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to commitLogCompactionFreq');
       AtSecondaryConfig.subscribe(
-              ModifiableConfigs.commitLogCompactionFrequencyMins)
+          ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(commitLogCompactionJobInstance,
             atCommitLogCompactionConfig, newFrequency, _commitLog);
@@ -436,27 +437,76 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
+  void onWebSocketData(data) {
+    logger.info('WebSocket received: $data');
+  }
+
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
   /// Throws [AtConnection] if unable to create a connection
   /// Throws [SocketException] for exceptions on socket
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
-  void _listen(var serverSocket) {
+  void _listen(final serverSocket) {
+    final wssb = PseudoServerSocket(serverSocket);
+    HttpServer httpServer = HttpServer.listenOn(wssb);
+    httpServer.listen((HttpRequest req) {
+      if (req.uri.path == '/ws') {
+        // Upgrade an HttpRequest to a WebSocket connection.
+        logger.info('Upgraded to WebSocket connection');
+        WebSocketTransformer.upgrade(req)
+            .then((WebSocket socket) => socket.listen(onWebSocketData));
+      } else {
+        logger.info('Got Http Request: ${req.method} ${req.uri}');
+        if (req.method.toUpperCase() != 'GET') {
+          req.response.statusCode = HttpStatus.badRequest;
+          req.response.close();
+        } else {
+          var lookupKey = req.uri.path.substring(1);
+          if (!lookupKey.startsWith('public:')) {
+            lookupKey = 'public:$lookupKey';
+          }
+          if (!lookupKey.endsWith(currentAtSign)) {
+            lookupKey = '$lookupKey$currentAtSign';
+          }
+          logger.finer('Key to look up: $lookupKey');
+          secondaryKeyStore.get(lookupKey)!.then((AtData? value) {
+            req.response.writeln('Hello there, http client!\n\n'
+                'The value stored for ${req.uri} ($lookupKey) is: \n'
+                '\t     data: ${value?.data}\n\n'
+                '\t metadata: ${value?.metaData}\n');
+            req.response.close();
+          }, onError: (error) {
+            req.response.writeln('Hello there, http client!\n\n'
+                'No value available for ${req.uri} ($lookupKey)\n');
+            req.response.close();
+          });
+        }
+      }
+    });
+
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
       var sessionID = '_${Uuid().v4()}';
-      InboundConnection? connection;
-      try {
-        logger.finer(
-            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
-        var inBoundConnectionManager = InboundConnectionManager.getInstance();
-        connection = inBoundConnectionManager
-            .createSocketConnection(clientSocket, sessionId: sessionID);
-        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-        connection.write('@');
-      } on InboundConnectionLimitException catch (e) {
-        GlobalExceptionHandler.getInstance()
-            .handle(e, atConnection: connection, clientSocket: clientSocket);
+      logger.info(
+          'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
+          clientSocket.selectedProtocol == null) {
+        InboundConnection? connection;
+        try {
+          logger.finer(
+              'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          var inBoundConnectionManager = InboundConnectionManager.getInstance();
+          connection = inBoundConnectionManager
+              .createSocketConnection(clientSocket, sessionId: sessionID);
+          connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+          connection.write('@');
+        } on InboundConnectionLimitException catch (e) {
+          GlobalExceptionHandler.getInstance()
+              .handle(e, atConnection: connection, clientSocket: clientSocket);
+        }
+      } else {
+        logger.info('Transferring socket to HttpServer for handling');
+        wssb.add(clientSocket);
       }
     }), onError: (error) {
       // We've got no action to take here, let's just log a warning
@@ -481,6 +531,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
+        // secCon.setAlpnProtocols(['atp/1.0', 'h2', 'http/1.1'], true);
+        secCon.setAlpnProtocols(['atProtocol/1.0', 'http/1.1'], true);
       } on FileSystemException catch (e) {
         retryCount++;
         logger.info('${e.message}:${e.path}');
@@ -499,14 +551,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } else {
       logger.severe('certs not available');
     }
-  }
-
-  /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
-  Future<void> _startUnSecuredServer() async {
-    _serverSocket =
-        await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
-    logger.info('Unsecure Socket open');
-    _listen(_serverSocket);
   }
 
   ///Accepts the command and the inbound connection and invokes a call to execute method.
@@ -636,8 +680,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+    SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
     // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
