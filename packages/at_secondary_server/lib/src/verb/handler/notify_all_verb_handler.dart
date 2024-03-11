@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -43,6 +44,15 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       atSign = AtUtils.fixAtSign(atSign!);
     }
     var key = verbParams[AtConstants.atKey]!;
+    var inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    var isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, '$key$atSign');
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+          ' is not authorized to notify key: $key$atSign');
+    }
     var messageType =
         SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
     var operation =
