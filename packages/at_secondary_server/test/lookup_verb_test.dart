@@ -21,7 +21,8 @@ import 'test_utils.dart';
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.
 void main() {
-  AtSignLogger.root_level = 'WARNING';
+  /// ToDo: change this back to warning
+  AtSignLogger.root_level = 'finer';
   group('lookup behaviour tests', () {
     /// Test the actual behaviour of the lookup verb handler.
     /// (Syntax tests are covered in the next test group, 'lookup syntax tests')
@@ -877,25 +878,156 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
     });
+
     test('A test to verify read access is allowed if key is a reserved key',
         () async {
-      //#TODO
+      inboundConnection.metadata.isAuthenticated = true;
+      String reservedKey = 'shared_key$bob';
+      AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
+      String bobAtDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobAtData,
+          key: '$alice:$reservedKey')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$reservedKey\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobAtDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$reservedKey';
+      expect(
+          await lookupVerbHandler.isAuthorized(
+              inboundConnection.metadata, reservedKey),
+          true);
+
+      var verbResponse = await lookupVerbHandler.processInternal(
+          lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedResponseData =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedResponseData['data'], bobAtData.data);
     });
+
     test(
         'A test to verify read access is allowed on a reserved key for an enrollment with a specific namespace access',
         () async {
-      //#TODO
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.fromAtSign = alice;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String reservedKey = 'shared_key$bob';
+      AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
+      String bobWaviDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobAtData,
+          key: '$alice:$reservedKey')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$reservedKey\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobWaviDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      LookupVerbHandler lookupVerb = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$reservedKey';
+      expect(
+          await lookupVerb.isAuthorized(
+              inboundConnection.metadata, '$alice:$reservedKey'),
+          true);
+
+      Response verbResponse =
+          await lookupVerb.processInternal(lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedVerbResponse =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedVerbResponse['data'], bobAtData.data);
     });
 
     test(
         'A test to verify read access is allowed on a key without a namespace for an enrollment with * namespace access',
         () async {
-      //#TODO
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String testKey = 'test_key_no_namespace$alice';
+      AtData aliceWaviData = createRandomAtData(alice)..metaData!.ttr = 100;
+      await secondaryKeyStore.put('$alice:$testKey', aliceWaviData);
+
+      LookupVerbHandler lookupVerb = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$testKey';
+
+      expect(await lookupVerb.isAuthorized(inboundConnection.metadata, testKey),
+          true);
+
+      Response verbResponse =
+          await lookupVerb.processInternal(lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedVerbResponse =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedVerbResponse['data'], aliceWaviData.data);
     });
+
     test(
         'A test to verify read access is denied to a key without a namespace for an enrollment with specific namespace access',
         () async {
-      //#TODO
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String testKey = 'test_key_no_namespace_1$alice';
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$testKey';
+      expect(
+          await lookupVerbHandler.isAuthorized(
+              inboundConnection.metadata, testKey),
+          false);
+      expect(
+          () async => await lookupVerbHandler.processInternal(
+              lookupCommand, inboundConnection),
+          throwsA(predicate((e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:test_key_no_namespace_1@alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });

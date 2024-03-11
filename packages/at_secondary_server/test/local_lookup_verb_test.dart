@@ -25,7 +25,6 @@ import 'test_utils.dart';
 void main() {
   late SecondaryKeyStore mockKeyStore;
   late MockSocket mockSocket;
-
   setUp(() {
     mockKeyStore = MockSecondaryKeyStore();
     mockSocket = MockSocket();
@@ -455,10 +454,64 @@ void main() {
     });
     test(
         'A test to verify read access is denied to a key without a namespace for an enrollment with specific namespace access',
-            () async {
+        () async {
+      String testKey = '$alice:testKeyLlookupTest$alice';
+      String firstEnrollmentId = Uuid().v4();
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = firstEnrollmentId;
       // create an enrollment(should have * access) and update key without namespace
+      var firstEnrollmentKey =
+          '$firstEnrollmentId.new.enrollments.__manage@alice';
+      final firstEnrollJson = {
+        'sessionId': '19867',
+        'appName': 'wavi_123',
+        'deviceName': 'pixel7a',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await secondaryKeyStore.put(
+          firstEnrollmentKey, AtData()..data = jsonEncode(firstEnrollJson));
+      // update key using first enrollment that has * access
+      String updateCommand = 'update:$testKey 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+
       // create an enrollment with wavi namespace and llookup the key
-      //#TODO
+      String secondEnrollmentId = Uuid().v4();
+      String secondEnrollmentKey =
+          '$secondEnrollmentId.new.enrollments.__manage@alice';
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final secondEnrollJson = {
+        'sessionId': '18969',
+        'appName': 'wavi_456',
+        'deviceName': 'pixel6a',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await secondaryKeyStore.put(
+          secondEnrollmentKey, AtData()..data = jsonEncode(secondEnrollJson));
+
+      LocalLookupVerbHandler llookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      String lookupCommand = 'llookup:$testKey';
+      expect(
+          await llookupVerbHandler.isAuthorized(
+              inboundConnection.metadata, testKey),
+          false);
+      expect(
+          () => llookupVerbHandler.processInternal(
+              lookupCommand, inboundConnection),
+          throwsA(predicate((e) => e is UnAuthorizedException)));
     });
   });
 
