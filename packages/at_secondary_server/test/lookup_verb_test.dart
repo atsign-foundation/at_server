@@ -9,7 +9,6 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -21,8 +20,6 @@ import 'test_utils.dart';
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.
 void main() {
-  /// ToDo: change this back to warning
-  AtSignLogger.root_level = 'finer';
   group('lookup behaviour tests', () {
     /// Test the actual behaviour of the lookup verb handler.
     /// (Syntax tests are covered in the next test group, 'lookup syntax tests')

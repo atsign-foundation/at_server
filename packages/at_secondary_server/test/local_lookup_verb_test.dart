@@ -488,7 +488,7 @@ void main() {
       String secondEnrollmentId = Uuid().v4();
       String secondEnrollmentKey =
           '$secondEnrollmentId.new.enrollments.__manage@alice';
-      inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.enrollmentId = secondEnrollmentId;
       final secondEnrollJson = {
         'sessionId': '18969',
         'appName': 'wavi_456',
