@@ -207,7 +207,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   bool _isWriteAllowed(Verb verb, String access) {
-    return (verb is Update || verb is Delete) && access == 'rw';
+    return (verb is Update ||
+            verb is Delete ||
+            verb is Notify ||
+            verb is NotifyAll) &&
+        access == 'rw';
   }
 
   bool _isReservedKey(String? atKey) {
