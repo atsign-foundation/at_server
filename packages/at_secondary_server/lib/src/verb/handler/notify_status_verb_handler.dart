@@ -33,9 +33,11 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
         await AtNotificationKeystore.getInstance().get(notificationId);
     NotificationStatus? status;
     if (atNotification == null) {
-      status = NotificationStatus.expired;
-      response.data = status.toString().split('.').last;
+      response.data = null;
       return;
+    }
+    if (atNotification.isExpired()) {
+      status = NotificationStatus.expired;
     }
     var inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
