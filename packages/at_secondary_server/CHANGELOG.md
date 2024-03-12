@@ -1,6 +1,15 @@
+## 3.0.41
+- fix: bug in access control for otp put
+
 ## 3.0.40
 - build[deps]: Upgraded the following packages: 
-   - at_chops to 2.0.0 
+   - at_chops to 2.0.0
+   - at_server_spec: to 4.0.1
+- feat: at_server_spec: BREAKING: make AtConnection generic; make it more Dart-idiomatic
+- feat: Do NOT add delete entries in commit log when expired keys are deleted
+- feat: Introduce config to trigger skip_commits_for_expired_keys
+- fix: Add enrollment "appName", "deviceName" and "namespace" to notification for apps listening on enrollment requests 
+- fix: Return encryptedAPKAMSymmetricKey in enroll list
 ## 3.0.39
 - build[deps]: Upgraded the following packages:
   - at_commons to v4.0.0

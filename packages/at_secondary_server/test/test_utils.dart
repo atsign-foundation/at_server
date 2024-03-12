@@ -99,6 +99,10 @@ verbTestsSetUp() async {
 
   secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
 
+  var notificationKeystore = AtNotificationKeystore.getInstance();
+  notificationKeystore.currentAtSign = alice;
+  await notificationKeystore.init(storageDir);
+
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
       .thenAnswer((_) async {

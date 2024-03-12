@@ -265,7 +265,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to delete key: dummykey.wavi@alice')));
     });
 
     test('A test to verify keys with unauthorized namespace are not deleted',
@@ -304,7 +304,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to delete key: dummykey.buzz@alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -350,7 +350,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to delete key: @alice:dummykey.wavi@alice')));
       });
     }
     tearDown(() async => await verbTestsTearDown());

@@ -125,21 +125,6 @@ class OtpVerbHandler extends AbstractVerbHandler {
   Future<bool> _isClientAuthorizedToStoreSPP(
       InboundConnectionMetadata atConnectionMetadata,
       String currentAtSign) async {
-    var enrollmentKey =
-        '${atConnectionMetadata.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-    var enrollNamespaces =
-        (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
-
-    if (enrollNamespaces.isEmpty) {
-      logger.finer(
-          'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
-      return false;
-    }
-    // If enrollment namespace contains ".*" return all keys.
-    if (enrollNamespaces.containsKey(enrollManageNamespace) ||
-        enrollNamespaces.containsKey(allNamespaces)) {
-      return true;
-    }
-    return false;
+    return super.isAuthorized(atConnectionMetadata, enrollManageNamespace);
   }
 }

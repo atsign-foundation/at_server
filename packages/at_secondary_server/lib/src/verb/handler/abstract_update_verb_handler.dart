@@ -65,15 +65,19 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final atData = AtData();
     atData.data = value;
 
-    final enrollApprovalId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollApprovalId != null) {
-      if (atKey.contains('.')) {
-        var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
-        isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
-      }
+
+    InboundConnectionMetadata inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+
+    if (atKey.contains('.')) {
+      var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
+      isAuthorized = await super.isAuthorized(
+        inboundConnectionMetadata,
+        keyNamespace,
+      );
     }
+
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -87,7 +91,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for update operation on the key: ${atKey.toString()}');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+              ' is not authorized to update key: ${atKey.toString()}');
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
