@@ -36,9 +36,6 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
       response.data = null;
       return;
     }
-    if (atNotification.isExpired()) {
-      status = NotificationStatus.expired;
-    }
     var inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     var atKey = atNotification.notification;
@@ -48,7 +45,11 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId} is not authorized to fetch notify key: $atKey');
     }
-    status = atNotification.notificationStatus;
+    if (atNotification.isExpired()) {
+      status = NotificationStatus.expired;
+    } else {
+      status = atNotification.notificationStatus;
+    }
     response.data = status.toString().split('.').last;
   }
 }
