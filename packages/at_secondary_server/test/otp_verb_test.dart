@@ -157,7 +157,8 @@ void main() {
           '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy_session_id', 'dummy-app', 'dummy-device', 'dummy-apkam-key')
-        ..namespaces = {enrollManageNamespace: 'rw'};
+        ..namespaces = {enrollManageNamespace: 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       await secondaryKeyStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollDataStoreValue));
     });

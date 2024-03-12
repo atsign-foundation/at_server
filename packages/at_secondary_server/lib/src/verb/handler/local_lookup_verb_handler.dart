@@ -60,15 +60,20 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     if (verbParams.containsKey('isCached')) {
       key = 'cached:$key';
     }
-    final enrollmentId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
+
+    InboundConnectionMetadata inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+
     bool isAuthorized = true; // for legacy clients allow access by default
-    if (!isPublic && enrollmentId != null && keyNamespace != null) {
-      isAuthorized = await super.isAuthorized(enrollmentId, keyNamespace);
+
+    if (!isPublic && keyNamespace != null) {
+      isAuthorized = await super.isAuthorized(inboundConnectionMetadata, keyNamespace);
     }
+
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $key');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+              ' is not authorized to llookup key: $key');
     }
     AtData? atData = await keyStore.get(key);
     var isActive = false;
