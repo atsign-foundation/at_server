@@ -205,7 +205,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return (verb is LocalLookup ||
             verb is Lookup ||
             verb is NotifyFetch ||
-            verb is NotifyStatus) &&
+            verb is NotifyStatus ||
+            verb is NotifyList) &&
         (access == 'r' || access == 'rw');
   }
 
@@ -213,7 +214,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return (verb is Update ||
             verb is Delete ||
             verb is Notify ||
-            verb is NotifyAll) &&
+            verb is NotifyAll ||
+            verb is NotifyRemove) &&
         access == 'rw';
   }
 
