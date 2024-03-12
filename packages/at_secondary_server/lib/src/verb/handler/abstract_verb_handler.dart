@@ -202,7 +202,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   bool _isReadAllowed(Verb verb, String access) {
-    return (verb is LocalLookup || verb is Lookup) &&
+    return (verb is LocalLookup ||
+            verb is Lookup ||
+            verb is NotifyFetch ||
+            verb is NotifyStatus) &&
         (access == 'r' || access == 'rw');
   }
 
