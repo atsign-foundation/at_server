@@ -5,11 +5,13 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
@@ -115,7 +117,7 @@ void main() {
       await verbTestsSetUp();
     });
 
-    test('A test to verify enrollment list', () async {
+    test('A test to verify enrollment list with cram auth', () async {
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_key"}';
       HashMap<String, String?> verbParams =
@@ -136,9 +138,18 @@ void main() {
           response, verbParams, inboundConnection);
       var responseMap = jsonDecode(response.data!);
       expect(response.data?.contains(enrollmentId), true);
-      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['appName'],'wavi');
-      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['deviceName'],'mydevice');
-      expect(responseMap['$enrollmentId.new.enrollments.__manage@alice']['namespace']['wavi'],'r');
+      expect(
+          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+              ['appName'],
+          'wavi');
+      expect(
+          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+              ['deviceName'],
+          'mydevice');
+      expect(
+          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+              ['namespace']['wavi'],
+          'r');
     });
 
     test('A test to verify enrollment list with enrollmentId is populated',
@@ -169,7 +180,6 @@ void main() {
         'A test to verify enrollment list without __manage namespace returns enrollment info of given enrollmentId',
         () async {
       Response response = Response();
-      inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       // Enroll request
       String enrollmentRequest =
@@ -222,11 +232,89 @@ void main() {
       expect(responseTest['appName'], 'wavi');
       expect(responseTest['deviceName'], 'mydevice');
       expect(responseTest['namespace']['wavi'], 'r');
-      expect(responseTest['encryptedAPKAMSymmetricKey'],'default_apkam_symmetric_key');
+      expect(responseTest['encryptedAPKAMSymmetricKey'],
+          'default_apkam_symmetric_key');
       expect(
           enrollListResponse.containsKey(
               '$enrollmentIdOne.$newEnrollmentKeyPattern.$enrollManageNamespace$alice'),
           false);
+    });
+
+    test('fetch enrollment requests using approval status', () async {
+      // test conditions set-up
+      EnrollDataStoreValue enrollValue = EnrollDataStoreValue('abcd',
+          'unit_test_enroll', 'testDevice', 'apkaaaaaamPublicKeyyyyy././')
+        ..namespaces = {"unit_tst": "rw"}
+        ..encryptedAPKAMSymmetricKey = 'encSyMeTrIcKey././';
+      List<String> approvalStatuses = [
+        EnrollmentStatus.approved.name,
+        EnrollmentStatus.pending.name,
+        EnrollmentStatus.pending.name,
+        EnrollmentStatus.revoked.name,
+        EnrollmentStatus.revoked.name,
+        EnrollmentStatus.revoked.name,
+        EnrollmentStatus.denied.name,
+        EnrollmentStatus.denied.name,
+        EnrollmentStatus.denied.name,
+        EnrollmentStatus.denied.name,
+      ];
+      // Distribution of enrollments:
+      // Approved = 1; Pending = 2; Revoked = 3; Denied = 4;
+      Map<String, EnrollDataStoreValue> enrollmentData = {};
+      // create 11 random enrollments
+      for (int i = 0; i < 10; i++) {
+        String enrollmentId = Uuid().v4();
+        String enrollmentKey =
+            '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+        enrollValue.approval = EnrollApproval(approvalStatuses[i]);
+        enrollmentData[enrollmentKey] = enrollValue;
+        await secondaryKeyStore.put(
+            enrollmentKey, AtData()..data = jsonEncode(enrollValue));
+      }
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metadata.isAuthenticated = true;
+
+      String approvalStatus = 'approved';
+      String command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      Response approvedResponse =
+          await enrollVerb.processInternal(command, inboundConnection);
+      Map<String, dynamic> fetchedEnrollments = jsonDecode(approvedResponse.data!);
+      expect(fetchedEnrollments.length, 1);
+
+      approvalStatus = 'pending';
+      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      Response pendingResponse =
+          await enrollVerb.processInternal(command, inboundConnection);
+      fetchedEnrollments =
+          jsonDecode(pendingResponse.data!);
+      expect(fetchedEnrollments.length, 2);
+
+      approvalStatus = 'revoked';
+      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      Response revokedResponse =
+          await enrollVerb.processInternal(command, inboundConnection);
+      fetchedEnrollments = jsonDecode(revokedResponse.data!);
+      expect(fetchedEnrollments.length, 3);
+
+      approvalStatus = 'denied';
+      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      Response deniedResponse =
+      await enrollVerb.processInternal(command, inboundConnection);
+      fetchedEnrollments = jsonDecode(deniedResponse.data!);
+      expect(fetchedEnrollments.length, 4);
+    });
+
+    test('enroll list with an invalid approvalStateFilter', () async {
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metadata.isAuthenticated = true;
+
+      String approvalStatus = 'invalid_status';
+      String command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      expect(
+          () async =>
+              await enrollVerb.processInternal(command, inboundConnection),
+          throwsA(predicate((e) => e is ArgumentError)));
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -570,8 +658,7 @@ void main() {
       await Future.delayed(Duration(milliseconds: 1));
       String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
-      enrollVerbParams =
-          getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
+      enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       await enrollVerbHandler.processVerb(
