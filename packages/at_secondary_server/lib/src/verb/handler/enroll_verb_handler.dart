@@ -92,8 +92,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           break;
 
         case 'list':
-          response.data =
-              await _fetchEnrollmentRequests(atConnection, currentAtSign);
+          response.data = await _fetchEnrollmentRequests(
+              enrollVerbParams, atConnection, currentAtSign);
           return;
       }
     } catch (e, stackTrace) {
@@ -193,7 +193,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AtData()..data = enrollParams.apkamPublicKey!);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
-      enrollmentValue.encryptedAPKAMSymmetricKey = enrollParams.encryptedAPKAMSymmetricKey;
+      enrollmentValue.encryptedAPKAMSymmetricKey =
+          enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
@@ -311,7 +312,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// Returns a Map where key is an enrollment key and value is a
   /// Map of "appName","deviceName" and "namespaces"
-  Future<String> _fetchEnrollmentRequests(
+  Future<String> _fetchEnrollmentRequests(EnrollParams? enrollVerbParams,
       AtConnection atConnection, String currentAtSign) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
@@ -321,7 +322,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
     if (enrollApprovalId == null || enrollApprovalId.isEmpty) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          filterByStatus: enrollVerbParams?.approvalStatusFilter);
       return jsonEncode(enrollmentRequestsMap);
     }
     // If connection is authenticated via APKAM, then enrollApprovalId is populated,
@@ -334,7 +336,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await getEnrollDataStoreValue(enrollmentKey);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          filterByStatus: enrollVerbParams?.approvalStatusFilter);
     } else {
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
@@ -342,7 +345,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey
         };
       }
     }
@@ -350,18 +354,41 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _fetchAllEnrollments(List<String> enrollmentKeysList,
-      Map<String, Map<String, dynamic>> enrollmentRequestsMap) async {
+      Map<String, Map<String, dynamic>> enrollmentRequestsMap,
+      {String? filterByStatus}) async {
+    bool shouldFilter = (filterByStatus != null);
+    EnrollmentStatus? enrollStatusFilter =
+        shouldFilter ? getEnrollStatusFromString(filterByStatus) : null;
+
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      if (enrollDataStoreValue.approval!.state !=
-          EnrollmentStatus.expired.name) {
-        enrollmentRequestsMap[enrollmentKey] = {
-          'appName': enrollDataStoreValue.appName,
-          'deviceName': enrollDataStoreValue.deviceName,
-          'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
-        };
+      switch (shouldFilter) {
+        case true:
+          if (enrollDataStoreValue.approval!.state ==
+              enrollStatusFilter!.name) {
+            enrollmentRequestsMap[enrollmentKey] = {
+              'appName': enrollDataStoreValue.appName,
+              'deviceName': enrollDataStoreValue.deviceName,
+              'namespace': enrollDataStoreValue.namespaces,
+              'encryptedAPKAMSymmetricKey':
+                  enrollDataStoreValue.encryptedAPKAMSymmetricKey
+            };
+          }
+          break;
+
+        case false:
+          if (enrollDataStoreValue.approval!.state !=
+              EnrollmentStatus.expired.name) {
+            enrollmentRequestsMap[enrollmentKey] = {
+              'appName': enrollDataStoreValue.appName,
+              'deviceName': enrollDataStoreValue.deviceName,
+              'namespace': enrollDataStoreValue.namespaces,
+              'encryptedAPKAMSymmetricKey':
+                  enrollDataStoreValue.encryptedAPKAMSymmetricKey
+            };
+          }
+          break;
       }
     }
   }
