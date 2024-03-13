@@ -1,6 +1,7 @@
+## 3.0.42
+- feat: allow filtering of requests in enroll:list using enrollment approval status
 ## 3.0.41
 - fix: bug in access control for otp put
-
 ## 3.0.40
 - build[deps]: Upgraded the following packages: 
    - at_chops to 2.0.0
