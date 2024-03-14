@@ -318,8 +318,8 @@ void main() {
           'pixel-$randomNumber');
       expect(
           enrollListResponseMap[
-          '$enrollmentId.new.enrollments.__manage$firstAtSign']
-          ['namespace']['wavi'],
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['namespace']['wavi'],
           'rw');
       expect(
           enrollListResponseMap[
@@ -442,9 +442,7 @@ void main() {
         // Response on monitor starts with "notification:"
         else if (serverResponse.startsWith('notification:')) {
           expect(
-              serverResponse.contains(
-                  '${enrollJson['enrollmentId']}.new.enrollments.__manage'),
-              true);
+              serverResponse.contains('${enrollJson['enrollmentId']}'), true);
           Map notificationValue = jsonDecode(jsonDecode(
               serverResponse.replaceAll('notification: ', ''))['value']);
           expect(notificationValue['appName'], 'buzz');

@@ -196,7 +196,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.encryptedAPKAMSymmetricKey =
           enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
-      await _storeNotification(key, enrollParams, currentAtSign);
+      await _storeNotification(newEnrollmentId, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
       enrollData = AtData()
         ..data = jsonEncode(enrollmentValue.toJson())
