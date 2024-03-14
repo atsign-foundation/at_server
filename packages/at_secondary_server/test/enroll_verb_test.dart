@@ -240,7 +240,7 @@ void main() {
           false);
     });
 
-    test('fetch enrollment requests using approval status', () async {
+    test('fetch filtered enrollment requests using approval status', () async {
       // test conditions set-up
       EnrollDataStoreValue enrollValue = EnrollDataStoreValue('abcd',
           'unit_test_enroll', 'testDevice', 'apkaaaaaamPublicKeyyyyy././')
@@ -258,10 +258,10 @@ void main() {
         EnrollmentStatus.denied.name,
         EnrollmentStatus.denied.name,
       ];
-      // Distribution of enrollments:
+      // Distribution of enrollments above:
       // Approved = 1; Pending = 2; Revoked = 3; Denied = 4;
       Map<String, EnrollDataStoreValue> enrollmentData = {};
-      // create 11 random enrollments
+      // create 10 random enrollments and store them into keystore
       for (int i = 0; i < 10; i++) {
         String enrollmentId = Uuid().v4();
         String enrollmentKey =
@@ -275,32 +275,33 @@ void main() {
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
       inboundConnection.metadata.isAuthenticated = true;
 
-      String approvalStatus = 'approved';
-      String command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      String enrollmentStatus = 'approved';
+      String command =
+          'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
       Response approvedResponse =
           await enrollVerb.processInternal(command, inboundConnection);
-      Map<String, dynamic> fetchedEnrollments = jsonDecode(approvedResponse.data!);
+      Map<String, dynamic> fetchedEnrollments =
+          jsonDecode(approvedResponse.data!);
       expect(fetchedEnrollments.length, 1);
 
-      approvalStatus = 'pending';
-      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      enrollmentStatus = 'pending';
+      command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
       Response pendingResponse =
           await enrollVerb.processInternal(command, inboundConnection);
-      fetchedEnrollments =
-          jsonDecode(pendingResponse.data!);
+      fetchedEnrollments = jsonDecode(pendingResponse.data!);
       expect(fetchedEnrollments.length, 2);
 
-      approvalStatus = 'revoked';
-      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      enrollmentStatus = 'revoked';
+      command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
       Response revokedResponse =
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(revokedResponse.data!);
       expect(fetchedEnrollments.length, 3);
 
-      approvalStatus = 'denied';
-      command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      enrollmentStatus = 'denied';
+      command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
       Response deniedResponse =
-      await enrollVerb.processInternal(command, inboundConnection);
+          await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(deniedResponse.data!);
       expect(fetchedEnrollments.length, 4);
     });
@@ -310,7 +311,8 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
 
       String approvalStatus = 'invalid_status';
-      String command = 'enroll:list:{"approvalStatusFilter":"$approvalStatus"}';
+      String command =
+          'enroll:list:{"enrollmentStatusFilter":["$approvalStatus"]}';
       expect(
           () async =>
               await enrollVerb.processInternal(command, inboundConnection),
@@ -886,6 +888,8 @@ void main() {
       // First Invalid request
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+      print(EnrollParams.fromJson(
+          jsonDecode(enrollmentRequest.replaceFirst('enroll:request:', ''))));
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       try {
