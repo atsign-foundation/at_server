@@ -242,10 +242,15 @@ void main() {
 
     test('fetch filtered enrollment requests using approval status', () async {
       // test conditions set-up
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metadata.isAuthenticated = true;
       EnrollDataStoreValue enrollValue = EnrollDataStoreValue('abcd',
           'unit_test_enroll', 'testDevice', 'apkaaaaaamPublicKeyyyyy././')
         ..namespaces = {"unit_tst": "rw"}
         ..encryptedAPKAMSymmetricKey = 'encSyMeTrIcKey././';
+      // Distribution of enrollments below:
+      // Approved = 1(key: 0); Pending = 2(keys: 1,2); Revoked = 3(keys: 3,4,5); Denied = 4(keys: 6,7,8,9);
+      // (This distribution will be used for validation)
       List<String> approvalStatuses = [
         EnrollmentStatus.approved.name,
         EnrollmentStatus.pending.name,
@@ -258,8 +263,8 @@ void main() {
         EnrollmentStatus.denied.name,
         EnrollmentStatus.denied.name,
       ];
-      // Distribution of enrollments above:
-      // Approved = 1; Pending = 2; Revoked = 3; Denied = 4;
+
+      List<String> enrollmentKeys = []; // will be used to store newly created enrollment keys
       Map<String, EnrollDataStoreValue> enrollmentData = {};
       // create 10 random enrollments and store them into keystore
       for (int i = 0; i < 10; i++) {
@@ -268,12 +273,11 @@ void main() {
             '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
         enrollValue.approval = EnrollApproval(approvalStatuses[i]);
         enrollmentData[enrollmentKey] = enrollValue;
+
+        enrollmentKeys.add(enrollmentKey);
         await secondaryKeyStore.put(
             enrollmentKey, AtData()..data = jsonEncode(enrollValue));
       }
-
-      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
-      inboundConnection.metadata.isAuthenticated = true;
 
       String enrollmentStatus = 'approved';
       String command =
@@ -304,6 +308,20 @@ void main() {
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(deniedResponse.data!);
       expect(fetchedEnrollments.length, 4);
+
+      assert(approvedResponse.data!.contains(enrollmentKeys[0]));
+
+      assert(pendingResponse.data!.contains(enrollmentKeys[1]));
+      assert(pendingResponse.data!.contains(enrollmentKeys[2]));
+
+      assert(revokedResponse.data!.contains(enrollmentKeys[3]));
+      assert(revokedResponse.data!.contains(enrollmentKeys[4]));
+      assert(revokedResponse.data!.contains(enrollmentKeys[5]));
+
+      assert(deniedResponse.data!.contains(enrollmentKeys[6]));
+      assert(deniedResponse.data!.contains(enrollmentKeys[7]));
+      assert(deniedResponse.data!.contains(enrollmentKeys[8]));
+      assert(deniedResponse.data!.contains(enrollmentKeys[9]));
     });
 
     test('enroll list with an invalid approvalStateFilter', () async {
