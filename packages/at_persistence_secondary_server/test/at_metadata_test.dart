@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:collection/collection.dart';
 import 'package:test/test.dart';
@@ -135,11 +135,34 @@ void main() async {
       expect(atData.metaData!.version, 1);
       expect(atData.metaData!.ttl, 10000);
     });
+    test(
+        'A test to verify public key hash object in metadata is set and retrieved correctly',
+        () async {
+      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(atSign)!
+          .getSecondaryKeyStore();
+      var key = '@bob:mobile@alice';
+      var value = '12345678';
+      var metaData = AtMetaData()
+        ..publicKeyHash = PublicKeyHash('randomhash', 'sha512');
+      await hiveKeyStore?.put(
+          key,
+          AtData()
+            ..data = value
+            ..metaData = metaData);
+      var atData = await hiveKeyStore?.get(key);
+      expect(atData?.data, '12345678');
+      expect(atData?.metaData, isNotNull);
+      expect(atData?.metaData!.createdBy, atSign);
+      expect(atData?.metaData!.publicKeyHash, isNotNull);
+      expect(atData?.metaData!.publicKeyHash!.hash, 'randomhash');
+      expect(atData?.metaData!.publicKeyHash!.hashingAlgo, 'sha512');
+    });
     tearDownAll(() async => await tearDownFunc());
   });
   group('A group of tests to verify at_metadata adapter', () {
     test('at_meta_data adapter test', () async {
-      final metaData = Metadata()
+      final metaData = at_commons.Metadata()
         ..ttl = 1000
         ..ccd = true
         ..pubKeyCS = 'xyz'
@@ -156,7 +179,7 @@ void main() async {
 
   group('Test json round-tripping', () {
     test('Test without null values', () {
-      final Metadata startMetaData = Metadata()
+      final at_commons.Metadata startMetaData = at_commons.Metadata()
         ..ttl = 100
         ..ttb = 200
         ..ttr = 3600
@@ -180,11 +203,11 @@ void main() async {
       expect(DeepCollectionEquality().equals(endMap, startMap), true);
       AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
       expect(endAtMetaData, startAtMetaData);
-      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      final at_commons.Metadata endMetaData = endAtMetaData.toCommonsMetadata();
       expect(endMetaData, startMetaData);
     });
     test('Test with null values', () {
-      final Metadata startMetaData = Metadata()
+      final at_commons.Metadata startMetaData = at_commons.Metadata()
         ..ttl = null
         ..ttb = null
         ..ttr = null
@@ -208,11 +231,11 @@ void main() async {
       expect(DeepCollectionEquality().equals(endMap, startMap), true);
       AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
       expect(endAtMetaData, startAtMetaData);
-      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      final at_commons.Metadata endMetaData = endAtMetaData.toCommonsMetadata();
       expect(endMetaData, startMetaData);
     });
     test('Test with some null, some non-null values', () {
-      final Metadata startMetaData = Metadata()
+      final at_commons.Metadata startMetaData = at_commons.Metadata()
         ..ttl = 0
         ..ttb = 0
         ..ttr = 0
@@ -236,7 +259,7 @@ void main() async {
       expect(DeepCollectionEquality().equals(endMap, startMap), true);
       AtMetaData endAtMetaData = AtMetaData().fromJson(endMap);
       expect(endAtMetaData, startAtMetaData);
-      final Metadata endMetaData = endAtMetaData.toCommonsMetadata();
+      final at_commons.Metadata endMetaData = endAtMetaData.toCommonsMetadata();
       expect(endMetaData, startMetaData);
     });
   });
