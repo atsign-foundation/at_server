@@ -996,13 +996,136 @@ void main() {
     });
   });
 
-  group('A group of tests related to APKAM enrollment', () {
+  group('A group of tests when "*" namespace have only read access', () {
+    Response response = Response();
+    late String enrollmentId;
+    setUp(() async {
+      await verbTestsSetUp();
+
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+    });
+
+    test(
+        'A test to verify update verb is not allowed when enrollment is not authorized for write operations',
+        () async {
+      String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+    });
+
+    test(
+        'A test to verify update verb is not allowed when enrollment key is not found',
+        () async {
+      // Setting to a new enrollmentId and NOT inserting the enrollment key to
+      // test enrollment key not found scenario
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A of tests to verify updating a key when enrollment is pending/revoke/denied state throws exception',
+      () {
+    Response response = Response();
+    late String enrollmentId;
+    List operationList = ['pending', 'revoked', 'denied'];
+
+    for (var operation in operationList) {
+      test(
+          'A test to verify when enrollment is $operation does not update a key',
+          () async {
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
+        enrollmentId = Uuid().v4();
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+        final enrollJson = {
+          'sessionId': '123',
+          'appName': 'wavi',
+          'deviceName': 'pixel',
+          'namespaces': {'wavi': 'rw'},
+          'apkamPublicKey': 'testPublicKeyValue',
+          'requestType': 'newEnrollment',
+          'approval': {'state': operation}
+        };
+        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+        await secondaryKeyStore.put(
+            keyName, AtData()..data = jsonEncode(enrollJson));
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+
+        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+        HashMap<String, String?> updateVerbParams =
+            getVerbParam(VerbSyntax.update, updateCommand);
+        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+            secondaryKeyStore, statsNotificationService, notificationManager);
+        expect(
+            () async => await updateVerbHandler.processVerb(
+                response, updateVerbParams, inboundConnection),
+            throwsA(predicate((dynamic e) =>
+                e is UnAuthorizedException &&
+                e.message ==
+                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+      });
+    }
+    tearDown(() async => await verbTestsTearDown());
+  });
+  group('A group of tests related to access authorization', () {
     Response response = Response();
     late String enrollmentId;
     setUp(() async {
       await verbTestsSetUp();
     });
 
+    test('A test to verify update verb is allowed if key is a reserved key',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String updateCommand = 'update:$bob:shared_key$alice somesharedkey';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
     test(
         'A test to verify update verb is allowed in all namespace when access is *:rw',
         () async {
@@ -1039,9 +1162,10 @@ void main() {
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
-
-    test('A test to verify key with unauthorized namespace throws exception',
+    test(
+        'A test to verify enrollment with no write access to namespace throws exception',
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -1073,111 +1197,96 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:phone.buzz@alice')));
     });
-
-    group('A group of tests when "*" namespace have only read access', () {
-      setUp(() async {
-        await verbTestsSetUp();
-
-        inboundConnection.metadata.isAuthenticated =
-            true; // owner connection, authenticated
-        enrollmentId = Uuid().v4();
-        inboundConnection.metadata.enrollmentId = enrollmentId;
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'wavi': 'r'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-        await secondaryKeyStore.put(
-            keyName, AtData()..data = jsonEncode(enrollJson));
-      });
-
-      test(
-          'A test to verify update verb is not allowed when enrollment is not authorized for write operations',
-          () async {
-        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-        HashMap<String, String?> updateVerbParams =
-            getVerbParam(VerbSyntax.update, updateCommand);
-        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        expect(
-            () async => await updateVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is UnAuthorizedException &&
-                e.message ==
-                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
-      });
-
-      test(
-          'A test to verify update verb is not allowed when enrollment key is not found',
-          () async {
-        // Setting to a new enrollmentId and NOT inserting the enrollment key to
-        // test enrollment key not found scenario
-        enrollmentId = Uuid().v4();
-        inboundConnection.metadata.enrollmentId = enrollmentId;
-        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-        HashMap<String, String?> updateVerbParams =
-            getVerbParam(VerbSyntax.update, updateCommand);
-        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        expect(
-            () async => await updateVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is UnAuthorizedException &&
-                e.message ==
-                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
-      });
-      tearDown(() async => await verbTestsTearDown());
+    test(
+        'A test to verify write access is allowed to a reserved key for an enrollment with a specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$bob:shared_key$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
-
-    group(
-        'A of tests to verify updating a key when enrollment is pending/revoke/denied state throws exception',
-        () {
-      List operationList = ['pending', 'revoked', 'denied'];
-
-      for (var operation in operationList) {
-        test(
-            'A test to verify when enrollment is $operation does not update a key',
-            () async {
-          inboundConnection.metadata.isAuthenticated =
-              true; // owner connection, authenticated
-          enrollmentId = Uuid().v4();
-          inboundConnection.metadata.enrollmentId = enrollmentId;
-          final enrollJson = {
-            'sessionId': '123',
-            'appName': 'wavi',
-            'deviceName': 'pixel',
-            'namespaces': {'wavi': 'rw'},
-            'apkamPublicKey': 'testPublicKeyValue',
-            'requestType': 'newEnrollment',
-            'approval': {'state': operation}
-          };
-          var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-          await secondaryKeyStore.put(
-              keyName, AtData()..data = jsonEncode(enrollJson));
-          inboundConnection.metadata.enrollmentId = enrollmentId;
-
-          String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-          HashMap<String, String?> updateVerbParams =
-              getVerbParam(VerbSyntax.update, updateCommand);
-          UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-              secondaryKeyStore, statsNotificationService, notificationManager);
-          expect(
-              () async => await updateVerbHandler.processVerb(
-                  response, updateVerbParams, inboundConnection),
-              throwsA(predicate((dynamic e) =>
-                  e is UnAuthorizedException &&
-                  e.message ==
-                      'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
-        });
-      }
-      tearDown(() async => await verbTestsTearDown());
+    test(
+        'A test to verify write access is allowed to a key without a namespace for an enrollment with * namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$alice:secretdata$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
+    test(
+        'A test to verify write access is denied to a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$alice:secretdata$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:secretdata@alice')));
+    });
+    tearDown(() async => await verbTestsTearDown());
   });
 }

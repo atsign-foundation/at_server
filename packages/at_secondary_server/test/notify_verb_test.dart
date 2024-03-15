@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -16,13 +17,18 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
+import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
@@ -1096,6 +1102,725 @@ void main() {
         expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
             throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
       });
+    });
+    tearDown(() async => await tearDownFunc());
+  });
+  group(
+      'A group of test to verify authorization check for notify and notify all verbs',
+      () {
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyAllVerbHandler notifyAllVerbHandler;
+    setUp(() async {
+      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      notifyAllVerbHandler = NotifyAllVerbHandler(keyStore);
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+    test(
+        'A test to verify notification is allowed on a reserved key with authenticated connection and no apkam enrollment ',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notification is allowed on a reserved key with authenticated connection and apkam enrollment ',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      print(response);
+    });
+
+    test(
+        'A test to verify notification on a key with no access to namespace throws exception',
+        () async {
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      // notify a key on buzz namespace
+      String notifyCommand = 'notify:$bob:phone.buzz$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              response, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.buzz@alice')));
+    });
+
+    test(
+        'A test to verify notification is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      var response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      String notifyCommand = 'notify:$bob:somekey$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notification is denied on a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      var response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      String notifyCommand = 'notify:$bob:somekey$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              response, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:somekey@alice')));
+    });
+    test(
+        'A test to verify notify all is allowed on a key with apkam enrollment with write access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      await notifyAllVerbHandler.processVerb(
+          response, notifyAllVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notify all is denied on a key with apkam enrollment with read access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      expect(
+          () async => await notifyAllVerbHandler.processVerb(
+              response, notifyAllVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi@alice')));
+    });
+    test(
+        'A test to verify notify all is denied on a key with apkam enrollment with no namespace access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      expect(
+          () async => await notifyAllVerbHandler.processVerb(
+              response, notifyAllVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi@alice')));
+    });
+    tearDown(() async => await tearDownFunc());
+  });
+  group(
+      'A group of test to verify authorization check for notify fetch, notify status and notify remove verbs',
+      () {
+    late NotifyFetchVerbHandler notifyFetchVerbHandler;
+    late NotifyStatusVerbHandler notifyStatusVerbHandler;
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyRemoveVerbHandler notifyRemoveVerbHandler;
+    setUp(() async {
+      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      notifyFetchVerbHandler = NotifyFetchVerbHandler(keyStore);
+      notifyStatusVerbHandler = NotifyStatusVerbHandler(keyStore);
+      notifyRemoveVerbHandler = NotifyRemoveVerbHandler(keyStore);
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+    test(
+        'A test to verify notification fetch/status is allowed on a reserved key with authenticated connection and no apkam enrollment',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      var notificationId = response.data;
+
+      String notifyFetchCommand = 'notify:fetch:$notificationId';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      print(notifyFetchJson);
+      expect(notifyFetchJson['id'], notificationId);
+
+      String notifyStatusCommand = 'notify:status:$notificationId';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, inboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+    });
+    test(
+        'A test to verify notification fetch/status is allowed on a reserved key with apkam enrollment',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      var notificationId = response.data;
+
+      String notifyFetchCommand = 'notify:fetch:$notificationId';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      print(notifyFetchJson);
+      expect(notifyFetchJson['id'], notificationId);
+
+      String notifyStatusCommand = 'notify:status:$notificationId';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, inboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+    });
+
+    test(
+        'A test to verify notify fetch/status on a different notification keys',
+        () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      //1. notify wavi key
+      String notifyCommand = 'notify:$bob:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$bob:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdBuzzKey = response.data;
+
+      //3. Notify key without namepsace
+      notifyCommand = 'notify:$bob:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdKeyNoNamespace = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager.getKeyStore().put(
+          newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
+
+      //1. fetching wavi key notification should pass
+      String notifyFetchCommand = 'notify:fetch:$notificationIdWaviKey';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, newInboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      expect(notifyFetchJson['id'], notificationIdWaviKey);
+
+      //2. fetching buzz key notification should throw exception
+      notifyFetchCommand = 'notify:fetch:$notificationIdBuzzKey';
+      notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      notifyFetchResponse = Response();
+      expect(
+          () async => await notifyFetchVerbHandler.processVerb(
+              notifyFetchResponse, notifyFetchVerbParams, newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz@alice')));
+
+      //3. fetching  notification key with no namepsace should throw exception
+      notifyFetchCommand = 'notify:fetch:$notificationIdKeyNoNamespace';
+      notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      notifyFetchResponse = Response();
+      expect(
+          () async => await notifyFetchVerbHandler.processVerb(
+              notifyFetchResponse, notifyFetchVerbParams, newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location@alice')));
+
+      //1. notify status on wavi notification key should pass
+      String notifyStatusCommand = 'notify:status:$notificationIdWaviKey';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, newInboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+      expect(notifyStatusResponse.data, 'queued');
+
+      //2. notify status on buzz notification key should throw exception
+      notifyStatusCommand = 'notify:status:$notificationIdBuzzKey';
+      notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      notifyStatusResponse = Response();
+      expect(
+          () async => await notifyStatusVerbHandler.processVerb(
+              notifyStatusResponse,
+              notifyStatusVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz@alice')));
+
+      //2. notify status on notification key with no namespace should throw exception
+      notifyStatusCommand = 'notify:status:$notificationIdKeyNoNamespace';
+      notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      notifyStatusResponse = Response();
+      expect(
+          () async => await notifyStatusVerbHandler.processVerb(
+              notifyStatusResponse,
+              notifyStatusVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location@alice')));
+    });
+    test('A test to verify notify remove on a different notification keys',
+        () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+      //1. notify wavi key
+      String notifyCommand = 'notify:$bob:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$bob:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdBuzzKey = response.data;
+
+      //3. Notify key without namepsace
+      notifyCommand = 'notify:$bob:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdKeyNoNamespace = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager.getKeyStore().put(
+          newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
+
+      //1. removing wavi key notification should pass
+      String notifyRemoveCommand = 'notify:remove:$notificationIdWaviKey';
+      HashMap<String, String?> notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      var notifyRemoveResponse = Response();
+      await notifyRemoveVerbHandler.processVerb(
+          notifyRemoveResponse, notifyRemoveVerbParams, newInboundConnection);
+      expect(notifyRemoveResponse.data, isNotNull);
+      expect(notifyRemoveResponse.data, 'success');
+
+      //2. removing buzz key notification should throw exception
+      notifyRemoveCommand = 'notify:remove:$notificationIdBuzzKey';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      expect(
+          () async => await notifyRemoveVerbHandler.processVerb(
+              notifyRemoveResponse,
+              notifyRemoveVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:email.buzz@alice')));
+
+      //3. removing  notification key with no namespace should throw exception
+      notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      expect(
+          () async => await notifyRemoveVerbHandler.processVerb(
+              notifyRemoveResponse,
+              notifyRemoveVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:location@alice')));
+
+      //4. removing  notification key with no namespace with enrollment with * namespace access should pass
+      notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      await notifyRemoveVerbHandler.processVerb(
+          notifyRemoveResponse, notifyRemoveVerbParams, inboundConnection);
+      expect(notifyRemoveResponse.data, isNotNull);
+      expect(notifyRemoveResponse.data, 'success');
+    });
+    tearDown(() async => await tearDownFunc());
+  });
+  group(
+      'A group of test to verify authorization check for notify fetch, notify status and notify remove verbs',
+      () {
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyListVerbHandler notifyListVerbHandler;
+    setUp(() async {
+      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      notifyListVerbHandler =
+          NotifyListVerbHandler(keyStore, mockOutboundClientManager);
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+    test('A test to verify notifylist authorization', () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager
+          .getKeyStore()
+          .put(keyName, AtData()..data = jsonEncode(enrollJson));
+
+      //1. notify wavi key
+      String notifyCommand = 'notify:$alice:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$alice:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+
+      //3. Notify key without namepsace
+      notifyCommand = 'notify:$alice:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+
+      //4. Notify reserved key
+      notifyCommand = 'notify:$alice:shared_key$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdReservedKey = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage@alice';
+      await keyStoreManager.getKeyStore().put(
+          newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
+
+      var notifyListCommand = 'notify:list';
+      var notifyListVerbParams =
+          getVerbParam(VerbSyntax.notifyList, notifyListCommand);
+      var notifyListResponse = Response();
+      await notifyListVerbHandler.processVerb(
+          notifyListResponse, notifyListVerbParams, newInboundConnection);
+      expect(notifyListResponse.data, isNotNull);
+      var notifyListJson = jsonDecode(notifyListResponse.data!);
+      expect(notifyListJson.length, 2);
+      for (var notification in notifyListJson) {
+        if (notification['id'] == notificationIdWaviKey) {
+          expect(notification['key'], '@alice:phone.wavi@alice');
+        } else if (notification['id'] == notificationIdReservedKey) {
+          expect(notification['key'], '@alice:shared_key@alice');
+        } else {
+          throw AssertionError(
+              'Notify list should return wavi namespace key and reserved key');
+        }
+      }
     });
     tearDown(() async => await tearDownFunc());
   });
