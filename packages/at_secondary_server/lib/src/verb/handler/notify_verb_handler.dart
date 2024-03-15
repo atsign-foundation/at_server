@@ -507,6 +507,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       throw UnAuthorizedException(
           '${verbParams[AtConstants.atSign]} is not authorized to send notification as $currentAtSign');
     }
-    return await super.isAuthorized(connectionMetadata, keyToNotify);
+    return await super.isAuthorized(connectionMetadata, atKey: keyToNotify);
   }
 }

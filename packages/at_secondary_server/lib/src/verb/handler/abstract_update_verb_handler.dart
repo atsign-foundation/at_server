@@ -81,7 +81,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
-    isAuthorized = await super.isAuthorized(inboundConnectionMetadata, atKey);
+    isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, atKey: atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'

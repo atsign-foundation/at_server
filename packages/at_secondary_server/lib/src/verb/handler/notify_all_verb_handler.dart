@@ -46,8 +46,8 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var key = verbParams[AtConstants.atKey]!;
     var inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    var isAuthorized =
-        await super.isAuthorized(inboundConnectionMetadata, '$key$atSign');
+    var isAuthorized = await super
+        .isAuthorized(inboundConnectionMetadata, atKey: '$key$atSign');
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'

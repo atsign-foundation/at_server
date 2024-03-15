@@ -505,8 +505,8 @@ void main() {
           LocalLookupVerbHandler(secondaryKeyStore);
       String lookupCommand = 'llookup:$testKey';
       expect(
-          await llookupVerbHandler.isAuthorized(
-              inboundConnection.metadata, testKey),
+          await llookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: testKey),
           false);
       expect(
           () => llookupVerbHandler.processInternal(

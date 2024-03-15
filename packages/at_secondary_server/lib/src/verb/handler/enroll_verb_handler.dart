@@ -193,7 +193,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AtData()..data = enrollParams.apkamPublicKey!);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
-      enrollmentValue.encryptedAPKAMSymmetricKey = enrollParams.encryptedAPKAMSymmetricKey;
+      enrollmentValue.encryptedAPKAMSymmetricKey =
+          enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
@@ -342,7 +343,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey
         };
       }
     }
@@ -360,7 +362,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey
         };
       }
     }

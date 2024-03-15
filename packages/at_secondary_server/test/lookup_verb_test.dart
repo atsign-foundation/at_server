@@ -894,8 +894,8 @@ void main() {
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       String lookupCommand = 'lookup:all:$reservedKey';
       expect(
-          await lookupVerbHandler.isAuthorized(
-              inboundConnection.metadata, reservedKey),
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: reservedKey),
           true);
 
       var verbResponse = await lookupVerbHandler.processInternal(
@@ -941,8 +941,8 @@ void main() {
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       String lookupCommand = 'lookup:all:$reservedKey';
       expect(
-          await lookupVerb.isAuthorized(
-              inboundConnection.metadata, '$alice:$reservedKey'),
+          await lookupVerb.isAuthorized(inboundConnection.metadata,
+              atKey: '$alice:$reservedKey'),
           true);
 
       Response verbResponse =
@@ -980,7 +980,9 @@ void main() {
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       String lookupCommand = 'lookup:all:$testKey';
 
-      expect(await lookupVerb.isAuthorized(inboundConnection.metadata, testKey),
+      expect(
+          await lookupVerb.isAuthorized(inboundConnection.metadata,
+              atKey: testKey),
           true);
 
       Response verbResponse =
@@ -1015,8 +1017,8 @@ void main() {
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       String lookupCommand = 'lookup:all:$testKey';
       expect(
-          await lookupVerbHandler.isAuthorized(
-              inboundConnection.metadata, testKey),
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: testKey),
           false);
       expect(
           () async => await lookupVerbHandler.processInternal(

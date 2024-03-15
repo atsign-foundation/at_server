@@ -67,7 +67,8 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
     bool isAuthorized = true; // for legacy clients allow access by default
 
     if (!isPublic) {
-      isAuthorized = await super.isAuthorized(inboundConnectionMetadata, key);
+      isAuthorized =
+          await super.isAuthorized(inboundConnectionMetadata, atKey: key);
     }
 
     if (!isAuthorized) {

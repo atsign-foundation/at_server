@@ -130,9 +130,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///  - If enrollment is a part of "global" or "manage" namespace
   ///  - the connection does not have access to * namespace and key has no namespace
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
-  Future<bool> isAuthorized(
-      InboundConnectionMetadata connectionMetadata, String? atKey,
-      {String? namespace}) async {
+  Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
+      {String? atKey, String? namespace}) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
@@ -162,11 +161,19 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     final enrollNamespaces = enrollDataStoreValue.namespaces;
+    // if both key and namespace are passed, throw Exception if they don't match
+    if (atKey != null && namespace != null) {
+      var namespaceFromAtKey = AtKey.fromString(atKey).namespace;
+      if (namespaceFromAtKey != null && namespaceFromAtKey != namespace) {
+        throw AtEnrollmentException(
+            'AtKey namespace and passed namespace do not match');
+      }
+    }
     // set passed namespace. If passed namespace is null, get namespace from atKey
     final keyNamespace =
         namespace ?? (atKey != null ? AtKey.fromString(atKey).namespace : null);
     if (keyNamespace == null && atKey == null) {
-      logger.shout('Both key and namespace are null');
+      logger.shout('Both AtKey and namespace are null');
       return false;
     }
 

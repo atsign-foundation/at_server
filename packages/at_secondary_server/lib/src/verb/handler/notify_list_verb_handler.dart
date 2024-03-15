@@ -63,7 +63,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       var filteredResponseList = [];
       for (Notification notification in responseList) {
         var notificationKey = notification.notification;
-        if (await super.isAuthorized(atConnectionMetadata, notificationKey)) {
+        if (await super
+            .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
           filteredResponseList.add(notification);
         }
       }

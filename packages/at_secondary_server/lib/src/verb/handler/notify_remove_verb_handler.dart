@@ -36,7 +36,7 @@ class NotifyRemoveVerbHandler extends AbstractVerbHandler {
     if (atNotification != null) {
       var atKey = atNotification.notification;
       var isAuthorized =
-          await super.isAuthorized(inboundConnectionMetadata, atKey);
+          await super.isAuthorized(inboundConnectionMetadata, atKey: atKey!);
       if (!isAuthorized) {
         throw UnAuthorizedException(
             'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId} is not authorized to remove notify key: $atKey');

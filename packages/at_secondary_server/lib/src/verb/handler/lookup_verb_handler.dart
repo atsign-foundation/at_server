@@ -265,7 +265,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
   Future<bool> _isAuthorizedToViewData(
       InboundConnection atConnection, String lookupKey) async {
     return await super.isAuthorized(
-        atConnection.metaData as InboundConnectionMetadata, lookupKey);
+        atConnection.metaData as InboundConnectionMetadata,
+        atKey: lookupKey);
   }
 
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.

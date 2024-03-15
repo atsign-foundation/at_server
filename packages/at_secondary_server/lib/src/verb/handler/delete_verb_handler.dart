@@ -98,7 +98,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
         atConnection.metaData as InboundConnectionMetadata;
 
     bool isAuthorized =
-        await super.isAuthorized(inboundConnectionMetadata, deleteKey);
+        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
