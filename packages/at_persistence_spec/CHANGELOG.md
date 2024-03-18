@@ -1,3 +1,5 @@
+## 3.0.0
+- breaking_change: replaced optional params in put/create methods with metadata from at_commons
 ## 2.0.14
 - feat: add optional param skipCommit to keystore - put,create and remove methods
 ## 2.0.12
