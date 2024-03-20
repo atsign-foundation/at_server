@@ -24,7 +24,7 @@ void main() async {
     test('fetch expired key returns throws exception', () async {
       String key = '123$atsign';
       var atData = AtData()..data = 'abc';
-      await keyStore?.put(key, atData, time_to_live: 5 * 1000);
+      await keyStore?.put(key, atData, metadata: Metadata()..ttl = 5 * 1000);
       var atDataResponse = await keyStore?.get(key);
       assert(atDataResponse?.data == 'abc');
       stdout.writeln('Sleeping for 23s');
@@ -39,7 +39,7 @@ void main() async {
         () async {
       String key = 'no_commit_log_test$atsign';
       var atData = AtData()..data = 'randomDataString';
-      await keyStore?.put(key, atData, time_to_live: 2000);
+      await keyStore?.put(key, atData, metadata: Metadata()..ttl = 2000);
       expect((await keyStore?.get(key))?.data, atData.data);
 
       await Future.delayed(Duration(seconds: 4));
@@ -62,7 +62,8 @@ void main() async {
       // -----------------insert key 1 that expires in 100ms
       String key1 = 'no_commit_1$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      int? seqNum = await keyStore?.put(key1, atData, time_to_live: 100);
+      int? seqNum =
+          await keyStore?.put(key1, atData, metadata: Metadata()..ttl = 100);
       print(seqNum);
       await Future.delayed(Duration(seconds: 1));
       await keyStore?.deleteExpiredKeys(skipCommit: true);
@@ -104,7 +105,7 @@ void main() async {
       AtCommitLog? commitLog = keyStore?.commitLog as AtCommitLog;
       String key = 'commit_test$atsign';
       var atData = AtData()..data = 'randomDataString';
-      await keyStore?.put(key, atData, time_to_live: 2000);
+      await keyStore?.put(key, atData, metadata: Metadata()..ttl = 2000);
       // ensure key is inserted
       expect((await keyStore?.get(key))?.data, atData.data);
 
@@ -125,7 +126,8 @@ void main() async {
       // -----------------insert key 1 that expires in 100ms
       String key1 = 'no_commit_3$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      int? seqNum = await keyStore?.put(key1, atData, time_to_live: 100);
+      int? seqNum =
+          await keyStore?.put(key1, atData, metadata: Metadata()..ttl = 100);
       print(seqNum);
       await Future.delayed(Duration(seconds: 1));
       await keyStore?.deleteExpiredKeys();

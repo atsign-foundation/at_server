@@ -18,7 +18,6 @@ export 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.d
 export 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 export 'package:at_persistence_secondary_server/src/model/at_data.dart';
 export 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
-export 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_callback.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_keystore.dart';

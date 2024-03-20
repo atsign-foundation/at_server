@@ -295,9 +295,7 @@ class AtCacheManager {
 
     // For everything other than 'cached:public:publickey@atSign' just put it into the key store
     if (!cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData,
-          time_to_refresh: atData.metaData!.ttr,
-          time_to_live: atData.metaData!.ttl);
+      await keyStore.put(cachedKeyName, atData);
       return;
     }
 
@@ -315,7 +313,8 @@ class AtCacheManager {
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
       if (!keyStore.isKeyExists(cachedKeyName)) {
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        await keyStore.put(cachedKeyName, atData,
+            metadata: Metadata()..ttr = -1);
         return;
       }
 
@@ -365,7 +364,8 @@ class AtCacheManager {
 
         // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
         await keyStore.remove(cachedKeyName);
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        await keyStore.put(cachedKeyName, atData,
+            metadata: Metadata()..ttr = -1);
       }
     } catch (e, st) {
       logger.severe(

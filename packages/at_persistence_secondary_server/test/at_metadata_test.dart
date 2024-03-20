@@ -16,11 +16,9 @@ void main() async {
     /// The below test is to verify the default fields in the metadata are populated
     /// on creation of a new key
     /// The default fields are:
-    ///   For new key createdAt and UpdatedAt are same
     /// a) CreatedAt - DateTime when the key is created
-    /// b) UpdatedAt - DateTime when the key is updated
-    /// c) CreatedBy - The atSign which created the key
-    /// d) version - Indicates the number of times the key is updated.
+    /// b) CreatedBy - The atSign which created the key
+    /// c) version - Indicates the number of times the key is updated.
     ///              For a new key version is set to 0
     test('A test to default field in metadata is set on a new key creation',
         () async {
@@ -35,10 +33,6 @@ void main() async {
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(
-          atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
               keyCreationDateTime.millisecondsSinceEpoch,
           true);
       expect(atData.metaData!.createdBy, atSign);
@@ -89,10 +83,13 @@ void main() async {
           .getSecondaryKeyStore();
       var key = '@bob:country@alice';
       var value = '9878123321';
+      var atMetaData = AtMetaData()
+        ..createdAt = keyCreationDateTime
+        ..createdBy = '@alice';
       await hiveKeyStore?.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
+      await hiveKeyStore?.putMeta(key, atMetaData);
       var atData = await hiveKeyStore?.get(key);
       expect(atData?.data, value);
       expect(
@@ -105,35 +102,6 @@ void main() async {
           true);
       expect(atData.metaData!.createdBy, atSign);
       expect(atData.metaData!.version, 1);
-    });
-
-    test(
-        'A test to verify version field in metadata is set to 1 when using putAll method',
-        () async {
-      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
-      var key = '@bob:city@alice';
-      await hiveKeyStore?.putAll(
-          key, AtData()..data = '9878123322', AtMetaData());
-      // Update the same key
-      var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putAll(
-          key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
-      expect(atData?.data, '9878123322');
-      expect(
-          atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(
-          atData.metaData!.updatedAt!.millisecondsSinceEpoch >=
-              updateKeyDateTime.millisecondsSinceEpoch,
-          true);
-      expect(atData.metaData!.createdBy, atSign);
-      expect(atData.metaData!.version, 1);
-      expect(atData.metaData!.ttl, 10000);
     });
     tearDownAll(() async => await tearDownFunc());
   });

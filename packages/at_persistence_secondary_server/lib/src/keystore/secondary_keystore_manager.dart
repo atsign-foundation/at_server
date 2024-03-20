@@ -16,6 +16,6 @@ class SecondaryKeyStoreManager implements KeystoreManager<String, AtData?> {
 
   @override
   StoreType getStoreType() {
-    return StoreType.SECONDARY;
+    return StoreType.secondary;
   }
 }

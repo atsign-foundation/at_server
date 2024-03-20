@@ -210,7 +210,7 @@ void main() async {
       var atData = AtData();
       atData.data = '123';
       await keyStore.create('phone.wavi@test_user_1', atData,
-          time_to_live: 6000);
+          metadata: Metadata()..ttl = 6000);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -223,8 +223,11 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
+      var metaData = Metadata()
+        ..sharedKeyEnc = 'abc'
+        ..pubKeyCS = 'xyz';
       await keyStore.create('phone.wavi@test_user_1', atData,
-          sharedKeyEncrypted: 'abc', publicKeyChecksum: 'xyz');
+          metadata: metaData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -587,37 +590,43 @@ void main() async {
 
     test('A test to verify new metadata is returned when TTL is unset',
         () async {
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
+      var metaData = Metadata()
+        ..ttl = 10000
+        ..createdAt = keyCreationDateTime;
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
-      AtData atData = AtData()
-        ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 10000);
-      await keystore?.put('dummykey.wavi@test_user_1', atData);
-      AtData updatedAtData = AtData()
-        ..data = 'updated_value'
-        ..metaData = (AtMetaData()
-          ..ttl = 0
-          ..ttr = -1);
+      AtData atData = AtData()..data = 'dummy_value';
+      await keystore?.put('dummykey.wavi@test_user_1', atData,
+          metadata: metaData);
+      metaData.ttl = 0;
+      metaData.ttr = -1;
+      metaData.ttb = null;
+      metaData.updatedAt = DateTime.now().toUtcMillisecondsPrecision();
+      AtData updatedAtData = AtData()..data = 'updated_value';
       await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,
-          time_to_born: null);
-      AtMetaData? atMetaData =
+          metadata: metaData);
+      AtMetaData? latestMetaData =
           await keystore?.getMeta('dummykey.wavi@test_user_1');
-      expect(atMetaData?.ttr, -1);
-      expect(atMetaData?.ttl, 0);
+      expect(latestMetaData?.ttr, -1);
+      expect(latestMetaData?.ttl, 0);
     });
 
     test(
         'A test to verify getExpiredKeys method returns the keys whose TTL is met eventually',
         () async {
+      var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 1500);
+        ..metaData = (AtMetaData()
+          ..ttl = 1500
+          ..createdAt = keyCreationDateTime);
       await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
       var expiredKeysList = await keystore?.getExpiredKeys();
       expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
@@ -673,15 +682,13 @@ void main() async {
       //inserting sample keys
       for (int i = 0; i < 30; i++) {
         //inserting random metaData to induce variance in data
-        metaData = AtMetadataBuilder(
-                ttl: 12000 + i.toInt(),
-                ttb: i,
-                atSign: '@atsign_$i',
-                isBinary: true)
-            .build();
+        var newMetadata = Metadata()
+          ..ttl = 12000 + i.toInt()
+          ..ttb = i
+          ..isBinary = true;
 
         atData.data = 'value_test_$i';
-        atData.metaData = metaData;
+        atData.metaData = AtMetaData.fromCommonsMetadata(newMetadata);
         await keystore?.put('key_test_$i.wavi$atSign', atData);
       }
 

@@ -137,7 +137,8 @@ Future<void> tearDownFunc() async {
   // closes the instance of hive keystore
   await SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!
-      .getHivePersistenceManager()?.close();
+      .getHivePersistenceManager()
+      ?.close();
 
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
