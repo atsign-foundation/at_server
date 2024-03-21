@@ -93,7 +93,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
         case 'list':
           response.data = await _fetchEnrollmentRequests(
-              enrollVerbParams, atConnection, currentAtSign);
+              atConnection, currentAtSign,
+              enrollVerbParams: enrollVerbParams);
           return;
       }
     } catch (e, stackTrace) {
@@ -312,8 +313,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// Returns a Map where key is an enrollment key and value is a
   /// Map of "appName","deviceName" and "namespaces"
-  Future<String> _fetchEnrollmentRequests(EnrollParams? enrollVerbParams,
-      AtConnection atConnection, String currentAtSign) async {
+  Future<String> _fetchEnrollmentRequests(
+      AtConnection atConnection, String currentAtSign,
+      {EnrollParams? enrollVerbParams}) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
@@ -323,7 +325,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Return all the enrollments.
     if (enrollApprovalId == null || enrollApprovalId.isEmpty) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
-          enrollVerbParams?.enrollmentStatusFilter);
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
       return jsonEncode(enrollmentRequestsMap);
     }
     // If connection is authenticated via APKAM, then enrollApprovalId is populated,
@@ -337,7 +339,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
-          enrollVerbParams?.enrollmentStatusFilter);
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
     } else {
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
@@ -353,10 +355,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return jsonEncode(enrollmentRequestsMap);
   }
 
-  Future<void> _fetchAllEnrollments(
-      List<String> enrollmentKeysList,
+  Future<void> _fetchAllEnrollments(List<String> enrollmentKeysList,
       Map<String, Map<String, dynamic>> enrollmentRequestsMap,
-      List<EnrollmentStatus>? enrollmentStatusFilter) async {
+      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
     enrollmentStatusFilter ??= EnrollmentStatus.values;
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =

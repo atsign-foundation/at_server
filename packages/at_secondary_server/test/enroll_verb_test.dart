@@ -909,8 +909,6 @@ void main() {
       // First Invalid request
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
-      print(EnrollParams.fromJson(
-          jsonDecode(enrollmentRequest.replaceFirst('enroll:request:', ''))));
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       try {
