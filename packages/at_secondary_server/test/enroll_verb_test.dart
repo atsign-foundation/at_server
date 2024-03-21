@@ -287,6 +287,7 @@ void main() {
       Map<String, dynamic> fetchedEnrollments =
           jsonDecode(approvedResponse.data!);
       expect(fetchedEnrollments.length, 1);
+      assert(approvedResponse.data!.contains(enrollmentKeys[0]));
 
       enrollmentStatus = 'pending';
       command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
@@ -294,6 +295,8 @@ void main() {
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(pendingResponse.data!);
       expect(fetchedEnrollments.length, 2);
+      assert(pendingResponse.data!.contains(enrollmentKeys[1]));
+      assert(pendingResponse.data!.contains(enrollmentKeys[2]));
 
       enrollmentStatus = 'revoked';
       command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
@@ -301,6 +304,9 @@ void main() {
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(revokedResponse.data!);
       expect(fetchedEnrollments.length, 3);
+      assert(revokedResponse.data!.contains(enrollmentKeys[3]));
+      assert(revokedResponse.data!.contains(enrollmentKeys[4]));
+      assert(revokedResponse.data!.contains(enrollmentKeys[5]));
 
       enrollmentStatus = 'denied';
       command = 'enroll:list:{"enrollmentStatusFilter":["$enrollmentStatus"]}';
@@ -308,20 +314,16 @@ void main() {
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(deniedResponse.data!);
       expect(fetchedEnrollments.length, 4);
-
-      assert(approvedResponse.data!.contains(enrollmentKeys[0]));
-
-      assert(pendingResponse.data!.contains(enrollmentKeys[1]));
-      assert(pendingResponse.data!.contains(enrollmentKeys[2]));
-
-      assert(revokedResponse.data!.contains(enrollmentKeys[3]));
-      assert(revokedResponse.data!.contains(enrollmentKeys[4]));
-      assert(revokedResponse.data!.contains(enrollmentKeys[5]));
-
       assert(deniedResponse.data!.contains(enrollmentKeys[6]));
       assert(deniedResponse.data!.contains(enrollmentKeys[7]));
       assert(deniedResponse.data!.contains(enrollmentKeys[8]));
       assert(deniedResponse.data!.contains(enrollmentKeys[9]));
+
+      command = 'enroll:list'; // run enroll list without filter
+      Response listAllResponse =
+      await enrollVerb.processInternal(command, inboundConnection);
+      fetchedEnrollments = jsonDecode(listAllResponse.data!);
+      expect(fetchedEnrollments.length, 10);
     });
 
     test('enroll list with an invalid approvalStateFilter', () async {
@@ -339,6 +341,7 @@ void main() {
 
     tearDown(() async => await verbTestsTearDown());
   });
+
   group('A group of tests related to enroll permissions', () {
     Response response = Response();
     late String enrollmentId;
