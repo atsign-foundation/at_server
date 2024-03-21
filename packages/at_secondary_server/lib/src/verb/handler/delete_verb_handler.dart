@@ -75,8 +75,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    var keyNamespace = verbParams[AtConstants.atKey]!
-        .substring(deleteKey.lastIndexOf('.') + 1);
+    // var keyNamespace = verbParams[AtConstants.atKey]!
+    //     .substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[AtConstants.forAtSign] != null) {
       deleteKey =
           '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
@@ -97,15 +97,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    bool isAuthorized = await super.isAuthorized(
-      inboundConnectionMetadata,
-      keyNamespace,
-    );
+    bool isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-              ' is not authorized to delete key: $deleteKey');
+          ' is not authorized to delete key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);

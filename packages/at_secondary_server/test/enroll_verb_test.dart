@@ -643,7 +643,7 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
-      await Future.delayed(Duration(milliseconds: 1));
+      await Future.delayed(Duration(milliseconds: 500));
       //Approve enrollment
       String approveEnrollmentCommand =
           'enroll:approve:{"enrollmentId":"$enrollmentId"}';
@@ -678,7 +678,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
       //Deny enrollment
-      await Future.delayed(Duration(milliseconds: 1));
+      await Future.delayed(Duration(milliseconds: 500));
       String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
