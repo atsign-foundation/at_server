@@ -339,6 +339,17 @@ void main() {
           throwsA(predicate((e) => e is ArgumentError)));
     });
 
+    test('verify verb params being populated with correct enrollmentStatusFilter', (){
+      inboundConnection.metadata.isAuthenticated = true;
+
+      String approvalStatus = 'approved';
+      String command =
+          'enroll:list:{"enrollmentStatusFilter":["$approvalStatus"]}';
+      Map<String, String?> verbParams = getVerbParam(VerbSyntax.enroll, command);
+      var enrollParams = jsonDecode(verbParams['enrollParams']!);
+      expect(enrollParams['enrollmentStatusFilter'], [approvalStatus]);
+    });
+
     tearDown(() async => await verbTestsTearDown());
   });
 
