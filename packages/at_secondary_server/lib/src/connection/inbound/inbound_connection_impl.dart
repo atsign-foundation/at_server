@@ -226,13 +226,11 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       underlying.destroy();
       logger.finer(logger.getAtConnectionLogMessage(
           metaData, '$address:$port Disconnected'));
-      metaData.isClosed = true;
-    } on Exception {
-      metaData.isStale = true;
+    } catch (_) {
       // Ignore exception on a connection close
-    } on Error {
       metaData.isStale = true;
-      // Ignore error on a connection close
+    } finally {
+      metaData.isClosed = true;
     }
   }
 

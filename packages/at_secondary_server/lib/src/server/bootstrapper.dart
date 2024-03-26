@@ -54,7 +54,7 @@ class SecondaryServerBootStrapper {
       //prevents secondary from terminating due to uncaught non-fatal errors
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
-      }, (error, stackTrace) {
+      }, (error, StackTrace stackTrace) {
         logger.severe('Uncaught error: $error \n StackTrace: $stackTrace');
         handleTerminateSignal(ProcessSignal.sigstop);
       }));
