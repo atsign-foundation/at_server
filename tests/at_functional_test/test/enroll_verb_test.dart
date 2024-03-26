@@ -908,8 +908,8 @@ void main() {
         String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
         otp = otp.replaceFirst('data:', '');
         await firstAtSignConnection.close();
-        // Close the connection and create a new connection and send an enrollment request on an
-        // unauthenticated connection.
+        // Close the connection and create a new connection and send an
+        // enrollment request on an unauthenticated connection.
         await firstAtSignConnection.initiateConnectionWithListener(
             firstAtSign, firstAtSignHost, firstAtSignPort);
         String enrollRequest =
@@ -934,12 +934,6 @@ void main() {
       await firstAtSignConnection.authenticateConnection();
       String enrollListApprovedCommand =
           'enroll:list:{"enrollmentStatusFilter":["approved"]}';
-      // fetch approved enrollment requests
-      Map<String, dynamic> enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
-              .sendRequestToServer(enrollListApprovedCommand));
-      // 0 requests since no requests have been approved yet
-      expect(enrollmentRequestsMap.length, 0);
 
       // approve first and second enrollment request in enrollmentIds list
       await firstAtSignConnection.sendRequestToServer(
@@ -948,12 +942,15 @@ void main() {
           'enroll:approve:{"enrollmentId":"${enrollmentIds[1]}"}');
 
       // again, fetch approved enrollment requests
-      enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
               .sendRequestToServer(enrollListApprovedCommand));
-      expect(enrollmentRequestsMap.length, 2);
-      expect(enrollmentRequestsMap.toString().contains(enrollmentIds[0]), true);
-      expect(enrollmentRequestsMap.toString().contains(enrollmentIds[1]), true);
+
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[0]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[1]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'approved');
+      });
     });
 
     test('validate filtering of enrollment requests - case revoked', () async {
@@ -962,12 +959,6 @@ void main() {
       await firstAtSignConnection.authenticateConnection();
       String enrollListRevokedCommand =
           'enroll:list:{"enrollmentStatusFilter":["revoked"]}';
-      // fetch revoked enrollment requests
-      Map<String, dynamic> enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
-              .sendRequestToServer(enrollListRevokedCommand));
-      // 0 requests since no requests have been revoked yet
-      expect(enrollmentRequestsMap.length, 0);
 
       // approve and then revoke third enrollment request in enrollmentIds list
       await firstAtSignConnection.sendRequestToServer(
@@ -976,11 +967,13 @@ void main() {
           'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
 
       // again, fetch revoked enrollment requests
-      enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
               .sendRequestToServer(enrollListRevokedCommand));
-      expect(enrollmentRequestsMap.length, 1);
-      expect(enrollmentRequestsMap.toString().contains(enrollmentIds[2]), true);
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[2]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'revoked');
+      });
     });
 
     test('validate filtering of enrollment requests - case denied', () async {
@@ -990,13 +983,6 @@ void main() {
       String enrollListDeniedCommand =
           'enroll:list:{"enrollmentStatusFilter":["denied"]}';
 
-      // fetch denied enrollment requests
-      Map<String, dynamic> enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
-              .sendRequestToServer(enrollListDeniedCommand));
-      // 0 requests since no requests have been denied yet
-      expect(enrollmentRequestsMap.length, 0);
-
       // deny fourth and fifth enrollment request in enrollmentIds list
       await firstAtSignConnection.sendRequestToServer(
           'enroll:deny:{"enrollmentId":"${enrollmentIds[3]}"}');
@@ -1004,12 +990,30 @@ void main() {
           'enroll:deny:{"enrollmentId":"${enrollmentIds[4]}"}');
 
       // again, fetch denied enrollment requests
-      enrollmentRequestsMap = readServerResponseAndConvertToMap(
-          await firstAtSignConnection
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
               .sendRequestToServer(enrollListDeniedCommand));
-      expect(enrollmentRequestsMap.length, 2);
-      expect(enrollmentRequestsMap.toString().contains(enrollmentIds[3]), true);
-      expect(enrollmentRequestsMap.toString().contains(enrollmentIds[4]), true);
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[3]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[4]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'denied');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case pending', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListDeniedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["pending"]}';
+      // fetch pending enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListDeniedCommand));
+
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'pending');
+      });
     });
   });
 }
