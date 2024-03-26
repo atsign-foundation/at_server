@@ -348,7 +348,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
           'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }
@@ -370,7 +371,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
           'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }
