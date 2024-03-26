@@ -1,5 +1,8 @@
 ## 3.0.42
 - feat: allow filtering of requests in EnrollVerbHandler using enrollment approval status
+- feat: authorization changes for keys with no namespace and for reserved keys
+- build(deps): Bump dart from 3.3.0 to 3.3.1 (dependabot)
+- fix: Improve socket handling for better server resilience
 ## 3.0.41
 - fix: bug in access control for otp put
 ## 3.0.40
