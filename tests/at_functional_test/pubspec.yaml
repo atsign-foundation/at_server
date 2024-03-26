@@ -1,8 +1,7 @@
 name: at_functional_test
-description: A starting point for Dart libraries or applications.
+description: functional tests for AtServer
 version: 1.0.0
 publish_to: none
-# homepage: https://www.example.com
 
 environment:
   sdk: '>=2.15.0 <4.0.0'
@@ -16,7 +15,7 @@ dependencies:
       ref: trunk
   at_chops: ^2.0.0
   at_lookup: ^3.0.45
-  at_commons: ^4.0.0
+  at_commons: ^4.0.5
   uuid: ^3.0.7
   elliptic: ^0.3.8
 
