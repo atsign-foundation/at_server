@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
@@ -18,9 +19,17 @@ class OutboundMessageListener {
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() async {
-    outboundClient.outboundConnection?.underlying.listen(_messageHandler,
-        onDone: _finishedHandler, onError: _errorHandler);
-    outboundClient.outboundConnection?.metaData.isListening = true;
+    logger.finest('Calling outbound underlying.listen within runZonedGuarded block');
+
+    runZonedGuarded(() {
+      outboundClient.outboundConnection?.underlying.listen(_messageHandler,
+          onDone: _finishedHandler, onError: _errorHandler);
+      outboundClient.outboundConnection?.metaData.isListening = true;
+    }, (Object error, StackTrace st) {
+      logger.warning(
+          'runZonedGuarded received error $error - calling _errorHandler to close connection');
+      _errorHandler(error, st);
+    });
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
@@ -115,7 +124,7 @@ class OutboundMessageListener {
   }
 
   /// Logs the error and closes the [OutboundClient]
-  void _errorHandler(error) async {
+  void _errorHandler(error, StackTrace st) async {
     logger.severe(error.toString());
     _closeOutboundClient();
   }
