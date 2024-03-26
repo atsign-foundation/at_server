@@ -92,8 +92,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           break;
 
         case 'list':
-          response.data =
-              await _fetchEnrollmentRequests(atConnection, currentAtSign);
+          response.data = await _fetchEnrollmentRequests(
+              atConnection, currentAtSign,
+              enrollVerbParams: enrollVerbParams);
           return;
       }
     } catch (e, stackTrace) {
@@ -313,7 +314,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Returns a Map where key is an enrollment key and value is a
   /// Map of "appName","deviceName" and "namespaces"
   Future<String> _fetchEnrollmentRequests(
-      AtConnection atConnection, String currentAtSign) async {
+      AtConnection atConnection, String currentAtSign,
+      {EnrollParams? enrollVerbParams}) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
@@ -322,7 +324,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
     if (enrollApprovalId == null || enrollApprovalId.isEmpty) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
       return jsonEncode(enrollmentRequestsMap);
     }
     // If connection is authenticated via APKAM, then enrollApprovalId is populated,
@@ -335,7 +338,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await getEnrollDataStoreValue(enrollmentKey);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
     } else {
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
@@ -344,7 +348,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
           'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }
@@ -352,18 +357,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _fetchAllEnrollments(List<String> enrollmentKeysList,
-      Map<String, Map<String, dynamic>> enrollmentRequestsMap) async {
+      Map<String, Map<String, dynamic>> enrollmentRequestsMap,
+      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+    enrollmentStatusFilter ??= EnrollmentStatus.values;
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      if (enrollDataStoreValue.approval!.state !=
-          EnrollmentStatus.expired.name) {
+      EnrollmentStatus enrollmentStatus =
+          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
+      if (enrollmentStatusFilter.contains(enrollmentStatus)) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
           'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }

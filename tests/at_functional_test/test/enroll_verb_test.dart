@@ -47,7 +47,7 @@ void main() {
           authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -318,8 +318,8 @@ void main() {
           'pixel-$randomNumber');
       expect(
           enrollListResponseMap[
-          '$enrollmentId.new.enrollments.__manage$firstAtSign']
-          ['namespace']['wavi'],
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['namespace']['wavi'],
           'rw');
       expect(
           enrollListResponseMap[
@@ -589,14 +589,15 @@ void main() {
   group('A group of negative tests on enroll verb', () {
     late String enrollmentId;
     late String enrollmentResponse;
+
     setUp(() async {
       await firstAtSignConnection.authenticateConnection();
       // Get TOTP from server
       String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
           .replaceFirst('data:', '')
           .trim();
-      // Close the connection and create a new connection and send an enrollment request on an
-      // unauthenticated connection.
+      // Close the connection and create a new connection and send an enrollment
+      // request on an unauthenticated connection.
       OutboundConnectionFactory unauthenticatedConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
@@ -608,6 +609,7 @@ void main() {
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       await unauthenticatedConnection.close();
     });
+
     test(
         'A test to verify error is returned when pending enrollment is revoked',
         () async {
@@ -884,6 +886,134 @@ void main() {
           int.parse(lastCommitIdAmongEnrolledNamespace) >=
               int.parse(commitIdOfLastEnrolledKey),
           true);
+    });
+  });
+
+  group('Group of tests to validate listing of enrollments', () {
+    List<String> enrollmentIds = [];
+
+    /// The setUpAll() will create five random enrollment requests and store each
+    /// of the enrollmentId's in [enrollmentIds]
+    ///
+    /// Each of the tests in this group will approve/deny/revoke a certain
+    /// enrollmentId present in [enrollmentIds] and will validate through
+    /// enroll:list using appropriate filter, such that the enrollment requests
+    /// with specified enrollment status are returned
+    setUpAll(() async {
+      // create five enrollment requests
+      for (int i = 0; i < 5; i++) {
+        await firstAtSignConnection.initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.authenticateConnection();
+        String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+        otp = otp.replaceFirst('data:', '');
+        await firstAtSignConnection.close();
+        // Close the connection and create a new connection and send an
+        // enrollment request on an unauthenticated connection.
+        await firstAtSignConnection.initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
+        String enrollRequest =
+            'enroll:request:{"appName":"test_app","deviceName":"test_device","namespaces":{"filter_test":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+        String enrollmentResponse =
+            await firstAtSignConnection.sendRequestToServer(enrollRequest);
+        enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+        String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+        enrollmentIds.add(enrollmentId.trim());
+        await firstAtSignConnection.close();
+      }
+    });
+
+    Map<String, dynamic> readServerResponseAndConvertToMap(String data) {
+      data = data.replaceFirst('data:', '');
+      return jsonDecode(data);
+    }
+
+    test('validate filtering of enrollment requests - case approved', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListApprovedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["approved"]}';
+
+      // approve first and second enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[0]}"}');
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[1]}"}');
+
+      // again, fetch approved enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListApprovedCommand));
+
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[0]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[1]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'approved');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case revoked', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListRevokedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["revoked"]}';
+
+      // approve and then revoke third enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}"}');
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
+
+      // again, fetch revoked enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListRevokedCommand));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[2]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'revoked');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case denied', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListDeniedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["denied"]}';
+
+      // deny fourth and fifth enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:deny:{"enrollmentId":"${enrollmentIds[3]}"}');
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:deny:{"enrollmentId":"${enrollmentIds[4]}"}');
+
+      // again, fetch denied enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListDeniedCommand));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[3]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[4]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'denied');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case pending', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListDeniedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["pending"]}';
+      // fetch pending enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListDeniedCommand));
+
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'pending');
+      });
     });
   });
 }
