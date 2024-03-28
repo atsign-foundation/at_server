@@ -55,7 +55,8 @@ class SecondaryServerBootStrapper {
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
       }, (error, StackTrace stackTrace) {
-        logger.shout('Uncaught error: $error ; StackTrace follows: $stackTrace');
+        logger.shout('Uncaught error: $error ;'
+            ' StackTrace follows: $stackTrace');
         if (error is SocketException) {
           logger.shout('Will not terminate server for $error');
         } else {

@@ -26,7 +26,8 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    logger.finest('Calling inbound underlying.listen within runZonedGuarded block');
+    logger.finest(
+        'Calling inbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
       connection.underlying.listen(_messageHandler,
