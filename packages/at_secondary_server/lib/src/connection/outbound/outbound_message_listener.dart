@@ -19,7 +19,8 @@ class OutboundMessageListener {
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() async {
-    logger.finest('Calling outbound underlying.listen within runZonedGuarded block');
+    logger.finest(
+        'Calling outbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
       outboundClient.outboundConnection?.underlying.listen(_messageHandler,
