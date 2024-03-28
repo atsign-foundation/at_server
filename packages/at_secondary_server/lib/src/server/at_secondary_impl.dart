@@ -644,8 +644,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    manager.scheduleKeyExpireTask(3,
-        skipCommits: skipCommitsForExpiredKeys);
+    manager.scheduleKeyExpireTask(3, skipCommits: skipCommitsForExpiredKeys);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
