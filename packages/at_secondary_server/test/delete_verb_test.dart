@@ -103,7 +103,6 @@ void main() {
     });
   });
 
-  // This  group of tests verifies that the protected keys CANNOT be deleted
   group('verify deletion of protected keys', () {
     late DeleteVerbHandler handler;
     setUp(() async {
@@ -133,7 +132,6 @@ void main() {
     test('verify deletion of encryption public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:${AtConstants.atEncryptionPublicKey}@alice';
-
       expect(
           () async => await handler.processInternal(command, inboundConnection),
           throwsA(
@@ -145,21 +143,37 @@ void main() {
     test('verify deletion of pkam public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:${AtConstants.atPkamPublicKey}';
-
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(
               predicate((exception) => exception is InvalidSyntaxException)));
     });
 
-    test('verify deletion of cached pkam public key', () async {
+    test('verify deletion of cached encryption public key', () async {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:cached:${AtConstants.atEncryptionPublicKey}@alice';
       Response response =
           await handler.processInternal(command, inboundConnection);
-
       // expected response.data is an integer
       // parsing data without exception should indicate that response is an int
+      expect(int.parse(response.data!).runtimeType, int);
+      expect(response.isError, false);
+    });
+
+    test('verify deletion of cached signing private key', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:cached:@alice:${AtConstants.atSigningPrivateKey}@alice';
+      Response response =
+          await handler.processInternal(command, inboundConnection);
+      expect(int.parse(response.data!).runtimeType, int);
+      expect(response.isError, false);
+    });
+
+    test('verify deletion of signing public key', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:cached:${AtConstants.atSigningPublicKey}@alice';
+      Response response =
+          await handler.processInternal(command, inboundConnection);
       expect(int.parse(response.data!).runtimeType, int);
       expect(response.isError, false);
     });
