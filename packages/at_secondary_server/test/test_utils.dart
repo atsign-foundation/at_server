@@ -40,7 +40,11 @@ class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
 
-class MockSocket extends Mock implements Socket {}
+class MockSocket extends Mock implements Socket {
+  Completer completer = Completer();
+  @override
+  Future get done => completer.future;
+}
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
