@@ -34,6 +34,13 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_server_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server
+      ref: gkc/change-atConnection-write-signature
+      path: packages/at_server_spec
+
 dev_dependencies:
   test: ^1.24.4
   coverage: ^1.6.1

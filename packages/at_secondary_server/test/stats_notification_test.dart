@@ -44,13 +44,13 @@ void main() {
         .thenAnswer((_) => 4);
 
     when(() => mockInboundConnection1.write(
-        any(that: startsWith('notification:')))).thenAnswer((invocation) {
+        any(that: startsWith('notification:')))).thenAnswer((invocation) async {
       inboundConn1Written = true;
     });
 
     when(() => mockInboundConnection2
             .write(any(that: startsWith('notification:'))))
-        .thenAnswer((Invocation invocation) {
+        .thenAnswer((Invocation invocation) async {
       inboundConn2Written = true;
     });
 

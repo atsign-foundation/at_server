@@ -36,7 +36,7 @@ abstract class BaseResponseHandler implements ResponseHandler {
       } else {
         responseMessage = getResponseMessage(result, prompt)!;
       }
-      connection.write(responseMessage);
+      await connection.write(responseMessage);
     } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
       await GlobalExceptionHandler.getInstance()

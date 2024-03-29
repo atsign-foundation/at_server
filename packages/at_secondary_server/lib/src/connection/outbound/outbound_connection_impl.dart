@@ -17,6 +17,11 @@ class OutboundConnectionImpl<T extends Socket>
       ..toAtSign = toAtSign
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
+
+    socket.done.onError((error, stackTrace) {
+      logger.info('socket.done.onError called with $error. Calling this.close()');
+      this.close();
+    });
   }
 
   int _getIdleTimeMillis() {
@@ -60,8 +65,8 @@ class OutboundConnectionImpl<T extends Socket>
   }
 
   @override
-  void write(String data) {
-    super.write(data);
+  Future<void> write(String data) async {
+    await super.write(data);
     logger.info(logger.getAtConnectionLogMessage(
         metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }

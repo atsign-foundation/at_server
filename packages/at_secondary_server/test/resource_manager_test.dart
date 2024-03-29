@@ -76,11 +76,11 @@ void main() async {
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      // Expecting that the atNotificationList[0] returned from the dequeue() is same as the notification we passed i.e., atNotificationid1.id
+      // Expecting that the atNotificationList[0] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[0].id, '121');
-      // Expecting that the atNotificationList[1] returned from the dequeue() is same as the notification we passed i.e., atNotificationid2.id
+      // Expecting that the atNotificationList[1] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[1].id, '122');
-      // Expecting that the atNotificationList[2] returned from the dequeue() is same as the notification we passed i.e., atNotificationid3.id
+      // Expecting that the atNotificationList[2] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[2].id, '123');
     }, timeout: Timeout(Duration(seconds: 10)));
   });

@@ -86,6 +86,11 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
     timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
     requestTimestampQueue = Queue();
+
+    socket.done.onError((error, stackTrace) {
+      logger.info('socket.done.onError called with $error. Calling this.close()');
+      this.close();
+    });
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -235,8 +240,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   }
 
   @override
-  void write(String data) {
-    super.write(data);
+  Future<void> write(String data) async {
+    await super.write(data);
     if (metaData is InboundConnectionMetadata) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
