@@ -132,6 +132,7 @@ class OutboundMessageListener {
 
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
+    logger.info('_finishedHandler called - closing connection');
     _closeOutboundClient();
   }
 

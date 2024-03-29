@@ -52,10 +52,12 @@ class OutboundConnectionImpl<T extends Socket>
 
     try {
       var socket = underlying;
-      var address = socket.remoteAddress;
-      var port = socket.remotePort;
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'destroying socket ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
       socket.destroy();
-      logger.finer('$address:$port Disconnected');
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;

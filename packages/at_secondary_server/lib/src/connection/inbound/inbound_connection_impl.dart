@@ -226,11 +226,12 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     }
 
     try {
-      var address = underlying.remoteAddress;
-      var port = underlying.remotePort;
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'destroying socket ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
       underlying.destroy();
-      logger.finer(logger.getAtConnectionLogMessage(
-          metaData, '$address:$port Disconnected'));
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
