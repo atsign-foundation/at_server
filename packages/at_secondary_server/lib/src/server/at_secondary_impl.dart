@@ -442,7 +442,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
   void _listen(var serverSocket) {
-    logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
+    logger.info('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
