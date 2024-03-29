@@ -5,9 +5,10 @@ abstract class AtConnection<T> {
   /// Gets the connection metadata
   AtConnectionMetaData get metaData;
 
-  /// Write some [data] to the [underlying] connection.
-  /// Throws [AtIOException] for any exception during the operation
-  void write(String data);
+  /// Write some [data] to the [underlying] connection,
+  /// and call underlying.flush or equivalent to ensure that
+  /// exceptions can be thrown directly to the calling code
+  Future<void> write(String data);
 
   /// closes the underlying connection
   Future<void> close();
