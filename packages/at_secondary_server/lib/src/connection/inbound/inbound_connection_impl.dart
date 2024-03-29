@@ -87,6 +87,12 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
     requestTimestampQueue = Queue();
 
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData, 'New connection ('
+        'this side: ${underlying.address}:${underlying.port}'
+        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+        ')'));
+
     socket.done.onError((error, stackTrace) {
       logger.info('socket.done.onError called with $error. Calling this.close()');
       this.close();
