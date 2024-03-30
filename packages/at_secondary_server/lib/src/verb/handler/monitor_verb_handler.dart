@@ -177,8 +177,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           (notification.notification!.contains(RegExp(regex)) ||
               (notification.fromAtSign != null &&
                   notification.fromAtSign!.contains(RegExp(regex))))) {
-        atConnection
-            .write('notification: ${jsonEncode(notification.toJson())}\n');
+        await atConnection.write('notification:'
+            ' ${jsonEncode(notification.toJson())}\n');
       }
     } on FormatException {
       logger.severe('Invalid regular expression : $regex');

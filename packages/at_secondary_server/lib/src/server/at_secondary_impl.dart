@@ -352,8 +352,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> initDynamicConfigListeners() async {
     //only works if testingMode is set to true
     if (AtSecondaryConfig.testingMode) {
-      logger.warning(
-          'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
+      logger.warning('testingMode in config.yaml is set to true.'
+          ' Please set to false if not required.');
 
       //subscriber for inbound_max_limit change
       logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
@@ -442,7 +442,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
   void _listen(var serverSocket) {
-    logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
+    logger.info('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) {
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
@@ -459,8 +459,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .handle(e, atConnection: connection, clientSocket: clientSocket);
       }
     }), onError: (error) {
-      // We've got no action to take here, let's just log a warning
-      logger.warning("ServerSocket.listen called onError with '$error'");
+      // We've got no action to take here, let's just log a message
+      logger.info("ServerSocket.listen called onError with '$error'");
     });
   }
 

@@ -40,7 +40,19 @@ class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
 
-class MockSocket extends Mock implements Socket {}
+class MockSocket extends Mock implements Socket {
+  Completer completer = Completer();
+  @override
+  Future get done => completer.future;
+  @override
+  InternetAddress get remoteAddress => InternetAddress('127.0.0.1');
+  @override
+  int get remotePort => 9999;
+  @override
+  InternetAddress get address => InternetAddress('127.0.0.1');
+  @override
+  int get port => 5555;
+}
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
