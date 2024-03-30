@@ -40,8 +40,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
     var response = await processInternal(command, atConnection);
-    var handler = responseManager.getResponseHandler(getVerb());
-    await handler.process(atConnection, response);
+    var responseHandler = responseManager.getResponseHandler(getVerb());
+    await responseHandler.process(atConnection, response);
   }
 
   Future<Response> processInternal(
