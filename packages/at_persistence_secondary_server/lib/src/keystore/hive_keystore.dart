@@ -15,6 +15,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
+  static const int maxKeyLength = 255;
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
@@ -41,6 +42,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @Deprecated("Use [initialize]")
+
   /// Deprecated. Use [initialize]
   Future<void> init() async {
     await initialize();
@@ -167,6 +169,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
+        if (hive_key.length > maxKeyLength) {
+          throw DataStoreException(
+              'key length ${hive_key.length} is greater than $maxKeyLength chars');
+        }
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingAtData: existingData!,
             ttl: time_to_live,
@@ -237,6 +243,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
+    if (hive_key.length > maxKeyLength) {
+      throw DataStoreException(
+          'key length ${hive_key.length} is greater than $maxKeyLength chars');
+    }
     var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(value!,
         atSign: persistenceManager?.atsign,
         ttl: time_to_live,
@@ -450,6 +460,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       int? result;
       String hive_key = keyStoreHelper.prepareKey(key);
+      if (hive_key.length > maxKeyLength) {
+        throw DataStoreException(
+            'key length ${hive_key.length} is greater than $maxKeyLength chars');
+      }
       AtData? existingData;
       if (isKeyExists(key)) {
         existingData = await get(key);

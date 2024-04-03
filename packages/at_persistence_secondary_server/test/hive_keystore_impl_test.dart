@@ -291,6 +291,88 @@ void main() async {
       await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
     });
+
+    test('test put max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbdwbdywebwydbwrr@test_user_1';
+      await expectLater(
+          keyStore.put(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test put key length 255 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeee@test_user_1';
+      var result = await keyStore.put(key, atData);
+      expect(result >= 0, true);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
+
+    test('test create max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbdwbdywebwydbwrr@test_user_1';
+      await expectLater(
+          keyStore.create(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test create key length 255 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeee@test_user_1';
+      var result = await keyStore.create(key, atData);
+      expect(result >= 0, true);
+    });
+    test('test putAll max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbdwbdywebwydbwrr@test_user_1';
+      await expectLater(
+          keyStore.putAll(key, atData, AtMetaData()),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test putAll key length 255 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeee@test_user_1';
+      var result = await keyStore.putAll(key, atData, AtMetaData());
+      expect(result, isNotNull);
+      expect(result! >= 0, true);
+    });
     tearDown(() async => await tearDownFunc(atSign));
   });
 
