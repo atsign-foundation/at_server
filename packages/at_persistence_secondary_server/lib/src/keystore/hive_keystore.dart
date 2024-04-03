@@ -15,7 +15,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
-  static const int maxKeyLength = 255;
+  final int _maxKeyLength = 255;
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
@@ -169,9 +169,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       } else {
         AtData? existingData = await get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
-        if (hive_key.length > maxKeyLength) {
+        if (hive_key.length > _maxKeyLength) {
           throw DataStoreException(
-              'key length ${hive_key.length} is greater than $maxKeyLength chars');
+              'key length ${hive_key.length} is greater than $_maxKeyLength chars');
         }
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingAtData: existingData!,
@@ -243,9 +243,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
     CommitOp commitOp;
     String hive_key = keyStoreHelper.prepareKey(key);
-    if (hive_key.length > maxKeyLength) {
+    if (hive_key.length > _maxKeyLength) {
       throw DataStoreException(
-          'key length ${hive_key.length} is greater than $maxKeyLength chars');
+          'key length ${hive_key.length} is greater than $_maxKeyLength chars');
     }
     var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(value!,
         atSign: persistenceManager?.atsign,
@@ -460,9 +460,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     try {
       int? result;
       String hive_key = keyStoreHelper.prepareKey(key);
-      if (hive_key.length > maxKeyLength) {
+      if (hive_key.length > _maxKeyLength) {
         throw DataStoreException(
-            'key length ${hive_key.length} is greater than $maxKeyLength chars');
+            'key length ${hive_key.length} is greater than $_maxKeyLength chars');
       }
       AtData? existingData;
       if (isKeyExists(key)) {

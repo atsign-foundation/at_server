@@ -136,6 +136,22 @@ void main() async {
       var expiredKeys = await keyStore.getExpiredKeys();
       expect(0, expiredKeys.length);
     });
+    test('test hive key exceeds max allowed chars', () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var atNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..id = '123')
+          .build();
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbdwbdywebwydbwrr@alice';
+      await expectLater(
+          keyStore.put(key, atNotification),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than 255 chars")));
+    });
   });
   try {
     tearDown(() async => await tearDownFunc());

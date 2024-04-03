@@ -305,7 +305,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${key.length} is greater than 255 chars")));
     });
     test('test put key length 255 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -333,7 +333,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${key.length} is greater than 255 chars")));
     });
     test('test create key length 255 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -359,7 +359,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${key.length} is greater than 255 chars")));
     });
     test('test putAll key length 255 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
