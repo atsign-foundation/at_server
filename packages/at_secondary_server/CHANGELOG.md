@@ -1,8 +1,12 @@
 ## 3.0.42
-- feat: allow filtering of requests in EnrollVerbHandler using enrollment approval status
+- feat: allow filtering of requests in EnrollVerbHandler using enrollment
+  approval status
 - feat: authorization changes for keys with no namespace and for reserved keys
 - build(deps): dependabot changes
 - fix: Improve socket handling for better server resilience
+- fix: Ensure cached keys like 'cached:public:publicKey' are not considered 
+  protected keys and can thus be deleted
+
 ## 3.0.41
 - fix: bug in access control for otp put
 ## 3.0.40
