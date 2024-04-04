@@ -26,7 +26,8 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    logger.finest('Calling inbound underlying.listen within runZonedGuarded block');
+    logger.finest(
+        'Calling inbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
       connection.underlying.listen(_messageHandler,
@@ -105,13 +106,12 @@ class InboundMessageListener {
 
   /// Closes the [InboundConnection]
   Future<void> _finishedHandler() async {
+    logger.info('_finishedHandler called - closing connection');
     await _closeConnection();
   }
 
   Future<void> _closeConnection() async {
-    if (!connection.isInValid()) {
-      await connection.close();
-    }
+    await connection.close();
     // Removes the connection from the InboundConnectionPool.
     InboundConnectionPool.getInstance().remove(connection);
   }

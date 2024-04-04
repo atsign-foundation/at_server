@@ -1,3 +1,8 @@
+## 5.0.0
+
+- fix: BREAKING: Change signature of AtConnection.write
+  from `void write(String data)` to `Future<void> write(String data)`
+
 ## 4.0.1
 
 - docs: updated CHANGELOG

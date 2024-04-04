@@ -86,6 +86,17 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
     timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
     requestTimestampQueue = Queue();
+
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData, 'New connection ('
+        'this side: ${underlying.address}:${underlying.port}'
+        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+        ')'));
+
+    socket.done.onError((error, stackTrace) {
+      logger.info('socket.done.onError called with $error. Calling this.close()');
+      this.close();
+    });
   }
 
   /// Returns true if the underlying socket is not null and socket's remote address and port match.
@@ -221,11 +232,12 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     }
 
     try {
-      var address = underlying.remoteAddress;
-      var port = underlying.remotePort;
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'destroying socket ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
       underlying.destroy();
-      logger.finer(logger.getAtConnectionLogMessage(
-          metaData, '$address:$port Disconnected'));
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
@@ -235,8 +247,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   }
 
   @override
-  void write(String data) {
-    super.write(data);
+  Future<void> write(String data) async {
+    await super.write(data);
     if (metaData is InboundConnectionMetadata) {
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));

@@ -264,7 +264,8 @@ void main() {
         EnrollmentStatus.denied.name,
       ];
 
-      List<String> enrollmentKeys = []; // will be used to store newly created enrollment keys
+      // will be used to store newly created enrollment keys
+      List<String> enrollmentKeys = [];
       Map<String, EnrollDataStoreValue> enrollmentData = {};
       // create 10 random enrollments and store them into keystore
       for (int i = 0; i < 10; i++) {
@@ -321,7 +322,7 @@ void main() {
 
       command = 'enroll:list'; // run enroll list without filter
       Response listAllResponse =
-      await enrollVerb.processInternal(command, inboundConnection);
+          await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(listAllResponse.data!);
       expect(fetchedEnrollments.length, 10);
     });
@@ -339,13 +340,16 @@ void main() {
           throwsA(predicate((e) => e is ArgumentError)));
     });
 
-    test('verify verb params being populated with correct enrollmentStatusFilter', (){
+    test(
+        'verify verb params being populated with correct enrollmentStatusFilter',
+        () {
       inboundConnection.metadata.isAuthenticated = true;
 
       String approvalStatus = 'approved';
       String command =
           'enroll:list:{"enrollmentStatusFilter":["$approvalStatus"]}';
-      Map<String, String?> verbParams = getVerbParam(VerbSyntax.enroll, command);
+      Map<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, command);
       var enrollParams = jsonDecode(verbParams['enrollParams']!);
       expect(enrollParams['enrollmentStatusFilter'], [approvalStatus]);
     });
