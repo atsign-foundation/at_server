@@ -4,6 +4,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   setUp(() async => await setUpFunc(storageDir));
@@ -143,8 +145,7 @@ void main() async {
             ..fromAtSign = '@alice'
             ..id = '123')
           .build();
-      var key =
-          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbdwbdywebwydbwrr@alice';
+      var key = '${TestUtils.generateRandomString(245)}@alice';
       await expectLater(
           keyStore.put(key, atNotification),
           throwsA(predicate((dynamic e) =>
