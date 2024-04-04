@@ -459,6 +459,30 @@ void main() {
       expect(atNotification?.notification, '@bob:hello');
       expect(atNotification?.type, NotificationType.sent);
     });
+    test('test for max key length check', () async {
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      var notifyVerb = NotifyVerbHandler(keyStore);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isPolAuthenticated = true
+        ..fromAtSign = '@bob';
+      var notifyResponse = Response();
+      var notifyVerbParams = HashMap<String, String>();
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@alice');
+      var key =
+          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeeeeddddddd';
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => key);
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.ttr, () => '100');
+      expect(
+          () async => await notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'notification key length ${'cached:'.length + '@bob:'.length + key.length + '@alice'.length} is greater than 255 chars')));
+    });
     tearDown(() async => await tearDownFunc());
   });
 

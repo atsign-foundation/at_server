@@ -18,6 +18,7 @@ import 'package:at_utils/at_utils.dart';
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   late final NotificationManager notificationManager;
+  final int maxKeyLength = 255;
 
   AbstractUpdateVerbHandler(
       SecondaryKeyStore keyStore,
@@ -117,6 +118,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         sharedBy != null &&
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
       atKey = 'cached:$atKey';
+    }
+
+    if (atKey.length > maxKeyLength) {
+      throw InvalidAtKeyException(
+          'key length ${atKey.length} is greater than $maxKeyLength chars');
     }
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);

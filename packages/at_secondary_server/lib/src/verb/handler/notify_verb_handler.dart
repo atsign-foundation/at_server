@@ -21,6 +21,7 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
+  final int maxKeyLength = 255;
 
   NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -134,6 +135,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // form a cached key
     String cachedNotificationKey =
         '${AtConstants.cached}:${atNotificationBuilder.notification}';
+    if (cachedNotificationKey.length > maxKeyLength) {
+      throw InvalidAtKeyException(
+          'notification key length ${cachedNotificationKey.length} is greater than $maxKeyLength chars');
+    }
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
