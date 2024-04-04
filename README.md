@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml/badge.svg?branch=trunk)](https://github.com/atsign-foundation/at_server/actions/workflows/at_server.yaml)
 [![GitHub License](https://img.shields.io/badge/license-BSD3-blue.svg)](./LICENSE)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)](https://securityscorecards.dev/viewer/?uri=github.com/atsign-foundation/at_server&sort_by=check-score&sort_direction=desc)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6713/badge)](https://www.bestpractices.dev/projects/6713)
 
 # at_server
