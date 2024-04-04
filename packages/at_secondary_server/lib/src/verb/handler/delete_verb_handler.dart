@@ -69,7 +69,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign);
     // check to see if a key is protected. Cannot delete key if it's protected
-    if (_isProtectedKey(deleteKey!)) {
+    if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
           'Cannot delete protected key: \'$deleteKey\'');
     }
@@ -175,8 +175,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     return protectedKeys;
   }
 
-  bool _isProtectedKey(String key) {
-    if (protectedKeys!.contains(key)) {
+  bool _isProtectedKey(String key, {String? isCached}) {
+    isCached ??= 'false';
+    if (protectedKeys!.contains(key) && isCached == 'false') {
       logger.severe('Cannot delete key. \'$key\' is a protected key');
       return true;
     }

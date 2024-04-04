@@ -37,12 +37,13 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
   T get underlying => _socket;
 
   @override
-  void write(String data) {
+  Future<void> write(String data) async {
     if (isInValid()) {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
       underlying.write(data);
+      await underlying.flush();
       metaData.lastAccessed = DateTime.now().toUtc();
     } on Exception catch (e) {
       metaData.isStale = true;

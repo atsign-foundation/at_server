@@ -177,7 +177,7 @@ class OutboundClient {
     }
     try {
       //1. create from request
-      outboundConnection!.write(AtRequestFormatter.createFromRequest(
+      await outboundConnection!.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof
@@ -200,7 +200,7 @@ class OutboundClient {
       }
 
       //4. Create pol request
-      outboundConnection!.write(AtRequestFormatter.createPolRequest());
+      await outboundConnection!.write(AtRequestFormatter.createPolRequest());
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
@@ -242,7 +242,7 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
-      outboundConnection!.write(lookUpRequest);
+      await outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
       throw LookupException(
@@ -271,7 +271,7 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
-      outboundConnection!.write(scanRequest);
+      await outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
       throw LookupException(
@@ -326,7 +326,7 @@ class OutboundClient {
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
-      outboundConnection!.write(notificationRequest);
+      await outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
       throw LookupException(
