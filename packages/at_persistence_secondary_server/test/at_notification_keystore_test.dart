@@ -150,7 +150,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than 255 chars")));
+                  "key length ${key.length} is greater than ${AtNotificationKeystore.maxKeyLengthWithoutCached} chars")));
     });
   });
   try {
