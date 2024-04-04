@@ -4,6 +4,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   setUp(() async => await setUpFunc(storageDir));
@@ -135,6 +137,21 @@ void main() async {
       await keyStore.put(atNotification_3.id, atNotification_3);
       var expiredKeys = await keyStore.getExpiredKeys();
       expect(0, expiredKeys.length);
+    });
+    test('test hive key exceeds max allowed chars', () async {
+      var keyStore = AtNotificationKeystore.getInstance();
+      var atNotification = (AtNotificationBuilder()
+            ..toAtSign = '@bob'
+            ..fromAtSign = '@alice'
+            ..id = '123')
+          .build();
+      var key = '${TestUtils.generateRandomString(245)}@alice';
+      await expectLater(
+          keyStore.put(key, atNotification),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than ${AtNotificationKeystore.maxKeyLengthWithoutCached} chars")));
     });
   });
   try {
