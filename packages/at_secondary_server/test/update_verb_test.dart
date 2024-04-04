@@ -775,8 +775,7 @@ void main() {
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => '@alice');
-      var key =
-          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeeeeddddddd';
+      var key = createRandomString(250);
       updateVerbParams.putIfAbsent('atKey', () => key);
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       expect(
@@ -785,7 +784,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'key length ${key.length + '@alice'.length} is greater than 255 chars')));
+                  'key length ${key.length + '@alice'.length} is greater than max allowed ${AbstractUpdateVerbHandler.maxKeyLengthWithoutCached} chars')));
     });
   });
 

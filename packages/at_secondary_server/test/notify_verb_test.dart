@@ -459,7 +459,7 @@ void main() {
       expect(atNotification?.notification, '@bob:hello');
       expect(atNotification?.type, NotificationType.sent);
     });
-    test('test for max key length check', () async {
+    test('test for max key length check for cached key', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
       var notifyVerb = NotifyVerbHandler(keyStore);
@@ -470,8 +470,7 @@ void main() {
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@alice');
-      var key =
-          'iujpsefqvdzmtqthrqbaxqszxokaiutvpnbcphcjvjghpdxzdwywfsaowruwafmcudeoarfhuncezjkwbdvprcbujeptisxkjtztxogqqrrnjpqrdsjmcrpmpusrkzaksdfleyzsuarjhsqvxwicxulzqjzcwwjaupxzoqfwenkfonwhxtmwamiyzqqoesnreknrzwxazvykbybafrlwgqsyreudprnakoioqiwoqiwqdebbeeeeddddddd';
+      var key = createRandomString(250);
       notifyVerbParams.putIfAbsent(AtConstants.atKey, () => key);
       notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@bob');
       notifyVerbParams.putIfAbsent(AtConstants.ttr, () => '100');

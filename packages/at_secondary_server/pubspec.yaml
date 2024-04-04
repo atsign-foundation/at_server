@@ -34,12 +34,13 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+#TODO replace with published version
 dependency_overrides:
   at_persistence_secondary_server:
     git:
       url: https://github.com/atsign-foundation/at_server
       path: packages/at_persistence_secondary_server
-      ref: hive_max_length_bug
+      ref: trunk
 
 dev_dependencies:
   test: ^1.24.4
