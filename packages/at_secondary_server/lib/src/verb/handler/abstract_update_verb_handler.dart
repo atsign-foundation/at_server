@@ -18,6 +18,8 @@ import 'package:at_utils/at_utils.dart';
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   late final NotificationManager notificationManager;
+  static const int maxKeyLength = 255;
+  static const int maxKeyLengthWithoutCached = 248;
 
   AbstractUpdateVerbHandler(
       SecondaryKeyStore keyStore,
@@ -118,6 +120,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
       atKey = 'cached:$atKey';
     }
+
+    _checkMaxLength(atKey);
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
@@ -250,6 +254,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       }
     });
     return AtMetaData.fromJson(atMetaDataJson);
+  }
+
+  /// Certain keys created on one atsign server may be cached in another atsign server.
+  /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
+  void _checkMaxLength(String key) {
+    int maxLength =
+        key.startsWith('cached:') ? maxKeyLength : maxKeyLengthWithoutCached;
+    if (key.length > maxLength) {
+      throw InvalidAtKeyException(
+        'key length ${key.length} is greater than max allowed $maxLength chars',
+      );
+    }
   }
 }
 

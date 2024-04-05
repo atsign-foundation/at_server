@@ -765,6 +765,27 @@ void main() {
       expect(autoNotification.expiresAt!.millisecondsSinceEpoch,
           closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
     });
+
+    test('test max key length check', () async {
+      var inBoundSessionId = 'testsessionid';
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      var updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      atConnection.metaData.isAuthenticated = true;
+      var updateResponse = Response();
+      var updateVerbParams = HashMap<String, String>();
+      updateVerbParams.putIfAbsent('atSign', () => '@alice');
+      var key = createRandomString(250);
+      updateVerbParams.putIfAbsent('atKey', () => key);
+      updateVerbParams.putIfAbsent('value', () => 'hyderabad');
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              updateResponse, updateVerbParams, atConnection),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'key length ${key.length + '@alice'.length} is greater than max allowed ${AbstractUpdateVerbHandler.maxKeyLengthWithoutCached} chars')));
+    });
   });
 
   group('update verb tests with metadata', () {
