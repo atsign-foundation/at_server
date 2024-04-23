@@ -90,7 +90,6 @@ void main() {
       // Wait for a second
       await Future.delayed(Duration(seconds: 1));
 
-      List<String> receivedNotificationIds = [];
       // verify atsign2 receives all notifications ~immediately
       for (int i = 1; i <= numNotifications; i++) {
         print('/nWaiting for notification $i');
@@ -99,10 +98,10 @@ void main() {
         print('Notification number $i: $subsequentNotification');
         final notifJson = jsonDecode(
             subsequentNotification.replaceFirst('notification: ', ''));
-        receivedNotificationIds.add(notifJson['id']);
-      }
 
-      expect(receivedNotificationIds.length, sentNotificationIds.length);
+        expect(sentNotificationIds, contains(notifJson['id']));
+        sentNotificationIds.remove(notifJson['id']);
+      }
     } finally {
       notifySH.close();
       monitorSH.close();
