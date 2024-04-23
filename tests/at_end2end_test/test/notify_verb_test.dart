@@ -89,7 +89,7 @@ void main() {
     for (int i = 1; i <= numNotifications; i++) {
       print ('/nWaiting for notification $i');
       String subsequentNotification = await monitorSH.read(
-          log: true, timeoutMillis: 10000, throwTimeoutException: true);
+          log: true, timeoutMillis: 1000, throwTimeoutException: true);
       print('Notification number $i: $subsequentNotification');
       final notifJson = jsonDecode(
           subsequentNotification.replaceFirst('notification: ', ''));
