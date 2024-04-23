@@ -51,7 +51,7 @@ void main() {
     monitorSH = await e2e.getSocketHandler(atSign_2);
 
     try {
-      var atServerVersion = Version.parse(await sh1.getVersion());
+      var atServerVersion = Version.parse(await monitorSH.getVersion());
       if (atServerVersion < Version(3, 0, 43)) {
         print ('\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
         return;
