@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_utils/at_utils.dart';
@@ -82,7 +83,7 @@ void main() async {
       expect(poolInstance.getCurrentSize(), 1);
     });
 
-    test('test connection pool - clear idle connection', () {
+    test('test connection pool - clear idle connection', () async {
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(10);
       var connection1 = MockInboundConnectionImpl(mockSocket, 'aaa');
@@ -95,7 +96,7 @@ void main() async {
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.9)
                   .floor()));
-      connection2.write('test data');
+      await connection2.write('test data');
       expect(poolInstance.getCurrentSize(), 3);
       sleep(Duration(
           milliseconds:
@@ -112,12 +113,12 @@ void main() async {
     });
 
     /// Verify that, at lowWaterMark, allowable idle time is still as configured by inboundIdleTimeMillis
-    test('test connection pool - at lowWaterMark - clear idle connection', () {
+    test('test connection pool - at lowWaterMark - clear idle connection', () async {
       int maxPoolSize = 10;
 
       var poolInstance = InboundConnectionPool.getInstance();
       poolInstance.init(maxPoolSize);
-      var connections = [];
+      List<AtConnection> connections = [];
 
       int lowWaterMark =
           (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio)
@@ -134,7 +135,7 @@ void main() async {
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.9)
                   .floor()));
 
-      connections[1].write('test data');
+      await connections[1].write('test data');
       expect(poolInstance.getCurrentSize(), lowWaterMark);
       sleep(Duration(
           milliseconds:
@@ -157,7 +158,7 @@ void main() async {
     /// - Wait until we pass the currently allowable idle time for 'authenticated'
     /// - Verify that the number of connections in the pool is now 3, since only
     ///   the 3 that we wrote to earlier are still not 'idle'
-    test('test connection pool - 90% capacity - clear idle connection', () {
+    test('test connection pool - 90% capacity - clear idle connection', () async {
       int maxPoolSize = 100; // Please don't change this
 
       var poolInstance = InboundConnectionPool.getInstance();
@@ -207,10 +208,10 @@ void main() async {
       int numUnAuthToWriteTo = 10;
       // Let's write to a few authenticated connections, and some more unauthenticated connections
       for (int i = 0; i < numAuthToWriteTo; i++) {
-        connections[i * 2].write('test data'); // evens are authenticated
+        await connections[i * 2].write('test data'); // evens are authenticated
       }
       for (int i = 0; i < numUnAuthToWriteTo; i++) {
-        connections[i * 2 + 1].write('test data'); // odds are not authenticated
+        await connections[i * 2 + 1].write('test data'); // odds are not authenticated
       }
 
       expect(poolInstance.getCurrentSize(), desiredPoolSize);

@@ -90,7 +90,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     // If enrollmentId is null, then connection is authenticated via PKAM
     if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId ==
         null) {
-      _sendLegacyNotification(notification);
+      await _sendLegacyNotification(notification);
     } else {
       // If enrollmentId is populated, then connection is authenticated via APKAM
       await _sendNotificationByEnrollmentNamespaceAccess(notification);
@@ -101,7 +101,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   ///    - Writes all the notifications on the connection.
   ///    - Optionally, if regex is supplied, write only the notifications that
   ///      matches the pattern.
-  void _sendLegacyNotification(Notification notification) {
+  Future<void> _sendLegacyNotification(Notification notification) async {
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
       fromAtSign = fromAtSign.replaceAll('@', '');
@@ -110,8 +110,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       // If the user does not provide regex, defaults to ".*" to match all notifications.
       if (notification.notification!.contains(RegExp(regex)) ||
           (fromAtSign != null && fromAtSign.contains(RegExp(regex)))) {
-        atConnection
-            .write('notification: ${jsonEncode(notification.toJson())}\n');
+        await atConnection.write('notification:'
+            ' ${jsonEncode(notification.toJson())}\n');
       }
     } on FormatException {
       logger.severe('Invalid regular expression : $regex');
