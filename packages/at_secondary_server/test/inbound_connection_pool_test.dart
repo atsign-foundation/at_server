@@ -113,7 +113,8 @@ void main() async {
     });
 
     /// Verify that, at lowWaterMark, allowable idle time is still as configured by inboundIdleTimeMillis
-    test('test connection pool - at lowWaterMark - clear idle connection', () async {
+    test('test connection pool - at lowWaterMark - clear idle connection',
+        () async {
       int maxPoolSize = 10;
 
       var poolInstance = InboundConnectionPool.getInstance();
@@ -158,7 +159,8 @@ void main() async {
     /// - Wait until we pass the currently allowable idle time for 'authenticated'
     /// - Verify that the number of connections in the pool is now 3, since only
     ///   the 3 that we wrote to earlier are still not 'idle'
-    test('test connection pool - 90% capacity - clear idle connection', () async {
+    test('test connection pool - 90% capacity - clear idle connection',
+        () async {
       int maxPoolSize = 100; // Please don't change this
 
       var poolInstance = InboundConnectionPool.getInstance();
@@ -211,7 +213,8 @@ void main() async {
         await connections[i * 2].write('test data'); // evens are authenticated
       }
       for (int i = 0; i < numUnAuthToWriteTo; i++) {
-        await connections[i * 2 + 1].write('test data'); // odds are not authenticated
+        await connections[i * 2 + 1]
+            .write('test data'); // odds are not authenticated
       }
 
       expect(poolInstance.getCurrentSize(), desiredPoolSize);

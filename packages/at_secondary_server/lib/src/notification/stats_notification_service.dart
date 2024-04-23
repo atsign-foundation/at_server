@@ -133,7 +133,8 @@ class StatsNotificationService {
   }
 
   /// Writes the lastCommitID to all Monitor connections
-  Future<void> writeStatsToMonitor({String? latestCommitID, String? operationType}) async {
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
     try {
       latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
       // Gets the list of active connections.
