@@ -19,13 +19,15 @@ class OutboundConnectionImpl<T extends Socket>
       ..isCreated = true;
 
     logger.info(logger.getAtConnectionLogMessage(
-        metaData, 'New connection ('
+        metaData,
+        'New connection ('
         'this side: ${underlying.address}:${underlying.port}'
         ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
         ')'));
 
     socket.done.onError((error, stackTrace) {
-      logger.info('socket.done.onError called with $error. Calling this.close()');
+      logger
+          .info('socket.done.onError called with $error. Calling this.close()');
       this.close();
     });
   }
@@ -59,7 +61,8 @@ class OutboundConnectionImpl<T extends Socket>
     try {
       var socket = underlying;
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'destroying socket ('
+          metaData,
+          'destroying socket ('
           'this side: ${underlying.address}:${underlying.port}'
           ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
           ')'));

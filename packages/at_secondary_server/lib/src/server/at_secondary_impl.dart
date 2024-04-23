@@ -443,7 +443,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// @param - ServerSocket
   void _listen(var serverSocket) {
     logger.info('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(((clientSocket) {
+    serverSocket.listen(((clientSocket) async {
       var sessionID = '_${Uuid().v4()}';
       InboundConnection? connection;
       try {
@@ -453,9 +453,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         connection = inBoundConnectionManager
             .createSocketConnection(clientSocket, sessionId: sessionID);
         connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-        connection.write('@');
+        await connection.write('@');
       } on InboundConnectionLimitException catch (e) {
-        GlobalExceptionHandler.getInstance()
+        await GlobalExceptionHandler.getInstance()
             .handle(e, atConnection: connection, clientSocket: clientSocket);
       }
     }), onError: (error) {

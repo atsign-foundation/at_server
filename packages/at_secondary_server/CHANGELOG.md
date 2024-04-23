@@ -1,3 +1,6 @@
+## 3.0.43
+- fix: ensure all connection writes are awaited
+
 ## 3.0.42
 - feat: allow filtering of requests in EnrollVerbHandler using enrollment
   approval status

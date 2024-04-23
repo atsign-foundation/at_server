@@ -26,7 +26,11 @@ class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 class MockNotificationManager extends Mock implements NotificationManager {}
 
 class MockStatsNotificationService extends Mock
-    implements StatsNotificationService {}
+    implements StatsNotificationService {
+  @override
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {}
+}
 
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
@@ -234,8 +238,6 @@ verbTestsSetUp() async {
       .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
-  when(() => statsNotificationService.writeStatsToMonitor())
-      .thenAnswer((invocation) {});
 }
 
 Future<void> verbTestsTearDown() async {

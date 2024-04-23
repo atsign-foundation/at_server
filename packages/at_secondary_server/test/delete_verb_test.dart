@@ -162,7 +162,8 @@ void main() {
 
     test('verify deletion of cached signing private key', () async {
       inboundConnection.metadata.isAuthenticated = true;
-      var command = 'delete:cached:@alice:${AtConstants.atSigningPrivateKey}@alice';
+      var command =
+          'delete:cached:@alice:${AtConstants.atSigningPrivateKey}@alice';
       Response response =
           await handler.processInternal(command, inboundConnection);
       expect(int.parse(response.data!).runtimeType, int);

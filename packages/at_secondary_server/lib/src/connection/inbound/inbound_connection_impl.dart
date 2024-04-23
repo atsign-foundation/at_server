@@ -88,13 +88,15 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     requestTimestampQueue = Queue();
 
     logger.info(logger.getAtConnectionLogMessage(
-        metaData, 'New connection ('
+        metaData,
+        'New connection ('
         'this side: ${underlying.address}:${underlying.port}'
         ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
         ')'));
 
     socket.done.onError((error, stackTrace) {
-      logger.info('socket.done.onError called with $error. Calling this.close()');
+      logger
+          .info('socket.done.onError called with $error. Calling this.close()');
       this.close();
     });
   }
@@ -233,7 +235,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
     try {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'destroying socket ('
+          metaData,
+          'destroying socket ('
           'this side: ${underlying.address}:${underlying.port}'
           ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
           ')'));
