@@ -1,3 +1,8 @@
+## 5.0.1
+- fix: Modify the Otp verb in at_server_spec so that it also returns true from 
+  requiresAuth (for consistency and clarity only, as the otp verb handler 
+  has its own check for authentication)
+
 ## 5.0.0
 
 - fix: BREAKING: Change signature of AtConnection.write
