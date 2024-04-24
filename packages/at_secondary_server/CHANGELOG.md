@@ -1,3 +1,6 @@
+## 3.0.44
+fix: otp authentication check
+
 ## 3.0.43
 - fix: ensure all connection writes are awaited
 
