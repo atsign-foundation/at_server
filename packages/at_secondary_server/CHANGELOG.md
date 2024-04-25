@@ -1,3 +1,10 @@
+## 3.0.44
+
+- fix: otp authentication check
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.6
+  - at_server_spec to v5.0.1
+
 ## 3.0.43
 - fix: ensure all connection writes are awaited
 
