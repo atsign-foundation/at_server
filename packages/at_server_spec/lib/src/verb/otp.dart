@@ -23,6 +23,6 @@ class Otp extends Verb {
 
   @override
   bool requiresAuth() {
-    return false;
+    return true;
   }
 }

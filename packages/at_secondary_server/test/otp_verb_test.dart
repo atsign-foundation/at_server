@@ -18,6 +18,39 @@ void main() {
       await verbTestsSetUp();
     });
 
+    test('Verify that otp:get requires authentication', () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = false;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      expect(
+          otpVerbHandler.processVerb(
+              response,
+              getVerbParam(VerbSyntax.otp, 'otp:get'),
+              inboundConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
+    });
+    test('Verify that otp:get with ttl requires authentication', () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = false;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      expect(
+          otpVerbHandler.processVerb(
+              response,
+              getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1000'),
+              inboundConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
+    });
+    test('Verify that otp:put requires authentication', () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = false;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      expect(
+          otpVerbHandler.processVerb(
+              response,
+              getVerbParam(VerbSyntax.otp, 'otp:put:abcdef'),
+              inboundConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
+    });
     test('A test to verify OTP generated is 6-character length', () async {
       Response response = Response();
       HashMap<String, String?> verbParams =
