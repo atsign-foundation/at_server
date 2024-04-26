@@ -1021,7 +1021,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'An enrollment with id 123 exists with the same app name and device name combination')));
+                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}')));
     });
 
     test(
@@ -1050,7 +1050,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'An enrollment with id 123 exists with the same app name and device name combination')));
+                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}')));
     });
 
     test(

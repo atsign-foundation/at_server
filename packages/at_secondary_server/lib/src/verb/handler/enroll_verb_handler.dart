@@ -487,7 +487,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
                   EnrollmentStatus.pending.name)) {
         String enrollmentId = key.substring(0, key.indexOf('.'));
         throw AtEnrollmentException(
-            'An enrollment with id $enrollmentId exists with the same app name and device name combination');
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}');
       }
     }
   }

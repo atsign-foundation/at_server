@@ -564,7 +564,7 @@ void main() {
           (await socketConnection2.sendRequestToServer(secondEnrollRequest))
               .replaceAll('error:', '');
       expect(secondEnrollResponse,
-          'AT0011-Exception: An enrollment with id ${enrollJsonMap['enrollmentId']} exists with the same app name and device name combination');
+          'AT0011-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName');
     });
 
     group('A group of tests related to APKAM revoke operation', () {
