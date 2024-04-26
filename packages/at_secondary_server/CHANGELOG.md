@@ -1,9 +1,11 @@
 ## 3.0.44
-
 - fix: otp authentication check
 - build[deps]: Upgraded the following packages:
-  - at_commons to v4.0.6
+  - at_commons to v4.0.7
   - at_server_spec to v5.0.1
+- feat: Add enroll:fetch to fetch the enrollment details.
+- fix: Added validation to ensure a new enrollment request does not contain a duplicate combination of appName and
+  deviceName.
 
 ## 3.0.43
 - fix: ensure all connection writes are awaited
