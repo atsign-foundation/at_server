@@ -1021,7 +1021,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}')));
+                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in approved state')));
     });
 
     test(
@@ -1050,7 +1050,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}')));
+                  'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in pending state')));
     });
 
     test(

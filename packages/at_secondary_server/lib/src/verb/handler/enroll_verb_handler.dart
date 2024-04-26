@@ -465,7 +465,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Fetches all the enrollment keys from the keystore.
     List<dynamic> enrollmentKeys = keyStore.getKeys(regex: 'enrollments');
 
-    // Iterate all the enrollment keys and verify if there exists an enrollment the same appName and deviceName combination
+    // Iterate through the existing enrollments and verify that there is no enrollment with the same
+    // appName and deviceName combination, and a status of 'pending' or 'approved'
     for (String key in enrollmentKeys) {
       AtData atData = AtData();
       try {
@@ -487,7 +488,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
                   EnrollmentStatus.pending.name)) {
         String enrollmentId = key.substring(0, key.indexOf('.'));
         throw AtEnrollmentException(
-            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName}');
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
       }
     }
   }
