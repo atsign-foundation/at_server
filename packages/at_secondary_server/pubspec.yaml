@@ -8,6 +8,18 @@ publish_to: none
 environment:
   sdk: '>=2.15.0 <4.0.0'
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      ref: "add-to-reservedKey-regex"
+      path: packages/at_commons
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      ref: "at_lookup/fix-legacy-error-handling"
+      path: packages/at_lookup
+
 dependencies:
   args: 2.4.2
   uuid: 3.0.7
