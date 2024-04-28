@@ -876,26 +876,26 @@ void main() {
                   'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
     });
 
-    test('A test to verify read access is allowed if key is a reserved key',
+    test('A test to verify read access is allowed if key is @alice:shared_key@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
-      String reservedKey = 'shared_key$bob';
+      String sharedKeyForThem = 'shared_key$bob';
       AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
       String bobAtDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
           'all', bobAtData,
-          key: '$alice:$reservedKey')!;
+          key: '$alice:$sharedKeyForThem')!;
 
-      when(() => mockOutboundConnection.write('lookup:all:$reservedKey\n'))
+      when(() => mockOutboundConnection.write('lookup:all:$sharedKeyForThem\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$bobAtDataAsJsonWithKey\n$alice@".codeUnits);
       });
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
-      String lookupCommand = 'lookup:all:$reservedKey';
+      String lookupCommand = 'lookup:all:$sharedKeyForThem';
       expect(
           await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
-              atKey: reservedKey),
+              atKey: sharedKeyForThem),
           true);
 
       var verbResponse = await lookupVerbHandler.processInternal(
@@ -903,6 +903,18 @@ void main() {
       Map<String, dynamic> jsonDecodedResponseData =
           jsonDecode(verbResponse.data!);
       expect(jsonDecodedResponseData['data'], bobAtData.data);
+    });
+    test('A test to verify read access is allowed if key is shared_key.alice@bob',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String sharedKeyForMe = 'shared_key.alice$bob';
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      expect(
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: sharedKeyForMe),
+          true);
     });
 
     test(
