@@ -62,10 +62,11 @@ void main() {
           (await firstAtSignConnection.sendRequestToServer(enrollFetch))
               .replaceAll('data:', '');
       Map<dynamic, dynamic> enrollMap = jsonDecode(enrollFetchResponse);
+      print(enrollMap);
       expect(enrollMap['appName'], 'wavi');
       expect(enrollMap['deviceName'], deviceName);
       expect(
-          enrollMap['namespaces'], {'wavi': 'rw', '__manage': 'rw', '*': 'rw'});
+          enrollMap['namespace'], {'wavi': 'rw', '__manage': 'rw', '*': 'rw'});
     });
 
     test(

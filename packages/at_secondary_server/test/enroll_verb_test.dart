@@ -1147,6 +1147,7 @@ void main() {
       enrollDataStoreValue.namespaces = {'wavi': 'rw'};
       enrollDataStoreValue.approval =
           EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.encryptedAPKAMSymmetricKey = 'dummy_apkam_key';
       AtData atData = AtData()..data = jsonEncode(enrollDataStoreValue);
       await secondaryKeyStore.put(key, atData);
 
@@ -1161,13 +1162,15 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
-      EnrollDataStoreValue enrollmentResponse =
-          EnrollDataStoreValue.fromJson(jsonDecode(response.data!));
+      Map enrollmentResponse = jsonDecode(response.data!);
 
-      expect(enrollmentResponse.appName, enrollDataStoreValue.appName);
-      expect(enrollmentResponse.deviceName, enrollDataStoreValue.deviceName);
-      expect(enrollmentResponse.sessionId, enrollDataStoreValue.sessionId);
-      expect(enrollmentResponse.namespaces, enrollDataStoreValue.namespaces);
+      expect(enrollmentResponse['appName'], enrollDataStoreValue.appName);
+      expect(enrollmentResponse['deviceName'], enrollDataStoreValue.deviceName);
+      expect(enrollmentResponse['namespace'], enrollDataStoreValue.namespaces);
+      expect(
+          enrollmentResponse['status'], enrollDataStoreValue.approval?.state);
+      expect(enrollmentResponse['encryptedAPKAMSymmetricKey'],
+          enrollDataStoreValue.encryptedAPKAMSymmetricKey);
     });
 
     tearDown(() async => await verbTestsTearDown());
