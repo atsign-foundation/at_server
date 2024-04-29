@@ -99,9 +99,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               enrollVerbParams: enrollVerbParams);
           return;
         case 'fetch':
-          AtData atData = await _fetchEnrollmentInfoById(
+          response.data = await _fetchEnrollmentInfoById(
               enrollVerbParams, currentAtSign, response);
-          response.data = atData.data;
           return;
       }
     } catch (e, stackTrace) {
@@ -113,20 +112,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches the enrollment request with enrollment id.
-  Future<AtData> _fetchEnrollmentInfoById(
+  Future<String> _fetchEnrollmentInfoById(
       EnrollParams? enrollVerbParams, currentAtSign, Response response) async {
     String? enrollmentId = enrollVerbParams?.enrollmentId;
 
     String enrollmentKey =
         '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-    AtData atData = AtData();
+    AtData atData;
     try {
       atData = await keyStore.get(enrollmentKey);
     } on KeyNotFoundException {
       throw KeyNotFoundException(
           'An Enrollment with Id: ${enrollVerbParams?.enrollmentId} does not exist or has expired.');
     }
-    return atData;
+    if (atData.data == null) {
+      throw AtEnrollmentException(
+          'Enrollment details not found for enrollment id: ${enrollVerbParams?.enrollmentId}');
+    }
+    EnrollDataStoreValue enrollDataStoreValue =
+        EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+    return jsonEncode({
+      'appName': enrollDataStoreValue.appName,
+      'deviceName': enrollDataStoreValue.deviceName,
+      'namespace': enrollDataStoreValue.namespaces,
+      'encryptedAPKAMSymmetricKey':
+          enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+      'status': enrollDataStoreValue.approval?.state
+    });
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
