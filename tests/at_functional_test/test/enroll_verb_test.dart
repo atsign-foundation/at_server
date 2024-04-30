@@ -569,7 +569,9 @@ void main() {
     });
 
     group('A group of tests related to APKAM revoke operation', () {
-      test('A test to verify enrollment revoke operation', () async {
+      test(
+          'A test to verify enrollment revoke operation on own connection results in error',
+          () async {
         // Send an enrollment request on the authenticated connection
         await firstAtSignConnection.authenticateConnection(
             authType: AuthType.cram);
@@ -592,6 +594,39 @@ void main() {
         // Revoke the enrollment
         String revokeEnrollmentCommand =
             'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+        String revokeEnrollmentResponse = await firstAtSignConnection
+            .sendRequestToServer(revokeEnrollmentCommand);
+        var revokeEnrollmentMap =
+            jsonDecode(revokeEnrollmentResponse.replaceAll('error:', ''));
+        print(revokeEnrollmentMap);
+        expect(revokeEnrollmentMap['errorCode'], 'AT0031');
+      });
+
+      test(
+          'A test to verify enrollment revoke on own enrollment with force flag',
+          () async {
+        // Send an enrollment request on the authenticated connection
+        await firstAtSignConnection.authenticateConnection(
+            authType: AuthType.cram);
+        String enrollRequest =
+            'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+        String enrollmentResponse =
+            await firstAtSignConnection.sendRequestToServer(enrollRequest);
+        String enrollmentId = jsonDecode(
+            enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+        //Create a new connection to login using the APKAM
+        OutboundConnectionFactory socketConnection2 =
+            await OutboundConnectionFactory().initiateConnectionWithListener(
+                firstAtSign, firstAtSignHost, firstAtSignPort);
+        String authResponse = await socketConnection2.authenticateConnection(
+            authType: AuthType.apkam, enrollmentId: enrollmentId);
+        expect(authResponse.trim(), 'data:success');
+        await socketConnection2.close();
+
+        // Revoke the enrollment
+        String revokeEnrollmentCommand =
+            'enroll:revoke:force:{"enrollmentId":"$enrollmentId"}';
         String revokeEnrollmentResponse = await firstAtSignConnection
             .sendRequestToServer(revokeEnrollmentCommand);
         var revokeEnrollmentMap =

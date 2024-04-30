@@ -99,7 +99,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           if (enrollmentIdFromParams ==
                   inboundConnectionMetaData.enrollmentId &&
               forceFlag == null) {
-            throw AtEnrollmentException(
+            throw AtEnrollmentRevokeException(
                 'Current client cannot revoke its own enrollment');
           }
           await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
