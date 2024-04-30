@@ -88,8 +88,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
         case 'approve':
         case 'deny':
-        case 'revoke':
           await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+              operation, responseJson, response);
+          break;
+        case 'revoke':
+          var forceFlag = verbParams['force'];
+          final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
+          var inboundConnectionMetaData =
+              atConnection.metaData as InboundConnectionMetadata;
+          if (enrollmentIdFromParams ==
+                  inboundConnectionMetaData.enrollmentId &&
+              forceFlag == null) {
+            throw AtEnrollmentException(
+                'Current client cannot revoke its own enrollment');
+          }
+          await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
               operation, responseJson, response);
           break;
 
