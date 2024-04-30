@@ -598,8 +598,9 @@ void main() {
             .sendRequestToServer(revokeEnrollmentCommand);
         var revokeEnrollmentMap =
             jsonDecode(revokeEnrollmentResponse.replaceAll('error:', ''));
-        print(revokeEnrollmentMap);
         expect(revokeEnrollmentMap['errorCode'], 'AT0031');
+        expect(revokeEnrollmentMap['errorDescription'],
+            'Cannot revoke self enrollment : Current client cannot revoke its own enrollment');
       });
 
       test(
