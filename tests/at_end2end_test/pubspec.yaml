@@ -15,6 +15,14 @@ dependencies:
       ref: trunk
   at_lookup: ^3.0.45
 
+# TODO replace with published version
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      path: packages/at_commons
+      ref: trunk
+
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.14.4
