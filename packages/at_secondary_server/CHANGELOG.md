@@ -1,3 +1,6 @@
+## 3.0.45
+- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency.
+
 ## 3.0.44
 - fix: otp authentication check
 - build[deps]: Upgraded the following packages:
