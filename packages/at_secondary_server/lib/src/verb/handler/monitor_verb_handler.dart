@@ -4,9 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
-import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -69,31 +66,17 @@ class MonitorVerbHandler extends AbstractVerbHandler {
               selfNotificationsFlag == AtConstants.monitorSelfNotifications);
       for (Notification receivedNotification
           in receivedNotificationsAfterEpochMills) {
-        await _sendNotificationToClient(receivedNotification);
+        await _checkAndSend(receivedNotification);
       }
     }
     atConnection.isMonitor = true;
   }
 
-  /// Writes [notification] on authenticated connection
-  /// * If connection is authenticate via PKAM
-  ///    - Writes all the notifications on the connection.
-  ///    - Optionally, if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  ///
-  /// * If connection is authenticated via APKAM
-  ///    - Writes the notifications only if the namespace in the notification key
-  ///      matches the namespace in the enrollment.
-  ///    - Optionally if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  Future<void> _sendNotificationToClient(Notification notification) async {
-    // If enrollmentId is null, then connection is authenticated via PKAM
-    if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId ==
-        null) {
-      await _sendLegacyNotification(notification);
-    } else {
-      // If enrollmentId is populated, then connection is authenticated via APKAM
-      await _sendNotificationByEnrollmentNamespaceAccess(notification);
+  /// Does an [isAuthorized] check, if OK then calls [_sendNotification]
+  Future<void> _checkAndSend(Notification notification) async {
+    if (await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
+        atKey: notification.notification)) {
+      await _sendNotification(notification);
     }
   }
 
@@ -101,7 +84,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   ///    - Writes all the notifications on the connection.
   ///    - Optionally, if regex is supplied, write only the notifications that
   ///      matches the pattern.
-  Future<void> _sendLegacyNotification(Notification notification) async {
+  Future<void> _sendNotification(Notification notification) async {
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
       fromAtSign = fromAtSign.replaceAll('@', '');
@@ -120,73 +103,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// If connection is authenticated via APKAM
-  ///    - Writes the notifications only if the namespace in the notification key
-  ///      matches the namespace in the enrollment.
-  ///    - Optionally if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  Future<void> _sendNotificationByEnrollmentNamespaceAccess(
-      Notification notification) async {
-    // Fetch namespaces that are associated with the enrollmentId.
-    var enrollmentKey =
-        '${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    EnrollDataStoreValue enrollDataStoreValue =
-        await getEnrollDataStoreValue(enrollmentKey);
-    // When an enrollment is revoked, avoid sending notifications to the
-    // existing monitor connection.
-    if (enrollDataStoreValue.approval!.state !=
-        EnrollmentStatus.approved.name) {
-      logger.finer(
-          'EnrollmentId ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
-      return;
-    }
-    if (enrollDataStoreValue.namespaces.isEmpty) {
-      logger.finer('No namespaces are enrolled for the enrollmentId:'
-          ' ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}');
-      return;
-    }
-    // If notification does not contain ".", it indicates namespace is not present.
-    // Do nothing.
-    if (!notification.notification!.contains('.')) {
-      logger.finest(
-          'For enrollmentId: ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
-          'Failed to send notification because the key ${notification.notification} do not contain namespace');
-      return;
-    }
-    // separate namespace from the notification key
-    String namespaceFromKey = notification.notification!
-        .substring(notification.notification!.indexOf('.') + 1);
-
-    try {
-      // - If the namespace in the notification key matches the namespace in the
-      //   enrollment, it indicates that the client has successfully enrolled for
-      //   that namespace, thereby granting authorization to receive notifications.
-      //
-      // - If namespace is enrollManageNamespace (__manage) or allNamespace (.*),
-      //   then all enrollments should be written to client to perform action
-      //   (approve/deny)on an enrollment.
-      //
-      // - Optionally, if regex is provided, send only the notifications which match
-      //   the regex patten by notification key or fromAtSign of the notification.
-      // - If the user does not provide regex, defaults to ".*" to match all notifications.
-      //   match the exact namespace
-      if ((enrollDataStoreValue.namespaces.containsKey(allNamespaces) ||
-              enrollDataStoreValue.namespaces
-                  .containsKey(enrollManageNamespace) ||
-              enrollDataStoreValue.namespaces.containsKey(namespaceFromKey)) &&
-          (notification.notification!.contains(RegExp(regex)) ||
-              (notification.fromAtSign != null &&
-                  notification.fromAtSign!.contains(RegExp(regex))))) {
-        await atConnection.write('notification:'
-            ' ${jsonEncode(notification.toJson())}\n');
-      }
-    } on FormatException {
-      logger.severe('Invalid regular expression : $regex');
-      throw InvalidSyntaxException(
-          'Invalid regular expression. $regex is not a valid regex');
-    }
-  }
-
+  /// [processVerb] above registers this callback method with the notification
+  /// manager; all of the registered callbacks are called by the notification
+  /// manager when a notification needs to be handled. Here in the Monitor, we
+  /// transform the data into format which AtClients should understand, then
+  /// call [_checkAndSend]
   Future<void> processAtNotification(AtNotification atNotification) async {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
@@ -215,7 +136,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
         };
-      await _sendNotificationToClient(notification);
+
+      await _checkAndSend(notification);
     }
   }
 
