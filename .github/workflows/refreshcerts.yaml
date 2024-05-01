@@ -20,10 +20,10 @@ jobs:
         uses: atsign-company/certinfo-action@e33db584f27bbbc0260af9916aeaefbec0db8ef4 # v1.0.1
       # checkout at_server code
       - name: checkout repo content
-        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4.1.3
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
       # Pull ACME script
       - name: Pull ACME script
-        uses: actions/checkout@1d96c772d19495a3b5c517cd2bc0cb401ea0529f # v4.1.3
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
@@ -59,7 +59,7 @@ jobs:
       # create PR with renewed certificate
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@9153d834b60caba6d51c9b9510b087acf9f33f83 # v6.0.4
+        uses: peter-evans/create-pull-request@6d6857d36972b65feb161a90e484f2984215f83e # v6.0.5
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           commit-message: 'chore: New certificates for at_server'

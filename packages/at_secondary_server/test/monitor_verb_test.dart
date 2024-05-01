@@ -135,7 +135,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -148,7 +148,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -162,7 +162,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -184,7 +184,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -197,7 +197,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.buzz');
+      expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
 
@@ -206,7 +206,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -220,7 +220,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -243,7 +243,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -256,7 +256,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -269,7 +269,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -304,7 +304,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -317,7 +317,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Notification with buzz namespace
@@ -326,7 +326,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -339,7 +339,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.buzz');
+      expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -372,7 +372,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -386,7 +386,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Set to empty string to remove the previous data
@@ -408,7 +408,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -488,7 +488,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
