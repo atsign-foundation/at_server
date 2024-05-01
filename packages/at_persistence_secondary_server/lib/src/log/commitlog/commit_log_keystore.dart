@@ -185,7 +185,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
   }
 
-  bool _isNamespaceAuthorised(String atKeyAsString, List<String>? enrolledNamespace) {
+  bool _isNamespaceAuthorised(
+      String atKeyAsString, List<String>? enrolledNamespace) {
     // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
     if (atKeyAsString.toLowerCase() == 'configkey') {
       return true;
@@ -558,6 +559,14 @@ class CommitLogCache {
 
   /// Updates cache when a new [CommitEntry] for the [key] is added
   void update(String key, CommitEntry commitEntry) {
+    int? existingCommitId = getEntry(key)?.commitId;
+    // ignore update, if cache has existing commitEntry for current key with a greater commitId
+    if (existingCommitId != null &&
+        commitEntry.commitId != null &&
+        existingCommitId > commitEntry.commitId!) {
+      _logger.shout('Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
+      return;
+    }
     _updateCacheLog(key, commitEntry);
 
     if (commitEntry.commitId != null &&
