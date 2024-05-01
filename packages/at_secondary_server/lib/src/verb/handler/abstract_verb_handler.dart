@@ -132,6 +132,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
       {String? atKey, String? namespace}) async {
+    bool retVal = await _isAuthorized(connectionMetadata, atKey: atKey, namespace: namespace);
+    logger.finer('_isAuthorized returned $retVal');
+    return retVal;
+  }
+
+  Future<bool> _isAuthorized(InboundConnectionMetadata connectionMetadata,
+      {String? atKey, String? namespace}) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
@@ -177,14 +184,17 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
 
-    logger.finer('enrollNamespaces:$enrollNamespaces');
-    logger.finer('keyNamespace:$keyNamespace');
     final access = enrollNamespaces.containsKey(allNamespaces)
         ? enrollNamespaces[allNamespaces]
         : enrollNamespaces[keyNamespace];
-    logger.finer('access:$access');
 
-    logger.shout('Verb: $verb, keyNamespace: $keyNamespace, access: $access');
+    logger.finer('_isAuthorized check for'
+        ' app: [${enrollDataStoreValue.appName}]'
+        ' device: [${enrollDataStoreValue.deviceName}]'
+        ' verb: [${verb.runtimeType}]'
+        ' enrollNamespaces: [$enrollNamespaces]'
+        ' keyNamespace: $keyNamespace'
+        ' access: $access');
 
     if (access == null) {
       return false;
@@ -213,7 +223,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Lookup ||
             verb is NotifyFetch ||
             verb is NotifyStatus ||
-            verb is NotifyList) &&
+            verb is NotifyList ||
+            verb is Monitor) &&
         (access == 'r' || access == 'rw');
   }
 
@@ -222,7 +233,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Delete ||
             verb is Notify ||
             verb is NotifyAll ||
-            verb is NotifyRemove) &&
+            verb is NotifyRemove ||
+            verb is Monitor) &&
         access == 'rw';
   }
 
