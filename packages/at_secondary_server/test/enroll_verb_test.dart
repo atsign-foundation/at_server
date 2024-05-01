@@ -508,7 +508,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          '123';
+          '456'; // a client cannot revoke its own enrollment. Set a different enrollmentId in inbound
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -834,6 +834,112 @@ void main() {
                   'Cannot approve a denied enrollment. Only pending enrollments can be approved')));
     });
 
+    test('A test to verify revoke enrollment', () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+    });
+
+    test('A test to verify revoke enrollment with force flag', () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:force:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+    });
+
+    test(
+        'A test to verify revoke enrollment throws exception when a client is trying to revoke own enrollment without force flag',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message == 'Current client cannot revoke its own enrollment')));
+    });
+
+    test(
+        'A test to verify enrollment is revoked when a client is trying to revoke own enrollment with force flag',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:force:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+    });
+
     test('A test to verify revoked enrollment cannot be approved', () async {
       Response response = Response();
       //approve enrollment
@@ -848,9 +954,10 @@ void main() {
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
       expect(jsonDecode(response.data!)['status'], 'approved');
       //revoke enrollment
-      String denyEnrollmentCommand =
+      String revokeEnrollmentCommand =
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
-      enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
