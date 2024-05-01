@@ -15,17 +15,9 @@ dependencies:
       ref: trunk
   at_chops: ^2.0.0
   at_lookup: ^3.0.45
-  at_commons: ^4.0.7
+  at_commons: ^4.0.9
   uuid: ^3.0.7
   elliptic: ^0.3.8
-
-# TODO replace with published version
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      path: packages/at_commons
-      ref: trunk
 
 dev_dependencies:
   lints: ^1.0.1
