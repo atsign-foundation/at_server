@@ -4,9 +4,9 @@ import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
-import 'package:test/test.dart';
-
 import 'package:at_functional_test/utils/encryption_util.dart';
+import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
@@ -35,7 +35,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');
@@ -72,7 +72,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -114,7 +114,7 @@ void main() {
             (!updateResponse.contains('null')));
 
         var enrollRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+            'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
         String enrollResponse =
             (await firstAtSignConnection.sendRequestToServer(enrollRequest))
                 .replaceAll('data:', '');
@@ -156,7 +156,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -197,7 +197,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -238,7 +238,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -283,7 +283,7 @@ void main() {
           at_demos.encryptionPrivateKeyMap[firstAtSign]!,
           at_demos.apkamSymmetricKeyMap[firstAtSign]!);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -304,7 +304,7 @@ void main() {
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       var secondEnrollResponse =
           (await secondConnection.sendRequestToServer(secondEnrollRequest))
               .replaceAll('data:', '');
@@ -381,7 +381,7 @@ void main() {
 
       // enroll request with wavi namespace
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -416,7 +416,7 @@ void main() {
           (!updateResponse.contains('null')));
       // enroll request with wavi namespace
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');

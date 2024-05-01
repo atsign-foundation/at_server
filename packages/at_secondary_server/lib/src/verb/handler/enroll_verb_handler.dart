@@ -1,19 +1,21 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
+
 import 'abstract_verb_handler.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 /// Verb handler to process APKAM enroll requests
 class EnrollVerbHandler extends AbstractVerbHandler {
@@ -86,8 +88,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
         case 'approve':
         case 'deny':
-        case 'revoke':
           await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+              operation, responseJson, response);
+          break;
+        case 'revoke':
+          var forceFlag = verbParams['force'];
+          final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
+          var inboundConnectionMetaData =
+              atConnection.metaData as InboundConnectionMetadata;
+          if (enrollmentIdFromParams ==
+                  inboundConnectionMetaData.enrollmentId &&
+              forceFlag == null) {
+            throw AtEnrollmentRevokeException(
+                'Current client cannot revoke its own enrollment');
+          }
+          await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
               operation, responseJson, response);
           break;
 
@@ -96,6 +111,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               atConnection, currentAtSign,
               enrollVerbParams: enrollVerbParams);
           return;
+        case 'fetch':
+          response.data = await _fetchEnrollmentInfoById(
+              enrollVerbParams, currentAtSign, response);
+          return;
       }
     } catch (e, stackTrace) {
       logger.severe('Exception: $e\n$stackTrace');
@@ -103,6 +122,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     response.data = jsonEncode(responseJson);
     return;
+  }
+
+  /// Fetches the enrollment request with enrollment id.
+  Future<String> _fetchEnrollmentInfoById(
+      EnrollParams? enrollVerbParams, currentAtSign, Response response) async {
+    String? enrollmentId = enrollVerbParams?.enrollmentId;
+
+    String enrollmentKey =
+        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
+    AtData atData;
+    try {
+      atData = await keyStore.get(enrollmentKey);
+    } on KeyNotFoundException {
+      throw KeyNotFoundException(
+          'An Enrollment with Id: ${enrollVerbParams?.enrollmentId} does not exist or has expired.');
+    }
+    if (atData.data == null) {
+      throw AtEnrollmentException(
+          'Enrollment details not found for enrollment id: ${enrollVerbParams?.enrollmentId}');
+    }
+    EnrollDataStoreValue enrollDataStoreValue =
+        EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+    return jsonEncode({
+      'appName': enrollDataStoreValue.appName,
+      'deviceName': enrollDataStoreValue.deviceName,
+      'namespace': enrollDataStoreValue.namespaces,
+      'encryptedAPKAMSymmetricKey':
+          enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+      'status': enrollDataStoreValue.approval?.state
+    });
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -149,6 +198,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'invalid otp. Cannot process enroll request');
       }
     }
+
+    await validateEnrollmentRequest(enrollParams);
 
     // When threshold is met, set "_lastInvalidOtpReceivedInMills" and "delayForInvalidOTPSeries"
     // to default values.
@@ -428,6 +479,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'revoke' && EnrollmentStatus.approved != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
+    }
+  }
+
+  /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
+  /// If a matching enrollment is found, [AtEnrollmentException] exception is thrown.
+  /// Otherwise, the enrollment request is accepted.
+  @visibleForTesting
+  Future<void> validateEnrollmentRequest(EnrollParams enrollParams) async {
+    // Fetches all the enrollment keys from the keystore.
+    List<dynamic> enrollmentKeys = keyStore.getKeys(regex: 'enrollments');
+
+    // Iterate through the existing enrollments and verify that there is no enrollment with the same
+    // appName and deviceName combination, and a status of 'pending' or 'approved'
+    for (String key in enrollmentKeys) {
+      AtData atData = AtData();
+      try {
+        atData = await keyStore.get(key);
+      } on KeyNotFoundException {
+        logger.finest('An enrollment with $key does not exist or expired');
+      }
+      if (atData.data == null) {
+        continue;
+      }
+      EnrollDataStoreValue enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+
+      if ((enrollParams.appName == enrollDataStoreValue.appName &&
+              enrollParams.deviceName == enrollDataStoreValue.deviceName) &&
+          (enrollDataStoreValue.approval?.state ==
+                  EnrollmentStatus.approved.name ||
+              enrollDataStoreValue.approval?.state ==
+                  EnrollmentStatus.pending.name)) {
+        String enrollmentId = key.substring(0, key.indexOf('.'));
+        throw AtEnrollmentException(
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
+      }
     }
   }
 

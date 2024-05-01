@@ -1,3 +1,19 @@
+## 3.0.45
+- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency
+- feat: enroll:revoke now has an optional "force" flag to allow current 
+  connection to revoke its own enrollment
+- fix: Fixed bug in delivery of notifications to APKAM Monitors
+
+## 3.0.44
+- fix: otp authentication check
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.8
+  - at_server_spec to v5.0.1
+  - at_lookup to v3.0.47
+- feat: Add enroll:fetch to fetch the enrollment details.
+- fix: Added validation to ensure a new enrollment request does not contain a duplicate combination of appName and
+  deviceName.
+
 ## 3.0.43
 - fix: ensure all connection writes are awaited
 

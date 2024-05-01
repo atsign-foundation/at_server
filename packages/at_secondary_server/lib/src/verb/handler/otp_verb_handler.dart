@@ -35,12 +35,12 @@ class OtpVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.ttl]!.isNotEmpty) {
       otpExpiryInMills = int.parse(verbParams[AtConstants.ttl]!);
     }
+    if (!atConnection.metaData.isAuthenticated) {
+      throw UnAuthenticatedException(
+          'otp:get requires authenticated connection');
+    }
     switch (operation) {
       case 'get':
-        if (!atConnection.metaData.isAuthenticated) {
-          throw UnAuthenticatedException(
-              'otp:get requires authenticated connection');
-        }
         do {
           response.data = _generateOTP();
         }
