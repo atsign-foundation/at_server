@@ -15,7 +15,7 @@ dependencies:
       ref: trunk
   at_chops: ^2.0.0
   at_lookup: ^3.0.45
-  at_commons: ^4.0.7
+  at_commons: ^4.0.9
   uuid: ^3.0.7
   elliptic: ^0.3.8
 
