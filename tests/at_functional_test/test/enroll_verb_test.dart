@@ -1047,9 +1047,17 @@ void main() {
       // approve and then revoke third enrollment request in enrollmentIds list
       await firstAtSignConnection.sendRequestToServer(
           'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}"}');
+      // get number of inbound connections before revoke
+      var inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      print(
+          '*** inboundConnectionResult before revoke: $inboundConnectionResult');
       await firstAtSignConnection.sendRequestToServer(
           'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
-
+      inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      print(
+          '*** inboundConnectionResult after revoke: $inboundConnectionResult');
       // again, fetch revoked enrollment requests
       Map<String, dynamic> enrollmentRequestsMap =
           readServerResponseAndConvertToMap(await firstAtSignConnection
