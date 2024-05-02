@@ -1,3 +1,5 @@
+## 3.0.63
+- fix: Ensure only latest commitEntry for each present in CommitLogCache
 ## 3.0.62
 - fix: Add check for hive key max length (255 chars)
 - build[deps]: Upgraded the following packages:
