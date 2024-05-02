@@ -339,6 +339,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   Future<void> _dropRevokedClientConnection(String enrollmentId) async {
     final inboundPool = InboundConnectionPool.getInstance();
+    List<InboundConnection> connectionsToRemove = [];
     for (InboundConnection connection in inboundPool.getConnections()) {
       var inboundConnectionMetadata =
           connection.metaData as InboundConnectionMetadata;
@@ -346,9 +347,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           inboundConnectionMetadata.enrollmentId == enrollmentId) {
         logger.finer(
             'Removing APKAM revoked client connection: ${connection.metaData.sessionID}');
-        inboundPool.remove(connection);
-        await connection.close();
+        connectionsToRemove.add(connection);
       }
+    }
+    for (InboundConnection inboundConnection in connectionsToRemove) {
+      inboundPool.remove(inboundConnection);
+      await inboundConnection.close();
     }
   }
 
