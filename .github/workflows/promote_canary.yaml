@@ -43,8 +43,9 @@ jobs:
           file: tools/build_secondary/Dockerfile.canary_to_prod
           context: .
           tags: |
-            atsigncompany/secondary:prod
             atsigncompany/secondary:dess
+            atsigncompany/secondary:latest
+            atsigncompany/secondary:prod
             atsigncompany/secondary:prod-${{ env.VERSION }}
           platforms: |
             linux/amd64
@@ -83,6 +84,7 @@ jobs:
           file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
           context: .
           tags: |
+            atsigncompany/virtualenv:latest
             atsigncompany/virtualenv:vip
             atsigncompany/virtualenv:vip-${{ env.VERSION }}
           platforms: |
