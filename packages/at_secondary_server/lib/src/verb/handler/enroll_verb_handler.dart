@@ -108,7 +108,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           if (responseJson['status'] == EnrollmentStatus.revoked.name) {
             logger.finer(
                 'Dropping connection for enrollmentId: $enrollmentIdFromParams');
-            await _dropRevokedClientConnection(enrollmentIdFromParams!);
+            await _dropRevokedClientConnection(
+                enrollmentIdFromParams!, forceFlag, atConnection);
           }
           break;
 
@@ -337,7 +338,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
 
-  Future<void> _dropRevokedClientConnection(String enrollmentId) async {
+  Future<void> _dropRevokedClientConnection(String enrollmentId,
+      String? forceFlag, InboundConnection currentInboundConnection) async {
     final inboundPool = InboundConnectionPool.getInstance();
     List<InboundConnection> connectionsToRemove = [];
     for (InboundConnection connection in inboundPool.getConnections()) {
@@ -351,8 +353,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
     for (InboundConnection inboundConnection in connectionsToRemove) {
-      inboundPool.remove(inboundConnection);
-      await inboundConnection.close();
+      if (forceFlag != null &&
+          inboundConnection.metaData.sessionID ==
+              currentInboundConnection.metaData.sessionID) {
+        logger.finer(
+            'Closing current inbound connection due to enroll:revoke:force');
+        await inboundConnection.write(
+            'Enrollment is revoked. Closing the connection in 10 seconds\n');
+        Future.delayed(Duration(seconds: 10), () async {
+          logger.finer('Closing revoked self inbound connection');
+          connectionsToRemove.remove(inboundConnection);
+          await inboundConnection.close();
+        });
+      } else {
+        inboundPool.remove(inboundConnection);
+        await inboundConnection.close();
+      }
     }
   }
 
