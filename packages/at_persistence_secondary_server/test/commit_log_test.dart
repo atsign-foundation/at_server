@@ -3,11 +3,13 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:hive/hive.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
+  AtSignLogger.root_level = 'finer';
 
   group('A group of tests on client commit log', () {
     setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
@@ -647,6 +649,27 @@ void main() async {
           }
           i++;
         }
+      });
+      test(
+          'verify that CommitEntry with higher commitId is retained in cache for the same key',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        String key = 'same_key.test@alice';
+        int? firstCommitId =
+            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+        Future<int?>? secondCommitIdFuture = // no await here is intentional
+            commitLogInstance?.commit(key, CommitOp.UPDATE);
+        int? thirdCommitId =
+            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+
+        CommitEntry? commitEntryInCache =
+            commitLogInstance?.getLatestCommitEntry(key);
+        // This is to create an un-orderly update of commitEntries
+        int? secondCommitId = await secondCommitIdFuture;
+        assert(
+            thirdCommitId! > firstCommitId! && thirdCommitId > secondCommitId!);
+        expect(commitEntryInCache?.commitId, thirdCommitId);
       });
     });
     tearDown(() async => await tearDownFunc());

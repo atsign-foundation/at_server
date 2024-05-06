@@ -1,5 +1,8 @@
 ## 3.0.45
-- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency.
+- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency
+- feat: enroll:revoke now has an optional "force" flag to allow current 
+  connection to revoke its own enrollment
+- fix: Fixed bug in delivery of notifications to APKAM Monitors
 
 ## 3.0.44
 - fix: otp authentication check
