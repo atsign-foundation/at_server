@@ -1047,7 +1047,7 @@ void main() {
           'enroll:list:{"enrollmentStatusFilter":["revoked"]}';
 
       // approve and then revoke third enrollment request in enrollmentIds list
-      var enrollmentResponse = await firstAtSignConnection.sendRequestToServer(
+      await firstAtSignConnection.sendRequestToServer(
           'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}"}');
       // authenticate using enrollmentIds[2]
       OutboundConnectionFactory tempSocketConnection =
