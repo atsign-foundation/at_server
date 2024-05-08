@@ -613,7 +613,6 @@ void main() {
             'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
         String enrollmentResponse =
             await firstAtSignConnection.sendRequestToServer(enrollRequest);
-        print('**** enrollmentResponse: $enrollmentResponse');
         String enrollmentId = jsonDecode(
             enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
@@ -631,11 +630,12 @@ void main() {
             'enroll:revoke:force:{"enrollmentId":"$enrollmentId"}';
         String revokeEnrollmentResponse = await firstAtSignConnection
             .sendRequestToServer(revokeEnrollmentCommand);
-        print('***revokeEnrollmentResponse: $revokeEnrollmentResponse');
         var revokeEnrollmentMap =
             jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
         expect(revokeEnrollmentMap['status'], 'revoked');
         expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+        expect(revokeEnrollmentMap['message'],
+            "Enrollment is revoked. Closing the connection in 10 seconds");
 
         socketConnection2 = await OutboundConnectionFactory()
             .initiateConnectionWithListener(
