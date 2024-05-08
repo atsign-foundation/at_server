@@ -108,8 +108,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           if (responseJson['status'] == EnrollmentStatus.revoked.name) {
             logger.finer(
                 'Dropping connection for enrollmentId: $enrollmentIdFromParams');
-            await _dropRevokedClientConnection(
-                enrollmentIdFromParams!, forceFlag, atConnection, responseJson);
+            await _dropRevokedClientConnection(enrollmentIdFromParams!,
+                forceFlag != null, atConnection, responseJson);
           }
           break;
 
@@ -338,11 +338,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
 
-  Future<void> _dropRevokedClientConnection(
-      String enrollmentId,
-      String? forceFlag,
-      InboundConnection currentInboundConnection,
-      responseJson) async {
+  Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
+      InboundConnection currentInboundConnection, responseJson) async {
     final inboundPool = InboundConnectionPool.getInstance();
     List<InboundConnection> connectionsToRemove = [];
     for (InboundConnection connection in inboundPool.getConnections()) {
@@ -356,7 +353,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
     for (InboundConnection inboundConnection in connectionsToRemove) {
-      if (forceFlag != null &&
+      if (forceFlag &&
           inboundConnection.metaData.sessionID ==
               currentInboundConnection.metaData.sessionID) {
         logger.finer(
