@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -104,6 +105,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           }
           await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
               operation, responseJson, response);
+          if (responseJson['status'] == EnrollmentStatus.revoked.name) {
+            logger.finer(
+                'Dropping connection for enrollmentId: $enrollmentIdFromParams');
+            await _dropRevokedClientConnection(enrollmentIdFromParams!,
+                forceFlag != null, atConnection, responseJson);
+          }
           break;
 
         case 'list':
@@ -329,6 +336,40 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
+  }
+
+  Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
+      InboundConnection currentInboundConnection, responseJson) async {
+    final inboundPool = InboundConnectionPool.getInstance();
+    List<InboundConnection> connectionsToRemove = [];
+    for (InboundConnection connection in inboundPool.getConnections()) {
+      var inboundConnectionMetadata =
+          connection.metaData as InboundConnectionMetadata;
+      if (!connection.isInValid() &&
+          inboundConnectionMetadata.enrollmentId == enrollmentId) {
+        logger.finer(
+            'Removing APKAM revoked client connection: ${connection.metaData.sessionID}');
+        connectionsToRemove.add(connection);
+      }
+    }
+    for (InboundConnection inboundConnection in connectionsToRemove) {
+      if (forceFlag &&
+          inboundConnection.metaData.sessionID ==
+              currentInboundConnection.metaData.sessionID) {
+        logger.finer(
+            'Closing current inbound connection due to enroll:revoke:force');
+        responseJson['message'] =
+            'Enrollment is revoked. Closing the connection in 10 seconds';
+        Future.delayed(Duration(seconds: 10), () async {
+          logger.finer('Closing revoked self inbound connection');
+          connectionsToRemove.remove(inboundConnection);
+          await inboundConnection.close();
+        });
+      } else {
+        inboundPool.remove(inboundConnection);
+        await inboundConnection.close();
+      }
+    }
   }
 
   /// Stores the encrypted default encryption private key in <enrollmentId>.default_enc_private_key.__manage@<atsign>

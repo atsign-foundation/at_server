@@ -7,6 +7,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -134,6 +135,9 @@ verbTestsSetUp() async {
 
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
+  final inboundPool = InboundConnectionPool.getInstance();
+  inboundPool.init(5);
+  inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
       inboundConnection, bob, mockSecondaryAddressFinder,

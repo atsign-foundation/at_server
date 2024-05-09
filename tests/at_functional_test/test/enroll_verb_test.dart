@@ -634,6 +634,8 @@ void main() {
             jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
         expect(revokeEnrollmentMap['status'], 'revoked');
         expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+        expect(revokeEnrollmentMap['message'],
+            "Enrollment is revoked. Closing the connection in 10 seconds");
 
         socketConnection2 = await OutboundConnectionFactory()
             .initiateConnectionWithListener(
@@ -1047,8 +1049,31 @@ void main() {
       // approve and then revoke third enrollment request in enrollmentIds list
       await firstAtSignConnection.sendRequestToServer(
           'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}"}');
+      // authenticate using enrollmentIds[2]
+      OutboundConnectionFactory tempSocketConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse = await tempSocketConnection.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentIds[2]);
+      expect(authResponse.trim(), 'data:success');
+      // get number of inbound connections before revoke
+      var inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      inboundConnectionResult =
+          inboundConnectionResult.replaceFirst('data:', '');
+      int numberOfInboundConnectionsBeforeRevoke =
+          int.parse(jsonDecode(inboundConnectionResult)[0]['value']);
       await firstAtSignConnection.sendRequestToServer(
           'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
+      // get number of inbound connections after revoke
+      inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      inboundConnectionResult =
+          inboundConnectionResult.replaceFirst('data:', '');
+      int numberOfInboundConnectionsAfterRevoke =
+          int.parse(jsonDecode(inboundConnectionResult)[0]['value']);
+      expect(numberOfInboundConnectionsAfterRevoke,
+          numberOfInboundConnectionsBeforeRevoke - 1);
 
       // again, fetch revoked enrollment requests
       Map<String, dynamic> enrollmentRequestsMap =
