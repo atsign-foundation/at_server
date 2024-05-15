@@ -10,6 +10,7 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:test/test.dart';
 
+import 'sync_unit_test.dart';
 import 'test_utils.dart';
 
 void main() {
@@ -23,10 +24,8 @@ void main() {
       inboundConnection.metaData.isAuthenticated = false;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       expect(
-          otpVerbHandler.processVerb(
-              response,
-              getVerbParam(VerbSyntax.otp, 'otp:get'),
-              inboundConnection),
+          otpVerbHandler.processVerb(response,
+              getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
     });
     test('Verify that otp:get with ttl requires authentication', () async {
@@ -149,14 +148,31 @@ void main() {
         () async {
       Response response = Response();
       HashMap<String, String?> verbParams =
-          getVerbParam(VerbSyntax.otp, 'otp:get');
+          getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
-      otpVerbHandler.otpExpiryInMills = 1;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
       await Future.delayed(Duration(milliseconds: 2));
       expect(await otpVerbHandler.isOTPValid(otp), false);
+    });
+
+    test('A test to verify default otp expiry not overwritten', () async {
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
+      inboundConnection.metaData.isAuthenticated = true;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      AtData? atData =
+          await secondaryKeyStore.get('private:${response.data}$atSign');
+      expect(atData?.metaData?.ttl, 1);
+
+      verbParams = getVerbParam(VerbSyntax.otp, 'otp:get');
+      inboundConnection.metaData.isAuthenticated = true;
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      atData = await secondaryKeyStore.get('private:${response.data}$atSign');
+      expect(atData?.metaData?.ttl, 300000);
     });
 
     test(
