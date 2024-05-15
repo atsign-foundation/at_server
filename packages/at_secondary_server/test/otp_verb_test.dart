@@ -172,7 +172,8 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       atData = await secondaryKeyStore.get('private:${response.data}$atSign');
-      expect(atData?.metaData?.ttl, 300000);
+      expect(atData?.metaData?.ttl,
+          OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
     });
 
     test(
