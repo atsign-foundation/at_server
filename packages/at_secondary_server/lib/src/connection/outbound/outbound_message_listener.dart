@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 ///Listener class for messages received by [OutboundClient]
 class OutboundMessageListener {
@@ -23,7 +24,7 @@ class OutboundMessageListener {
         'Calling outbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
-      outboundClient.outboundConnection?.underlying.listen(_messageHandler,
+      outboundClient.outboundConnection?.underlying.listen(messageHandler,
           onDone: _finishedHandler, onError: _errorHandler);
       outboundClient.outboundConnection?.metaData.isListening = true;
     }, (Object error, StackTrace st) {
@@ -35,7 +36,8 @@ class OutboundMessageListener {
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
-  Future<void> _messageHandler(data) async {
+  @visibleForTesting
+  Future<void> messageHandler(data) async {
     //ignore the data if connection is closed or stale
     if (outboundClient.outboundConnection!.metaData.isStale ||
         outboundClient.outboundConnection!.metaData.isClosed) {
@@ -130,6 +132,10 @@ class OutboundMessageListener {
             errorResponse.indexOf('AT'), errorResponse.indexOf('-'));
         logger.finer('errorCode: $errorCode');
       } on Exception {
+        logger.warning(
+            'Unable to extract error code from errorResponse: $errorResponse');
+        // if we are unable to get errorCode from error response, do nothing
+      } on Error {
         logger.warning(
             'Unable to extract error code from errorResponse: $errorResponse');
         // if we are unable to get errorCode from error response, do nothing
