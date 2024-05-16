@@ -7,6 +7,7 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -132,7 +133,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
       {String? atKey, String? namespace}) async {
-    bool retVal = await _isAuthorized(connectionMetadata, atKey: atKey, namespace: namespace);
+    bool retVal = await _isAuthorized(connectionMetadata,
+        atKey: atKey, namespace: namespace);
     logger.finer('_isAuthorized returned $retVal');
     return retVal;
   }
@@ -257,23 +259,46 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Check if user have configured SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
-    String sppKey =
+    String sppLegacyKey =
         'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    if (keyStore.isKeyExists(sppKey)) {
-      AtData atData = await keyStore.get(sppKey);
-      if (atData.data?.toLowerCase() == otp.toLowerCase()) {
-        return true;
-      }
+    // New SPP key has __otp namespace, legacy key does not have namespace
+    String sppKey =
+        'private:spp.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    AtData? sppAtData;
+    try {
+      sppAtData = await keyStore.get(sppKey);
+    } on KeyNotFoundException {
+      logger.finest('SPP not found in keystore, checking with legacy SPP key');
     }
+    try {
+      sppAtData ??= await keyStore.get(sppLegacyKey);
+    } on KeyNotFoundException {
+      logger.finest('No SPP found in KeyStore. Validating as OTP');
+    }
+    if (sppAtData != null &&
+        sppAtData.data?.toLowerCase() == otp.toLowerCase()) {
+      return true;
+    }
+
     // If SPP is not valid, then check if the provided otp is valid.
-    String otpKey =
+    String otpLegacyKey =
         'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    AtData otpAtData;
+    // New OTP key does __otp namespace, legacy key does not have namespace
+    String otpKey =
+        'private:${otp.toLowerCase()}.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    AtData? otpAtData;
     try {
       otpAtData = await keyStore.get(otpKey);
     } on KeyNotFoundException {
+      logger.finest('OTP not found in keystore, checking with legacy OTP key');
+    }
+    try {
+      otpAtData ??= await keyStore.get(otpLegacyKey);
+    } on KeyNotFoundException {
+      logger.finer('OTP NOT found with new and legacy otp key.');
       return false;
     }
+
     bool isOTPValid = SecondaryUtil.isActiveKey(otpAtData);
     // Remove the OTP after it is used.
     // NOTE: SPP code should NOT be deleted. only OTPs should be
