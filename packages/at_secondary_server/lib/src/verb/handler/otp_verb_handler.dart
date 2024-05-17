@@ -1,21 +1,23 @@
 import 'dart:collection';
 import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
+
 import 'abstract_verb_handler.dart';
-import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 class OtpVerbHandler extends AbstractVerbHandler {
   static Otp otpVerb = Otp();
 
   @visibleForTesting
-  int otpExpiryInMills = Duration(minutes: 5).inMilliseconds;
+  static const Duration defaultOtpExpiry = Duration(minutes: 5);
 
   OtpVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -31,10 +33,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
-    if (verbParams[AtConstants.ttl] != null &&
-        verbParams[AtConstants.ttl]!.isNotEmpty) {
-      otpExpiryInMills = int.parse(verbParams[AtConstants.ttl]!);
-    }
+    // Extract the ttl from the verb parameters if supplied, or use the default value.
+    int otpExpiryInMillis = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
+        defaultOtpExpiry.inMilliseconds;
+
     if (!atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'otp:get requires authenticated connection');
@@ -50,8 +52,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
             'private:${response.data}${AtSecondaryServerImpl.getInstance().currentAtSign}',
             AtData()
               ..data =
-                  '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMills)).millisecondsSinceEpoch}'
-              ..metaData = (AtMetaData()..ttl = otpExpiryInMills));
+                  '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
+              ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
         break;
       case 'put':
         // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
