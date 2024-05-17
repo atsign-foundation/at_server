@@ -73,7 +73,7 @@ void main() {
     print(version);
     var serverVersion = Version.parse(version);
     if (serverVersion > Version(3, 0, 46)) {
-      //3.0.46 contains fix to properly parse error for non existent key
+      //3.0.47 contains fix to properly parse error for non existent key.
       response = response.replaceFirst('error:', '');
       var errorMap = jsonDecode(response);
       expect(errorMap['errorCode'], 'AT0015');
