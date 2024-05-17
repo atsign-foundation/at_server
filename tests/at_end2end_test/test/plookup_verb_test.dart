@@ -72,7 +72,7 @@ void main() {
     var version = await sh1.getVersion();
     print(version);
     var serverVersion = Version.parse(version);
-    if (serverVersion > Version(3, 0, 45)) {
+    if (serverVersion > Version(3, 0, 46)) {
       //3.0.46 contains fix to properly parse error for non existent key
       response = response.replaceFirst('error:', '');
       var errorMap = jsonDecode(response);
