@@ -256,46 +256,40 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (otp == null) {
       return false;
     }
-    // Check if user have configured SPP(Semi-Permanent Pass-code).
+    // Check if user has configured SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
-    String sppLegacyKey =
-        'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    // New SPP key has __otp namespace, legacy key does not have namespace
     String sppKey =
         'private:spp.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    AtData? sppAtData;
-    try {
-      sppAtData = await keyStore.get(sppKey);
-    } on KeyNotFoundException {
-      logger.finest('SPP not found in keystore, checking with legacy SPP key');
+    if (!keyStore.isKeyExists(sppKey)) {
+      // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
+      // New SPP key has __otp namespace, legacy key does NOT have any namespace
+      sppKey =
+          'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
     try {
-      sppAtData ??= await keyStore.get(sppLegacyKey);
+      AtData? sppAtData = await keyStore.get(sppKey);
+      if (sppAtData?.data?.toLowerCase() == otp.toLowerCase()) {
+        return true;
+      }
     } on KeyNotFoundException {
       logger.finest('No SPP found in KeyStore. Validating as OTP');
     }
-    if (sppAtData != null &&
-        sppAtData.data?.toLowerCase() == otp.toLowerCase()) {
-      return true;
-    }
 
-    // If SPP is not valid, then check if the provided otp is valid.
-    String otpLegacyKey =
-        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    // New OTP key does __otp namespace, legacy key does not have namespace
+    // If not a valid SPP, then check against OTP keys
     String otpKey =
         'private:${otp.toLowerCase()}.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    if (!keyStore.isKeyExists(otpKey)) {
+      // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
+      // New OTP key has __otp namespace, legacy key does not have namespace
+      otpKey =
+          'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    }
     AtData? otpAtData;
     try {
-      otpAtData = await keyStore.get(otpKey);
+      otpAtData ??= await keyStore.get(otpKey);
     } on KeyNotFoundException {
-      logger.finest('OTP not found in keystore, checking with legacy OTP key');
-    }
-    try {
-      otpAtData ??= await keyStore.get(otpLegacyKey);
-    } on KeyNotFoundException {
-      logger.finer('OTP NOT found with new and legacy otp key.');
+      logger.finer('OTP NOT found in KeyStore');
       return false;
     }
 
