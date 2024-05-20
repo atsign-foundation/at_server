@@ -27,8 +27,8 @@ class DefaultVerbExecutor implements VerbExecutor {
       await handler.process(utf8EncodedCommand, fromConnection);
     } on AtConnectException {
       rethrow;
-    } on Exception catch (e) {
-      logger.severe(
+    } catch (e) {
+      logger.finer(
           'exception in processing command :$utf8EncodedCommand: ${e.toString()}');
       rethrow;
     }

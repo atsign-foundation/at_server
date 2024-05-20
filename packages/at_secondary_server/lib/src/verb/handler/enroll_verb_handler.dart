@@ -68,65 +68,62 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Cannot $operation enrollment without authentication');
     }
     EnrollParams? enrollVerbParams;
-    try {
-      // Ensure that enrollParams are present for all enroll operation
-      // Exclude operation 'list' which does not have enrollParams
-      if (verbParams[AtConstants.enrollParams] == null) {
-        if (operation != 'list') {
-          logger.severe(
-              'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
-          throw IllegalArgumentException('Enroll parameters not provided');
-        }
-      } else {
-        enrollVerbParams = EnrollParams.fromJson(
-            jsonDecode(verbParams[AtConstants.enrollParams]!));
-      }
-      switch (operation) {
-        case 'request':
-          await _handleEnrollmentRequest(
-              enrollVerbParams!, currentAtSign, responseJson, atConnection);
-          break;
 
-        case 'approve':
-        case 'deny':
-          await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
-              operation, responseJson, response);
-          break;
-        case 'revoke':
-          var forceFlag = verbParams['force'];
-          final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
-          var inboundConnectionMetaData =
-              atConnection.metaData as InboundConnectionMetadata;
-          if (enrollmentIdFromParams ==
-                  inboundConnectionMetaData.enrollmentId &&
-              forceFlag == null) {
-            throw AtEnrollmentRevokeException(
-                'Current client cannot revoke its own enrollment');
-          }
-          await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
-              operation, responseJson, response);
-          if (responseJson['status'] == EnrollmentStatus.revoked.name) {
-            logger.finer(
-                'Dropping connection for enrollmentId: $enrollmentIdFromParams');
-            await _dropRevokedClientConnection(enrollmentIdFromParams!,
-                forceFlag != null, atConnection, responseJson);
-          }
-          break;
-
-        case 'list':
-          response.data = await _fetchEnrollmentRequests(
-              atConnection, currentAtSign,
-              enrollVerbParams: enrollVerbParams);
-          return;
-        case 'fetch':
-          response.data = await _fetchEnrollmentInfoById(
-              enrollVerbParams, currentAtSign, response);
-          return;
+    // Ensure that enrollParams are present for all enroll operation
+    // Exclude operation 'list' which does not have enrollParams
+    if (verbParams[AtConstants.enrollParams] == null) {
+      if (operation != 'list') {
+        logger.severe(
+            'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
+        throw IllegalArgumentException('Enroll parameters not provided');
       }
-    } catch (e, stackTrace) {
-      logger.severe('Exception: $e\n$stackTrace');
-      rethrow;
+    } else {
+      enrollVerbParams = EnrollParams.fromJson(
+          jsonDecode(verbParams[AtConstants.enrollParams]!));
     }
+    switch (operation) {
+      case 'request':
+        await _handleEnrollmentRequest(
+            enrollVerbParams!, currentAtSign, responseJson, atConnection);
+        break;
+
+      case 'approve':
+      case 'deny':
+        await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+            operation, responseJson, response);
+        break;
+      case 'revoke':
+        var forceFlag = verbParams['force'];
+        final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
+        var inboundConnectionMetaData =
+            atConnection.metaData as InboundConnectionMetadata;
+        if (enrollmentIdFromParams ==
+                inboundConnectionMetaData.enrollmentId &&
+            forceFlag == null) {
+          throw AtEnrollmentRevokeException(
+              'Current client cannot revoke its own enrollment');
+        }
+        await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
+            operation, responseJson, response);
+        if (responseJson['status'] == EnrollmentStatus.revoked.name) {
+          logger.finer(
+              'Dropping connection for enrollmentId: $enrollmentIdFromParams');
+          await _dropRevokedClientConnection(enrollmentIdFromParams!,
+              forceFlag != null, atConnection, responseJson);
+        }
+        break;
+
+      case 'list':
+        response.data = await _fetchEnrollmentRequests(
+            atConnection, currentAtSign,
+            enrollVerbParams: enrollVerbParams);
+        return;
+      case 'fetch':
+        response.data = await _fetchEnrollmentInfoById(
+            enrollVerbParams, currentAtSign, response);
+        return;
+    }
+
     response.data = jsonEncode(responseJson);
     return;
   }
@@ -488,7 +485,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
       logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
-            ..notification = key
+            ..notification = '$key$atSign'
             ..fromAtSign = atSign
             ..toAtSign = atSign
             ..ttl = 24 * 60 * 60 * 1000
@@ -499,12 +496,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final notificationId =
           await NotificationUtil.storeNotification(atNotification);
       logger.finer('notification generated: $notificationId');
-    } on Exception catch (e, trace) {
+    } catch (e, trace) {
       logger.severe(
           'Exception while storing notification key ${AtConstants.enrollmentId}. Exception $e. Trace $trace');
-    } on Error catch (e, trace) {
-      logger.severe(
-          'Error while storing notification key ${AtConstants.enrollmentId}. Error $e. Trace $trace');
+      rethrow;
     }
   }
 

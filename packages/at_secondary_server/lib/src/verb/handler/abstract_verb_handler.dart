@@ -203,7 +203,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
     if (keyNamespace == enrollManageNamespace) {
-      return (verb is Otp || verb is Enroll)
+      return (verb is Otp || verb is Enroll || verb is Monitor)
           ? (access == 'r' || access == 'rw')
           : false;
     }
