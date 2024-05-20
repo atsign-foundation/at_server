@@ -132,7 +132,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
       {String? atKey, String? namespace}) async {
-    bool retVal = await _isAuthorized(connectionMetadata, atKey: atKey, namespace: namespace);
+    bool retVal = await _isAuthorized(connectionMetadata,
+        atKey: atKey, namespace: namespace);
     logger.finer('_isAuthorized returned $retVal');
     return retVal;
   }

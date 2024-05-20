@@ -876,7 +876,8 @@ void main() {
                   'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
     });
 
-    test('A test to verify read access is allowed if key is @alice:shared_key@bob',
+    test(
+        'A test to verify read access is allowed if key is @alice:shared_key@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String sharedKeyForThem = 'shared_key$bob';
@@ -904,7 +905,8 @@ void main() {
           jsonDecode(verbResponse.data!);
       expect(jsonDecodedResponseData['data'], bobAtData.data);
     });
-    test('A test to verify read access is allowed if key is shared_key.alice@bob',
+    test(
+        'A test to verify read access is allowed if key is shared_key.alice@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String sharedKeyForMe = 'shared_key.alice$bob';

@@ -97,14 +97,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
         var inboundConnectionMetaData =
             atConnection.metaData as InboundConnectionMetadata;
-        if (enrollmentIdFromParams ==
-                inboundConnectionMetaData.enrollmentId &&
+        if (enrollmentIdFromParams == inboundConnectionMetaData.enrollmentId &&
             forceFlag == null) {
           throw AtEnrollmentRevokeException(
               'Current client cannot revoke its own enrollment');
         }
-        await _handleEnrollmentPermissions(enrollVerbParams, currentAtSign,
-            operation, responseJson, response);
+        await _handleEnrollmentPermissions(
+            enrollVerbParams, currentAtSign, operation, responseJson, response);
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.finer(
               'Dropping connection for enrollmentId: $enrollmentIdFromParams');
