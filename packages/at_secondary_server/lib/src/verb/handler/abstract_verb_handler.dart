@@ -132,7 +132,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
   Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
       {String? atKey, String? namespace}) async {
-    bool retVal = await _isAuthorized(connectionMetadata, atKey: atKey, namespace: namespace);
+    bool retVal = await _isAuthorized(connectionMetadata,
+        atKey: atKey, namespace: namespace);
     logger.finer('_isAuthorized returned $retVal');
     return retVal;
   }
@@ -203,7 +204,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
     if (keyNamespace == enrollManageNamespace) {
-      return (verb is Otp || verb is Enroll)
+      return (verb is Otp || verb is Enroll || verb is Monitor)
           ? (access == 'r' || access == 'rw')
           : false;
     }

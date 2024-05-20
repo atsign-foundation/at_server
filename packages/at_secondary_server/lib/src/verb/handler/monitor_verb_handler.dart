@@ -90,9 +90,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       fromAtSign = fromAtSign.replaceAll('@', '');
     }
     try {
+      logger.finest('Checking $notification against $regex');
       // If the user does not provide regex, defaults to ".*" to match all notifications.
       if (notification.notification!.contains(RegExp(regex)) ||
           (fromAtSign != null && fromAtSign.contains(RegExp(regex)))) {
+        logger.finest('Matched regex - sending');
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.toJson())}\n');
       }
