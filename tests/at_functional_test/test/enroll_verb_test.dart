@@ -464,7 +464,10 @@ void main() {
           expect(notificationValue['appName'], 'buzz');
           expect(notificationValue['deviceName'], deviceName);
           expect(notificationValue['namespace'], {'buzz': 'rw'});
+          // TODO remove encryptedApkamSymmetricKey and use encryptedAPKAMSymmetricKey constant name in future
           expect(notificationValue['encryptedApkamSymmetricKey'],
+              apkamEncryptedKeysMap['encryptedApkamSymmetricKey']);
+          expect(notificationValue['encryptedAPKAMSymmetricKey'],
               apkamEncryptedKeysMap['encryptedApkamSymmetricKey']);
           monitorSocket.close();
         }
