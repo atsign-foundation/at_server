@@ -138,32 +138,38 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return retVal;
   }
 
-  Future<bool> _isAuthorized(InboundConnectionMetadata connectionMetadata,
-      {String? atKey, String? namespace}) async {
+  Future<bool> _isAuthorized(
+    InboundConnectionMetadata connectionMetadata, {
+    String? atKey,
+    String? namespace,
+  }) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
 
+    // If legacy PKAM (full permissions) or is a reserved key (to which all
+    // authenticated connections have access) then return true
     if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
 
-    final enrollmentKey =
-        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    final fullKey =
-        '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    final dataStoreKey = '$enrollmentId'
+        '.$newEnrollmentKeyPattern'
+        '.$enrollManageNamespace'
+        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
     final EnrollDataStoreValue enrollDataStoreValue;
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
+      enrollDataStoreValue = await getEnrollDataStoreValue(dataStoreKey);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $fullKey');
+      logger.shout('Could not retrieve enrollment data for $dataStoreKey');
       return false;
     }
 
+    // Check that the connection's enrollment is in 'approved' state.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $fullKey'
+      logger.warning('Enrollment state for $dataStoreKey'
           ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
@@ -171,7 +177,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final enrollNamespaces = enrollDataStoreValue.namespaces;
     // if both key and namespace are passed, throw Exception if they don't match
     if (atKey != null && namespace != null) {
-      var namespaceFromAtKey = AtKey.fromString(atKey).namespace;
+      AtKey atKeyObj;
+      try {
+        atKeyObj = AtKey.fromString(atKey);
+      } catch (e) {
+        throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
+      }
+      var namespaceFromAtKey = atKeyObj.namespace;
       if (namespaceFromAtKey != null && namespaceFromAtKey != namespace) {
         throw AtEnrollmentException(
             'AtKey namespace and passed namespace do not match');
