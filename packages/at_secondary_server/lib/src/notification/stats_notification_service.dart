@@ -133,7 +133,8 @@ class StatsNotificationService {
   }
 
   /// Writes the lastCommitID to all Monitor connections
-  void writeStatsToMonitor({String? latestCommitID, String? operationType}) {
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
     try {
       latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
       // Gets the list of active connections.
@@ -156,8 +157,8 @@ class StatsNotificationService {
             ..messageType = MessageType.key.toString()
             ..isTextMessageEncrypted = false;
           // Convert notification object to JSON and write to connection
-          connection
-              .write('notification: ${jsonEncode(notification.toJson())}\n');
+          await connection.write('notification:'
+              ' ${jsonEncode(notification.toJson())}\n');
         }
       }
       if (numOfMonitorConn == 0) {

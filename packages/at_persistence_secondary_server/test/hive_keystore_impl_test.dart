@@ -9,6 +9,8 @@ import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   group('A group of hive keystore impl tests', () {
@@ -293,6 +295,106 @@ void main() async {
       atData.data = '123';
       await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
+
+    test('test put max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.put(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.put(cachedKey, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test put key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.put(key, atData);
+      expect(result >= 0, true);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
+
+    test('test create max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.create(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(250)}@test_user_1';
+      await expectLater(
+          keyStore.create(cachedKey, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test create key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.create(key, atData);
+      expect(result >= 0, true);
+    });
+    test('test putAll max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(250)}@test_user_1';
+      await expectLater(
+          keyStore.putAll(key, atData, AtMetaData()),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(270)}@test_user_1';
+      await expectLater(
+          keyStore.putAll(cachedKey, atData, AtMetaData()),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test putAll key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.putAll(key, atData, AtMetaData());
+      expect(result, isNotNull);
+      expect(result! >= 0, true);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });

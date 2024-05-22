@@ -7,6 +7,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -26,7 +27,11 @@ class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 class MockNotificationManager extends Mock implements NotificationManager {}
 
 class MockStatsNotificationService extends Mock
-    implements StatsNotificationService {}
+    implements StatsNotificationService {
+  @override
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {}
+}
 
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
@@ -40,7 +45,19 @@ class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
 
-class MockSocket extends Mock implements Socket {}
+class MockSocket extends Mock implements Socket {
+  Completer completer = Completer();
+  @override
+  Future get done => completer.future;
+  @override
+  InternetAddress get remoteAddress => InternetAddress('127.0.0.1');
+  @override
+  int get remotePort => 9999;
+  @override
+  InternetAddress get address => InternetAddress('127.0.0.1');
+  @override
+  int get port => 5555;
+}
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
@@ -118,6 +135,9 @@ verbTestsSetUp() async {
 
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
+  final inboundPool = InboundConnectionPool.getInstance();
+  inboundPool.init(5);
+  inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
       inboundConnection, bob, mockSecondaryAddressFinder,
@@ -222,8 +242,6 @@ verbTestsSetUp() async {
       .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
-  when(() => statsNotificationService.writeStatsToMonitor())
-      .thenAnswer((invocation) {});
 }
 
 Future<void> verbTestsTearDown() async {

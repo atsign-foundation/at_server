@@ -18,6 +18,8 @@ import 'package:at_utils/at_utils.dart';
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   late final NotificationManager notificationManager;
+  static const int maxKeyLength = 255;
+  static const int maxKeyLengthWithoutCached = 248;
 
   AbstractUpdateVerbHandler(
       SecondaryKeyStore keyStore,
@@ -70,14 +72,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    if (atKey.contains('.')) {
-      var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
-      isAuthorized = await super.isAuthorized(
-        inboundConnectionMetadata,
-        keyNamespace,
-      );
-    }
-
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -89,10 +83,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
+    isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, atKey: atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-              ' is not authorized to update key: ${atKey.toString()}');
+          ' is not authorized to update key: ${atKey.toString()}');
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
@@ -124,6 +120,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
       atKey = 'cached:$atKey';
     }
+
+    _checkMaxLength(atKey);
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
@@ -256,6 +254,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       }
     });
     return AtMetaData.fromJson(atMetaDataJson);
+  }
+
+  /// Certain keys created on one atsign server may be cached in another atsign server.
+  /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
+  void _checkMaxLength(String key) {
+    int maxLength =
+        key.startsWith('cached:') ? maxKeyLength : maxKeyLengthWithoutCached;
+    if (key.length > maxLength) {
+      throw InvalidAtKeyException(
+        'key length ${key.length} is greater than max allowed $maxLength chars',
+      );
+    }
   }
 }
 

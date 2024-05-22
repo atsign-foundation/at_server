@@ -9,7 +9,6 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -21,7 +20,6 @@ import 'test_utils.dart';
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.
 void main() {
-  AtSignLogger.root_level = 'WARNING';
   group('lookup behaviour tests', () {
     /// Test the actual behaviour of the lookup verb handler.
     /// (Syntax tests are covered in the next test group, 'lookup syntax tests')
@@ -876,6 +874,173 @@ void main() {
               e is UnAuthorizedException &&
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
+    });
+
+    test(
+        'A test to verify read access is allowed if key is @alice:shared_key@bob',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String sharedKeyForThem = 'shared_key$bob';
+      AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
+      String bobAtDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobAtData,
+          key: '$alice:$sharedKeyForThem')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$sharedKeyForThem\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobAtDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$sharedKeyForThem';
+      expect(
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: sharedKeyForThem),
+          true);
+
+      var verbResponse = await lookupVerbHandler.processInternal(
+          lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedResponseData =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedResponseData['data'], bobAtData.data);
+    });
+    test(
+        'A test to verify read access is allowed if key is shared_key.alice@bob',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String sharedKeyForMe = 'shared_key.alice$bob';
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      expect(
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: sharedKeyForMe),
+          true);
+    });
+
+    test(
+        'A test to verify read access is allowed on a reserved key for an enrollment with a specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.fromAtSign = alice;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String reservedKey = 'shared_key$bob';
+      AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
+      String bobWaviDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobAtData,
+          key: '$alice:$reservedKey')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$reservedKey\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobWaviDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      LookupVerbHandler lookupVerb = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$reservedKey';
+      expect(
+          await lookupVerb.isAuthorized(inboundConnection.metadata,
+              atKey: '$alice:$reservedKey'),
+          true);
+
+      Response verbResponse =
+          await lookupVerb.processInternal(lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedVerbResponse =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedVerbResponse['data'], bobAtData.data);
+    });
+
+    test(
+        'A test to verify read access is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String testKey = 'test_key_no_namespace$alice';
+      AtData aliceWaviData = createRandomAtData(alice)..metaData!.ttr = 100;
+      await secondaryKeyStore.put('$alice:$testKey', aliceWaviData);
+
+      LookupVerbHandler lookupVerb = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$testKey';
+
+      expect(
+          await lookupVerb.isAuthorized(inboundConnection.metadata,
+              atKey: testKey),
+          true);
+
+      Response verbResponse =
+          await lookupVerb.processInternal(lookupCommand, inboundConnection);
+      Map<String, dynamic> jsonDecodedVerbResponse =
+          jsonDecode(verbResponse.data!);
+      expect(jsonDecodedVerbResponse['data'], aliceWaviData.data);
+    });
+
+    test(
+        'A test to verify read access is denied to a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      String testKey = 'test_key_no_namespace_1$alice';
+
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      String lookupCommand = 'lookup:all:$testKey';
+      expect(
+          await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
+              atKey: testKey),
+          false);
+      expect(
+          () async => await lookupVerbHandler.processInternal(
+              lookupCommand, inboundConnection),
+          throwsA(predicate((e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:test_key_no_namespace_1@alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });

@@ -15,6 +15,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveKeystore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
+  static const int maxKeyLength = 255;
+  static const int maxKeyLengthWithoutCached = 248;
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
@@ -41,6 +43,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @Deprecated("Use [initialize]")
+
   /// Deprecated. Use [initialize]
   Future<void> init() async {
     await initialize();
@@ -195,6 +198,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     metadata ??= Metadata();
     newMetaData ??= AtMetaData.fromCommonsMetadata(metadata);
 
+    _checkMaxLength(hive_key);
     var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(value!,
         newMetaData: newMetaData, atSign: persistenceManager?.atsign);
     // Default commitOp to Update.
@@ -402,6 +406,18 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return persistenceManager!
         .getBox()
         .containsKey(keyStoreHelper.prepareKey(key));
+  }
+
+  /// Certain keys created on one atsign server may be cached in another atsign server.
+  /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
+  void _checkMaxLength(String key) {
+    int maxLength =
+        key.startsWith('cached:') ? maxKeyLength : maxKeyLengthWithoutCached;
+    if (key.length > maxLength) {
+      throw DataStoreException(
+        'key length ${key.length} is greater than max allowed $maxLength chars',
+      );
+    }
   }
 
   ///Restarts the hive box.

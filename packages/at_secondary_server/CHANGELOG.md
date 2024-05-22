@@ -1,6 +1,37 @@
+## 3.0.46
+- fix: Default OTP expiry value remains unchanged for the subsequent "otp:" requests
+- fix: Fix the handling of enrollment self-notifications
+
+## 3.0.45
+- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency
+- feat: enroll:revoke now has an optional "force" flag to allow current 
+  connection to revoke its own enrollment
+- fix: Fixed bug in delivery of notifications to APKAM Monitors
+
+## 3.0.44
+- fix: otp authentication check
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.8
+  - at_server_spec to v5.0.1
+  - at_lookup to v3.0.47
+- feat: Add enroll:fetch to fetch the enrollment details.
+- fix: Added validation to ensure a new enrollment request does not contain a duplicate combination of appName and
+  deviceName.
+
+## 3.0.43
+- fix: ensure all connection writes are awaited
+
+## 3.0.42
+- feat: allow filtering of requests in EnrollVerbHandler using enrollment
+  approval status
+- feat: authorization changes for keys with no namespace and for reserved keys
+- build(deps): dependabot changes
+- fix: Improve socket handling for better server resilience
+- fix: Ensure cached keys like 'cached:public:publicKey' are not considered 
+  protected keys and can thus be deleted
+
 ## 3.0.41
 - fix: bug in access control for otp put
-
 ## 3.0.40
 - build[deps]: Upgraded the following packages: 
    - at_chops to 2.0.0

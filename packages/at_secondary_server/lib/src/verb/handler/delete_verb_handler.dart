@@ -69,14 +69,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign);
     // check to see if a key is protected. Cannot delete key if it's protected
-    if (_isProtectedKey(deleteKey!)) {
+    if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
           'Cannot delete protected key: \'$deleteKey\'');
     }
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    var keyNamespace = verbParams[AtConstants.atKey]!
-        .substring(deleteKey.lastIndexOf('.') + 1);
+    // var keyNamespace = verbParams[AtConstants.atKey]!
+    //     .substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[AtConstants.forAtSign] != null) {
       deleteKey =
           '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
@@ -97,15 +97,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    bool isAuthorized = await super.isAuthorized(
-      inboundConnectionMetadata,
-      keyNamespace,
-    );
+    bool isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
 
     if (!isAuthorized) {
       throw UnAuthorizedException(
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-              ' is not authorized to delete key: $deleteKey');
+          ' is not authorized to delete key: $deleteKey');
     }
     try {
       var result = await keyStore.remove(deleteKey);
@@ -177,8 +175,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     return protectedKeys;
   }
 
-  bool _isProtectedKey(String key) {
-    if (protectedKeys!.contains(key)) {
+  bool _isProtectedKey(String key, {String? isCached}) {
+    isCached ??= 'false';
+    if (protectedKeys!.contains(key) && isCached == 'false') {
       logger.severe('Cannot delete key. \'$key\' is a protected key');
       return true;
     }

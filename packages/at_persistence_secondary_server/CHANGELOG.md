@@ -1,5 +1,13 @@
 ## 4.0.0
 - [Breaking Change] feat: Implement changes for keystore put/create method signature change to replace optional metadata params 
+## 3.0.63
+- fix: Ensure only latest commitEntry for each present in CommitLogCache
+## 3.0.62
+- fix: Add check for hive key max length (255 chars)
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.5
+  - hive to v2.2.3
+  - crypto to v3.0.3
 ## 3.0.61
 - feat: delete entries for expired keys are not committed to the commitLog [feature not enabled yet]
 ## 3.0.60

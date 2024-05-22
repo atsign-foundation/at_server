@@ -43,7 +43,7 @@ class DummyInboundConnection implements InboundConnection {
 
   String? lastWrittenData;
   @override
-  void write(String data) {
+  Future<void> write(String data) async {
     lastWrittenData = data;
   }
 

@@ -1,19 +1,22 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
+
 import 'abstract_verb_handler.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 /// Verb handler to process APKAM enroll requests
 class EnrollVerbHandler extends AbstractVerbHandler {
@@ -65,43 +68,93 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Cannot $operation enrollment without authentication');
     }
     EnrollParams? enrollVerbParams;
-    try {
-      // Ensure that enrollParams are present for all enroll operation
-      // Exclude operation 'list' which does not have enrollParams
-      if (verbParams[AtConstants.enrollParams] == null) {
-        if (operation != 'list') {
-          logger.severe(
-              'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
-          throw IllegalArgumentException('Enroll parameters not provided');
-        }
-      } else {
-        enrollVerbParams = EnrollParams.fromJson(
-            jsonDecode(verbParams[AtConstants.enrollParams]!));
-      }
-      switch (operation) {
-        case 'request':
-          await _handleEnrollmentRequest(
-              enrollVerbParams!, currentAtSign, responseJson, atConnection);
-          break;
 
-        case 'approve':
-        case 'deny':
-        case 'revoke':
-          await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
-              operation, responseJson, response);
-          break;
-
-        case 'list':
-          response.data =
-              await _fetchEnrollmentRequests(atConnection, currentAtSign);
-          return;
+    // Ensure that enrollParams are present for all enroll operation
+    // Exclude operation 'list' which does not have enrollParams
+    if (verbParams[AtConstants.enrollParams] == null) {
+      if (operation != 'list') {
+        logger.severe(
+            'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
+        throw IllegalArgumentException('Enroll parameters not provided');
       }
-    } catch (e, stackTrace) {
-      logger.severe('Exception: $e\n$stackTrace');
-      rethrow;
+    } else {
+      enrollVerbParams = EnrollParams.fromJson(
+          jsonDecode(verbParams[AtConstants.enrollParams]!));
     }
+    switch (operation) {
+      case 'request':
+        await _handleEnrollmentRequest(
+            enrollVerbParams!, currentAtSign, responseJson, atConnection);
+        break;
+
+      case 'approve':
+      case 'deny':
+        await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
+            operation, responseJson, response);
+        break;
+      case 'revoke':
+        var forceFlag = verbParams['force'];
+        final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
+        var inboundConnectionMetaData =
+            atConnection.metaData as InboundConnectionMetadata;
+        if (enrollmentIdFromParams == inboundConnectionMetaData.enrollmentId &&
+            forceFlag == null) {
+          throw AtEnrollmentRevokeException(
+              'Current client cannot revoke its own enrollment');
+        }
+        await _handleEnrollmentPermissions(
+            enrollVerbParams, currentAtSign, operation, responseJson, response);
+        if (responseJson['status'] == EnrollmentStatus.revoked.name) {
+          logger.finer(
+              'Dropping connection for enrollmentId: $enrollmentIdFromParams');
+          await _dropRevokedClientConnection(enrollmentIdFromParams!,
+              forceFlag != null, atConnection, responseJson);
+        }
+        break;
+
+      case 'list':
+        response.data = await _fetchEnrollmentRequests(
+            atConnection, currentAtSign,
+            enrollVerbParams: enrollVerbParams);
+        return;
+      case 'fetch':
+        response.data = await _fetchEnrollmentInfoById(
+            enrollVerbParams, currentAtSign, response);
+        return;
+    }
+
     response.data = jsonEncode(responseJson);
     return;
+  }
+
+  /// Fetches the enrollment request with enrollment id.
+  Future<String> _fetchEnrollmentInfoById(
+      EnrollParams? enrollVerbParams, currentAtSign, Response response) async {
+    String? enrollmentId = enrollVerbParams?.enrollmentId;
+
+    String enrollmentKey =
+        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
+    AtData atData;
+    try {
+      atData = await keyStore.get(enrollmentKey);
+    } on KeyNotFoundException {
+      throw KeyNotFoundException(
+          'An Enrollment with Id: ${enrollVerbParams?.enrollmentId} does not exist or has expired.');
+    }
+    if (atData.data == null) {
+      throw AtEnrollmentException(
+          'Enrollment details not found for enrollment id: ${enrollVerbParams?.enrollmentId}');
+    }
+    EnrollDataStoreValue enrollDataStoreValue =
+        EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+    return jsonEncode({
+      'appName': enrollDataStoreValue.appName,
+      'deviceName': enrollDataStoreValue.deviceName,
+      'namespace': enrollDataStoreValue.namespaces,
+      'encryptedAPKAMSymmetricKey':
+          enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+      'status': enrollDataStoreValue.approval?.state
+    });
   }
 
   /// Enrollment requests details are persisted in the keystore and are excluded from
@@ -149,6 +202,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
+    await validateEnrollmentRequest(enrollParams);
+
     // When threshold is met, set "_lastInvalidOtpReceivedInMills" and "delayForInvalidOTPSeries"
     // to default values.
     if (((DateTime.now().toUtc().millisecondsSinceEpoch) -
@@ -193,7 +248,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AtData()..data = enrollParams.apkamPublicKey!);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
-      enrollmentValue.encryptedAPKAMSymmetricKey = enrollParams.encryptedAPKAMSymmetricKey;
+      enrollmentValue.encryptedAPKAMSymmetricKey =
+          enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
       await _storeNotification(key, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
@@ -278,6 +334,40 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['enrollmentId'] = enrollmentIdFromParams;
   }
 
+  Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
+      InboundConnection currentInboundConnection, responseJson) async {
+    final inboundPool = InboundConnectionPool.getInstance();
+    List<InboundConnection> connectionsToRemove = [];
+    for (InboundConnection connection in inboundPool.getConnections()) {
+      var inboundConnectionMetadata =
+          connection.metaData as InboundConnectionMetadata;
+      if (!connection.isInValid() &&
+          inboundConnectionMetadata.enrollmentId == enrollmentId) {
+        logger.finer(
+            'Removing APKAM revoked client connection: ${connection.metaData.sessionID}');
+        connectionsToRemove.add(connection);
+      }
+    }
+    for (InboundConnection inboundConnection in connectionsToRemove) {
+      if (forceFlag &&
+          inboundConnection.metaData.sessionID ==
+              currentInboundConnection.metaData.sessionID) {
+        logger.finer(
+            'Closing current inbound connection due to enroll:revoke:force');
+        responseJson['message'] =
+            'Enrollment is revoked. Closing the connection in 10 seconds';
+        Future.delayed(Duration(seconds: 10), () async {
+          logger.finer('Closing revoked self inbound connection');
+          connectionsToRemove.remove(inboundConnection);
+          await inboundConnection.close();
+        });
+      } else {
+        inboundPool.remove(inboundConnection);
+        await inboundConnection.close();
+      }
+    }
+  }
+
   /// Stores the encrypted default encryption private key in <enrollmentId>.default_enc_private_key.__manage@<atsign>
   /// and the encrypted self encryption key in <enrollmentId>.default_self_enc_key.__manage@<atsign>
   /// These keys will be stored only on server and will not be synced to the client
@@ -312,7 +402,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Returns a Map where key is an enrollment key and value is a
   /// Map of "appName","deviceName" and "namespaces"
   Future<String> _fetchEnrollmentRequests(
-      AtConnection atConnection, String currentAtSign) async {
+      AtConnection atConnection, String currentAtSign,
+      {EnrollParams? enrollVerbParams}) async {
     Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
     String? enrollApprovalId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
@@ -321,7 +412,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
     if (enrollApprovalId == null || enrollApprovalId.isEmpty) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
       return jsonEncode(enrollmentRequestsMap);
     }
     // If connection is authenticated via APKAM, then enrollApprovalId is populated,
@@ -334,7 +426,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await getEnrollDataStoreValue(enrollmentKey);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap);
+      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
+          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
     } else {
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
@@ -342,7 +435,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }
@@ -350,17 +445,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _fetchAllEnrollments(List<String> enrollmentKeysList,
-      Map<String, Map<String, dynamic>> enrollmentRequestsMap) async {
+      Map<String, Map<String, dynamic>> enrollmentRequestsMap,
+      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+    enrollmentStatusFilter ??= EnrollmentStatus.values;
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
           await getEnrollDataStoreValue(enrollmentKey);
-      if (enrollDataStoreValue.approval!.state !=
-          EnrollmentStatus.expired.name) {
+      EnrollmentStatus enrollmentStatus =
+          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
+      if (enrollmentStatusFilter.contains(enrollmentStatus)) {
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey' : enrollDataStoreValue.encryptedAPKAMSymmetricKey
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
         };
       }
     }
@@ -384,7 +484,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
       logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
-            ..notification = key
+            ..notification = '$key$atSign'
             ..fromAtSign = atSign
             ..toAtSign = atSign
             ..ttl = 24 * 60 * 60 * 1000
@@ -395,12 +495,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final notificationId =
           await NotificationUtil.storeNotification(atNotification);
       logger.finer('notification generated: $notificationId');
-    } on Exception catch (e, trace) {
+    } catch (e, trace) {
       logger.severe(
           'Exception while storing notification key ${AtConstants.enrollmentId}. Exception $e. Trace $trace');
-    } on Error catch (e, trace) {
-      logger.severe(
-          'Error while storing notification key ${AtConstants.enrollmentId}. Error $e. Trace $trace');
+      rethrow;
     }
   }
 
@@ -416,6 +514,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'revoke' && EnrollmentStatus.approved != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
+    }
+  }
+
+  /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
+  /// If a matching enrollment is found, [AtEnrollmentException] exception is thrown.
+  /// Otherwise, the enrollment request is accepted.
+  @visibleForTesting
+  Future<void> validateEnrollmentRequest(EnrollParams enrollParams) async {
+    // Fetches all the enrollment keys from the keystore.
+    List<dynamic> enrollmentKeys = keyStore.getKeys(regex: 'enrollments');
+
+    // Iterate through the existing enrollments and verify that there is no enrollment with the same
+    // appName and deviceName combination, and a status of 'pending' or 'approved'
+    for (String key in enrollmentKeys) {
+      AtData atData = AtData();
+      try {
+        atData = await keyStore.get(key);
+      } on KeyNotFoundException {
+        logger.finest('An enrollment with $key does not exist or expired');
+      }
+      if (atData.data == null) {
+        continue;
+      }
+      EnrollDataStoreValue enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+
+      if ((enrollParams.appName == enrollDataStoreValue.appName &&
+              enrollParams.deviceName == enrollDataStoreValue.deviceName) &&
+          (enrollDataStoreValue.approval?.state ==
+                  EnrollmentStatus.approved.name ||
+              enrollDataStoreValue.approval?.state ==
+                  EnrollmentStatus.pending.name)) {
+        String enrollmentId = key.substring(0, key.indexOf('.'));
+        throw AtEnrollmentException(
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
+      }
     }
   }
 

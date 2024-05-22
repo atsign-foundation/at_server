@@ -40,8 +40,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
     var response = await processInternal(command, atConnection);
-    var handler = responseManager.getResponseHandler(getVerb());
-    await handler.process(atConnection, response);
+    var responseHandler = responseManager.getResponseHandler(getVerb());
+    await responseHandler.process(atConnection, response);
   }
 
   Future<Response> processInternal(
@@ -128,69 +128,133 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///  - the connection has insufficient permission for this namespace
   ///    (for example, has "r" but needs "rw" for a delete operation)
   ///  - If enrollment is a part of "global" or "manage" namespace
-  Future<bool> isAuthorized(
-    InboundConnectionMetadata connectionMetadata,
-    String keyNamespace,
-  ) async {
+  ///  - the connection does not have access to * namespace and key has no namespace
+  /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
+  Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
+      {String? atKey, String? namespace}) async {
+    bool retVal = await _isAuthorized(connectionMetadata,
+        atKey: atKey, namespace: namespace);
+    logger.finer('_isAuthorized returned $retVal');
+    return retVal;
+  }
+
+  Future<bool> _isAuthorized(
+    InboundConnectionMetadata connectionMetadata, {
+    String? atKey,
+    String? namespace,
+  }) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
 
-    if (enrollmentId == null) {
+    // If legacy PKAM (full permissions) or is a reserved key (to which all
+    // authenticated connections have access) then return true
+    if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
 
-    final enrollmentKey =
-        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    final fullKey =
-        '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    final dataStoreKey = '$enrollmentId'
+        '.$newEnrollmentKeyPattern'
+        '.$enrollManageNamespace'
+        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
     final EnrollDataStoreValue enrollDataStoreValue;
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
+      enrollDataStoreValue = await getEnrollDataStoreValue(dataStoreKey);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $fullKey');
+      logger.shout('Could not retrieve enrollment data for $dataStoreKey');
       return false;
     }
 
+    // Check that the connection's enrollment is in 'approved' state.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $fullKey'
+      logger.warning('Enrollment state for $dataStoreKey'
           ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
 
     final enrollNamespaces = enrollDataStoreValue.namespaces;
-    logger.finer('enrollNamespaces:$enrollNamespaces');
-    logger.finer('keyNamespace:$keyNamespace');
+    // if both key and namespace are passed, throw Exception if they don't match
+    if (atKey != null && namespace != null) {
+      AtKey atKeyObj;
+      try {
+        atKeyObj = AtKey.fromString(atKey);
+      } catch (e) {
+        throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
+      }
+      var namespaceFromAtKey = atKeyObj.namespace;
+      if (namespaceFromAtKey != null && namespaceFromAtKey != namespace) {
+        throw AtEnrollmentException(
+            'AtKey namespace and passed namespace do not match');
+      }
+    }
+    // set passed namespace. If passed namespace is null, get namespace from atKey
+    final keyNamespace =
+        namespace ?? (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    if (keyNamespace == null && atKey == null) {
+      logger.shout('Both AtKey and namespace are null');
+      return false;
+    }
+
     final access = enrollNamespaces.containsKey(allNamespaces)
         ? enrollNamespaces[allNamespaces]
         : enrollNamespaces[keyNamespace];
-    logger.finer('access:$access');
 
-    logger.shout('Verb: $verb, keyNamespace: $keyNamespace, access: $access');
+    logger.finer('_isAuthorized check for'
+        ' app: [${enrollDataStoreValue.appName}]'
+        ' device: [${enrollDataStoreValue.deviceName}]'
+        ' verb: [${verb.runtimeType}]'
+        ' enrollNamespaces: [$enrollNamespaces]'
+        ' keyNamespace: $keyNamespace'
+        ' access: $access');
 
     if (access == null) {
       return false;
     }
 
+    // Only spp and enroll operations are allowed to access
+    // the enrollManageNamespace
     if (keyNamespace == enrollManageNamespace) {
-      if (verb is! Otp && verb is! Enroll) {
-        // Only spp and enroll operations are allowed to access
-        // the enrollManageNamespace
-        return false;
+      return (verb is Otp || verb is Enroll || verb is Monitor)
+          ? (access == 'r' || access == 'rw')
+          : false;
+    }
+
+    // if there is no namespace, connection should have * in namespace for access
+    if (keyNamespace == null && enrollNamespaces.containsKey(allNamespaces)) {
+      if (_isReadAllowed(verb, access) || _isWriteAllowed(verb, access)) {
+        return true;
       }
-      return access == 'r' || access == 'rw';
+      return false;
     }
+    return _isReadAllowed(verb, access) || _isWriteAllowed(verb, access);
+  }
 
-    if ((verb is LocalLookup || verb is Lookup) &&
-        access == 'r' || access == 'rw') {
-      return true;
-    } else if ((verb is Update || verb is Delete) && access == 'rw') {
-      return true;
-    }
+  bool _isReadAllowed(Verb verb, String access) {
+    return (verb is LocalLookup ||
+            verb is Lookup ||
+            verb is NotifyFetch ||
+            verb is NotifyStatus ||
+            verb is NotifyList ||
+            verb is Monitor) &&
+        (access == 'r' || access == 'rw');
+  }
 
-    return false;
+  bool _isWriteAllowed(Verb verb, String access) {
+    return (verb is Update ||
+            verb is Delete ||
+            verb is Notify ||
+            verb is NotifyAll ||
+            verb is NotifyRemove ||
+            verb is Monitor) &&
+        access == 'rw';
+  }
+
+  bool _isReservedKey(String? atKey) {
+    return atKey == null
+        ? false
+        : AtKey.getKeyType(atKey) == KeyType.reservedKey;
   }
 
   /// This function checks the validity of a provided OTP.

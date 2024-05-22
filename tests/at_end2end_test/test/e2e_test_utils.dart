@@ -110,36 +110,53 @@ class SimpleOutboundSocketHandler {
     // queue.clear();
   }
 
+  final int newLineCodeUnit = 10;
+  final int atCharCodeUnit = 64;
+
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
   Future<void> _messageHandler(data) async {
-    String result;
-    if (!_buffer.isOverFlow(data)) {
-      // skip @ prompt. byte code for @ is 64
-      if (data.length == 1 && data.first == 64) {
-        return;
-      }
-      //ignore prompt(@ or @<atSign>@) after '\n'. byte code for \n is 10
-      if (data.last == 64 && data.contains(10)) {
-        data = data.sublist(0, data.lastIndexOf(10) + 1);
-        _buffer.append(data);
-      } else if (data.length > 1 && data.first == 64 && data.last == 64) {
-        // pol responses do not end with '\n'. Add \n for buffer completion
-        _buffer.append(data);
-        _buffer.addByte(10);
+    // check buffer overflow
+    _checkBufferOverFlow(data);
+
+    // Loop from last index to until the end of data.
+    // If a new line character is found, then it is end
+    // of server response. process the data.
+    // Else add the byte to buffer.
+    for (int element = 0; element < data.length; element++) {
+      // If it's a '\n' then complete data has been received. process it.
+      if (data[element] == newLineCodeUnit) {
+        String result = utf8.decode(_buffer.getData().toList());
+        result = _stripPrompt(result);
+        _buffer.clear();
+        _queue.add(result);
       } else {
-        _buffer.append(data);
+        _buffer.addByte(data[element]);
       }
-    } else {
-      _buffer.clear();
-      throw BufferOverFlowException('Buffer overflow on outbound connection');
     }
-    if (_buffer.isEnd()) {
-      result = utf8.decode(_buffer.getData());
-      result = result.trim();
+  }
+
+  _checkBufferOverFlow(data) {
+    if (_buffer.isOverFlow(data)) {
+      int bufferLength = (_buffer.length() + data.length) as int;
       _buffer.clear();
-      _queue.add(result);
+      throw BufferOverFlowException(
+          'data length exceeded the buffer limit. Data length : $bufferLength and Buffer capacity ${_buffer.capacity}');
     }
+  }
+
+  String _stripPrompt(String result) {
+    var colonIndex = result.indexOf(':');
+    if (colonIndex == -1) {
+      return result;
+    }
+    var responsePrefix = result.substring(0, colonIndex);
+    var response = result.substring(colonIndex);
+    if (responsePrefix.contains('@')) {
+      responsePrefix =
+          responsePrefix.substring(responsePrefix.lastIndexOf('@') + 1);
+    }
+    return '$responsePrefix$response';
   }
 
   /// A message which is returned from [read] if throwTimeoutException is set to false
@@ -151,10 +168,14 @@ class SimpleOutboundSocketHandler {
     // Wait this many milliseconds between checks on the queue
     var loopDelay=250;
 
+    bool first = true;
     // Check every loopDelay milliseconds until we get a response or timeoutMillis have passed.
     var loopCount = (timeoutMillis / loopDelay).round();
     for (var i = 0; i < loopCount; i++) {
-      await Future.delayed(Duration(milliseconds: loopDelay));
+      if (!first) {
+        await Future.delayed(Duration(milliseconds: loopDelay));
+      }
+      first = false;
       var queueLength = _queue.length;
       if (queueLength > 0) {
         result = _queue.removeFirst();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
@@ -25,9 +26,18 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    connection.underlying.listen(_messageHandler,
-        onDone: _finishedHandler, onError: _errorHandler);
-    connection.metaData.isListening = true;
+    logger.finest(
+        'Calling inbound underlying.listen within runZonedGuarded block');
+
+    runZonedGuarded(() {
+      connection.underlying.listen(_messageHandler,
+          onDone: _finishedHandler, onError: _errorHandler);
+      connection.metaData.isListening = true;
+    }, (Object error, StackTrace st) {
+      logger.warning(
+          'runZonedGuarded received error $error - calling _errorHandler to close connection');
+      _errorHandler(error, st);
+    });
   }
 
   /// Handles messages on the inbound client's connection and calls the verb executor
@@ -89,20 +99,19 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  Future<void> _errorHandler(error) async {
+  Future<void> _errorHandler(error, StackTrace st) async {
     logger.severe(error.toString());
     await _closeConnection();
   }
 
   /// Closes the [InboundConnection]
   Future<void> _finishedHandler() async {
+    logger.info('_finishedHandler called - closing connection');
     await _closeConnection();
   }
 
   Future<void> _closeConnection() async {
-    if (!connection.isInValid()) {
-      await connection.close();
-    }
+    await connection.close();
     // Removes the connection from the InboundConnectionPool.
     InboundConnectionPool.getInstance().remove(connection);
   }

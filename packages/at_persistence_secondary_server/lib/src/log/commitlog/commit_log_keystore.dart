@@ -559,6 +559,14 @@ class CommitLogCache {
 
   /// Updates cache when a new [CommitEntry] for the [key] is added
   void update(String key, CommitEntry commitEntry) {
+    int? existingCommitId = getEntry(key)?.commitId;
+    // ignore update, if cache has existing commitEntry for current key with a greater commitId
+    if (existingCommitId != null &&
+        commitEntry.commitId != null &&
+        existingCommitId > commitEntry.commitId!) {
+      _logger.shout('Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
+      return;
+    }
     _updateCacheLog(key, commitEntry);
 
     if (commitEntry.commitId != null &&

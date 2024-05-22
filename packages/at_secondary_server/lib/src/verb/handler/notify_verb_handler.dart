@@ -22,6 +22,7 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
+  final int _maxKeyLength = 255;
 
   NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
 
@@ -87,7 +88,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // Else, store the notification to keystore and notify to the toAtSign.
       if (atConnectionMetadata.isAuthenticated) {
         await _handleAuthenticatedConnection(
-            currentAtSign, verbParams, response);
+            currentAtSign, verbParams, atConnectionMetadata, response);
       }
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
@@ -135,6 +136,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // form a cached key
     String cachedNotificationKey =
         '${AtConstants.cached}:${atNotificationBuilder.notification}';
+    if (cachedNotificationKey.length > _maxKeyLength) {
+      throw InvalidAtKeyException(
+          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
+    }
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
@@ -182,16 +187,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return;
   }
 
-  Future<void> _handleAuthenticatedConnection(currentAtSign,
-      HashMap<String, String?> verbParams, Response response) async {
+  Future<void> _handleAuthenticatedConnection(
+      currentAtSign,
+      HashMap<String, String?> verbParams,
+      InboundConnectionMetadata inboundConnectionMetadata,
+      Response response) async {
     // When messageType is 'text', by syntax sharedBy is not populated, so set it to currentAtSign.
     verbParams[AtConstants.atSign] ??= currentAtSign;
-    // Check if the sharedBy atSign is currentAtSign. If yes allow to send notifications
+    var keyToNotify = _getFullFormedAtKey(
+        getMessageType(verbParams[AtConstants.messageType]), verbParams);
+    // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
-    if (!_isAuthorizedToSendNotification(
-        verbParams[AtConstants.atSign], currentAtSign)) {
+    bool isAuthorized = await _isAuthorizedToSendNotification(
+        verbParams[AtConstants.atSign],
+        currentAtSign,
+        verbParams,
+        keyToNotify,
+        inboundConnectionMetadata);
+
+    if (!isAuthorized) {
       throw UnAuthorizedException(
-          '${verbParams[AtConstants.atSign]} is not authorized to send notification as $currentAtSign');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+          ' is not authorized to notify key: $keyToNotify');
     }
     logger.finer(
         'currentAtSign : $currentAtSign, forAtSign : ${verbParams[AtConstants.forAtSign]}, atSign : ${verbParams[AtConstants.atSign]}');
@@ -486,7 +503,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return '${verbParam[AtConstants.forAtSign]}:${verbParam[AtConstants.atKey]}${verbParam[AtConstants.atSign]}';
   }
 
-  bool _isAuthorizedToSendNotification(String? sharedBy, String currentAtSign) {
-    return sharedBy == currentAtSign;
+  Future<bool> _isAuthorizedToSendNotification(
+      String? sharedBy,
+      String currentAtSign,
+      HashMap<String, String?> verbParams,
+      String keyToNotify,
+      InboundConnectionMetadata connectionMetadata) async {
+    if (sharedBy != currentAtSign) {
+      throw UnAuthorizedException(
+          '${verbParams[AtConstants.atSign]} is not authorized to send notification as $currentAtSign');
+    }
+    return await super.isAuthorized(connectionMetadata, atKey: keyToNotify);
   }
 }

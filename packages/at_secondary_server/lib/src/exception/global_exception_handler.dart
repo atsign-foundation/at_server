@@ -130,7 +130,7 @@ class GlobalExceptionHandler {
         } else {
           errorDescription = exception.toString();
         }
-        _writeToSocket(atConnection, prompt, errorCode, errorDescription);
+        await _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
     }
   }
@@ -150,11 +150,11 @@ class GlobalExceptionHandler {
     return error_description[errorCode];
   }
 
-  void _writeToSocket(AtConnection atConnection, String prompt,
-      String? errorCode, String errorDescription) {
+  Future<void> _writeToSocket(AtConnection atConnection, String prompt,
+      String? errorCode, String errorDescription) async {
     if (atConnection.metaData.clientVersion ==
         AtConnectionMetaData.clientVersionNotAvailable) {
-      atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+      await atConnection.write('error:$errorCode-$errorDescription\n$prompt');
       return;
     }
     // The JSON encoding of error message is supported by the client versions greater than 3.0.37
@@ -166,10 +166,10 @@ class GlobalExceptionHandler {
         'errorCode': errorCode,
         'errorDescription': errorDescription
       };
-      atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
+      await atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
       return;
     }
     // Defaults to return the error message in string format if all the conditions fails
-    atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+    await atConnection.write('error:$errorCode-$errorDescription\n$prompt');
   }
 }
