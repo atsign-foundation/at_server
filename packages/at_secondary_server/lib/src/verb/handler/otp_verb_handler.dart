@@ -35,27 +35,19 @@ class OtpVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
-    // Extract the ttl from the verb parameters if supplied, or use the default value.
-    int otpExpiryInMillis = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
-        defaultOtpExpiry.inMilliseconds;
-
     if (!atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'otp:get requires authenticated connection');
     }
     switch (operation) {
       case 'get':
-        do {
-          response.data = _generateOTP();
-        }
-        // If OTP generated do not have digits, generate again.
-        while (RegExp(r'\d').hasMatch(response.data!) == false);
-        await keyStore.put(
-            'private:${response.data}.$otpNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}',
-            AtData()
-              ..data =
-                  '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
-              ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
+        String otp = generateOTP();
+        // Extract the ttl from the verb parameters if supplied, or use the default value.
+        int otpExpiryInMillis =
+            int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
+                defaultOtpExpiry.inMilliseconds;
+        await saveOTP(otp, otpExpiryInMillis);
+        response.data = otp;
         break;
       case 'put':
         // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
@@ -84,25 +76,37 @@ class OtpVerbHandler extends AbstractVerbHandler {
   /// Additionally, if the resulting OTP contains "0" or "O", they are replaced with different
   /// number or alphabet, respectively. If the length of the OTP is less than 6, "padRight"
   /// is utilized to extend and match the length.
-  String _generateOTP() {
-    var uuid = Uuid().v4();
-    Random random = Random();
-    var otp = uuid.hashCode.toRadixString(36).toUpperCase();
-    // If otp contains "0"(Zero) or "O" (alphabet) replace with a different number
-    // or alphabet respectively.
-    if (otp.contains('0') || otp.contains('O')) {
-      for (int i = 0; i < otp.length; i++) {
-        if (otp[i] == '0') {
-          otp = otp.replaceFirst('0', (random.nextInt(8) + 1).toString());
-        } else if (otp[i] == 'O') {
-          otp = otp.replaceFirst('O', _generateRandomAlphabet());
+  String generateOTP() {
+    String otp = '';
+    while (RegExp(r'\d').hasMatch(otp) == false) {
+      var uuid = Uuid().v4();
+      Random random = Random();
+      otp = uuid.hashCode.toRadixString(36).toUpperCase();
+      // If otp contains "0"(Zero) or "O" (alphabet) replace with a different number
+      // or alphabet respectively.
+      if (otp.contains('0') || otp.contains('O')) {
+        for (int i = 0; i < otp.length; i++) {
+          if (otp[i] == '0') {
+            otp = otp.replaceFirst('0', (random.nextInt(8) + 1).toString());
+          } else if (otp[i] == 'O') {
+            otp = otp.replaceFirst('O', _generateRandomAlphabet());
+          }
         }
       }
-    }
-    if (otp.length < 6) {
-      otp = otp.padRight(6, _generateRandomAlphabet());
+      if (otp.length < 6) {
+        otp = otp.padRight(6, _generateRandomAlphabet());
+      }
     }
     return otp;
+  }
+
+  Future<void> saveOTP(String otp, int otpExpiryInMillis) async {
+    await keyStore.put(
+        'private:$otp.$otpNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}',
+        AtData()
+          ..data =
+              '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
+          ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
   }
 
   String _generateRandomAlphabet() {
@@ -111,7 +115,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
     int randomAscii;
     do {
       randomAscii = minAscii + Random().nextInt((maxAscii - minAscii) + 1);
-      // 79 is the ASCII value of "O". If randamAscii is 79, generate again.
+      // 79 is the ASCII value of "O". If randomAscii is 79, generate again.
     } while (randomAscii == 79);
     return String.fromCharCode(randomAscii);
   }

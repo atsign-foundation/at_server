@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -342,6 +343,139 @@ void main() {
       expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
+    });
+
+    Future<String> newEnrollment(
+        String appName, String deviceName, Map<String, String> namespaces,
+        {required bool autoApprove}) async {
+      OtpVerbHandler otpVH = OtpVerbHandler(secondaryKeyStore);
+      String otp = otpVH.generateOTP();
+      await otpVH.saveOTP(otp, 5000);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      String enrollmentRequest = 'enroll:request:'
+          '{"otp":"$otp"'
+          ',"appName":"$appName"'
+          ',"deviceName":"$deviceName"'
+          ',"namespaces":${jsonEncode(namespaces)}'
+          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          '}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      DummyInboundConnection enrollRequestConnection = DummyInboundConnection();
+      if (autoApprove) {
+        enrollRequestConnection.metaData.isAuthenticated = true;
+        enrollRequestConnection.metaData.authType = AuthType.cram;
+      } else {
+        enrollRequestConnection.metaData.isAuthenticated = false;
+      }
+      enrollRequestConnection.metaData.sessionID = 'enroll_session';
+      Response response = Response();
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, enrollRequestConnection);
+
+      if (autoApprove) {
+        expect(jsonDecode(response.data!)['status'], 'approved');
+      } else {
+        expect(jsonDecode(response.data!)['status'], 'pending');
+      }
+
+      return jsonDecode(response.data!)['enrollmentId']!;
+    }
+
+    test('Test delivery of enrollment request notification to PKAM', () async {
+      // - Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
+      //   and issue monitor command with selfNotifications flag set
+      // - Make an enrollment request on another connection
+      // - Verify that the monitor connection receives the
+      //   enrollment request notification
+
+      var mvp = VerbUtil.getVerbParam(
+        VerbSyntax.monitor,
+        'monitor:selfNotifications',
+      )!;
+
+      // Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
+      //    and issue monitor command with selfNotifications flag set
+      DummyInboundConnection pkamMC = DummyInboundConnection();
+      pkamMC.metaData.authType = AuthType.pkamLegacy;
+      pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
+      await MonitorVerbHandler(secondaryKeyStore)
+          .processVerb(Response(), mvp, pkamMC);
+
+      // Make another enrollment request
+      String nextEnrollmentId = await newEnrollment(
+        'mvt_app_2',
+        'mvt_dev_2',
+        {"app_2_namespace": "rw"},
+        autoApprove: false,
+      );
+
+      // Verify that the monitor connection receives the
+      //    enrollment request notification
+      expect(
+          jsonDecode(pkamMC.lastWrittenData!
+              .replaceAll('notification:', '')
+              .trim())['key'],
+          '$nextEnrollmentId'
+          '.new.enrollments.__manage'
+          '@alice');
+      print('Verified the legacy PKAM monitor connection'
+          ' received the enrollment request notification');
+    });
+
+    test('Test delivery of enrollment request notification to APKAM', () async {
+      // - Make an enrollment with * and __manage permissions
+      // - Make an inboundConnection with that enrollment ID and
+      //   issue monitor command with selfNotifications flag set
+      // - Make an enrollment request on another connection
+      // - Verify that the APKAM monitor connection receives the
+      //    enrollment request notification
+
+      // Make an enrollment with * and __manage permissions
+      String monitorsEnrollmentId = await newEnrollment(
+        'mvt_app_1',
+        'mvt_dev_1',
+        {"*": "rw", "__manage": "rw"},
+        autoApprove: true,
+      );
+
+      var mvp = VerbUtil.getVerbParam(
+        VerbSyntax.monitor,
+        'monitor:selfNotifications',
+      )!;
+      // Make an inboundConnection with that enrollment ID and
+      //    issue monitor command with selfNotifications flag set
+      DummyInboundConnection apkamMC = DummyInboundConnection();
+      (apkamMC.metaData as InboundConnectionMetadata).enrollmentId =
+          monitorsEnrollmentId;
+      apkamMC.metaData.authType = AuthType.apkam;
+      apkamMC.metaData.isAuthenticated = true;
+      apkamMC.metaData.sessionID = 'apkam_monitor_session';
+      await MonitorVerbHandler(secondaryKeyStore)
+          .processVerb(Response(), mvp, apkamMC);
+
+      // Make another enrollment request
+      String nextEnrollmentId = await newEnrollment(
+        'mvt_app_2',
+        'mvt_dev_2',
+        {"app_2_namespace": "rw"},
+        autoApprove: false,
+      );
+
+      // Verify that the APKAM monitor connection receives the
+      //    enrollment request notification
+      expect(
+          jsonDecode(apkamMC.lastWrittenData!
+              .replaceAll('notification:', '')
+              .trim())['key'],
+          '$nextEnrollmentId'
+          '.new.enrollments.__manage'
+          '@alice');
+      print('Verified the APKAM monitor connection'
+          ' received the enrollment request notification');
     });
 
     test('A test to verify enrollment revoked does not receive notifications',

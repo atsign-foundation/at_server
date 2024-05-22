@@ -1,6 +1,10 @@
+## 3.0.47
+- feat: Introduced a dedicated namespace for storing OTPs
+
 ## 3.0.46
 - fix: Default OTP expiry value remains unchanged for the subsequent "otp:" requests
-- feat: Introduced a dedicated namespace for storing OTPs
+- fix: Fix the handling of enrollment self-notifications
+
 ## 3.0.45
 - fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency
 - feat: enroll:revoke now has an optional "force" flag to allow current 

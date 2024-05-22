@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -8,12 +9,12 @@ import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
@@ -139,32 +140,38 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return retVal;
   }
 
-  Future<bool> _isAuthorized(InboundConnectionMetadata connectionMetadata,
-      {String? atKey, String? namespace}) async {
+  Future<bool> _isAuthorized(
+    InboundConnectionMetadata connectionMetadata, {
+    String? atKey,
+    String? namespace,
+  }) async {
     final Verb verb = getVerb();
 
     final enrollmentId = connectionMetadata.enrollmentId;
 
+    // If legacy PKAM (full permissions) or is a reserved key (to which all
+    // authenticated connections have access) then return true
     if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
 
-    final enrollmentKey =
-        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    final fullKey =
-        '$enrollmentKey${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    final dataStoreKey = '$enrollmentId'
+        '.$newEnrollmentKeyPattern'
+        '.$enrollManageNamespace'
+        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
 
     final EnrollDataStoreValue enrollDataStoreValue;
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(fullKey);
+      enrollDataStoreValue = await getEnrollDataStoreValue(dataStoreKey);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $fullKey');
+      logger.shout('Could not retrieve enrollment data for $dataStoreKey');
       return false;
     }
 
+    // Check that the connection's enrollment is in 'approved' state.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $fullKey'
+      logger.warning('Enrollment state for $dataStoreKey'
           ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
@@ -172,15 +179,26 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final enrollNamespaces = enrollDataStoreValue.namespaces;
     // if both key and namespace are passed, throw Exception if they don't match
     if (atKey != null && namespace != null) {
-      var namespaceFromAtKey = AtKey.fromString(atKey).namespace;
+      AtKey atKeyObj;
+      try {
+        atKeyObj = AtKey.fromString(atKey);
+      } catch (e) {
+        throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
+      }
+      var namespaceFromAtKey = atKeyObj.namespace;
       if (namespaceFromAtKey != null && namespaceFromAtKey != namespace) {
         throw AtEnrollmentException(
             'AtKey namespace and passed namespace do not match');
       }
     }
     // set passed namespace. If passed namespace is null, get namespace from atKey
-    final keyNamespace =
-        namespace ?? (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    String? keyNamespace;
+    try {
+      keyNamespace = namespace ??
+          (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    } catch (e) {
+      throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
+    }
     if (keyNamespace == null && atKey == null) {
       logger.shout('Both AtKey and namespace are null');
       return false;
@@ -205,7 +223,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
     if (keyNamespace == enrollManageNamespace) {
-      return (verb is Otp || verb is Enroll)
+      return (verb is Otp || verb is Enroll || verb is Monitor)
           ? (access == 'r' || access == 'rw')
           : false;
     }
