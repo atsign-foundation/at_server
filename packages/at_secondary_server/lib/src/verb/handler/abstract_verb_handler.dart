@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -7,12 +8,12 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
@@ -190,8 +191,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
       }
     }
     // set passed namespace. If passed namespace is null, get namespace from atKey
-    final keyNamespace =
-        namespace ?? (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    String? keyNamespace;
+    try {
+      keyNamespace = namespace ??
+          (atKey != null ? AtKey.fromString(atKey).namespace : null);
+    } catch (e) {
+      throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
+    }
     if (keyNamespace == null && atKey == null) {
       logger.shout('Both AtKey and namespace are null');
       return false;

@@ -63,9 +63,14 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       var filteredResponseList = [];
       for (Notification notification in responseList) {
         var notificationKey = notification.notification;
-        if (await super
-            .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
-          filteredResponseList.add(notification);
+        try {
+          if (await super
+              .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
+            filteredResponseList.add(notification);
+          }
+        } on AtEnrollmentException catch (e) {
+          logger.finer(
+              'Failed to authorize the key with enrollment ID ${atConnectionMetadata.enrollmentId} caused by ${e.toString()}');
         }
       }
       responseList.clear();
