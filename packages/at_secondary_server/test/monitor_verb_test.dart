@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:test/expect.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -360,6 +361,7 @@ void main() {
           ',"deviceName":"$deviceName"'
           ',"namespaces":${jsonEncode(namespaces)}'
           ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_symm_key"'
           '}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
@@ -415,10 +417,15 @@ void main() {
 
       // Verify that the monitor connection receives the
       //    enrollment request notification
+      var notificationJson = jsonDecode(
+          pkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
       expect(
-          jsonDecode(pkamMC.lastWrittenData!
-              .replaceAll('notification:', '')
-              .trim())['key'],
+          notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '@alice');
@@ -467,10 +474,20 @@ void main() {
 
       // Verify that the APKAM monitor connection receives the
       //    enrollment request notification
+      var notificationJson = jsonDecode(
+          apkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      //TODO remove encryptedApkamSymmetricKey in the future
+      expect(valueJson['encryptedApkamSymmetricKey'],
+          'dummy_encrypted_apkam_symm_key');
+      expect(valueJson['encryptedAPKAMSymmetricKey'],
+          'dummy_encrypted_apkam_symm_key');
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
       expect(
-          jsonDecode(apkamMC.lastWrittenData!
-              .replaceAll('notification:', '')
-              .trim())['key'],
+          notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '@alice');

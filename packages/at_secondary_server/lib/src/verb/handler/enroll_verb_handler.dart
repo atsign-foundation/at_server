@@ -479,6 +479,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var notificationValue = {};
       notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
           enrollParams.encryptedAPKAMSymmetricKey;
+      // send both encryptedAPKAMSymmetricKey and encryptedApkamSymmetricKey in notification
+      // after the server is released, use encryptedAPKAMSymmetricKey. Modify the constant name in at_commons and client side code.
+      notificationValue['encryptedAPKAMSymmetricKey'] =
+          enrollParams.encryptedAPKAMSymmetricKey;
       notificationValue[AtConstants.appName] = enrollParams.appName;
       notificationValue[AtConstants.deviceName] = enrollParams.deviceName;
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
