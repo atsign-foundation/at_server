@@ -203,8 +203,7 @@ void main() {
       String testOtp = 'ABCD12';
       String otpLegacyKey = 'private:${testOtp.toLowerCase()}$atsign';
       AtData value = AtData()
-        ..data =
-            '${DateTime.now().toUtc().add(OtpVerbHandler.defaultOtpExpiry).millisecondsSinceEpoch}'
+        ..data = testOtp
         ..metaData = (AtMetaData()
           ..ttl = OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
       await secondaryKeyStore.put(otpLegacyKey, value);

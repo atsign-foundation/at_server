@@ -104,8 +104,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
     await keyStore.put(
         'private:$otp.$otpNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}',
         AtData()
-          ..data =
-              '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
+          ..data = otp
           ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
   }
 

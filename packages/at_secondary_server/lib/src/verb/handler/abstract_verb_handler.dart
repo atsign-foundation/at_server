@@ -287,6 +287,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     try {
       AtData? sppAtData = await keyStore.get(sppKey);
+      // SPP has a special key so we have to check the value that was stored
+      // (which is the actual SPP)
+      // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
+      // i.e. the OTP is part of the key, and the stored data is irrelevant
       if (sppAtData?.data?.toLowerCase() == otp.toLowerCase()) {
         return true;
       }
