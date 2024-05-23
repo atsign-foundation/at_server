@@ -27,6 +27,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => otpVerb;
 
+  static final otpNamespace = '__otp';
+
   @override
   Future<void> processVerb(
       Response response,
@@ -57,7 +59,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
         }
         String? otp = verbParams['otp'];
         await keyStore.put(
-            'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}',
+            'private:spp.$otpNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}',
             AtData()..data = otp);
         response.data = 'ok';
         break;
@@ -100,10 +102,9 @@ class OtpVerbHandler extends AbstractVerbHandler {
 
   Future<void> saveOTP(String otp, int otpExpiryInMillis) async {
     await keyStore.put(
-        'private:$otp${AtSecondaryServerImpl.getInstance().currentAtSign}',
+        'private:$otp.$otpNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}',
         AtData()
-          ..data =
-              '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
+          ..data = otp
           ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
   }
 

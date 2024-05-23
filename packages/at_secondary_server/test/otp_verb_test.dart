@@ -164,14 +164,15 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
-      AtData? atData =
-          await secondaryKeyStore.get('private:${response.data}$atSign');
+      AtData? atData = await secondaryKeyStore.get(
+          'private:${response.data}.${OtpVerbHandler.otpNamespace}$atSign');
       expect(atData?.metaData?.ttl, 1);
 
       verbParams = getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
-      atData = await secondaryKeyStore.get('private:${response.data}$atSign');
+      atData = await secondaryKeyStore.get(
+          'private:${response.data}.${OtpVerbHandler.otpNamespace}$atSign');
       expect(atData?.metaData?.ttl,
           OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
     });
@@ -195,6 +196,20 @@ void main() {
       String? otp = response.data;
       expect(await otpVerbHandler.isOTPValid(otp), true);
       expect(await otpVerbHandler.isOTPValid(otp), false);
+    });
+
+    test('validate backwards compatability with legacy otp key', () async {
+      String atsign = '@alice';
+      String testOtp = 'ABCD12';
+      String otpLegacyKey = 'private:${testOtp.toLowerCase()}$atsign';
+      AtData value = AtData()
+        ..data = testOtp
+        ..metaData = (AtMetaData()
+          ..ttl = OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
+      await secondaryKeyStore.put(otpLegacyKey, value);
+
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      expect(await otpVerbHandler.isOTPValid(testOtp), true);
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -247,6 +262,17 @@ void main() {
       otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isOTPValid(passcode), true);
+    });
+
+    test('validate backwards compatability with legacy ssp key', () async {
+      String atsign = '@alice';
+      String testOtp = 'ABC123';
+      String otpLegacyKey = 'private:spp$atsign';
+      AtData value = AtData()..data = testOtp;
+      await secondaryKeyStore.put(otpLegacyKey, value);
+
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      expect(await otpVerbHandler.isOTPValid(testOtp), true);
     });
     tearDown(() async => await verbTestsTearDown());
   });

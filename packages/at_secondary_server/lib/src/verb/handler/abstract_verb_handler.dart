@@ -8,6 +8,7 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
@@ -273,26 +274,47 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (otp == null) {
       return false;
     }
-    // Check if user have configured SPP(Semi-Permanent Pass-code).
+    // Check if user has configured SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
     String sppKey =
-        'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    if (keyStore.isKeyExists(sppKey)) {
-      AtData atData = await keyStore.get(sppKey);
-      if (atData.data?.toLowerCase() == otp.toLowerCase()) {
+        'private:spp.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    if (!keyStore.isKeyExists(sppKey)) {
+      // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
+      // New SPP key has __otp namespace, legacy key does NOT have any namespace
+      sppKey =
+          'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    }
+    try {
+      AtData? sppAtData = await keyStore.get(sppKey);
+      // SPP has a special key so we have to check the value that was stored
+      // (which is the actual SPP)
+      // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
+      // i.e. the OTP is part of the key, and the stored data is irrelevant
+      if (sppAtData?.data?.toLowerCase() == otp.toLowerCase()) {
         return true;
       }
-    }
-    // If SPP is not valid, then check if the provided otp is valid.
-    String otpKey =
-        'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    AtData otpAtData;
-    try {
-      otpAtData = await keyStore.get(otpKey);
     } on KeyNotFoundException {
+      logger.finest('No SPP found in KeyStore. Validating as OTP');
+    }
+
+    // If not a valid SPP, then check against OTP keys
+    String otpKey =
+        'private:${otp.toLowerCase()}.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    if (!keyStore.isKeyExists(otpKey)) {
+      // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
+      // New OTP key has __otp namespace, legacy key does not have namespace
+      otpKey =
+          'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    }
+    AtData? otpAtData;
+    try {
+      otpAtData ??= await keyStore.get(otpKey);
+    } on KeyNotFoundException {
+      logger.finer('OTP NOT found in KeyStore');
       return false;
     }
+
     bool isOTPValid = SecondaryUtil.isActiveKey(otpAtData);
     // Remove the OTP after it is used.
     // NOTE: SPP code should NOT be deleted. only OTPs should be
