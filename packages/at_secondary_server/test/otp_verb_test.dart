@@ -113,7 +113,7 @@ void main() {
       await verbTestsSetUp();
     });
     test(
-        'A test to verify UnAuthorizedException is thrown when opt verb is executed on an unauthenticated conn',
+        'A test to verify UnAuthorizedException is thrown when opt:get is executed on an unauthenticated conn',
         () {
       Response response = Response();
       HashMap<String, String?> verbParams =
@@ -124,8 +124,9 @@ void main() {
               response, verbParams, inboundConnection),
           throwsA(predicate((e) =>
               e is UnAuthenticatedException &&
-              e.message == 'otp:get requires authenticated connection')));
+              e.message == 'otp: requires authenticated connection')));
     });
+
     tearDown(() async => await verbTestsTearDown());
   });
 
@@ -227,6 +228,7 @@ void main() {
       await secondaryKeyStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollDataStoreValue));
     });
+
     test('A test to set a pass code and verify isOTPValid returns true',
         () async {
       String passcode = 'abc123';
@@ -242,6 +244,42 @@ void main() {
       // Adding expect again to ensure the Semi-permanent passcodes are not deleted
       // after one time use.
       expect(await otpVerbHandler.isOTPValid(passcode), true);
+    });
+
+    test('set spp with a ttl, check isOTPValid before ttl expires', () async {
+      String passcode = 'SppWithTtl50';
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+      // Adding expect again to ensure the Semi-permanent passcodes are not deleted
+      // after one time use.
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+    });
+
+    test('set spp with a ttl, check isOTPValid before and after ttl expires',
+        () async {
+      String passcode = 'SppWithTtl50';
+      Response response = Response();
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          enrollmentId;
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+      // Adding expect again to ensure the Semi-permanent passcodes are not deleted
+      // after one time use.
+      expect(await otpVerbHandler.isOTPValid(passcode), true);
+
+      await Future.delayed(Duration(milliseconds: 51));
+      expect(await otpVerbHandler.isOTPValid(passcode), false);
     });
 
     test('A test to verify pass code can be updated', () async {

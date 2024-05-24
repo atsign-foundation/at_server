@@ -274,39 +274,43 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (otp == null) {
       return false;
     }
-    // Check if user has configured SPP(Semi-Permanent Pass-code).
+    // 1. Check if user has configured an SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
-    String sppKey =
-        'private:spp.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    if (!keyStore.isKeyExists(sppKey)) {
+    String passcodeKey = OtpVerbHandler.passcodeKey(otp, isSpp: true);
+    if (!keyStore.isKeyExists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
-      sppKey =
+      passcodeKey =
           'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
     try {
-      AtData? sppAtData = await keyStore.get(sppKey);
+      AtData? sppAtData = await keyStore.get(passcodeKey);
       // SPP has a special key so we have to check the value that was stored
       // (which is the actual SPP)
       // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
       // i.e. the OTP is part of the key, and the stored data is irrelevant
       if (sppAtData?.data?.toLowerCase() == otp.toLowerCase()) {
-        return true;
+        if (SecondaryUtil.isActiveKey(sppAtData)) {
+          return true;
+        } else {
+          logger.finest(
+              'SPP found in KeyStore but has expired. Validating as OTP');
+        }
       }
     } on KeyNotFoundException {
       logger.finest('No SPP found in KeyStore. Validating as OTP');
     }
 
-    // If not a valid SPP, then check against OTP keys
-    String otpKey =
-        'private:${otp.toLowerCase()}.${OtpVerbHandler.otpNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    // 2. If not a valid SPP, then check against OTP keys
+    String otpKey = OtpVerbHandler.passcodeKey(otp, isSpp: false);
     if (!keyStore.isKeyExists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
       otpKey =
           'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
+
     AtData? otpAtData;
     try {
       otpAtData ??= await keyStore.get(otpKey);
