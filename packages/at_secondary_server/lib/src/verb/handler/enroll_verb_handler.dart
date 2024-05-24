@@ -191,7 +191,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
     if (atConnection.metaData.isAuthenticated == false) {
-      var isValid = await isOTPValid(enrollParams.otp);
+      var isValid = await isPasscodeValid(enrollParams.otp);
       if (!isValid) {
         _lastInvalidOtpReceivedInMills =
             DateTime.now().toUtc().millisecondsSinceEpoch;

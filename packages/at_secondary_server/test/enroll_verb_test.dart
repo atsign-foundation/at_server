@@ -108,7 +108,7 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       expect(enrollmentId, isNotNull);
-      expect(await enrollVerbHandler.isOTPValid(otp), false);
+      expect(await enrollVerbHandler.isPasscodeValid(otp), false);
     });
     tearDown(() async => await verbTestsTearDown());
   });

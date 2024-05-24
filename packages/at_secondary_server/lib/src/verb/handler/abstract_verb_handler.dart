@@ -270,14 +270,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///
   /// Additionally, this function removes the OTP from the keystore to prevent
   /// its reuse.
-  Future<bool> isOTPValid(String? otp) async {
-    if (otp == null) {
+  Future<bool> isPasscodeValid(String? passcode) async {
+    if (passcode == null) {
       return false;
     }
     // 1. Check if user has configured an SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
-    String passcodeKey = OtpVerbHandler.passcodeKey(otp, isSpp: true);
+    String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
     if (!keyStore.isKeyExists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
@@ -290,7 +290,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       // (which is the actual SPP)
       // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
       // i.e. the OTP is part of the key, and the stored data is irrelevant
-      if (sppAtData?.data?.toLowerCase() == otp.toLowerCase()) {
+      if (sppAtData?.data?.toLowerCase() == passcode.toLowerCase()) {
         if (SecondaryUtil.isActiveKey(sppAtData)) {
           return true;
         } else {
@@ -303,12 +303,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     // 2. If not a valid SPP, then check against OTP keys
-    String otpKey = OtpVerbHandler.passcodeKey(otp, isSpp: false);
+    String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
     if (!keyStore.isKeyExists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
       otpKey =
-          'private:${otp.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+          'private:${passcode.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
 
     AtData? otpAtData;
