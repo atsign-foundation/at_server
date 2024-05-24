@@ -97,7 +97,7 @@ class TestUpdateVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  Future<bool> isOTPValid(String? otp) {
+  Future<bool> isPasscodeValid(String? otp) {
     // TODO: implement isOTPValid
     throw UnimplementedError();
   }
