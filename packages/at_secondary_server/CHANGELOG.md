@@ -1,3 +1,7 @@
+## 3.0.47
+- feat: Introduced a dedicated namespace for storing OTPs
+- feat: allow a ttl to be set for a semi-permanent passcode (spp)
+
 ## 3.0.46
 - fix: Default OTP expiry value remains unchanged for the subsequent "otp:" requests
 - fix: Fix the handling of enrollment self-notifications

@@ -191,7 +191,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
     if (atConnection.metaData.isAuthenticated == false) {
-      var isValid = await isOTPValid(enrollParams.otp);
+      var isValid = await isPasscodeValid(enrollParams.otp);
       if (!isValid) {
         _lastInvalidOtpReceivedInMills =
             DateTime.now().toUtc().millisecondsSinceEpoch;
@@ -478,6 +478,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       var notificationValue = {};
       notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
+          enrollParams.encryptedAPKAMSymmetricKey;
+      // send both encryptedAPKAMSymmetricKey and encryptedApkamSymmetricKey in notification
+      // after the server is released, use encryptedAPKAMSymmetricKey. Modify the constant name in at_commons and client side code.
+      notificationValue['encryptedAPKAMSymmetricKey'] =
           enrollParams.encryptedAPKAMSymmetricKey;
       notificationValue[AtConstants.appName] = enrollParams.appName;
       notificationValue[AtConstants.deviceName] = enrollParams.deviceName;

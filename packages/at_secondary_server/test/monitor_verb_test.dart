@@ -350,7 +350,7 @@ void main() {
         {required bool autoApprove}) async {
       OtpVerbHandler otpVH = OtpVerbHandler(secondaryKeyStore);
       String otp = otpVH.generateOTP();
-      await otpVH.saveOTP(otp, 5000);
+      await otpVH.savePasscode(otp, ttl: 5000, isSpp: false);
 
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
@@ -360,6 +360,7 @@ void main() {
           ',"deviceName":"$deviceName"'
           ',"namespaces":${jsonEncode(namespaces)}'
           ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_symmetric_key"'
           '}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
@@ -415,10 +416,15 @@ void main() {
 
       // Verify that the monitor connection receives the
       //    enrollment request notification
+      var notificationJson = jsonDecode(
+          pkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
       expect(
-          jsonDecode(pkamMC.lastWrittenData!
-              .replaceAll('notification:', '')
-              .trim())['key'],
+          notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '@alice');
@@ -467,10 +473,20 @@ void main() {
 
       // Verify that the APKAM monitor connection receives the
       //    enrollment request notification
+      var notificationJson = jsonDecode(
+          apkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      //TODO remove encryptedApkamSymmetricKey in the future
+      expect(valueJson['encryptedApkamSymmetricKey'],
+          'dummy_encrypted_apkam_symmetric_key');
+      expect(valueJson['encryptedAPKAMSymmetricKey'],
+          'dummy_encrypted_apkam_symmetric_key');
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
       expect(
-          jsonDecode(apkamMC.lastWrittenData!
-              .replaceAll('notification:', '')
-              .trim())['key'],
+          notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '@alice');

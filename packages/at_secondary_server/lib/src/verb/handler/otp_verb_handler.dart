@@ -27,6 +27,8 @@ class OtpVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() => otpVerb;
 
+  static final otpNamespace = '__otp';
+
   @override
   Future<void> processVerb(
       Response response,
@@ -34,17 +36,15 @@ class OtpVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     final operation = verbParams['operation'];
     if (!atConnection.metaData.isAuthenticated) {
-      throw UnAuthenticatedException(
-          'otp:get requires authenticated connection');
+      throw UnAuthenticatedException('otp: requires authenticated connection');
     }
     switch (operation) {
       case 'get':
         String otp = generateOTP();
         // Extract the ttl from the verb parameters if supplied, or use the default value.
-        int otpExpiryInMillis =
-            int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
-                defaultOtpExpiry.inMilliseconds;
-        await saveOTP(otp, otpExpiryInMillis);
+        int otpTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
+            defaultOtpExpiry.inMilliseconds;
+        await savePasscode(otp, ttl: otpTtl, isSpp: false);
         response.data = otp;
         break;
       case 'put':
@@ -55,10 +55,12 @@ class OtpVerbHandler extends AbstractVerbHandler {
           throw InvalidRequestException(
               'Client not allowed to not store semi permanent pass code');
         }
-        String? otp = verbParams['otp'];
-        await keyStore.put(
-            'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}',
-            AtData()..data = otp);
+        int sppTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ?? -1;
+        String? spp = verbParams['otp'];
+        if (spp == null) {
+          throw InvalidRequestException('otp:put requires a passcode');
+        }
+        await savePasscode(spp, ttl: sppTtl, isSpp: true);
         response.data = 'ok';
         break;
       default:
@@ -98,13 +100,21 @@ class OtpVerbHandler extends AbstractVerbHandler {
     return otp;
   }
 
-  Future<void> saveOTP(String otp, int otpExpiryInMillis) async {
+  static String passcodeKey(String passcode, {required bool isSpp}) {
+    return isSpp
+        ? 'private:spp.$otpNamespace'
+            '${AtSecondaryServerImpl.getInstance().currentAtSign}'
+        : 'private:${passcode.toLowerCase()}.$otpNamespace'
+            '${AtSecondaryServerImpl.getInstance().currentAtSign}';
+  }
+
+  Future<void> savePasscode(String passcode,
+      {required int ttl, required bool isSpp}) async {
     await keyStore.put(
-        'private:$otp${AtSecondaryServerImpl.getInstance().currentAtSign}',
+        passcodeKey(passcode, isSpp: isSpp),
         AtData()
-          ..data =
-              '${DateTime.now().toUtc().add(Duration(milliseconds: otpExpiryInMillis)).millisecondsSinceEpoch}'
-          ..metaData = (AtMetaData()..ttl = otpExpiryInMillis));
+          ..data = passcode
+          ..metaData = (AtMetaData()..ttl = ttl));
   }
 
   String _generateRandomAlphabet() {
