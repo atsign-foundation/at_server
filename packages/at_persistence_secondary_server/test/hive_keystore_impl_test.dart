@@ -369,9 +369,10 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
+      atData.metaData = AtMetaData();
       var key = '${TestUtils.generateRandomString(250)}@test_user_1';
       await expectLater(
-          keyStore.putAll(key, atData, AtMetaData()),
+          keyStore.put(key, atData),
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
@@ -379,7 +380,7 @@ void main() async {
       var cachedKey =
           'cached:public:${TestUtils.generateRandomString(270)}@test_user_1';
       await expectLater(
-          keyStore.putAll(cachedKey, atData, AtMetaData()),
+          keyStore.put(cachedKey, atData),
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
@@ -391,8 +392,9 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
+      atData.metaData = AtMetaData();
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
-      var result = await keyStore.putAll(key, atData, AtMetaData());
+      var result = await keyStore.put(key, atData);
       expect(result, isNotNull);
       expect(result! >= 0, true);
     });
