@@ -58,7 +58,8 @@ class HiveKeyStoreHelper {
       DateTime.fromMillisecondsSinceEpoch(epochNow + ttb).toUtc();
 
   DateTime? _getExpiresAt(int epochNow, int ttl, {int? ttb}) {
-    if (ttl == 0) return null; // Key will not expire if TTL is 0
+    if (ttl == 0 || ttl == -1)
+      return null; // Key will not expire if TTL is 0 or -1
     var expiresAt = epochNow + ttl + (ttb ?? 0);
     return DateTime.fromMillisecondsSinceEpoch(expiresAt).toUtc();
   }
