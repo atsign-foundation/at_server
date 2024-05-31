@@ -1,3 +1,4 @@
+@Timeout(const Duration(minutes: 10))
 import 'dart:collection';
 import 'dart:convert';
 

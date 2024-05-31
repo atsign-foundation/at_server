@@ -19,7 +19,7 @@ dependencies:
   basic_utils: 5.7.0
   ecdsa: 0.1.0
   encrypt: 5.0.3
-  at_commons: 4.0.9
+  at_commons: 4.0.10
   at_utils: 3.0.16
   at_chops: 2.0.0
   at_lookup: 3.0.47
@@ -33,6 +33,18 @@ dependencies:
   mutex: 3.1.0
   yaml: 3.1.2
   logging: 1.2.0
+
+dependency_overrides:
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server/
+      path: packages/at_persistence_secondary_server
+      ref: secondary_persistence_impl_new
+  at_persistence_spec:
+    git:
+      url: https://github.com/atsign-foundation/at_server/
+      path: packages/at_persistence_spec
+      ref: persistence_spec_refactoring
 
 dev_dependencies:
   test: ^1.24.4
