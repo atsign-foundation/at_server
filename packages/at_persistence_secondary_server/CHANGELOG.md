@@ -1,3 +1,5 @@
+## 4.0.0
+- [Breaking Change] feat: Implement keystore put/create method signature changes to replace optional metadata params
 ## 3.0.63
 - fix: Ensure only latest commitEntry for each present in CommitLogCache
 ## 3.0.62

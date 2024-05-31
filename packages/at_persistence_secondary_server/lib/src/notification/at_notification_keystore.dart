@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -11,7 +12,7 @@ class AtNotificationKeystore
     with HiveBase<AtNotification?>
     implements SecondaryKeyStore, AtLogType<String, AtNotification> {
   static final AtNotificationKeystore _singleton =
-      AtNotificationKeystore._internal();
+  AtNotificationKeystore._internal();
 
   AtNotificationKeystore._internal();
 
@@ -57,7 +58,7 @@ class AtNotificationKeystore
     var notificationLogMap = await _toMap();
     returnList = notificationLogMap!.values.toList();
     returnList.sort(
-        (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
+            (k1, k2) => k1.notificationDateTime.compareTo(k2.notificationDateTime));
     return returnList;
   }
 
@@ -68,22 +69,7 @@ class AtNotificationKeystore
 
   @override
   Future<dynamic> put(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     if (key.length > maxKeyLengthWithoutCached) {
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
@@ -94,22 +80,7 @@ class AtNotificationKeystore
 
   @override
   Future<dynamic> create(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+      {Metadata? metadata, bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 
@@ -154,31 +125,31 @@ class AtNotificationKeystore
         // If concluded that all notifications have an epiresAt param defined, the below block of code is obsolete and can be removed.
         if (value?.expiresAt == null &&
             DateTime.now()
-                    .toUtc()
-                    .difference(value!.notificationDateTime!)
-                    .inHours >=
+                .toUtc()
+                .difference(value!.notificationDateTime!)
+                .inHours >=
                 _notificationExpiryInHours) {
           var newNotification = (AtNotificationBuilder()
-                ..id = value.id
-                ..fromAtSign = value.fromAtSign
-                ..notificationDateTime = value.notificationDateTime
-                ..toAtSign = value.toAtSign
-                ..notification = value.notification
-                ..type = value.type
-                ..opType = value.opType
-                ..messageType = value.messageType
-                ..expiresAt = value.notificationDateTime
-                ..priority = value.priority
-                ..notificationStatus = value.notificationStatus
-                ..retryCount = value.retryCount
-                ..strategy = value.strategy
-                ..notifier = value.notifier
-                ..depth = value.depth
-                ..atValue = value.atValue
-                ..atMetaData = value.atMetadata
-                ..ttl = value.ttl)
+            ..id = value.id
+            ..fromAtSign = value.fromAtSign
+            ..notificationDateTime = value.notificationDateTime
+            ..toAtSign = value.toAtSign
+            ..notification = value.notification
+            ..type = value.type
+            ..opType = value.opType
+            ..messageType = value.messageType
+            ..expiresAt = value.notificationDateTime
+            ..priority = value.priority
+            ..notificationStatus = value.notificationStatus
+            ..retryCount = value.retryCount
+            ..strategy = value.strategy
+            ..notifier = value.notifier
+            ..depth = value.depth
+            ..atValue = value.atValue
+            ..atMetaData = value.atMetadata
+            ..ttl = value.ttl)
               .build();
-          put(key, newNotification);
+          put(key, newNotification, metadata: Metadata());
         }
       });
 
@@ -207,7 +178,7 @@ class AtNotificationKeystore
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {
       encodedKeys = _getBox().keys.where(
-          (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
+              (element) => Utf7.decode(element).toString().contains(RegExp(regex)));
     } else {
       encodedKeys = _getBox().keys.toList();
     }
@@ -248,11 +219,6 @@ class AtNotificationKeystore
 
   @override
   Future getMeta(key) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future putAll(key, value, metadata) {
     throw UnimplementedError();
   }
 

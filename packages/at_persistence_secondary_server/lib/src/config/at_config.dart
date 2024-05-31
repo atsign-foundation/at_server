@@ -26,7 +26,8 @@ class AtConfig {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)!
         .getHivePersistenceManager()!;
-    configKey = HiveKeyStoreHelper.getInstance().prepareKey('private:blocklist$_atSign');
+    configKey = HiveKeyStoreHelper.getInstance()
+        .prepareKey('private:blocklist$_atSign');
   }
 
   ///Returns 'success' on adding unique [blockList] into blocklist.
