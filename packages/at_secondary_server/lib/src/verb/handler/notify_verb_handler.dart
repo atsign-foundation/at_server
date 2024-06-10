@@ -472,11 +472,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       MessageType messageType, String key, String? isEncryptedStr) {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;
-    } else if (messageType == MessageType.text) {
-      return SecondaryUtil.getBoolFromString(isEncryptedStr);
-    } else {
-      return true;
     }
+    if (messageType == MessageType.text) {
+      return SecondaryUtil.getBoolFromString(isEncryptedStr);
+    }
+    // respect the 'false' value if one was supplied
+    if (isEncryptedStr != null && isEncryptedStr.toLowerCase() == 'false') {
+      return false;
+    }
+    // At this point, has to return true for legacy reasons. See #1944
+    return true;
   }
 
   String _getFullFormedAtKey(
