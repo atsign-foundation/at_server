@@ -35,7 +35,7 @@ jobs:
         dart-channel: [stable,beta]
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d36160575d60931ec30 # v1.6.4
         with:
@@ -129,7 +129,7 @@ jobs:
         dart-channel: [stable,beta]
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d36160575d60931ec30 # v1.6.4
         with:
@@ -216,7 +216,7 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -268,7 +268,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d36160575d60931ec30 # v 1.6.4
         with:
           sdk: stable
@@ -297,7 +297,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d36160575d60931ec30 # v1.6.4
         with:
           sdk: stable
@@ -326,7 +326,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - uses: dart-lang/setup-dart@f0ead981b4d9a35b37f30d36160575d60931ec30 # v1.6.4
         with:
           sdk: stable
@@ -354,7 +354,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout at_server repo
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Create atSigns
         id: atsign_names
@@ -389,14 +389,14 @@ jobs:
         run: dart pub get
 
       - name: Cloning at_libraries
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: atsign-foundation/at_libraries
           path: at_libraries
           ref: trunk
 
       - name: Cloning at_tools
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: atsign-foundation/at_tools
           path: at_tools
@@ -568,7 +568,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -622,7 +622,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -677,7 +677,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -730,7 +730,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       # Extract version for docker tag
       - name: Get version
@@ -776,7 +776,7 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -827,7 +827,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       # Extract version for docker tag
       - name: Get version
