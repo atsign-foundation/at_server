@@ -496,7 +496,7 @@ jobs:
                 exit 1
               fi
             fi
-            sleep 20
+            sleep $((try * 20))
           done
   
       - name: Activating atsign    
