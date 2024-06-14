@@ -1,4 +1,4 @@
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
@@ -77,6 +77,9 @@ class AtMetaData extends HiveObject {
   @HiveField(23)
   String? skeEncAlgo;
 
+  @HiveField(24)
+  PublicKeyHash? publicKeyHash;
+
   @override
   String toString() {
     return toJson().toString();
@@ -84,8 +87,8 @@ class AtMetaData extends HiveObject {
 
   AtMetaData();
 
-  Metadata toCommonsMetadata() {
-    return Metadata()
+  at_commons.Metadata toCommonsMetadata() {
+    return at_commons.Metadata()
       ..ttl = ttl
       ..ttb = ttb
       ..ttr = ttr
@@ -95,6 +98,7 @@ class AtMetaData extends HiveObject {
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
+      ..pubKeyHash = _toCommonsPublicKeyHash(publicKeyHash)
       ..encoding = encoding
       ..encKeyName = encKeyName
       ..encAlgo = encAlgo
@@ -103,7 +107,17 @@ class AtMetaData extends HiveObject {
       ..skeEncAlgo = skeEncAlgo;
   }
 
-  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+  at_commons.PublicKeyHash? _toCommonsPublicKeyHash(
+          PublicKeyHash? publicKeyHash) =>
+      publicKeyHash != null
+          ? at_commons.PublicKeyHash(
+              publicKeyHash.hash,
+              at_commons.PublicKeyHashingAlgo.values
+                  .byName(publicKeyHash.hashingAlgo),
+            )
+          : null;
+
+  factory AtMetaData.fromCommonsMetadata(at_commons.Metadata metadata) {
     var atMetadata = AtMetaData();
     atMetadata
       ..ttl = metadata.ttl
@@ -115,6 +129,10 @@ class AtMetaData extends HiveObject {
       ..dataSignature = metadata.dataSignature
       ..sharedKeyEnc = metadata.sharedKeyEnc
       ..pubKeyCS = metadata.pubKeyCS
+      ..publicKeyHash = (metadata.pubKeyHash != null
+          ? PublicKeyHash(metadata.pubKeyHash!.hash,
+              metadata.pubKeyHash!.publicKeyHashingAlgo.name)
+          : null)
       ..encoding = metadata.encoding
       ..encKeyName = metadata.encKeyName
       ..encAlgo = metadata.encAlgo
@@ -136,21 +154,24 @@ class AtMetaData extends HiveObject {
     map['refreshAt'] = refreshAt?.toUtc().toString();
     map['status'] = status;
     map['version'] = version;
-    map[AtConstants.ttl] = ttl;
-    map[AtConstants.ttb] = ttb;
-    map[AtConstants.ttr] = ttr;
-    map[AtConstants.ccd] = isCascade;
-    map[AtConstants.isBinary] = isBinary;
-    map[AtConstants.isEncrypted] = isEncrypted;
-    map[AtConstants.publicDataSignature] = dataSignature;
-    map[AtConstants.sharedKeyEncrypted] = sharedKeyEnc;
-    map[AtConstants.sharedWithPublicKeyCheckSum] = pubKeyCS;
-    map[AtConstants.encoding] = encoding;
-    map[AtConstants.encryptingKeyName] = encKeyName;
-    map[AtConstants.encryptingAlgo] = encAlgo;
-    map[AtConstants.ivOrNonce] = ivNonce;
-    map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
-    map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map[at_commons.AtConstants.ttl] = ttl;
+    map[at_commons.AtConstants.ttb] = ttb;
+    map[at_commons.AtConstants.ttr] = ttr;
+    map[at_commons.AtConstants.ccd] = isCascade;
+    map[at_commons.AtConstants.isBinary] = isBinary;
+    map[at_commons.AtConstants.isEncrypted] = isEncrypted;
+    map[at_commons.AtConstants.publicDataSignature] = dataSignature;
+    map[at_commons.AtConstants.sharedKeyEncrypted] = sharedKeyEnc;
+    map[at_commons.AtConstants.sharedWithPublicKeyCheckSum] = pubKeyCS;
+    map[at_commons.AtConstants.encoding] = encoding;
+    map[at_commons.AtConstants.encryptingKeyName] = encKeyName;
+    map[at_commons.AtConstants.encryptingAlgo] = encAlgo;
+    map[at_commons.AtConstants.ivOrNonce] = ivNonce;
+    map[at_commons.AtConstants.sharedKeyEncryptedEncryptingKeyName] =
+        skeEncKeyName;
+    map[at_commons.AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map[at_commons.AtConstants.sharedWithPublicKeyHash] =
+        publicKeyHash?.toJson();
     return map;
   }
 
@@ -178,34 +199,36 @@ class AtMetaData extends HiveObject {
         : (json['version'] == null)
             ? 0
             : json['version'];
-    ttl = (json[AtConstants.ttl] is String)
-        ? int.parse(json[AtConstants.ttl])
-        : (json[AtConstants.ttl] == null)
+    ttl = (json[at_commons.AtConstants.ttl] is String)
+        ? int.parse(json[at_commons.AtConstants.ttl])
+        : (json[at_commons.AtConstants.ttl] == null)
             ? null
-            : json[AtConstants.ttl];
-    ttb = (json[AtConstants.ttb] is String)
-        ? int.parse(json[AtConstants.ttb])
-        : (json[AtConstants.ttb] == null)
+            : json[at_commons.AtConstants.ttl];
+    ttb = (json[at_commons.AtConstants.ttb] is String)
+        ? int.parse(json[at_commons.AtConstants.ttb])
+        : (json[at_commons.AtConstants.ttb] == null)
             ? null
-            : json[AtConstants.ttb];
-    ttr = (json[AtConstants.ttr] is String)
-        ? int.parse(json[AtConstants.ttr])
-        : (json[AtConstants.ttr] == null)
+            : json[at_commons.AtConstants.ttb];
+    ttr = (json[at_commons.AtConstants.ttr] is String)
+        ? int.parse(json[at_commons.AtConstants.ttr])
+        : (json[at_commons.AtConstants.ttr] == null)
             ? null
-            : json[AtConstants.ttr];
-    isCascade = json[AtConstants.ccd];
-    isBinary = json[AtConstants.isBinary];
-    isEncrypted = json[AtConstants.isEncrypted];
-    dataSignature = json[AtConstants.publicDataSignature];
-    sharedKeyEnc = json[AtConstants.sharedKeyEncrypted];
-    pubKeyCS = json[AtConstants.sharedWithPublicKeyCheckSum];
-    encoding = json[AtConstants.encoding];
-    encKeyName = json[AtConstants.encryptingKeyName];
-    encAlgo = json[AtConstants.encryptingAlgo];
-    ivNonce = json[AtConstants.ivOrNonce];
-    skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
-    skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
-
+            : json[at_commons.AtConstants.ttr];
+    isCascade = json[at_commons.AtConstants.ccd];
+    isBinary = json[at_commons.AtConstants.isBinary];
+    isEncrypted = json[at_commons.AtConstants.isEncrypted];
+    dataSignature = json[at_commons.AtConstants.publicDataSignature];
+    sharedKeyEnc = json[at_commons.AtConstants.sharedKeyEncrypted];
+    pubKeyCS = json[at_commons.AtConstants.sharedWithPublicKeyCheckSum];
+    encoding = json[at_commons.AtConstants.encoding];
+    encKeyName = json[at_commons.AtConstants.encryptingKeyName];
+    encAlgo = json[at_commons.AtConstants.encryptingAlgo];
+    ivNonce = json[at_commons.AtConstants.ivOrNonce];
+    skeEncKeyName =
+        json[at_commons.AtConstants.sharedKeyEncryptedEncryptingKeyName];
+    skeEncAlgo = json[at_commons.AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    publicKeyHash = PublicKeyHash.fromJson(
+        json[at_commons.AtConstants.sharedWithPublicKeyHash]);
     return this;
   }
 
@@ -232,6 +255,7 @@ class AtMetaData extends HiveObject {
           dataSignature == other.dataSignature &&
           sharedKeyEnc == other.sharedKeyEnc &&
           pubKeyCS == other.pubKeyCS &&
+          publicKeyHash == other.publicKeyHash &&
           encoding == other.encoding &&
           encKeyName == other.encKeyName &&
           encAlgo == other.encAlgo &&
@@ -259,6 +283,7 @@ class AtMetaData extends HiveObject {
       dataSignature.hashCode ^
       sharedKeyEnc.hashCode ^
       pubKeyCS.hashCode ^
+      publicKeyHash.hashCode ^
       encoding.hashCode ^
       encKeyName.hashCode ^
       encAlgo.hashCode ^
@@ -301,13 +326,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..encAlgo = fields[20]
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
-      ..skeEncAlgo = fields[23];
+      ..skeEncAlgo = fields[23]
+      ..publicKeyHash = fields[24];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -355,6 +381,68 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(22)
       ..write(obj.skeEncKeyName)
       ..writeByte(23)
-      ..write(obj.skeEncAlgo);
+      ..write(obj.skeEncAlgo)
+      ..writeByte(24)
+      ..write(obj.publicKeyHash);
+  }
+}
+
+@HiveType(typeId: 11)
+class PublicKeyHash extends HiveObject {
+  String hash;
+  String hashingAlgo;
+  PublicKeyHash(this.hash, this.hashingAlgo);
+  Map toJson() {
+    Map map = {};
+    map['hash'] = hash;
+    map['hashingAlgo'] = hashingAlgo;
+    return map;
+  }
+
+  static PublicKeyHash? fromJson(Map? json) {
+    if (json == null) {
+      return null;
+    }
+    return PublicKeyHash(json['hash'], json['hashingAlgo']);
+  }
+
+  @override
+  String toString() {
+    return toJson().toString();
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PublicKeyHash &&
+          runtimeType == other.runtimeType &&
+          hash == other.hash &&
+          hashingAlgo == other.hashingAlgo;
+
+  @override
+  int get hashCode => hash.hashCode ^ hashingAlgo.hashCode;
+}
+
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
+  @override
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
+
+  @override
+  PublicKeyHash read(BinaryReader reader) {
+    var numOfFields = reader.readByte();
+    var fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return PublicKeyHash(fields[0] as String, fields[1] as String);
+  }
+
+  @override
+  void write(BinaryWriter writer, PublicKeyHash obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.hash)
+      ..writeByte(1)
+      ..write(obj.hashingAlgo);
   }
 }
