@@ -58,7 +58,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign
-    // if (atConnectionMetadata.isAuthenticated) {
+    if (atConnectionMetadata.isAuthenticated) {
       responseList = await (_getReceivedNotification(responseList));
       var filteredResponseList = [];
       for (Notification notification in responseList) {
@@ -75,7 +75,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       }
       responseList.clear();
       responseList.addAll(filteredResponseList);
-    // }
+    }
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
       String fromAtSign = atConnectionMetadata.fromAtSign!;
