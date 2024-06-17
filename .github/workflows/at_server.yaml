@@ -728,7 +728,11 @@ jobs:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build_secondary.outputs.digest }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
@@ -771,10 +775,30 @@ jobs:
             linux/arm64/v8
             linux/arm/v7
 
+  provenance_canary_secondary_image:
+    needs: [push_canary_secondary_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/secondary"
+      digest: ${{ needs.push_canary_secondary_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
   push_canary_virtualenv_image:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build.outputs.digest }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
@@ -817,6 +841,21 @@ jobs:
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
 
+  provenance_canary_virtualenv_image:
+    needs: [push_canary_virtualenv_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/virtualenv"
+      digest: ${{ needs.push_canary_virtualenv_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
   # The below jobs run's on completion of 'run_end2end_tests' job.
   # This job run's on trigger event 'push' and when a release is tagged.
   # The job builds the production version of secondary server docker image and pushes to docker hub.
@@ -825,7 +864,11 @@ jobs:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build_secondary.outputs.digest }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
@@ -863,10 +906,30 @@ jobs:
             linux/arm64/v8
             linux/arm/v7
 
+  provenance_prod_secondary_image:
+    needs: [push_prod_secondary_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/secondary"
+      digest: ${{ needs.push_prod_secondary_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
   push_prod_virtualenv_image:
     needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build.outputs.digest }}
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
@@ -904,3 +967,18 @@ jobs:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}
+
+  provenance_prod_virtualenv_image:
+    needs: [push_prod_virtualenv_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/virtualenv"
+      digest: ${{ needs.push_prod_virtualenv_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
