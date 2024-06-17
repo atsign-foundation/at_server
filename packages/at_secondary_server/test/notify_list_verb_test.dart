@@ -253,7 +253,6 @@ void main() {
       String testFromAtsign = '@anon20934820';
       AtMetaData testMetaData = AtMetaData()
         ..availableAt = availableAtTestValue;
-
       var notification = (AtNotificationBuilder()
             ..id = testNotificationId
             ..fromAtSign = testFromAtsign
@@ -276,7 +275,6 @@ void main() {
 
       await AtNotificationKeystore.getInstance()
           .put(testNotificationId, notification);
-
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
       InboundConnectionMetadata inboundConnectionMetadata =
@@ -296,9 +294,9 @@ void main() {
           .elementAt(0);
 
       expect(notificationOfInterest['id'], testNotificationId);
-      DateTime parsedExpiresAtFromResponse =
+      DateTime parsedAvailableAtFromResponse =
           DateTime.parse(notificationOfInterest['metadata']['availableAt']);
-      expect(availableAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+      expect(availableAtTestValue.compareTo(parsedAvailableAtFromResponse), 0);
 
       await AtNotificationKeystore.getInstance().remove(testNotificationId);
     });
@@ -454,9 +452,8 @@ void main() {
       DateTime expiresAtTestValue = DateTime.now()
           .toUtcMillisecondsPrecision()
           .add(Duration(minutes: 25));
-      String testNotificationId = 'notification_id';
+      String testNotificationId = 'notification_id_187';
       String testFromAtsign = '@anon';
-
       var notification = (AtNotificationBuilder()
             ..id = testNotificationId
             ..fromAtSign = testFromAtsign
@@ -476,7 +473,7 @@ void main() {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('121', notification);
+      await AtNotificationKeystore.getInstance().put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
@@ -500,6 +497,8 @@ void main() {
       DateTime parsedExpiresAtFromResponse =
           DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
       expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
     });
 
     test(
@@ -508,10 +507,9 @@ void main() {
       DateTime expiresAtTestValue = DateTime.now()
           .toUtcMillisecondsPrecision()
           .add(Duration(minutes: 25));
-      String testNotificationId = 'notification_id_2';
+      String testNotificationId = 'notification_id_232';
       String testFromAtsign = '@anon20934820';
       AtMetaData testMetaData = AtMetaData()..expiresAt = expiresAtTestValue;
-
       var notification = (AtNotificationBuilder()
             ..id = testNotificationId
             ..fromAtSign = testFromAtsign
@@ -533,7 +531,7 @@ void main() {
           .build();
 
       await AtNotificationKeystore.getInstance()
-          .put('1234560123', notification);
+          .put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
@@ -557,6 +555,8 @@ void main() {
       DateTime parsedExpiresAtFromResponse =
           DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
       expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
     });
 
     tearDown(() async => await tearDownFunc());
