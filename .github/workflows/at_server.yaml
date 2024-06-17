@@ -134,12 +134,6 @@ jobs:
         working-directory: /sboms
         run: sha256sum * > checksums.txt
       - if: ${{ matrix.dart-channel == 'stable' }}
-        id: hash
-        name: Pass artifact hashes for SLSA provenance
-        working-directory: /sboms
-        run: |
-          echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
-      - if: ${{ matrix.dart-channel == 'stable' }}
         name: Upload SBOMs
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
