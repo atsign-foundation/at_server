@@ -29,6 +29,12 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -108,6 +114,59 @@ jobs:
           osv-scanner --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
           osv-scanner --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
 
+      # Generating SBOMs also needs pubspec.lock
+      # Only run on stable channel
+      - if: ${{ matrix.dart-channel == 'stable' }}
+        name: Install Syft
+        uses: anchore/sbom-action/download-syft@e8d2a6937ecead383dfe75190d104edd1f9c5751 # v0.16.0
+      - if: ${{ matrix.dart-channel == 'stable' }}
+        name: Generate SBOMs
+        run: |
+          mkdir /sboms
+          syft scan file:${{ env.root-working-directory }}/pubspec.lock \
+            -o 'spdx-json=/sboms/atdirectory_sbom.spdx.json' \
+            -o 'cyclonedx-json=/sboms/atdirectory_sbom.cyclonedx.json'
+          syft scan file:${{ env.secondary-working-directory }}/pubspec.lock \
+            -o 'spdx-json=/sboms/atserver_sbom.spdx.json' \
+            -o 'cyclonedx-json=/sboms/atserver_sbom.cyclonedx.json'
+      - if: ${{ matrix.dart-channel == 'stable' }}
+        name: Generate SHA256 checksums
+        working-directory: /sboms
+        run: sha256sum * > checksums.txt
+      - if: ${{ matrix.dart-channel == 'stable' }}
+        id: hash
+        name: Pass artifact hashes for SLSA provenance
+        working-directory: /sboms
+        run: |
+          echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - if: ${{ matrix.dart-channel == 'stable' }}
+        name: Upload SBOMs
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: SBOMs
+          path: /sboms/**
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        name: Upload artifacts to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Upload to GitHub Release using the `gh` CLI.
+        # `dist/` contains the built packages, and the
+        # sigstore-produced signatures and certificates.
+        run: >-
+          gh release upload
+          '${{ github.ref_name }}' /sboms/**
+          --repo '${{ github.repository }}'
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        id: hash
+        name: Pass artifact hashes for SLSA provenance
+        working-directory: /sboms
+        run: |
+          echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/attest-build-provenance@49df96e17e918a15956db358890b08e61c704919 # v1.2.0
+        with:
+          subject-path: '/sboms/**'
+
 #     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
 #      - name: Convert coverage to LCOV format
 #        working-directory: ${{ env.secondary-working-directory }}
@@ -118,6 +177,18 @@ jobs:
 #        with:
 #          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
 #          file: ${{ env.secondary-working-directory }}/coverage.lcov
+
+  sbom_provenance:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    needs: [unit_tests]
+    permissions:
+      actions: read # Needed for detection of GitHub Actions environment.
+      id-token: write # Needed for provenance signing and ID
+      contents: write # Needed for release uploads
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0 # 5a775b367a56d5bd118a224a811bba288150a563
+    with:
+      base64-subjects: "${{ needs.unit_tests.outputs.hashes }}"
+      upload-assets: true
 
   # Runs functional tests on at_secondary.
   # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
