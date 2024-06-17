@@ -122,23 +122,23 @@ jobs:
       - if: ${{ matrix.dart-channel == 'stable' }}
         name: Generate SBOMs
         run: |
-          mkdir /sboms
+          mkdir sboms
           syft scan file:${{ env.root-working-directory }}/pubspec.lock \
-            -o 'spdx-json=/sboms/atdirectory_sbom.spdx.json' \
-            -o 'cyclonedx-json=/sboms/atdirectory_sbom.cyclonedx.json'
+            -o 'spdx-json=sboms/atdirectory_sbom.spdx.json' \
+            -o 'cyclonedx-json=sboms/atdirectory_sbom.cyclonedx.json'
           syft scan file:${{ env.secondary-working-directory }}/pubspec.lock \
-            -o 'spdx-json=/sboms/atserver_sbom.spdx.json' \
-            -o 'cyclonedx-json=/sboms/atserver_sbom.cyclonedx.json'
+            -o 'spdx-json=sboms/atserver_sbom.spdx.json' \
+            -o 'cyclonedx-json=sboms/atserver_sbom.cyclonedx.json'
       - if: ${{ matrix.dart-channel == 'stable' }}
         name: Generate SHA256 checksums
-        working-directory: /sboms
+        working-directory: sboms
         run: sha256sum * > checksums.txt
       - if: ${{ matrix.dart-channel == 'stable' }}
         name: Upload SBOMs
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: SBOMs
-          path: /sboms/**
+          path: sboms/**
       - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
         name: Upload artifacts to GitHub Release
         env:
@@ -148,18 +148,18 @@ jobs:
         # sigstore-produced signatures and certificates.
         run: >-
           gh release upload
-          '${{ github.ref_name }}' /sboms/**
+          '${{ github.ref_name }}' sboms/**
           --repo '${{ github.repository }}'
       - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
         id: hash
         name: Pass artifact hashes for SLSA provenance
-        working-directory: /sboms
+        working-directory: sboms
         run: |
           echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
       - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
         uses: actions/attest-build-provenance@49df96e17e918a15956db358890b08e61c704919 # v1.2.0
         with:
-          subject-path: '/sboms/**'
+          subject-path: 'sboms/**'
 
 #     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
 #      - name: Convert coverage to LCOV format
