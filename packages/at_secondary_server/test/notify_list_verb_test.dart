@@ -260,7 +260,7 @@ void main() {
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
-            ..notification = 'availableat.secondtest'
+            ..notification = 'availableat.firsttest'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key
@@ -275,7 +275,7 @@ void main() {
           .build();
 
       await AtNotificationKeystore.getInstance()
-          .put('1234560123', notification);
+          .put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
@@ -299,6 +299,8 @@ void main() {
       DateTime parsedExpiresAtFromResponse =
           DateTime.parse(notificationOfInterest['metadata']['availableAt']);
       expect(availableAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
     });
 
     tearDown(() async => await tearDownFunc());
