@@ -17,6 +17,18 @@ void main() {
   int firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
+  Map<String, String> apkamEncryptedKeysMap = <String, String>{
+    'encryptedDefaultEncPrivateKey': EncryptionUtil.encryptValue(
+        at_demos.encryptionPrivateKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedSelfEncKey': EncryptionUtil.encryptValue(
+        at_demos.aesKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedAPKAMSymmetricKey': EncryptionUtil.encryptKey(
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!,
+        at_demos.encryptionPublicKeyMap[firstAtSign]!)
+  };
+
   setUp(() async {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
@@ -299,12 +311,12 @@ void main() {
 
       // connect to the second client
       OutboundConnectionFactory secondConnection =
-          await OutboundConnectionFactory()
-              .initiateConnectionWithListener(firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!},"encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
       var secondEnrollResponse =
           (await secondConnection.sendRequestToServer(secondEnrollRequest))
               .replaceAll('data:', '');

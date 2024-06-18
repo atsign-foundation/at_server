@@ -1,8 +1,9 @@
 import 'dart:convert';
 
-import 'package:at_demo_data/at_demo_data.dart';
+import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -18,6 +19,17 @@ void main() {
 
   String secondAtSign =
       ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
+  Map<String, String> apkamEncryptedKeysMap = <String, String>{
+    'encryptedDefaultEncPrivateKey': EncryptionUtil.encryptValue(
+        at_demos.encryptionPrivateKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedSelfEncKey': EncryptionUtil.encryptValue(
+        at_demos.aesKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedAPKAMSymmetricKey': EncryptionUtil.encryptKey(
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!,
+        at_demos.encryptionPublicKeyMap[firstAtSign]!)
+  };
 
   setUp(() async {
     await firstAtSignConnection.initiateConnectionWithListener(
@@ -27,6 +39,7 @@ void main() {
 
   test('sync verb with regex ', () async {
     String regex = '.persona';
+
     /// UPDATE VERB
     var response = await firstAtSignConnection.sendRequestToServer(
         'update:public:twitter$regex$firstAtSign bob_tweet');
@@ -75,7 +88,7 @@ void main() {
       String otp = await authenticatedSocket.sendRequestToServer('otp:get');
       otp = otp.replaceFirst('data:', '');
       String enrollRequest =
-          'enroll:request:{"appName":"my-first-app","deviceName":"pixel","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"my-first-app","deviceName":"pixel","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${at_demos.apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
 
       String enrollmentResponse =
           await unauthenticatedSocket.sendRequestToServer(enrollRequest);

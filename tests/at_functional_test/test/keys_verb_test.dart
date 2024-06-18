@@ -28,7 +28,10 @@ void main() {
         at_demos.apkamSymmetricKeyMap[firstAtSign]!),
     'encryptedSelfEncKey': EncryptionUtil.encryptValue(
         at_demos.aesKeyMap[firstAtSign]!,
-        at_demos.apkamSymmetricKeyMap[firstAtSign]!)
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedAPKAMSymmetricKey': EncryptionUtil.encryptKey(
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!,
+        at_demos.encryptionPublicKeyMap[firstAtSign]!)
   };
 
   setUp(() async {
@@ -185,7 +188,7 @@ void main() {
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!},"encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       String secondEnrollResponse =
           await secondAtSignConnection.sendRequestToServer(secondEnrollRequest);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');

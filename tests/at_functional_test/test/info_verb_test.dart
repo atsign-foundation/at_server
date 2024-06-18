@@ -39,8 +39,8 @@ void main() {
     expect(enrollJsonMap['enrollmentId'], isNotEmpty);
     String enrollmentId = enrollJsonMap['enrollmentId'].toString().trim();
     // Approve enrollment
-    enrollResponse = await firstAtSignConnection
-        .sendRequestToServer('enroll:approve:{"enrollmentId":"$enrollmentId"}');
+    enrollResponse = await firstAtSignConnection.sendRequestToServer(
+        'enroll:approve:{"enrollmentId":"$enrollmentId",,"encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}');
     enrollResponse = enrollResponse.replaceFirst('data:', '');
     await firstAtSignConnection.close();
 
