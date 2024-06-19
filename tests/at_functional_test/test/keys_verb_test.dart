@@ -172,7 +172,7 @@ void main() {
           authType: AuthType.cram);
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -188,7 +188,7 @@ void main() {
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!},"encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       String secondEnrollResponse =
           await secondAtSignConnection.sendRequestToServer(secondEnrollRequest);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -199,7 +199,7 @@ void main() {
 
       // connect to the first client to approve the enroll request
       var approveResponse = await firstAtSignConnection.sendRequestToServer(
-          'enroll:approve:{"enrollmentId":"$secondEnrollId"}');
+          'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
       approveResponse = approveResponse.replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');

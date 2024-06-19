@@ -107,7 +107,7 @@ void main() {
       String randomString = Uuid().v4();
 
       await authenticatedSocket.sendRequestToServer(
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
       await authenticatedSocket.sendRequestToServer(
           'update:$secondAtSign:phone-$randomString.wavi$firstAtSign $randomString');
       await authenticatedSocket.sendRequestToServer(
