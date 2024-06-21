@@ -223,7 +223,7 @@ jobs:
           ls -laR tools/build_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           file: tools/build_virtual_environment/ve/Dockerfile
           context: tools/build_virtual_environment/ve
@@ -301,7 +301,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           push: true
           provenance: false
@@ -660,7 +660,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
@@ -714,7 +714,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           push: true
           provenance: false
@@ -769,7 +769,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           push: true
           provenance: false
@@ -826,7 +826,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           push: true
           provenance: false
@@ -890,7 +890,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
@@ -956,7 +956,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           push: true
           provenance: false
@@ -1010,7 +1010,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@94f8f8c2eec4bc3f1d78c1755580779804cb87b2 # v6.0.1
+        uses: docker/build-push-action@f6010ea70151369b06f0194be1051fbbdff851b2 # v6.0.2
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
