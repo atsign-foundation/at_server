@@ -218,6 +218,10 @@ class Notification {
       "ivNonce": atNotification.atMetadata?.ivNonce,
       "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
       "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
+      "availableAt": atNotification.atMetadata?.availableAt.toString(),
+      "expiresAt":
+          (atNotification.atMetadata?.expiresAt ?? atNotification.expiresAt)
+              .toString()
     };
   }
 
