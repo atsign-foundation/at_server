@@ -1,3 +1,6 @@
+## 3.0.48
+- feat Add expiresAt and availableAt params to notify:list response
+
 ## 3.0.47
 - feat: Introduced a dedicated namespace for storing OTPs
 - feat: allow a ttl to be set for a semi-permanent passcode (spp)
