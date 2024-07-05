@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -135,7 +136,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -148,7 +149,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -162,7 +163,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -184,7 +185,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -197,7 +198,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.buzz');
+      expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
 
@@ -206,7 +207,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -220,7 +221,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -243,7 +244,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -256,7 +257,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -269,7 +270,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -304,7 +305,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -317,7 +318,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Notification with buzz namespace
@@ -326,7 +327,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.buzz'
+            ..notification = '@alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -339,9 +340,158 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.buzz');
+      expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
+    });
+
+    Future<String> newEnrollment(
+        String appName, String deviceName, Map<String, String> namespaces,
+        {required bool autoApprove}) async {
+      OtpVerbHandler otpVH = OtpVerbHandler(secondaryKeyStore);
+      String otp = otpVH.generateOTP();
+      await otpVH.savePasscode(otp, ttl: 5000, isSpp: false);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      String enrollmentRequest = 'enroll:request:'
+          '{"otp":"$otp"'
+          ',"appName":"$appName"'
+          ',"deviceName":"$deviceName"'
+          ',"namespaces":${jsonEncode(namespaces)}'
+          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_symmetric_key"'
+          '}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      DummyInboundConnection enrollRequestConnection = DummyInboundConnection();
+      if (autoApprove) {
+        enrollRequestConnection.metaData.isAuthenticated = true;
+        enrollRequestConnection.metaData.authType = AuthType.cram;
+      } else {
+        enrollRequestConnection.metaData.isAuthenticated = false;
+      }
+      enrollRequestConnection.metaData.sessionID = 'enroll_session';
+      Response response = Response();
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, enrollRequestConnection);
+
+      if (autoApprove) {
+        expect(jsonDecode(response.data!)['status'], 'approved');
+      } else {
+        expect(jsonDecode(response.data!)['status'], 'pending');
+      }
+
+      return jsonDecode(response.data!)['enrollmentId']!;
+    }
+
+    test('Test delivery of enrollment request notification to PKAM', () async {
+      // - Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
+      //   and issue monitor command with selfNotifications flag set
+      // - Make an enrollment request on another connection
+      // - Verify that the monitor connection receives the
+      //   enrollment request notification
+
+      var mvp = VerbUtil.getVerbParam(
+        VerbSyntax.monitor,
+        'monitor:selfNotifications',
+      )!;
+
+      // Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
+      //    and issue monitor command with selfNotifications flag set
+      DummyInboundConnection pkamMC = DummyInboundConnection();
+      pkamMC.metaData.authType = AuthType.pkamLegacy;
+      pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
+      await MonitorVerbHandler(secondaryKeyStore)
+          .processVerb(Response(), mvp, pkamMC);
+
+      // Make another enrollment request
+      String nextEnrollmentId = await newEnrollment(
+        'mvt_app_2',
+        'mvt_dev_2',
+        {"app_2_namespace": "rw"},
+        autoApprove: false,
+      );
+
+      // Verify that the monitor connection receives the
+      //    enrollment request notification
+      var notificationJson = jsonDecode(
+          pkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
+      expect(
+          notificationJson['key'],
+          '$nextEnrollmentId'
+          '.new.enrollments.__manage'
+          '@alice');
+      print('Verified the legacy PKAM monitor connection'
+          ' received the enrollment request notification');
+    });
+
+    test('Test delivery of enrollment request notification to APKAM', () async {
+      // - Make an enrollment with * and __manage permissions
+      // - Make an inboundConnection with that enrollment ID and
+      //   issue monitor command with selfNotifications flag set
+      // - Make an enrollment request on another connection
+      // - Verify that the APKAM monitor connection receives the
+      //    enrollment request notification
+
+      // Make an enrollment with * and __manage permissions
+      String monitorsEnrollmentId = await newEnrollment(
+        'mvt_app_1',
+        'mvt_dev_1',
+        {"*": "rw", "__manage": "rw"},
+        autoApprove: true,
+      );
+
+      var mvp = VerbUtil.getVerbParam(
+        VerbSyntax.monitor,
+        'monitor:selfNotifications',
+      )!;
+      // Make an inboundConnection with that enrollment ID and
+      //    issue monitor command with selfNotifications flag set
+      DummyInboundConnection apkamMC = DummyInboundConnection();
+      (apkamMC.metaData as InboundConnectionMetadata).enrollmentId =
+          monitorsEnrollmentId;
+      apkamMC.metaData.authType = AuthType.apkam;
+      apkamMC.metaData.isAuthenticated = true;
+      apkamMC.metaData.sessionID = 'apkam_monitor_session';
+      await MonitorVerbHandler(secondaryKeyStore)
+          .processVerb(Response(), mvp, apkamMC);
+
+      // Make another enrollment request
+      String nextEnrollmentId = await newEnrollment(
+        'mvt_app_2',
+        'mvt_dev_2',
+        {"app_2_namespace": "rw"},
+        autoApprove: false,
+      );
+
+      // Verify that the APKAM monitor connection receives the
+      //    enrollment request notification
+      var notificationJson = jsonDecode(
+          apkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+      //TODO remove encryptedApkamSymmetricKey in the future
+      expect(valueJson['encryptedApkamSymmetricKey'],
+          'dummy_encrypted_apkam_symmetric_key');
+      expect(valueJson['encryptedAPKAMSymmetricKey'],
+          'dummy_encrypted_apkam_symmetric_key');
+      expect(valueJson['appName'], 'mvt_app_2');
+      expect(valueJson['deviceName'], 'mvt_dev_2');
+      expect(valueJson['namespace'], equals({'app_2_namespace': 'rw'}));
+      expect(
+          notificationJson['key'],
+          '$nextEnrollmentId'
+          '.new.enrollments.__manage'
+          '@alice');
+      print('Verified the APKAM monitor connection'
+          ' received the enrollment request notification');
     });
 
     test('A test to verify enrollment revoked does not receive notifications',
@@ -372,7 +522,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -386,7 +536,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], '@alice');
-      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Set to empty string to remove the previous data
@@ -408,7 +558,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -488,7 +638,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..notification = '@alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)

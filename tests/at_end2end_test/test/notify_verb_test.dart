@@ -41,6 +41,73 @@ void main() {
     sh2.clear();
   });
 
+  // atsign1 send 5 notifications to atsign2 in some specific namespace
+  // atsign1 wait for all 5 notifications to be delivered
+  // atsign2 create connection, issue monitor command for that namespace
+  // verify atsign2 receives all 5 notifications immediately
+  test('monitor receives multiple pending notifications immediately', () async {
+    e2e.SimpleOutboundSocketHandler notifySH, monitorSH;
+    notifySH = await e2e.getSocketHandler(atSign_1);
+    monitorSH = await e2e.getSocketHandler(atSign_2);
+
+    try {
+      var atServerVersion = Version.parse(await monitorSH.getVersion());
+      if (atServerVersion < Version(3, 0, 43)) {
+        print ('\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
+        return;
+      }
+      List<String> sentNotificationIds = [];
+
+      int startTime = DateTime.now().millisecondsSinceEpoch;
+
+      // Wait for a couple of seconds in case of time drift
+      // between client and server
+      await Future.delayed(Duration(seconds: 2));
+
+      int numNotifications = 5;
+      // atsign1 send N notifications to atsign2 in some specific namespace
+      for (int i = 1; i <= numNotifications; i++) {
+        await notifySH.writeCommand('notify:update'
+            ':messageType:key:$atSign_2:monitor.e2etest$atSign_1'
+            ':message_$i');
+        String response = await notifySH.read();
+        print('notify verb response : $response');
+        assert((!response.contains('Invalid syntax')) &&
+            (!response.contains('null')));
+        String notificationId = response.replaceAll('data:', '');
+        sentNotificationIds.add(notificationId);
+      }
+      // atsign1 wait for all 5 notifications to be delivered
+      for (String notificationId in sentNotificationIds) {
+        String response = await getNotifyStatus(notifySH, notificationId,
+            returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+        print('notify status response : $response');
+        expect(response, contains('data:delivered'));
+      }
+
+      // atsign2 issue monitor command for that namespace since $startTime
+      await monitorSH.writeCommand('monitor:strict:$startTime monitor.e2etest');
+      // Wait for a second
+      await Future.delayed(Duration(seconds: 1));
+
+      // verify atsign2 receives all notifications ~immediately
+      for (int i = 1; i <= numNotifications; i++) {
+        print('/nWaiting for notification $i');
+        String subsequentNotification = await monitorSH.read(
+            log: true, timeoutMillis: 1000, throwTimeoutException: true);
+        print('Notification number $i: $subsequentNotification');
+        final notifJson = jsonDecode(
+            subsequentNotification.replaceFirst('notification: ', ''));
+
+        expect(sentNotificationIds, contains(notifJson['id']));
+        sentNotificationIds.remove(notifJson['id']);
+      }
+    } finally {
+      notifySH.close();
+      monitorSH.close();
+    }
+  });
+
   test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
     var value = 'alice$lastValue@yahoo.com';
@@ -789,9 +856,13 @@ Future<String> getNotifyStatus(
   String response = 'NO_RESPONSE';
 
   bool readTimedOut = false;
+  bool first = true;
   int endTime = DateTime.now().millisecondsSinceEpoch + timeOutMillis;
   while (DateTime.now().millisecondsSinceEpoch < endTime) {
+    if (!first) {
     await Future.delayed(Duration(milliseconds: loopDelay));
+    }
+    first = false;
 
     if (!readTimedOut) {
       await sh.writeCommand('notify:status:$notificationId', log: true);

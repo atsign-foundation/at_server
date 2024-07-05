@@ -17,6 +17,19 @@ class OutboundConnectionImpl<T extends Socket>
       ..toAtSign = toAtSign
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
+
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData,
+        'New connection ('
+        'this side: ${underlying.address}:${underlying.port}'
+        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+        ')'));
+
+    socket.done.onError((error, stackTrace) {
+      logger
+          .info('socket.done.onError called with $error. Calling this.close()');
+      this.close();
+    });
   }
 
   int _getIdleTimeMillis() {
@@ -47,23 +60,24 @@ class OutboundConnectionImpl<T extends Socket>
 
     try {
       var socket = underlying;
-      var address = socket.remoteAddress;
-      var port = socket.remotePort;
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData,
+          'destroying socket ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
       socket.destroy();
-      logger.finer('$address:$port Disconnected');
-      metaData.isClosed = true;
-    } on Exception {
-      metaData.isStale = true;
+    } catch (_) {
       // Ignore exception on a connection close
-    } on Error {
       metaData.isStale = true;
-      // Ignore error on a connection close
+    } finally {
+      metaData.isClosed = true;
     }
   }
 
   @override
-  void write(String data) {
-    super.write(data);
+  Future<void> write(String data) async {
+    await super.write(data);
     logger.info(logger.getAtConnectionLogMessage(
         metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }

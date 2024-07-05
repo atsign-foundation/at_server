@@ -51,16 +51,15 @@ class SecondaryServerBootStrapper {
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
 
       //starting secondary in a zone
-      //prevents secondary from terminating due to uncaught non-fatal errors
+      //prevents secondary from terminating with uncaught non-fatal errors
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
-      }, (Object error, StackTrace stackTrace) {
+      }, (error, StackTrace stackTrace) {
+        logger.shout('Uncaught error: $error ;'
+            ' StackTrace follows: $stackTrace');
         if (error is SocketException) {
-          logger.warning('runZonedGuarded caught a SocketException ($error)');
-          logger.warning('we will not terminate the server');
+          logger.shout('Will not terminate server for $error');
         } else {
-          logger.shout('runZonedGuarded caught unexpected exception:'
-              ' $error \n StackTrace: $stackTrace');
           handleTerminateSignal(ProcessSignal.sigstop);
         }
       }));

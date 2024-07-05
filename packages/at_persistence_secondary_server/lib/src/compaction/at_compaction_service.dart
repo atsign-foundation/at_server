@@ -25,20 +25,20 @@ class AtCompactionService {
   Future<AtCompactionStats> executeCompaction(AtLogType atLogType) async {
     // Pre-compaction metrics
     int numberOfKeysBeforeCompaction = atLogType.entriesCount();
-    int dataTimeBeforeCompactionInMills =
+    int dateTimeBeforeCompactionInMills =
         DateTime.now().toUtc().millisecondsSinceEpoch;
     // Run compaction
     await executeCompactionInternal(atLogType);
     // Post-compaction metrics
-    int dataTimeAfterCompactionInMills =
+    int dateTimeAfterCompactionInMills =
         DateTime.now().toUtc().millisecondsSinceEpoch;
     int numberOfKeysAfterCompaction = atLogType.entriesCount();
     // Sets the metrics to AtCompactionStats
     AtCompactionStats atCompactionStats = _generateStats(
         atLogType,
-        dataTimeBeforeCompactionInMills,
+        dateTimeBeforeCompactionInMills,
         numberOfKeysBeforeCompaction,
-        dataTimeAfterCompactionInMills,
+        dateTimeAfterCompactionInMills,
         numberOfKeysAfterCompaction);
     return atCompactionStats;
   }
@@ -54,9 +54,9 @@ class AtCompactionService {
 
   AtCompactionStats _generateStats(
       AtLogType atLogType,
-      int dataTimeBeforeCompactionInMills,
+      int dateTimeBeforeCompactionInMills,
       int numberOfKeysBeforeCompaction,
-      int dataTimeAfterCompactionInMills,
+      int dateTimeAfterCompactionInMills,
       int numberOfKeysAfterCompaction) {
     // Reset the compaction stats to clear the earlier stats metrics
     _resetAtCompactionStats();
@@ -65,9 +65,9 @@ class AtCompactionService {
       ..preCompactionEntriesCount = numberOfKeysBeforeCompaction
       ..postCompactionEntriesCount = numberOfKeysAfterCompaction
       ..compactionDurationInMills =
-          DateTime.fromMillisecondsSinceEpoch(dataTimeAfterCompactionInMills)
+          DateTime.fromMillisecondsSinceEpoch(dateTimeAfterCompactionInMills)
               .difference(DateTime.fromMillisecondsSinceEpoch(
-                  dataTimeBeforeCompactionInMills))
+                  dateTimeBeforeCompactionInMills))
               .inMilliseconds
       ..deletedKeysCount =
           (numberOfKeysBeforeCompaction - numberOfKeysAfterCompaction)

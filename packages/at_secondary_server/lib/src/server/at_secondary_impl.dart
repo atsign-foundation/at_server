@@ -40,9 +40,9 @@ import 'pseudo_server_socket.dart';
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
-  AtSecondaryServerImpl._internal();
+      AtSecondaryServerImpl._internal();
   static final inboundConnectionFactory =
-  InboundConnectionManager.getInstance();
+      InboundConnectionManager.getInstance();
   static final String? storagePath = AtSecondaryConfig.storagePath;
   static final String? commitLogPath = AtSecondaryConfig.commitLogPath;
   static final String? accessLogPath = AtSecondaryConfig.accessLogPath;
@@ -194,9 +194,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
-      AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
+          AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
       ..compactionFrequencyInMins =
-      AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
+          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
@@ -304,7 +304,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     try {
       _isRunning = true;
-      await _startSecuredServer();
+      if (useTLS!) {
+        await _startSecuredServer();
+      } else {
+        await _startUnSecuredServer();
+      }
     } on Exception catch (e, stacktrace) {
       _isRunning = false;
       logger.severe('AtSecondaryServer().start exception: ${e.toString()}');
@@ -353,8 +357,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> initDynamicConfigListeners() async {
     //only works if testingMode is set to true
     if (AtSecondaryConfig.testingMode) {
-      logger.warning(
-          'UNSAFE: testingMode in config.yaml is set to true. Please set to false if not required.');
+      logger.warning('testingMode in config.yaml is set to true.'
+          ' Please set to false if not required.');
 
       //subscriber for inbound_max_limit change
       logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
@@ -369,7 +373,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
       AtSecondaryConfig.subscribe(
-          ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(
             notificationKeyStoreCompactionJobInstance,
@@ -382,7 +386,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to accessLogCompactionFreq');
       AtSecondaryConfig.subscribe(
-          ModifiableConfigs.accessLogCompactionFrequencyMins)
+              ModifiableConfigs.accessLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(accessLogCompactionJobInstance,
             atAccessLogCompactionConfig, newFrequency, _accessLog);
@@ -392,7 +396,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest(
           'Subscribing to dynamic changes made to commitLogCompactionFreq');
       AtSecondaryConfig.subscribe(
-          ModifiableConfigs.commitLogCompactionFrequencyMins)
+              ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(commitLogCompactionJobInstance,
             atCommitLogCompactionConfig, newFrequency, _commitLog);
@@ -493,15 +497,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           clientSocket.selectedProtocol == null) {
         InboundConnection? connection;
         try {
-          logger.finer(
+          logger.info(
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
           var inBoundConnectionManager = InboundConnectionManager.getInstance();
           connection = inBoundConnectionManager
               .createSocketConnection(clientSocket, sessionId: sessionID);
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-          connection.write('@');
+          await connection.write('@');
         } on InboundConnectionLimitException catch (e) {
-          GlobalExceptionHandler.getInstance()
+          await GlobalExceptionHandler.getInstance()
               .handle(e, atConnection: connection, clientSocket: clientSocket);
         }
       } else {
@@ -551,6 +555,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } else {
       logger.severe('certs not available');
     }
+  }
+
+  /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
+  Future<void> _startUnSecuredServer() async {
+    _serverSocket =
+        await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
+    logger.info('Unsecure Socket open');
+    _listen(_serverSocket);
   }
 
   ///Accepts the command and the inbound connection and invokes a call to execute method.
@@ -680,16 +692,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
     await manager.init(storagePath!);
     // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    manager.scheduleKeyExpireTask(3,
-        skipCommits: skipCommitsForExpiredKeys);
+    manager.scheduleKeyExpireTask(3, skipCommits: skipCommitsForExpiredKeys);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;

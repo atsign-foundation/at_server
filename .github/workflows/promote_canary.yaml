@@ -13,22 +13,26 @@ jobs:
   # Add layer to canary secondary image with prod pubspec.yaml
   deploy_canary_secondary_to_prod_image:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build_canary_to_prod.outputs.digest }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@0d103c3126aa41d772a8362f6aa67afac040f80c # v3.1.0
+        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -36,40 +40,60 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_canary_to_prod
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
         with:
           push: true
           provenance: false
           file: tools/build_secondary/Dockerfile.canary_to_prod
           context: .
           tags: |
-            atsigncompany/secondary:prod
             atsigncompany/secondary:dess
+            atsigncompany/secondary:latest
+            atsigncompany/secondary:prod
             atsigncompany/secondary:prod-${{ env.VERSION }}
           platforms: |
             linux/amd64
             linux/arm64/v8
             linux/arm/v7
 
+  prod_secondary_provenance:
+    needs: [deploy_canary_secondary_to_prod_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/secondary"
+      digest: ${{ needs.deploy_canary_secondary_to_prod_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
   # Add layer to canary virtualenv image with prod pubspec.yaml
   deploy_canary_virtualenv_to_prod_image:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.docker_build_canary_to_vip.outputs.digest }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       # Extract version for docker tag
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@5927c834f5b4fdf503fca6f4c7eccda82949e1ee # v3.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@0d103c3126aa41d772a8362f6aa67afac040f80c # v3.1.0
+        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -77,14 +101,30 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push virtualenv image for amd64 and arm64
         id: docker_build_canary_to_vip
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
         with:
           push: true
           file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
           context: .
           tags: |
+            atsigncompany/virtualenv:latest
             atsigncompany/virtualenv:vip
             atsigncompany/virtualenv:vip-${{ env.VERSION }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+  prod_virtualenv_provenance:
+    needs: [deploy_canary_virtualenv_to_prod_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: "atsigncompany/virtualenv"
+      digest: ${{ needs.deploy_canary_virtualenv_to_prod_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -59,8 +59,8 @@ class StreamVerbHandler extends AbstractVerbHandler {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
         }
-        StreamManager.senderSocketMap[streamId]!
-            .write('stream:done $streamId\n');
+        await StreamManager.senderSocketMap[streamId]!.write('stream:done'
+            ' $streamId\n');
         _cleanUp(streamId);
         break;
       case 'init':

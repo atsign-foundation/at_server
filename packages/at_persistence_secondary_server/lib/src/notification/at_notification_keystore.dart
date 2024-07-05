@@ -18,6 +18,7 @@ class AtNotificationKeystore
   late String currentAtSign;
   late String _boxName;
   final _notificationExpiryInHours = 72;
+  static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
 
   factory AtNotificationKeystore.getInstance() {
@@ -83,6 +84,10 @@ class AtNotificationKeystore
       String? skeEncKeyName,
       String? skeEncAlgo,
       bool skipCommit = false}) async {
+    if (key.length > maxKeyLengthWithoutCached) {
+      throw DataStoreException(
+          'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
+    }
     AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
@@ -5,6 +6,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 ///Listener class for messages received by [OutboundClient]
 class OutboundMessageListener {
@@ -18,14 +20,24 @@ class OutboundMessageListener {
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
   void listen() async {
-    outboundClient.outboundConnection?.underlying.listen(_messageHandler,
-        onDone: _finishedHandler, onError: _errorHandler);
-    outboundClient.outboundConnection?.metaData.isListening = true;
+    logger.finest(
+        'Calling outbound underlying.listen within runZonedGuarded block');
+
+    runZonedGuarded(() {
+      outboundClient.outboundConnection?.underlying.listen(messageHandler,
+          onDone: _finishedHandler, onError: _errorHandler);
+      outboundClient.outboundConnection?.metaData.isListening = true;
+    }, (Object error, StackTrace st) {
+      logger.warning(
+          'runZonedGuarded received error $error - calling _errorHandler to close connection');
+      _errorHandler(error, st);
+    });
   }
 
   /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
   /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
-  Future<void> _messageHandler(data) async {
+  @visibleForTesting
+  Future<void> messageHandler(data) async {
     //ignore the data if connection is closed or stale
     if (outboundClient.outboundConnection!.metaData.isStale ||
         outboundClient.outboundConnection!.metaData.isClosed) {
@@ -88,17 +100,8 @@ class OutboundMessageListener {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
-          try {
-            result = result.toString().replaceFirst('error:', '');
-            var errorMap = jsonDecode(result);
-            throw AtExceptionUtils.get(
-                errorMap['errorCode'], errorMap['errorDescription']);
-          } on FormatException {
-            // Catching the FormatException to preserve backward compatibility - responses without jsonEncoding.
-            // TODO: Can remove the catch block in the next release (once all the existing servers are migrated to new version).
-            throw AtConnectException(
-                "Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$result'");
-          }
+          result = result.toString().replaceFirst('error:', '');
+          _throwAtExceptionFromErrorResponse(result);
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
           _closeOutboundClient();
@@ -114,14 +117,49 @@ class OutboundMessageListener {
         "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
   }
 
+  AtException _throwAtExceptionFromErrorResponse(String errorResponse) {
+    try {
+      var errorMap = jsonDecode(errorResponse);
+      throw AtExceptionUtils.get(
+          errorMap['errorCode'], errorMap['errorDescription']);
+    } on FormatException {
+      // Catching the FormatException to preserve backward compatibility - responses without jsonEncoding.
+      // TODO: Can remove the catch block in the next release (once all the existing servers are migrated to new version).
+      // get error code and description from error response
+      String? errorCode;
+      try {
+        errorCode = errorResponse.substring(
+            errorResponse.indexOf('AT'), errorResponse.indexOf('-'));
+        logger.finer('errorCode: $errorCode');
+      } on Exception {
+        logger.warning(
+            'Unable to extract error code from errorResponse: $errorResponse');
+        // if we are unable to get errorCode from error response, do nothing
+      } on Error {
+        logger.warning(
+            'Unable to extract error code from errorResponse: $errorResponse');
+        // if we are unable to get errorCode from error response, do nothing
+      }
+      if (errorCode != null && errorCode.isNotEmpty) {
+        var errorDescription = errorResponse
+            .substring(errorResponse.indexOf(errorCode) + errorCode.length + 1);
+        throw AtExceptionUtils.get(errorCode, errorDescription);
+      } else {
+        throw AtConnectException(
+            "Request to remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort} received error response '$errorResponse'");
+      }
+    }
+  }
+
   /// Logs the error and closes the [OutboundClient]
-  void _errorHandler(error) async {
+  void _errorHandler(error, StackTrace st) async {
     logger.severe(error.toString());
     _closeOutboundClient();
   }
 
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
+    logger.info('_finishedHandler called - closing connection');
     _closeOutboundClient();
   }
 
