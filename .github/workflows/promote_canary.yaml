@@ -128,3 +128,53 @@ jobs:
     secrets:
       registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
       registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  get_canary_sboms:
+    name: Get the Canary SBOMs
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+      attestations: write
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+      - name: Get latest canary tag
+        run: |
+          CANARY=$(git tag --sort=-version:refname -l c*.*.* | head -1)
+          echo ${CANARY}
+          mkdir sboms
+          cd sboms
+          wget https://github.com/atsign-foundation/at_server/releases/download/${CANARY}/atserver_sbom.spdx.json
+          wget https://github.com/atsign-foundation/at_server/releases/download/${CANARY}/atserver_sbom.cyclonedx.json
+          sha256sum * > checksums.txt
+      - name: Upload artifacts to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Upload to GitHub Release using the `gh` CLI.
+        run: >-
+          gh release upload
+          '${{ github.ref_name }}' sboms/**
+          --repo '${{ github.repository }}'
+      - id: hash
+        name: Pass artifact hashes for SLSA provenance
+        working-directory: sboms
+        run: |
+          echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@bdd51370e0416ac948727f861e03c2f05d32d78e # v1.3.2
+        with:
+          subject-path: 'sboms/**'
+
+  sbom_provenance:
+    needs: [get_canary_sboms]
+    permissions:
+      actions: read # Needed for detection of GitHub Actions environment.
+      id-token: write # Needed for provenance signing and ID
+      contents: write # Needed for release uploads
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0 # 5a775b367a56d5bd118a224a811bba288150a563
+    with:
+      base64-subjects: "${{ needs.get_canary_sboms.outputs.hashes }}"
+      upload-assets: true
