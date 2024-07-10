@@ -90,8 +90,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
       case 'approve':
       case 'deny':
-        await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
-            operation, responseJson, response);
+        await _handleEnrollmentPermissions(atConnection, enrollVerbParams!,
+            currentAtSign, operation, responseJson, response);
         break;
       case 'revoke':
         var forceFlag = verbParams['force'];
@@ -103,8 +103,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw AtEnrollmentRevokeException(
               'Current client cannot revoke its own enrollment');
         }
-        await _handleEnrollmentPermissions(
-            enrollVerbParams, currentAtSign, operation, responseJson, response);
+        await _handleEnrollmentPermissions(atConnection, enrollVerbParams,
+            currentAtSign, operation, responseJson, response);
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.finer(
               'Dropping connection for enrollmentId: $enrollmentIdFromParams');
@@ -274,6 +274,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// If [operation] is approve, store the public key in public:appName.deviceName.pkam.__pkams.__public_keys
   /// and also store default encryption private key and default self encryption key in encrypted format.
   Future<void> _handleEnrollmentPermissions(
+      InboundConnection inboundConnection,
       EnrollParams enrollParams,
       currentAtSign,
       String? operation,
@@ -313,8 +314,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
     _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
-    enrollDataStoreValue!.approval!.state =
-        _getEnrollStatusEnum(operation).name;
+
+    /// Checks if the client has authorization to perform operations.
+    /// To approve, deny, or revoke an enrollment, the client must be authorized
+    /// for the superset or all namespaces mentioned in the enrollment request.
+    bool isClientAuthorized = await verifyIfClientIsAuthorized(
+        inboundConnection, enrollDataStoreValue!);
+    if (!isClientAuthorized) {
+      throw AtEnrollmentException(
+          'Failed to $operation enrollment id: ${enrollParams.enrollmentId}. Client is not authorized for namespaces in the enrollment request');
+    }
+
+    enrollDataStoreValue.approval!.state = _getEnrollStatusEnum(operation).name;
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
 
     // If an enrollment is approved, we need the enrollment to be active
@@ -655,6 +666,47 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     delayForInvalidOTPSeries.remove(delayForInvalidOTPSeries.first);
 
     return delayForInvalidOTPSeries.last;
+  }
+
+  /// Checks if the client is authorized to perform operations.
+  /// To approve, deny, or revoke an enrollment, the client must possess authorization
+  /// to all the namespaces or the superset mentioned in the enrollment request .
+  @visibleForTesting
+  Future<bool> verifyIfClientIsAuthorized(InboundConnection inboundConnection,
+      EnrollDataStoreValue currentEnrollmentDetails) async {
+    String? clientEnrollmentId =
+        (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId;
+    logger.finest(
+        'Verifying client authorization to perform enrollment operation for id: $clientEnrollmentId');
+    // If the enrollment id is null or empty on the client connection, then it is
+    // authenticated with PKAM which has admin privileges. Therefore, return true.
+    if (clientEnrollmentId == null || clientEnrollmentId.isEmpty) {
+      logger.finest(
+          'Enrollment id not found. Recognizing as a PKAM Authentication and returning true');
+      return true;
+    }
+    List clientEnrollmentKeyList = keyStore.getKeys(
+        regex:
+            '$clientEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace');
+    AtData clientEnrollment = await keyStore.get(clientEnrollmentKeyList.first);
+    EnrollDataStoreValue clientEnrollmentDetails =
+        EnrollDataStoreValue.fromJson(jsonDecode(clientEnrollment.data!));
+
+    /// Access to allNamespaces ('*' namespace) or enrollManageNamespace ('__manage' namespace) grants the client
+    /// admin privileges. Therefore, return true.
+    if (clientEnrollmentDetails.namespaces.containsKey(allNamespaces) ||
+        clientEnrollmentDetails.namespaces.containsKey(enrollManageNamespace)) {
+      return true;
+    }
+
+    for (String namespace in currentEnrollmentDetails.namespaces.keys) {
+      if (clientEnrollmentDetails.namespaces.containsKey(namespace) == false) {
+        logger.finer(
+            'Enrollment operation failed: client does not have authorization to the namespace - $namespace');
+        return false;
+      }
+    }
+    return true;
   }
 
   /// NOT a part of API. Used for unit tests

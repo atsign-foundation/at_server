@@ -1467,4 +1467,147 @@ void main() {
     });
     tearDown(() async => await verbTestsTearDown());
   });
+
+  group(
+      'A group of tests to verify client authorization to approve the enrollment request',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify that the authorization check returns false when the client is not authorized for the requested namespace.',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'wavi': 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      EnrollDataStoreValue currentEnrollmentDetails = EnrollDataStoreValue(
+          'dummy-session', 'app1', 'my-device', 'dummy-apkam-public-key')
+        ..namespaces = {'contacts': 'rw'};
+
+      bool response = await enrollVerbHandler.verifyIfClientIsAuthorized(
+          inboundConnection, currentEnrollmentDetails);
+
+      expect(response, false);
+    });
+
+    test(
+        'A test to verify that the authorization check returns true when the client is authorized to the namespace',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'wavi': 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      EnrollDataStoreValue currentEnrollmentDetails = EnrollDataStoreValue(
+          'dummy-session', 'app1', 'my-device', 'dummy-apkam-public-key')
+        ..namespaces = {'wavi': 'rw'};
+
+      bool response = await enrollVerbHandler.verifyIfClientIsAuthorized(
+          inboundConnection, currentEnrollmentDetails);
+
+      expect(response, true);
+    });
+
+    test(
+        'A test to verify that the authorization check returns true when the client is authorized for manage namespace',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {enrollManageNamespace: 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      EnrollDataStoreValue currentEnrollmentDetails = EnrollDataStoreValue(
+          'dummy-session', 'app1', 'my-device', 'dummy-apkam-public-key')
+        ..namespaces = {'contacts': 'rw'};
+
+      bool response = await enrollVerbHandler.verifyIfClientIsAuthorized(
+          inboundConnection, currentEnrollmentDetails);
+
+      expect(response, true);
+    });
+
+    test(
+        'A test to verify that the authorization check returns true when the client is authorized to * namespaces ',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {allNamespaces: 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      EnrollDataStoreValue currentEnrollmentDetails = EnrollDataStoreValue(
+          'dummy-session', 'app1', 'my-device', 'dummy-apkam-public-key')
+        ..namespaces = {'wavi': 'rw'};
+
+      bool response = await enrollVerbHandler.verifyIfClientIsAuthorized(
+          inboundConnection, currentEnrollmentDetails);
+
+      expect(response, true);
+    });
+
+    test(
+        'A test to verify that the authorization check returns true when the client is PKAM authentication and enrollment id is null',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {allNamespaces: 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      EnrollDataStoreValue currentEnrollmentDetails = EnrollDataStoreValue(
+          'dummy-session', 'app1', 'my-device', 'dummy-apkam-public-key')
+        ..namespaces = {'wavi': 'rw'};
+
+      bool response = await enrollVerbHandler.verifyIfClientIsAuthorized(
+          inboundConnection, currentEnrollmentDetails);
+
+      expect(response, true);
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+  });
 }
