@@ -242,6 +242,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Store default encryption private key and self encryption key(both encrypted)
       // for future retrieval
       await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
+      // Store the enrollment in a hidden for the user to retrieve active enrollments from client side when required
+      await _storeEnrollmentInPublicHiddenKey(
+          newEnrollmentId, enrollmentValue, currentAtSign);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(AtConstants.atPkamPublicKey,
@@ -266,6 +269,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Remove the OTP from keystore to prevent reuse.
     await keyStore.remove(
         'private:${enrollParams.otp?.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}');
+  }
+
+  // Store enrollment info after approval in a public hidden key
+  Future<void> _storeEnrollmentInPublicHiddenKey(
+      String newEnrollmentId,
+      EnrollDataStoreValue enrollmentDataStoreValue,
+      String currentAtSign) async {
+    var key = 'public:$enrollmentPublicHiddenKey';
+    List<dynamic> enrollmentInfoList = [];
+    // check whether the hidden public key exists
+    try {
+      var enrollmentInfoData = await keyStore.get('$key$currentAtSign');
+      enrollmentInfoList = jsonDecode(enrollmentInfoData.data);
+    } on KeyNotFoundException {
+      logger.finer('public hidden key for enrollments does not exist');
+    }
+
+    var enrollmentInfo = {};
+    enrollmentInfo['enrollmentId'] = newEnrollmentId;
+    enrollmentInfo['appName'] = enrollmentDataStoreValue.appName;
+    enrollmentInfo['deviceName'] = enrollmentDataStoreValue.deviceName;
+    enrollmentInfo['namespaces'] = enrollmentDataStoreValue.namespaces;
+    enrollmentInfoList.add(jsonEncode(enrollmentInfo));
+    var enrollmentsData = AtData()..data = jsonEncode(enrollmentInfoList);
+    logger.finer(
+        'Storing enrollment for app ${enrollmentDataStoreValue.appName} and device ${enrollmentDataStoreValue.deviceName} in public hidden key');
+    await keyStore.put('$key$currentAtSign', enrollmentsData, skipCommit: true);
   }
 
   /// Handles enrollment approve, deny and revoke requests.
@@ -322,16 +352,37 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await _updateEnrollmentValueAndResetTTL(
         '$enrollmentKey$currentAtSign', enrollDataStoreValue);
     // when enrollment is approved store the apkamPublicKey of the enrollment
-    if (operation == 'approve') {
-      var apkamPublicKeyInKeyStore =
-          'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
-      var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
-      var atData = AtData()..data = jsonEncode(valueJson);
-      await keyStore.put(apkamPublicKeyInKeyStore, atData);
-      await _storeEncryptionKeys(
-          enrollmentIdFromParams!, enrollParams, currentAtSign);
+    switch (operation) {
+      case 'approve':
+        var apkamPublicKeyInKeyStore =
+            'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
+        var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
+        var atData = AtData()..data = jsonEncode(valueJson);
+        await keyStore.put(apkamPublicKeyInKeyStore, atData);
+        await _storeEncryptionKeys(
+            enrollmentIdFromParams!, enrollParams, currentAtSign);
+        await _storeEnrollmentInPublicHiddenKey(
+            enrollmentIdFromParams, enrollDataStoreValue, currentAtSign);
+        break;
+      case 'revoke':
+        await _removeEnrollmentFromPublicHiddenKey(
+            enrollmentIdFromParams!, currentAtSign);
+        break;
     }
     responseJson['enrollmentId'] = enrollmentIdFromParams;
+  }
+
+  // removes enrollment from public hidden key after it is revoked
+  Future<void> _removeEnrollmentFromPublicHiddenKey(
+      String revokedEnrollmentId, String currentAtSign) async {
+    final key = 'public:_enrollments$currentAtSign';
+    final atData = await keyStore.get(key);
+    var enrollmentInfoList = jsonDecode(atData.data!) as List<dynamic>;
+    enrollmentInfoList.removeWhere((item) {
+      return jsonDecode(item)['enrollmentId'] == revokedEnrollmentId;
+    });
+    var newEnrollmentsData = AtData()..data = jsonEncode(enrollmentInfoList);
+    await keyStore.put(key, newEnrollmentsData, skipCommit: true);
   }
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
@@ -532,6 +583,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Iterate through the existing enrollments and verify that there is no enrollment with the same
     // appName and deviceName combination, and a status of 'pending' or 'approved'
     for (String key in enrollmentKeys) {
+      if (key.contains('public:_')) {
+        // skip public hidden key containing enrollment details
+        continue;
+      }
       AtData atData = AtData();
       try {
         atData = await keyStore.get(key);
