@@ -1,0 +1,25 @@
+# Virtual env docker compose file
+
+# Use this with docker compose to quickly spin up a virtual environment
+
+version: '3.7'
+
+services:
+  virtualenv:
+    image: atsigncompany/virtualenv:vip
+    ports:
+      - '127.0.0.1:6379:6379'
+      - '64:64'
+      - '127.0.0.1:9001:9001'
+      - '25000-25019:25000-25019'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+# Remove these comments to run a DNS Masq service locally
+# This enables you to code and test offline and use physical devices
+# connecting to your Virtual Environment, not needed if you have
+# a network connection
+#   masqdns:
+#     image: atsigncompany/masqdns:vip
+#     ports:
+#       - "127.0.0.1:5380:8080"
+#       - "53:53/udp"
