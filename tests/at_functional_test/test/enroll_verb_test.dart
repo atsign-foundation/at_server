@@ -1149,7 +1149,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
-              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}');
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
@@ -1157,7 +1157,7 @@ void main() {
       // Approve enrollment with a PKAM Authenticated connection
       String approveEnrollmentResponse =
           await firstAtSignConnection.sendRequestToServer(
-              'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       approveEnrollmentResponse =
           approveEnrollmentResponse.replaceAll('data:', '');
       expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
@@ -1181,15 +1181,14 @@ void main() {
       await unAuthenticatedConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}');
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
 
       // Approve enrollment with APKAM authenticated connection
-      var response =
-          await enrollmentAuthenticatedConnection.sendRequestToServer(
-              'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+      var response = await enrollmentAuthenticatedConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
           'Internal server exception : Failed to approve enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
@@ -1217,7 +1216,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
-              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}');
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
@@ -1225,7 +1224,7 @@ void main() {
       // Approve enrollment with a PKAM Authenticated connection
       String approveEnrollmentResponse =
           await firstAtSignConnection.sendRequestToServer(
-              'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       approveEnrollmentResponse =
           approveEnrollmentResponse.replaceAll('data:', '');
       expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
@@ -1248,14 +1247,14 @@ void main() {
       await unAuthenticatedConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}');
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
 
       // Approve enrollment with PKAM authenticated connection
       var response = await firstAtSignConnection.sendRequestToServer(
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       response = response.replaceAll('data:', '');
       expect(jsonDecode(response)['status'], 'approved');
 
