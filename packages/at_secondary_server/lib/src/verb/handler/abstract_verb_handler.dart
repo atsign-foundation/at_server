@@ -8,8 +8,8 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
-import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -132,110 +132,155 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///  - If enrollment is a part of "global" or "manage" namespace
   ///  - the connection does not have access to * namespace and key has no namespace
   /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
-  Future<bool> isAuthorized(InboundConnectionMetadata connectionMetadata,
-      {String? atKey, String? namespace}) async {
-    bool retVal = await _isAuthorized(connectionMetadata,
-        atKey: atKey, namespace: namespace);
-    logger.finer('_isAuthorized returned $retVal');
-    return retVal;
-  }
-
-  Future<bool> _isAuthorized(
-    InboundConnectionMetadata connectionMetadata, {
-    String? atKey,
-    String? namespace,
-  }) async {
-    final Verb verb = getVerb();
-
-    final enrollmentId = connectionMetadata.enrollmentId;
-
+  Future<bool> isAuthorized(InboundConnectionMetadata inboundConnectionMetadata,
+      {String? atKey,
+      String? namespace,
+      String enrolledNamespaceAccess = '',
+      String operation = ''}) async {
     // If legacy PKAM (full permissions) or is a reserved key (to which all
     // authenticated connections have access) then return true
-    if (enrollmentId == null || _isReservedKey(atKey)) {
+    if (inboundConnectionMetadata.enrollmentId == null ||
+        _isReservedKey(atKey)) {
       return true;
     }
 
-    final dataStoreKey = '$enrollmentId'
+    // Step 1: From the enrollmentId fetch the enrollment details
+    final enrollmentKey = '${inboundConnectionMetadata.enrollmentId}'
         '.$newEnrollmentKeyPattern'
         '.$enrollManageNamespace'
         '${AtSecondaryServerImpl.getInstance().currentAtSign}';
-
-    final EnrollDataStoreValue enrollDataStoreValue;
+    EnrollDataStoreValue enrollDataStoreValue;
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(dataStoreKey);
+      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $dataStoreKey');
+      logger.shout('Could not retrieve enrollment data for $enrollmentKey');
       return false;
     }
 
-    // Check that the connection's enrollment is in 'approved' state.
-    if (enrollDataStoreValue.approval?.state !=
-        EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $dataStoreKey'
-          ' is ${enrollDataStoreValue.approval?.state}');
-      return false;
+    bool isValid = _applyEnrollmentValidations(
+        enrollDataStoreValue, enrollmentKey, operation, atKey, namespace);
+    if (isValid == false) {
+      return isValid;
     }
 
-    final enrollNamespaces = enrollDataStoreValue.namespaces;
-    // if both key and namespace are passed, throw Exception if they don't match
-    if (atKey != null && namespace != null) {
-      AtKey atKeyObj;
-      try {
-        atKeyObj = AtKey.fromString(atKey);
-      } catch (e) {
-        throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
-      }
-      var namespaceFromAtKey = atKeyObj.namespace;
-      if (namespaceFromAtKey != null && namespaceFromAtKey != namespace) {
-        throw AtEnrollmentException(
-            'AtKey namespace and passed namespace do not match');
-      }
-    }
-    // set passed namespace. If passed namespace is null, get namespace from atKey
-    String? keyNamespace;
-    try {
-      keyNamespace = namespace ??
-          (atKey != null ? AtKey.fromString(atKey).namespace : null);
-    } catch (e) {
-      throw AtEnrollmentException('AtKey.toString($atKey) failed: $e');
-    }
-    if (keyNamespace == null && atKey == null) {
-      logger.shout('Both AtKey and namespace are null');
-      return false;
+    // If namespace is null or empty, fetch namespace from AtKey.
+    if ((namespace == null || namespace.isEmpty) && atKey != null) {
+      namespace = AtKey.fromString(atKey).namespace;
     }
 
-    final access = enrollNamespaces.containsKey(allNamespaces)
-        ? enrollNamespaces[allNamespaces]
-        : enrollNamespaces[keyNamespace];
+    // Checks for namespace authorisation
+    // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
+    // access of the namespace.
+    (String, String?) authorizedNamespace =
+        _checkForNamespaceAuthorization(enrollDataStoreValue, namespace);
 
-    logger.finer('_isAuthorized check for'
-        ' app: [${enrollDataStoreValue.appName}]'
-        ' device: [${enrollDataStoreValue.deviceName}]'
-        ' verb: [${verb.runtimeType}]'
-        ' enrollNamespaces: [$enrollNamespaces]'
-        ' keyNamespace: $keyNamespace'
-        ' access: $access');
-
-    if (access == null) {
+    // "authorizedNamespace.$1" represents the namespace and "authorizedNamespace.$2" represents
+    // the access of the namespace.
+    if (authorizedNamespace.$1.isEmpty ||
+        (authorizedNamespace.$2 == null || authorizedNamespace.$2!.isEmpty)) {
       return false;
     }
 
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
-    if (keyNamespace == enrollManageNamespace) {
-      return (verb is Otp || verb is Enroll || verb is Monitor)
-          ? (access == 'r' || access == 'rw')
+    // Prevents update, delete or any other operations on the enrollment key
+    if (authorizedNamespace.$1 == enrollManageNamespace) {
+      return (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor)
+          ? (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw')
           : false;
     }
+    return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
+        enrolledNamespaceAccess: enrolledNamespaceAccess);
+  }
 
-    // if there is no namespace, connection should have * in namespace for access
-    if (keyNamespace == null && enrollNamespaces.containsKey(allNamespaces)) {
-      if (_isReadAllowed(verb, access) || _isWriteAllowed(verb, access)) {
-        return true;
+  /// Verifies if the provided `namespace` has super set access based on the
+  /// namespaces defined in `enrollDataStoreValue`.
+  ///
+  /// This function checks if the given `namespace` is a subset or exact match
+  /// of any namespace in the `enrollDataStoreValue`. If so, it returns the
+  /// matched namespace and its access level. If `enrollDataStoreValue`
+  /// contains a wildcard (`*`), it grants access to all namespaces.
+  ///
+  /// Example:
+  /// - Given approving app does not have access to '*' namespace.
+  ///   - If enrolling `namespace` is "orders.myapp" and approving app namespace is "orders.myapp", then ("orders.myapp", "rw") is returned.
+  ///   - If enrolling `namespace` is "data.orders.myapp" and approving app namespace is "orders.myapp", then ("orders.myapp", "rw")  is returned.
+  ///   - If enrolling `namespace` is "data.myapp" and approving app namespace is "orders.myapp", then and empty string, null are returned,
+  ///     representing no matching authorised namespace found (Since enrollment does not have access to '*' namespace).
+  ///
+  /// - Given approving app does not have access to '*' namespace.
+  ///   - If enrolling `namespace` is "data.myapp" and approving app namespace is "orders.myapp", then ("*", "rw") is returned.
+  ///
+  /// - Parameters:
+  ///   - enrollDataStoreValue: The `EnrollDataStoreValue` containing namespaces and their access levels.
+  ///   - namespace: The namespace to be verified.
+  ///
+  /// - Returns: A tuple containing the authorised namespace and its access level.
+  ///   If no matching namespace is found, it returns an empty string and `null` for access.
+  (String, String?) _checkForNamespaceAuthorization(
+      EnrollDataStoreValue enrollDataStoreValue, String? namespace) {
+    String authorisedNamespace = '';
+    String? access;
+    for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
+      if ('.$namespace'.endsWith('.$enrolledNamespace')) {
+        authorisedNamespace = enrolledNamespace;
+        break;
       }
+    }
+    // If enrolledDataStore value contains *, it means at is authorised for all namespaces
+    if (authorisedNamespace.isEmpty &&
+        enrollDataStoreValue.namespaces.containsKey(allNamespaces)) {
+      authorisedNamespace = allNamespaces;
+    }
+    access = enrollDataStoreValue.namespaces[authorisedNamespace];
+    return (authorisedNamespace, access);
+  }
+
+  bool _applyEnrollmentValidations(
+      EnrollDataStoreValue enrollDataStoreValue,
+      String enrollmentKey,
+      String operation,
+      String? atKey,
+      String? namespace) {
+    // Only approved enrollmentId is authorised to perform operations. Return false for enrollments
+    // which are not approved.
+    if (enrollDataStoreValue.approval?.state !=
+        EnrollmentStatus.approved.name) {
+      logger.warning('Enrollment state for $enrollmentKey'
+          ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
-    return _isReadAllowed(verb, access) || _isWriteAllowed(verb, access);
+    // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke
+    // and enrollment request. If enrollmentId does not have access to "__manage" access, then
+    // cannot perform enrollment operations.
+    if (operation.isNotEmpty &&
+        enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace) ==
+            false) {
+      logger.warning(
+          'Failed to $operation  the request. The enrollment does not have access to "__manage" namespace');
+      throw AtEnrollmentException(
+          'The approving enrollment does not have access to "__manage" namespace');
+    }
+
+    if (atKey != null && namespace != null) {
+      AtKey atKeyObj;
+      try {
+        atKeyObj = AtKey.fromString(atKey);
+      } catch (e) {
+        throw AtEnrollmentException('AtKey.fromString($atKey) failed: $e');
+      }
+      if (atKeyObj.namespace != namespace) {
+        throw AtEnrollmentException(
+            'AtKey namespace and passed namespace do not match');
+      }
+    }
+    return true;
+  }
+
+  bool checkEnrollmentNamespaceAccess(String authorisedNamespaceAccess,
+      {String enrolledNamespaceAccess = ''}) {
+    return _isReadAllowed(getVerb(), authorisedNamespaceAccess) ||
+        _isWriteAllowed(getVerb(), authorisedNamespaceAccess);
   }
 
   bool _isReadAllowed(Verb verb, String access) {

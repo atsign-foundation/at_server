@@ -87,8 +87,9 @@ void main() {
       // Get OTP from server
       String otp = await authenticatedSocket.sendRequestToServer('otp:get');
       otp = otp.replaceFirst('data:', '');
+      int random = Uuid().v4().hashCode;
       String enrollRequest =
-          'enroll:request:{"appName":"my-first-app","deviceName":"pixel","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${at_demos.apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+          'enroll:request:{"appName":"my-first-app-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${at_demos.apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
 
       String enrollmentResponse =
           await unauthenticatedSocket.sendRequestToServer(enrollRequest);
