@@ -45,7 +45,7 @@ void main() {
           response, otpVerbParams, inboundConnection);
       // Enroll request 2
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key", "encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -98,7 +98,7 @@ void main() {
       String otp = response.data!;
 
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"buzz":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -210,7 +210,7 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String approveEnrollment =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.metaData.isAuthenticated = true;
@@ -384,7 +384,7 @@ void main() {
       test('A test to verify pending enrollment is $operation', () async {
         // Enroll request
         String enrollmentRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+            'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
         HashMap<String, String?> enrollmentRequestVerbParams =
             getVerbParam(VerbSyntax.enroll, enrollmentRequest);
         inboundConnection.metaData.isAuthenticated = false;
@@ -395,7 +395,7 @@ void main() {
         enrollmentId = jsonDecode(response.data!)['enrollmentId'];
         expect(jsonDecode(response.data!)['status'], 'pending');
         String approveEnrollment =
-            'enroll:$operation:{"enrollmentId":"$enrollmentId"}';
+            'enroll:$operation:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
         HashMap<String, String?> approveEnrollmentVerbParams =
             getVerbParam(VerbSyntax.enroll, approveEnrollment);
         inboundConnection.metaData.isAuthenticated = true;
@@ -532,7 +532,7 @@ void main() {
     test('A test to ensure new enrollment key is not added to commit log',
         () async {
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
@@ -559,7 +559,7 @@ void main() {
         'A test to ensure new enrollment key on CRAM authenticated connection is not added to commit log',
         () async {
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"myDevice","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key","apkamPublicKey":"dummy_apkam_public_key"}';
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
@@ -606,7 +606,7 @@ void main() {
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       String enrollmentId = enrollmentResponse['enrollmentId'];
       String approveEnrollment =
-          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptedPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encryption_key"}';
       enrollmentVerbParams = getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
@@ -648,7 +648,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key", "encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -661,7 +661,7 @@ void main() {
       await Future.delayed(Duration(milliseconds: 500));
       //Approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -682,7 +682,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -715,7 +715,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 600000;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -733,7 +733,7 @@ void main() {
       expect(enrollmentData.metaData!.ttl, 600000);
       //Approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -753,7 +753,7 @@ void main() {
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(secondaryKeyStore);
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
@@ -794,7 +794,7 @@ void main() {
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -820,7 +820,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'denied');
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -838,7 +838,7 @@ void main() {
       Response response = Response();
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -862,7 +862,7 @@ void main() {
       Response response = Response();
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -888,7 +888,7 @@ void main() {
       Response response = Response();
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -918,7 +918,7 @@ void main() {
       Response response = Response();
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -944,7 +944,7 @@ void main() {
       Response response = Response();
       //approve enrollment
       String approveEnrollmentCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
       HashMap<String, String?> approveEnrollVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -1030,7 +1030,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       // First Invalid request
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       try {
@@ -1041,7 +1041,7 @@ void main() {
       expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 100);
       // Second Invalid request and verify the delay response interval is incremented.
       enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
 
       try {
@@ -1051,7 +1051,7 @@ void main() {
       expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 200);
       // Third Invalid request and verify the delay response interval is incremented.
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"anotherdevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"anotherdevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       try {
         await enrollVerbHandler.processVerb(
@@ -1068,7 +1068,7 @@ void main() {
 
       inboundConnection.metaData.isAuthenticated = false;
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"thirddevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"thirddevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
@@ -1084,7 +1084,7 @@ void main() {
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
       inboundConnection.metaData.isAuthenticated = false;
       enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"seconddevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"buzz","deviceName":"seconddevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       await enrollVerbHandler.processVerb(
           response, enrollVerbParams, inboundConnection);
@@ -1185,7 +1185,7 @@ void main() {
           response, otpVerbParams, inboundConnection);
       // Second enrollment request
       enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"device-2","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"device-2","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -1224,7 +1224,7 @@ void main() {
           response, otpVerbParams, inboundConnection);
       // Second enrollment request
       enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"device-1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"buzz","deviceName":"device-1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -1280,6 +1280,191 @@ void main() {
           enrollDataStoreValue.encryptedAPKAMSymmetricKey);
     });
 
+    tearDown(() async => await verbTestsTearDown());
+  });
+  group('A group of tests related to validate mandatory params in enrollment',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+    test('A test to validate appName is mandatory for enroll:request',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:request:{"deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message == 'appName is mandatory for enroll:request')));
+    });
+    test('A test to validate deviceName is mandatory for enroll:request',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message == 'deviceName is mandatory for enroll:request')));
+    });
+    test('A test to validate apkam public key is mandatory for enroll:request',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice", "namespaces":{"wavi":"r"}}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'apkam public key is mandatory for enroll:request')));
+    });
+    test(
+        'A test to validate encrypted apkam symmetric key is mandatory for new client enrollment',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'encrypted apkam symmetric key is mandatory for new client enroll:request')));
+    });
+    test('A test to validate namespace is mandatory for new client enrollment',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'atleast one namespace must be specified for new client enroll:request')));
+    });
+    test('A test to validate enrollmentId is mandatory for enroll:approve',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:approve:{"encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message == 'enrollmentId is mandatory for enroll:approve')));
+    });
+    test(
+        'A test to validate encryptedDefaultEncryptionPrivateKey is mandatory for enroll:approve',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:approve:{"enrollmentId":"abc123", "encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'encryptedDefaultEncryptionPrivateKey is mandatory for enroll:approve')));
+    });
+    test(
+        'A test to validate encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // Enroll request
+      String enrollmentRequest =
+          'enroll:approve:{"enrollmentId":"abc123","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response, enrollmentRequestVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve')));
+    });
     tearDown(() async => await verbTestsTearDown());
   });
 }

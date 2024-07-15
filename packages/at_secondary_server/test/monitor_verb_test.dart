@@ -281,7 +281,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> monitorVerbParams = HashMap<String, String?>();
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.authType = AuthType.cram;
@@ -780,7 +780,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   await otpVerbHandler.processVerb(response, totpVerbParams, inboundConnection);
   // Enroll request
   String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key"}';
+      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
@@ -790,7 +790,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
   //Approve enrollment
   String approveEnrollmentRequest =
-      'enroll:approve:{"enrollmentId":"$enrollmentId"}';
+      'enroll:approve:{"enrollmentId":"$enrollmentId", "encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;

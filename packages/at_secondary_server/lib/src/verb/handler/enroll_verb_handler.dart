@@ -81,6 +81,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!));
     }
+    _validateParams(enrollVerbParams, operation!, atConnection);
     switch (operation) {
       case 'request':
         await _handleEnrollmentRequest(
@@ -571,6 +572,63 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           ..data = jsonEncode(enrollDataStoreValue.toJson())
           ..metaData = enrollMetaData,
         skipCommit: true);
+  }
+
+  void _validateParams(EnrollParams? enrollParams, String operation,
+      InboundConnection inboundConnection) {
+    switch (operation) {
+      case 'request':
+        if (enrollParams!.appName.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'appName is mandatory for enroll:request');
+        }
+
+        if (enrollParams.deviceName.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'deviceName is mandatory for enroll:request');
+        }
+
+        if (enrollParams.apkamPublicKey.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'apkam public key is mandatory for enroll:request');
+        }
+
+        if (enrollParams.otp != null) {
+          //encryptedAPKAMSymmetricKey is mandatory for new client enrollments
+          if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty) {
+            throw AtEnrollmentException(
+                'encrypted apkam symmetric key is mandatory for new client enroll:request');
+          }
+          if (enrollParams.namespaces == null ||
+              enrollParams.namespaces!.isEmpty) {
+            throw AtEnrollmentException(
+                'atleast one namespace must be specified for new client enroll:request');
+          }
+        }
+
+        break;
+      case 'approve':
+        if (enrollParams!.enrollmentId.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'enrollmentId is mandatory for enroll:approve');
+        }
+        if (enrollParams.encryptedDefaultEncryptionPrivateKey.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'encryptedDefaultEncryptionPrivateKey is mandatory for enroll:approve');
+        }
+        if (enrollParams.encryptedDefaultSelfEncryptionKey.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve');
+        }
+        break;
+      case 'revoke':
+      case 'deny':
+        if (enrollParams!.enrollmentId.isNullOrEmpty) {
+          throw AtEnrollmentException(
+              'enrollmentId is mandatory for enroll:revoke/enroll:deny');
+        }
+        break;
+    }
   }
 
   /// Calculates and returns the delay interval in milliseconds for handling
