@@ -38,7 +38,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var updatePreProcessResult =
-        await super.preProcessAndNotify(response, verbParams, atConnection);
+    await super.preProcessAndNotify(response, verbParams, atConnection);
 
     logger.finer(
         'calling keyStore.put(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData}');
@@ -47,22 +47,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       // update the key in data store
       var result = await keyStore.put(
           updatePreProcessResult.atKey, updatePreProcessResult.atData,
-          time_to_live: updatePreProcessResult.atData.metaData!.ttl,
-          time_to_born: updatePreProcessResult.atData.metaData!.ttb,
-          time_to_refresh: updatePreProcessResult.atData.metaData!.ttr,
-          isCascade: updatePreProcessResult.atData.metaData!.isCascade,
-          isBinary: updatePreProcessResult.atData.metaData!.isBinary,
-          isEncrypted: updatePreProcessResult.atData.metaData!.isEncrypted,
-          dataSignature: updatePreProcessResult.atData.metaData!.dataSignature,
-          sharedKeyEncrypted:
-              updatePreProcessResult.atData.metaData!.sharedKeyEnc,
-          publicKeyChecksum: updatePreProcessResult.atData.metaData!.pubKeyCS,
-          encoding: updatePreProcessResult.atData.metaData!.encoding,
-          encKeyName: updatePreProcessResult.atData.metaData!.encKeyName,
-          encAlgo: updatePreProcessResult.atData.metaData!.encAlgo,
-          ivNonce: updatePreProcessResult.atData.metaData!.ivNonce,
-          skeEncKeyName: updatePreProcessResult.atData.metaData!.skeEncKeyName,
-          skeEncAlgo: updatePreProcessResult.atData.metaData!.skeEncAlgo);
+          metadata:
+          updatePreProcessResult.atData.metaData!.toCommonsMetadata());
       response.data = result?.toString();
     } catch (e, st) {
       logger.warning('$e\n$st');

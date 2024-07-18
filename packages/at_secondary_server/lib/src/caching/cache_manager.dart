@@ -113,11 +113,11 @@ class AtCacheManager {
       if (cachedKeyName.startsWith('cached:public:')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:public:', '');
         remoteResponse =
-            await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
+        await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
       } else if (cachedKeyName.startsWith('cached:$atSign')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
         remoteResponse =
-            await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
+        await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
       } else {
         throw IllegalArgumentException(
             'remoteLookup called with invalid cachedKeyName $cachedKeyName');
@@ -132,7 +132,7 @@ class AtCacheManager {
       } else {
         logger.info(
             'remoteLookUp: KeyNotFoundException while looking up $remoteKeyName'
-            ' - but maintainCache is false, so leaving $cachedKeyName in cache');
+                ' - but maintainCache is false, so leaving $cachedKeyName in cache');
       }
       rethrow;
     }
@@ -150,7 +150,7 @@ class AtCacheManager {
       } else {
         logger.info(
             'remoteLookUp: String value of "null" response while looking up $remoteKeyName'
-            ' - but maintainCache is false, so leaving $cachedKeyName in cache');
+                ' - but maintainCache is false, so leaving $cachedKeyName in cache');
       }
       throw KeyNotFoundException(
           "remoteLookUp: remote atServer returned String value 'null' for $remoteKeyName");
@@ -295,9 +295,7 @@ class AtCacheManager {
 
     // For everything other than 'cached:public:publickey@atSign' just put it into the key store
     if (!cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData,
-          time_to_refresh: atData.metaData!.ttr,
-          time_to_live: atData.metaData!.ttl);
+      await keyStore.put(cachedKeyName, atData);
       return;
     }
 
@@ -311,11 +309,12 @@ class AtCacheManager {
     //       so that we get the correct 'createdAt' value
     // If the data has not changed, then we don't need to do anything
     var otherAtSignWithoutTheAt =
-        cachedKeyName.replaceFirst('cached:public:publickey@', '');
+    cachedKeyName.replaceFirst('cached:public:publickey@', '');
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
       if (!keyStore.isKeyExists(cachedKeyName)) {
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        await keyStore.put(cachedKeyName, atData,
+            metadata: Metadata()..ttr = -1);
         return;
       }
 
@@ -365,7 +364,8 @@ class AtCacheManager {
 
         // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
         await keyStore.remove(cachedKeyName);
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        await keyStore.put(cachedKeyName, atData,
+            metadata: Metadata()..ttr = -1);
       }
     } catch (e, st) {
       logger.severe(
