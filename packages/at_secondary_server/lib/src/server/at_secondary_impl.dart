@@ -489,7 +489,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     });
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(((clientSocket) {
+    serverSocket.listen(((clientSocket) async {
       var sessionID = '_${Uuid().v4()}';
       logger.info(
           'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
