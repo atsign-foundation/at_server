@@ -35,12 +35,13 @@ void main() {
     var enrollResponse =
         await firstAtSignConnection.sendRequestToServer(enrollRequest);
     enrollResponse = enrollResponse.replaceFirst('data:', '');
+    print(enrollResponse);
     var enrollJsonMap = jsonDecode(enrollResponse);
     expect(enrollJsonMap['enrollmentId'], isNotEmpty);
     String enrollmentId = enrollJsonMap['enrollmentId'].toString().trim();
     // Approve enrollment
-    enrollResponse = await firstAtSignConnection
-        .sendRequestToServer('enroll:approve:{"enrollmentId":"$enrollmentId"}');
+    enrollResponse = await firstAtSignConnection.sendRequestToServer(
+        'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}');
     enrollResponse = enrollResponse.replaceFirst('data:', '');
     await firstAtSignConnection.close();
 
@@ -53,6 +54,7 @@ void main() {
         await firstAtSignConnection.sendRequestToServer('info');
     infoVerbResponse = infoVerbResponse.replaceAll('data:', '');
     Map infoResponse = jsonDecode(infoVerbResponse);
+    print('infoResponse: $enrollResponse');
     expect(infoResponse['apkam_metadata'], isNotEmpty);
     var apkamMetadata = jsonDecode(infoResponse['apkam_metadata']);
     // Assert the APKAM metadata

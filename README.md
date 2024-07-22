@@ -4,8 +4,10 @@
 [![GitHub License](https://img.shields.io/badge/license-BSD3-blue.svg)](./LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)](https://securityscorecards.dev/viewer/?uri=github.com/atsign-foundation/at_server&sort_by=check-score&sort_direction=desc)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6713/badge)](https://www.bestpractices.dev/projects/6713)
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 
 # at_server
+
 This repo contains the core software implementation of the atProtocol:
 
 ## packages
@@ -28,7 +30,7 @@ securely sync data with other instances in the cloud or on other devices.
 ### core dependencies
 
 * [at_server_spec](./packages/at_server_spec) is an interface abstraction
-that defines what the atServer is responsible for. 
+that defines what the atServer is responsible for.
 
 * [at_persistence_spec](./packages/at_persistence_spec) is the abstracted
 module for persistence which can be replaced as desired with some other
@@ -63,3 +65,20 @@ base image `ve_base` the virtual environment on that base, and the
 
 * [build_secondary](./tools/build_secondary/) contains the Dockerfiles
 used to build various flavours of secondary server.
+
+## SLSA
+
+Since the c3.0.48 release, the Docker images created from this repo as part
+of a release have SLSA Build Level 3 attestations.
+
+These can be verified using the
+[slsa-verifier](https://github.com/slsa-framework/slsa-verifier) tool e.g.:
+
+```sh
+TAG="c3.0.48"
+IMAGE="atsigncompany/secondary"
+SHA=$(docker buildx imagetools inspect ${IMAGE}:canary-${TAG} \
+  --format "{{json .Manifest}}" | jq -r .digest)
+slsa-verifier verify-image ${IMAGE}@${SHA} --source-uri \
+  github.com/atsign-foundation/at_server --source-tag ${TAG}
+```

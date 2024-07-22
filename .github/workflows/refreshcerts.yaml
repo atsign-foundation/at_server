@@ -13,17 +13,17 @@ jobs:
     name: SSL Renewal for vip.ve.atsign.zone
     steps:
       - name: Set up Python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           python-version: 3.9 #install the python needed
       - name: setup certinfo
         uses: atsign-company/certinfo-action@e33db584f27bbbc0260af9916aeaefbec0db8ef4 # v1.0.1
       # checkout at_server code
       - name: checkout repo content
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       # Pull ACME script
       - name: Pull ACME script
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
@@ -45,13 +45,13 @@ jobs:
       - name: Run ACME script
         run: |-
           chmod -R 777 secondaries-scripts
-          cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
-          cp cert.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          cp privkey.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          cp fullchain.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
-          cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
-            ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
-          cd .. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
+          cd secondaries-scripts/sec_ops && ./create_cert_workflow.sh vip.ve.atsign.zone
+          cp cert.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
+          cp privkey.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp fullchain.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          cd ../.. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
@@ -59,7 +59,7 @@ jobs:
       # create PR with renewed certificate
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@6d6857d36972b65feb161a90e484f2984215f83e # v6.0.5
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           commit-message: 'chore: New certificates for at_server'
