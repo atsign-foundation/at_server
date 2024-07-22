@@ -251,7 +251,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
     // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke
-    // and enrollment request. If enrollmentId does not have access to "__manage" access, then
+    // an enrollment request. If enrollmentId does not have access to "__manage" access, then
     // cannot perform enrollment operations.
     if (operation.isNotEmpty &&
         enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace) ==

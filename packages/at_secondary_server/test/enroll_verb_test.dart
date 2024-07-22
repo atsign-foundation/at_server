@@ -924,7 +924,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message == 'Current client cannot revoke its own enrollment')));
-    }, timeout: Timeout(Duration(minutes: 50)));
+    });
 
     test(
         'A test to verify enrollment is revoked when a client is trying to revoke own enrollment with force flag',
