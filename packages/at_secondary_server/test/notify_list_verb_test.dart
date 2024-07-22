@@ -10,6 +10,7 @@ import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -87,6 +88,7 @@ void main() {
 
   group('A group of tests on date time', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+
     test('A test to verify from date', () async {
       var notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
@@ -242,8 +244,66 @@ void main() {
       await AtNotificationKeystore.getInstance().remove('122');
       await AtNotificationKeystore.getInstance().remove('123');
     });
+
+    test('validate presence of availableAt in notify:list response', () async {
+      DateTime availableAtTestValue = DateTime.now()
+          .toUtcMillisecondsPrecision()
+          .add(Duration(minutes: 10));
+      String testNotificationId = 'notification_available_test';
+      String testFromAtsign = '@anon20934820';
+      AtMetaData testMetaData = AtMetaData()
+        ..availableAt = availableAtTestValue;
+      var notification = (AtNotificationBuilder()
+            ..id = testNotificationId
+            ..fromAtSign = testFromAtsign
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
+            ..toAtSign = '@bob'
+            ..notification = 'availableat.firsttest'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..atMetaData = testMetaData)
+          .build();
+
+      await AtNotificationKeystore.getInstance()
+          .put(testNotificationId, notification);
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      InboundConnectionMetadata inboundConnectionMetadata =
+          InboundConnectionMetadata()
+            ..fromAtSign = testFromAtsign
+            ..isAuthenticated = true;
+      InboundConnection inboundConnection =
+          InboundConnectionImpl(mockSocket, 'sessionId9238472934')
+            ..metaData = inboundConnectionMetadata;
+      // fetch notify:list response
+      Response response = await notifyListVerbHandler.processInternal(
+          'notify:list', inboundConnection);
+      List<dynamic> jsonDecodedResponse = jsonDecode(response.data!);
+      // extract the notification with current notificationId from notify:list response
+      var notificationOfInterest = jsonDecodedResponse
+          .where((notification) => notification['id'] == testNotificationId)
+          .elementAt(0);
+
+      expect(notificationOfInterest['id'], testNotificationId);
+      DateTime parsedAvailableAtFromResponse =
+          DateTime.parse(notificationOfInterest['metadata']['availableAt']);
+      expect(availableAtTestValue.compareTo(parsedAvailableAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+    });
+
     tearDown(() async => await tearDownFunc());
   });
+
   group('A group of tests on expiry ', () {
     setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test(
@@ -387,6 +447,118 @@ void main() {
       await AtNotificationKeystore.getInstance().remove('122');
       await AtNotificationKeystore.getInstance().remove('125');
     });
+
+    test('validate presence of expiresAt in notify:list response', () async {
+      DateTime expiresAtTestValue = DateTime.now()
+          .toUtcMillisecondsPrecision()
+          .add(Duration(minutes: 25));
+      String testNotificationId = 'notification_id_187';
+      String testFromAtsign = '@anon';
+      var notification = (AtNotificationBuilder()
+            ..id = testNotificationId
+            ..fromAtSign = testFromAtsign
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
+            ..toAtSign = '@bob'
+            ..notification = 'expiry.test'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = expiresAtTestValue
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3)
+          .build();
+
+      await AtNotificationKeystore.getInstance().put(testNotificationId, notification);
+
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      InboundConnectionMetadata inboundConnectionMetadata =
+          InboundConnectionMetadata()
+            ..fromAtSign = testFromAtsign
+            ..isAuthenticated = true;
+      InboundConnection inboundConnection =
+          InboundConnectionImpl(mockSocket, 'sessionId9238472934')
+            ..metaData = inboundConnectionMetadata;
+      // fetch notify:list response from server
+      Response response = await notifyListVerbHandler.processInternal(
+          'notify:list', inboundConnection);
+      List<dynamic> jsonDecodedResponse = jsonDecode(response.data!);
+      // extract the notification with current notificationId from notify:list response
+      var notificationOfInterest = jsonDecodedResponse
+          .where((notification) => notification['id'] == testNotificationId)
+          .elementAt(0);
+
+      expect(notificationOfInterest['id'], testNotificationId);
+      DateTime parsedExpiresAtFromResponse =
+          DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
+      expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+    });
+
+    test(
+        'validate presence of expiresAt in notify:list response - read expiresAt from metadata',
+        () async {
+      DateTime expiresAtTestValue = DateTime.now()
+          .toUtcMillisecondsPrecision()
+          .add(Duration(minutes: 25));
+      String testNotificationId = 'notification_id_232';
+      String testFromAtsign = '@anon20934820';
+      AtMetaData testMetaData = AtMetaData()..expiresAt = expiresAtTestValue;
+      var notification = (AtNotificationBuilder()
+            ..id = testNotificationId
+            ..fromAtSign = testFromAtsign
+            ..notificationDateTime =
+                DateTime.now().subtract(Duration(seconds: 1))
+            ..toAtSign = '@bob'
+            ..notification = 'expiry.secondtest'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..expiresAt = null
+            ..priority = NotificationPriority.low
+            ..notificationStatus = NotificationStatus.queued
+            ..retryCount = 0
+            ..strategy = 'latest'
+            ..notifier = 'persona'
+            ..depth = 3
+            ..atMetaData = testMetaData)
+          .build();
+
+      await AtNotificationKeystore.getInstance()
+          .put(testNotificationId, notification);
+
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      InboundConnectionMetadata inboundConnectionMetadata =
+          InboundConnectionMetadata()
+            ..fromAtSign = testFromAtsign
+            ..isAuthenticated = true;
+      InboundConnection inboundConnection =
+          InboundConnectionImpl(mockSocket, 'sessionId9238472934')
+            ..metaData = inboundConnectionMetadata;
+      // fetch notify:list response
+      Response response = await notifyListVerbHandler.processInternal(
+          'notify:list', inboundConnection);
+      List<dynamic> jsonDecodedResponse = jsonDecode(response.data!);
+      // extract the notification with current notificationId from notify:list response
+      var notificationOfInterest = jsonDecodedResponse
+          .where((notification) => notification['id'] == testNotificationId)
+          .elementAt(0);
+
+      expect(notificationOfInterest['id'], testNotificationId);
+      DateTime parsedExpiresAtFromResponse =
+          DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
+      expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
+
+      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+    });
+
     tearDown(() async => await tearDownFunc());
   });
 
