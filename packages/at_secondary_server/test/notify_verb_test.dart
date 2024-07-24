@@ -1519,7 +1519,7 @@ void main() {
       expect(response.data, isNotNull);
       var notificationIdBuzzKey = response.data;
 
-      //3. Notify key without namepsace
+      //3. Notify key without namespace
       notifyCommand = 'notify:$bob:location$alice';
       notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
       await notifyVerbHandler.processVerb(
@@ -1570,7 +1570,7 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz@alice')));
 
-      //3. fetching  notification key with no namepsace should throw exception
+      //3. fetching  notification key with no namespace should throw exception
       notifyFetchCommand = 'notify:fetch:$notificationIdKeyNoNamespace';
       notifyFetchVerbParams =
           getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
@@ -1661,7 +1661,7 @@ void main() {
       expect(response.data, isNotNull);
       var notificationIdBuzzKey = response.data;
 
-      //3. Notify key without namepsace
+      //3. Notify key without namespace
       notifyCommand = 'notify:$bob:location$alice';
       notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
       await notifyVerbHandler.processVerb(
@@ -1754,7 +1754,7 @@ void main() {
       inboundConnection = DummyInboundConnection();
       registerFallbackValue(inboundConnection);
     });
-    test('A test to verify notifylist authorization', () async {
+    test('A test to verify notify:list authorization', () async {
       // create a set of notifications on a connection with * namespace access.
       Response response = Response();
       inboundConnection.metadata.isAuthenticated =
@@ -1791,7 +1791,7 @@ void main() {
           response, notifyVerbParams, inboundConnection);
       expect(response.data, isNotNull);
 
-      //3. Notify key without namepsace
+      //3. Notify key without namespace
       notifyCommand = 'notify:$alice:location$alice';
       notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
       await notifyVerbHandler.processVerb(
@@ -1847,6 +1847,49 @@ void main() {
     });
     tearDown(() async => await tearDownFunc());
   });
+
+  group('Notification data correctness tests', () {
+    late NotifyVerbHandler notifyVerbHandler;
+
+    setUp(() async {
+      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+
+    tearDown(() async => await tearDownFunc());
+
+    test('test notify:isEncrypted:false is respected', () async {
+      Response response = Response();
+      String notifyCommand =
+          'notify:update:isEncrypted:false:@bob:metadata.notify.test@alice:hello';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+
+      // execute the notify verb
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+
+      // verify that data in the notification keyStore is as expected
+      var notifId = response.data;
+      var stored = await AtNotificationKeystore.getInstance().get(notifId);
+      expect(stored, isNotNull);
+      print(stored!.toJson());
+      expect(stored.toAtSign, '@bob');
+      expect(stored.notification, '@bob:metadata.notify.test@alice');
+      expect(stored.fromAtSign, '@alice');
+      expect(stored.opType, OperationType.update);
+      expect(stored.messageType, MessageType.key);
+      expect(stored.atMetadata, isNotNull);
+      expect(stored.atMetadata!.ttr, isNull);
+      expect(stored.atMetadata!.isEncrypted, false);
+    });
+  });
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
@@ -1866,9 +1909,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
-  var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
-  await notificationInstance.init(storageDir);
+  var notificationKeystore = AtNotificationKeystore.getInstance();
+  notificationKeystore.currentAtSign = atsign ?? '@test_user_1';
+  await notificationKeystore.init(storageDir);
   return keyStoreManager;
 }
 
