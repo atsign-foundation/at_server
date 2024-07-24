@@ -1861,6 +1861,56 @@ void main() {
 
     tearDown(() async => await tearDownFunc());
 
+    test('test getIsEncrypted for MessageType.text', () {
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
+          false);
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
+          false);
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
+          true);
+    });
+
+    test('test getIsEncrypted for public key notifications', () {
+      // TODO Is there any use currently of notifications on 'public' keys?
+      // TODO Are there any functional or e2e tests of the same?
+      // TODO Could be quite useful in some scenarios.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar@alice', null),
+          false);
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar@alice', 'false'),
+          false);
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar@alice', 'true'),
+          false);
+    });
+
+    test('test getIsEncrypted for key notifications', () {
+      // In order not to break old clients which had faulty assumptions, we
+      // need to return true when isEncrypted is not provided in the notify
+      // request rather than returning false as one would expect.
+      // The reason is that those broken old clients do not set `isEncrypted`
+      // on notifications when they ought to be doing so.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar@alice', null),
+          true);
+
+      // This used to return 'true' as well, which is definitively wrong.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar@alice', 'false'),
+          false);
+
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar@alice', 'true'),
+          true);
+    });
+
     test('test notify:isEncrypted:false is respected', () async {
       Response response = Response();
       String notifyCommand =
