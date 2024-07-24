@@ -7,8 +7,10 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -774,6 +776,7 @@ void main() {
   });
 
   group('A group of tests related to approve enrollment', () {
+    String enrollmentIdWithManageNamespace = Uuid().v4();
     String? otp;
     late String enrollmentId;
     late EnrollVerbHandler enrollVerbHandler;
@@ -781,6 +784,17 @@ void main() {
     Response defaultResponse = Response();
     setUp(() async {
       await verbTestsSetUp();
+      // Store an enrollment request which has access to "__manage" namespace to approve enrollment requests.
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'manage-session-id',
+          'buzz',
+          'my-phone',
+          'manage-enrollment-public-key')
+        ..namespaces = {'__manage': 'rw', 'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      await secondaryKeyStore.put(
+          '$enrollmentIdWithManageNamespace.$newEnrollmentKeyPattern.$enrollManageNamespace$alice',
+          AtData()..data = jsonEncode(enrollDataStoreValue.toJson()));
       // Fetch OTP
       String totpCommand = 'otp:get';
       HashMap<String, String?> totpVerbParams =
@@ -794,7 +808,7 @@ void main() {
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
@@ -831,7 +845,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'Cannot approve a denied enrollment. Only pending enrollments can be approved')));
+                  'Failed to approve enrollment id: $enrollmentId. Cannot approve a denied enrollment. Only pending enrollments can be approved')));
     });
 
     test('A test to verify revoke enrollment', () async {
@@ -893,7 +907,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
-      inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.enrollmentId = enrollmentIdWithManageNamespace;
 
       await enrollVerbHandler.processVerb(
           response, approveEnrollVerbParams, inboundConnection);
@@ -901,7 +915,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'approved');
       //revoke enrollment
       String revokeEnrollmentCommand =
-          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+          'enroll:revoke:{"enrollmentId":"$enrollmentIdWithManageNamespace"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
       expect(
@@ -923,7 +937,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
-      inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.enrollmentId = enrollmentIdWithManageNamespace;
 
       await enrollVerbHandler.processVerb(
           response, approveEnrollVerbParams, inboundConnection);
@@ -969,7 +983,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'Cannot approve a revoked enrollment. Only pending enrollments can be approved')));
+                  'Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. Only pending enrollments can be approved')));
     });
 
     test('A test to verify pending enrollment cannot be revoked', () async {
@@ -986,7 +1000,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
+                  'Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1465,6 +1479,201 @@ void main() {
               e.message ==
                   'encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve')));
     });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of tests to verify client authorization to approve the enrollment request',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify that the authorization check throws exception when the client is not authorized to __manage namespace',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+          inboundConnection.metaData.isAuthenticated = true;
+          (inboundConnection.metaData as InboundConnectionMetadata)
+              .enrollmentId =
+          '123';
+
+          expect(
+                  () async =>
+              await enrollVerbHandler.isAuthorized(
+                  inboundConnection.metadata,
+                  namespace: 'data.my_app',
+              enrolledNamespaceAccess: 'rw',
+              operation: 'approve'),
+              throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+                  e.message ==
+                      'The approving enrollment does not have access to "__manage" namespace')));
+        });
+
+    test(
+        'A test to verify that the authorization check returns true when the client is PKAM authentication and enrollment id is null',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {allNamespaces: 'rw'};
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      var res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'data.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+    });
+
+    test('A test to verify namespace hierarchies on enrolling side', () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      var res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'data.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'orders.data.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'buzz', enrolledNamespaceAccess: 'rw');
+      expect(res, false);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'buzz', enrolledNamespaceAccess: 'r');
+      expect(res, true);
+    });
+
+    test('A test to verify namespace hierarchies on approving side', () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'data.my_app': 'rw', '__manage': 'rw', 'buzz': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      var res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'data.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'orders.data.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'other.my_app', enrolledNamespaceAccess: 'rw');
+      expect(res, false);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'fizzbuzz');
+      expect(res, false);
+
+      res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+          namespace: 'fizz.buzz', enrolledNamespaceAccess: 'rw');
+      expect(res, true);
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of tests to ensure enrollment keys are only access by certain verbs',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test('A test to verify update verb cannot update the enrollment key',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+      inboundConnection.metadata.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      expect(
+          () async => await updateVerbHandler.process(
+              'update:123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice 1234',
+              inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID 123 is not authorized to update key: 123.new.enrollments.__manage@alice')));
+    });
+
+    test('A test to verify delete verb cannot delete the enrollment key',
+        () async {
+      String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData atData = AtData()
+        ..data = jsonEncode(enrollDataStoreValue.toJson());
+      await secondaryKeyStore.put(key, atData);
+      inboundConnection.metadata.isAuthenticated = true;
+      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+          '123';
+
+      DeleteVerbHandler deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+
+      expect(
+          () async => await deleteVerbHandler.process(
+              'delete:123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice',
+              inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID 123 is not authorized to delete key: 123.new.enrollments.__manage@alice')));
+    });
+
     tearDown(() async => await verbTestsTearDown());
   });
 }

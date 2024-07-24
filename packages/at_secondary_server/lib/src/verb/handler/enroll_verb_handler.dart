@@ -90,8 +90,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
       case 'approve':
       case 'deny':
-        await _handleEnrollmentPermissions(enrollVerbParams!, currentAtSign,
-            operation, responseJson, response);
+        await _handleEnrollmentPermissions(
+            (atConnection.metaData as InboundConnectionMetadata),
+            enrollVerbParams!,
+            currentAtSign,
+            operation,
+            responseJson,
+            response);
         break;
       case 'revoke':
         var forceFlag = verbParams['force'];
@@ -104,7 +109,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'Current client cannot revoke its own enrollment');
         }
         await _handleEnrollmentPermissions(
-            enrollVerbParams, currentAtSign, operation, responseJson, response);
+            (atConnection.metaData as InboundConnectionMetadata),
+            enrollVerbParams,
+            currentAtSign,
+            operation,
+            responseJson,
+            response);
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.finer(
               'Dropping connection for enrollmentId: $enrollmentIdFromParams');
@@ -274,9 +284,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// If [operation] is approve, store the public key in public:appName.deviceName.pkam.__pkams.__public_keys
   /// and also store default encryption private key and default self encryption key in encrypted format.
   Future<void> _handleEnrollmentPermissions(
+      InboundConnectionMetadata inboundConnectionMetadata,
       EnrollParams enrollParams,
       currentAtSign,
-      String? operation,
+      String operation,
       Map<dynamic, dynamic> responseJson,
       Response response) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
@@ -312,16 +323,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Verifies whether the enrollment state matches the intended state
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
-    _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
-    enrollDataStoreValue!.approval!.state =
-        _getEnrollStatusEnum(operation).name;
-    responseJson['status'] = _getEnrollStatusEnum(operation).name;
+    try {
+      _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
+    } on AtEnrollmentException catch (e) {
+      throw AtEnrollmentException(
+          'Failed to $operation enrollment id: $enrollmentIdFromParams. ${e.message}');
+    }
 
-    // If an enrollment is approved, we need the enrollment to be active
-    // to subsequently revoke the enrollment. Hence reset TTL and
-    // expiredAt on metadata.
+    for (MapEntry<String, String> entry
+        in enrollDataStoreValue!.namespaces.entries) {
+      bool isAuthorised = false;
+      try {
+        isAuthorised = await isAuthorized(inboundConnectionMetadata,
+            namespace: entry.key,
+            enrolledNamespaceAccess: entry.value,
+            operation: operation);
+      } on AtEnrollmentException catch (e) {
+        throw AtEnrollmentException(
+            'Failed to $operation enrollment id: $enrollmentIdFromParams. ${e.message}');
+      }
+
+      if (isAuthorised == false) {
+        throw AtEnrollmentException(
+            'Failed to $operation enrollment id: $enrollmentIdFromParams. Client is not authorized for namespaces in the enrollment request');
+      }
+    }
+    enrollDataStoreValue.approval!.state = _getEnrollStatusEnum(operation).name;
+    responseJson['status'] = _getEnrollStatusEnum(operation).name;
+    // Update the enrollment status against the enrollment key in keystore.
     await _updateEnrollmentValueAndResetTTL(
-        '$enrollmentKey$currentAtSign', enrollDataStoreValue);
+        '$enrollmentKey$currentAtSign', enrollDataStoreValue, operation);
     // when enrollment is approved store the apkamPublicKey of the enrollment
     if (operation == 'approve') {
       var apkamPublicKeyInKeyStore =
@@ -558,20 +589,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _updateEnrollmentValueAndResetTTL(
-      String enrollmentKey, EnrollDataStoreValue enrollDataStoreValue) async {
-    // Fetch the existing data
-    AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
-    // Update key with new data
-    // only update ttl, expiresAt in metadata to preserve all the other valid data fields
-    enrollMetaData?.ttl = 0;
-    enrollMetaData?.expiresAt = null;
-    await keyStore.put(
-        enrollmentKey,
-        AtData()
-          ..data = jsonEncode(enrollDataStoreValue.toJson())
-          ..metaData = enrollMetaData,
-        skipCommit: true);
+  Future<void> _updateEnrollmentValueAndResetTTL(String enrollmentKey,
+      EnrollDataStoreValue enrollDataStoreValue, String operation) async {
+    AtData atData = AtData()..data = jsonEncode(enrollDataStoreValue.toJson());
+    // If an enrollment is approved, we need the enrollment to be active
+    // to subsequently revoke the enrollment. Hence reset TTL and
+    // expiredAt on metadata.
+    if (operation == 'approve') {
+      // Fetch the existing data
+      AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
+      // Update key with new data
+      // only update ttl, expiresAt in metadata to preserve all the other valid data fields
+      enrollMetaData?.ttl = 0;
+      enrollMetaData?.expiresAt = null;
+      atData.metaData = enrollMetaData;
+    }
+    await keyStore.put(enrollmentKey, atData, skipCommit: true);
   }
 
   void _validateParams(EnrollParams? enrollParams, String operation,
@@ -655,6 +688,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     delayForInvalidOTPSeries.remove(delayForInvalidOTPSeries.first);
 
     return delayForInvalidOTPSeries.last;
+  }
+
+  @override
+  bool checkEnrollmentNamespaceAccess(String authorisedNamespaceAccess,
+      {String enrolledNamespaceAccess = ''}) {
+    if (enrolledNamespaceAccess.isEmpty) {
+      return false;
+    }
+    if (authorisedNamespaceAccess == 'rw' ||
+        (authorisedNamespaceAccess == 'r' && enrolledNamespaceAccess == 'r')) {
+      return true;
+    }
+    return false;
   }
 
   /// NOT a part of API. Used for unit tests
