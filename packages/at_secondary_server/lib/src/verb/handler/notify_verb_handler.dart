@@ -375,7 +375,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       atMetadata.skeEncAlgo =
           verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
     }
-    atMetadata.isEncrypted = _getIsEncrypted(
+    atMetadata.isEncrypted = getIsEncrypted(
         getMessageType(verbParams[AtConstants.messageType]),
         verbParams[AtConstants.atKey]!,
         verbParams[AtConstants.isEncrypted]);
@@ -468,15 +468,21 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return NotificationType.sent;
   }
 
-  bool _getIsEncrypted(
+  @visibleForTesting
+  bool getIsEncrypted(
       MessageType messageType, String key, String? isEncryptedStr) {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;
-    } else if (messageType == MessageType.text) {
-      return SecondaryUtil.getBoolFromString(isEncryptedStr);
-    } else {
-      return true;
     }
+    if (messageType == MessageType.text) {
+      return SecondaryUtil.getBoolFromString(isEncryptedStr);
+    }
+    // respect the 'false' value if one was supplied
+    if (isEncryptedStr != null && isEncryptedStr.toLowerCase() == 'false') {
+      return false;
+    }
+    // At this point, has to return true for legacy reasons. See #1944
+    return true;
   }
 
   String _getFullFormedAtKey(

@@ -235,10 +235,11 @@ class ResourceManager {
         commandBody =
             '${AtConstants.sharedKeyEncrypted}:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
-      if (atNotification.atMetadata!.isEncrypted != null &&
-          atNotification.atMetadata!.isEncrypted == true) {
-        commandBody = '${AtConstants.isEncrypted}:true:$commandBody';
-      }
+
+      String? isEncryptedStr =
+          (atNotification.atMetadata!.isEncrypted ?? false) ? 'true' : 'false';
+      commandBody = '${AtConstants.isEncrypted}:$isEncryptedStr:$commandBody';
+
       if (atMetaData.ttr != null) {
         commandBody =
             'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody';

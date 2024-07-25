@@ -178,6 +178,7 @@ void main() async {
           'id:1234:update:messageType:key:notifier:system'
           ':ttln:$ttln'
           ':ttr:1:ccd:true'
+          ':isEncrypted:false'
           ':sharedKeyEnc:abc:pubKeyCS:123'
           ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
           ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
