@@ -55,25 +55,6 @@ class InfoVerbHandler extends AbstractVerbHandler {
           infoMap['apkam_metadata'] = result;
         }
       }
-      infoMap['features'] = [
-        {
-          "name": "noop:",
-          "status": "Beta",
-          "description":
-              "The No-Op verb simply does nothing for the requested number of milliseconds. "
-                  "The requested number of milliseconds may not be greater than 5000. "
-                  "Upon completion, the noop verb sends 'ok' as a response to the client.",
-          "syntax": VerbSyntax.noOp
-        },
-        {
-          "name": "info:",
-          "status": "Beta",
-          "description":
-              "The Info verb returns some information about the server "
-                  "including uptime and some info about available features. ",
-          "syntax": VerbSyntax.info
-        },
-      ];
     } else {
       infoMap['uptimeAsMillis'] = uptime.inMilliseconds;
     }
