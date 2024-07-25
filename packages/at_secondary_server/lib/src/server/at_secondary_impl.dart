@@ -451,8 +451,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
   void _listen(final serverSocket) {
-    final wssb = PseudoServerSocket(serverSocket);
-    HttpServer httpServer = HttpServer.listenOn(wssb);
+    // ALPN support.
+    // First, make a PseudoServerSocket to which we will pass sockets which
+    // have a selectedProtocol which is neither null nor 'atProtocol/1.0'.
+    // See later in this method for where we pass sockets received on the real
+    // serverSocket to the pseudoServerSocket.
+    final pseudoServerSocket = PseudoServerSocket(serverSocket);
+    // Second, make an HttpServer which is handling sockets which are passed
+    // to the pseudoServerSocket
+    HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
         // Upgrade an HttpRequest to a WebSocket connection.
@@ -509,8 +516,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               .handle(e, atConnection: connection, clientSocket: clientSocket);
         }
       } else {
+        // ALPN support
+        // selectedProtocol is neither null nor 'atProtocol/1.0'
         logger.info('Transferring socket to HttpServer for handling');
-        wssb.add(clientSocket);
+        pseudoServerSocket.add(clientSocket);
       }
     }), onError: (error) {
       // We've got no action to take here, let's just log a warning
