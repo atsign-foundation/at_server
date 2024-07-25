@@ -1,3 +1,8 @@
+## 3.0.49
+- feat: Enforce superset access check for approving apps
+- fix: respect isEncrypted:false if supplied in the notify: command, and 
+  ensure that the correct value is always transmitted onwards
+
 ## 3.0.48
 - feat Add expiresAt and availableAt params to notify:list response
 
