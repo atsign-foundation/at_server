@@ -441,10 +441,20 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  void onWebSocketData(data) {
-    logger.info('WebSocket received: $data');
-  }
+  webSocketListener(WebSocket ws) async {
+    InboundConnection? connection;
+    try {
+      var inBoundConnectionManager = InboundConnectionManager.getInstance();
+      connection = inBoundConnectionManager.createWebSocketConnection(ws,
+          sessionId: '_${Uuid().v4()}');
+      connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+      await connection.write('@');
+    } on InboundConnectionLimitException catch (e) {
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection, clientSocket: ws);
+    }
 
+  }
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
   /// Throws [AtConnection] if unable to create a connection
   /// Throws [SocketException] for exceptions on socket
@@ -465,7 +475,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         // Upgrade an HttpRequest to a WebSocket connection.
         logger.info('Upgraded to WebSocket connection');
         WebSocketTransformer.upgrade(req)
-            .then((WebSocket socket) => socket.listen(onWebSocketData));
+            .then((WebSocket ws) => webSocketListener(ws));
       } else {
         logger.info('Got Http Request: ${req.method} ${req.uri}');
         if (req.method.toUpperCase() != 'GET') {
@@ -497,7 +507,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) async {
-      var sessionID = '_${Uuid().v4()}';
       logger.info(
           'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
       if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
@@ -508,7 +517,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
           var inBoundConnectionManager = InboundConnectionManager.getInstance();
           connection = inBoundConnectionManager
-              .createSocketConnection(clientSocket, sessionId: sessionID);
+              .createSocketConnection(clientSocket, sessionId: '_${Uuid().v4()}');
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {

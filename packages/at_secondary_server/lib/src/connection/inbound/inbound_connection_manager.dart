@@ -23,7 +23,7 @@ class InboundConnectionManager implements AtConnectionFactory {
     return _singleton;
   }
 
-  /// Creates and adds [InboundConnection] to the pool
+  /// Creates and adds an [InboundConnectionImpl] to the pool
   /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
   /// @param socket - client socket
   /// @param sessionId - current sessionId
@@ -41,8 +41,30 @@ class InboundConnectionManager implements AtConnectionFactory {
     var atConnection =
         InboundConnectionImpl(socket, sessionId, owningPool: _pool);
     _pool.add(atConnection);
-    true;
+
     return atConnection;
+  }
+
+  /// Creates and adds an [InboundWebSocketConnection] to the pool
+  /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
+  /// @param socket - client socket
+  /// @param sessionId - current sessionId
+  /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
+  @override
+  InboundConnection createWebSocketConnection(WebSocket socket, {String? sessionId}) {
+    if (!_isInitialized) {
+      init(defaultPoolSize);
+    }
+    if (!hasCapacity()) {
+      throw InboundConnectionLimitException(
+          'max limit reached on inbound pool');
+    }
+    sessionId ??= '_${Uuid().v4()}';
+
+    throw UnimplementedError('not yet implemented');
+    // _pool.add(atConnection);
+    //
+    // return atConnection;
   }
 
   bool hasCapacity() {

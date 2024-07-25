@@ -25,7 +25,7 @@ class GlobalExceptionHandler {
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
       {AtConnection? atConnection,
-      Socket? clientSocket,
+      dynamic clientSocket,
       StackTrace? stackTrace}) async {
     if (exception is InvalidAtSignException ||
         exception is BufferOverFlowException ||
@@ -49,9 +49,16 @@ class GlobalExceptionHandler {
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
-      // This requires different handling which is in _handleInboundLimit
-      logger.info(exception.toString());
-      await _handleInboundLimit(exception, clientSocket!);
+      if (clientSocket == null) {
+        logger.severe('handling InboundConnectionLimitException,'
+            ' but clientSocket parameter was null');
+      } else {
+        logger.info(exception.toString());
+        var errorCode = getErrorCode(exception);
+        var errorDescription = getErrorDescription(errorCode);
+        clientSocket.add('error:$errorCode-$errorDescription\n'.codeUnits);
+        await clientSocket.close();
+      }
     } else if (exception is ServerIsPausedException) {
       // This is thrown when a new verb request comes in and the server is paused (likely
       // pending restart)
@@ -82,14 +89,6 @@ class GlobalExceptionHandler {
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);
     }
-  }
-
-  Future<void> _handleInboundLimit(
-      AtException exception, Socket clientSocket) async {
-    var errorCode = getErrorCode(exception);
-    var errorDescription = getErrorDescription(errorCode);
-    clientSocket.write('error:$errorCode-$errorDescription\n');
-    await clientSocket.close();
   }
 
   /// Method to close connection.
