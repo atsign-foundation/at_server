@@ -21,9 +21,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static const int maxKeyLengthWithoutCached = 248;
 
   AbstractUpdateVerbHandler(
-      super.keyStore,
-      super.statsNotificationService,
-      this.notificationManager);
+    super.keyStore,
+    super.statsNotificationService,
+    this.notificationManager,
+  );
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true

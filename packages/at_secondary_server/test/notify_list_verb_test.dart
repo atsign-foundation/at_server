@@ -473,7 +473,8 @@ void main() {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put(testNotificationId, notification);
+      await AtNotificationKeystore.getInstance()
+          .put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
