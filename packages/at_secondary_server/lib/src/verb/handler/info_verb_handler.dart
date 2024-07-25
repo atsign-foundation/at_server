@@ -17,7 +17,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
   static int? approximateStartTimeMillis;
 
-  InfoVerbHandler(SecondaryKeyStore keyStore) : super(keyStore) {
+  InfoVerbHandler(super.keyStore) {
     approximateStartTimeMillis ??= DateTime.now().millisecondsSinceEpoch;
   }
 

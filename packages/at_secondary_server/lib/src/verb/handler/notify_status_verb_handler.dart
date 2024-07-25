@@ -11,7 +11,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 class NotifyStatusVerbHandler extends AbstractVerbHandler {
   static NotifyStatus notifyStatus = NotifyStatus();
 
-  NotifyStatusVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyStatusVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

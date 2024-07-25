@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -23,7 +22,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   static const String _sha512 = 'sha512';
   AtChops? atChops;
 
-  PkamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  PkamVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

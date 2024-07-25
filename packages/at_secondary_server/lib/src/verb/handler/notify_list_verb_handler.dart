@@ -17,8 +17,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
   final OutboundClientManager outboundClientManager;
 
-  NotifyListVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager)
-      : super(keyStore);
+  NotifyListVerbHandler(super.keyStore, this.outboundClientManager);
 
   @override
   bool accept(String command) =>

@@ -23,7 +23,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
 
-  FromVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  FromVerbHandler(super.keyStore);
 
   late AtConfig atConfigInstance;
 

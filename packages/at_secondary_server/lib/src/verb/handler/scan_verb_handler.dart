@@ -2,7 +2,6 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -23,8 +22,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   ScanVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+      super.keyStore, this.outboundClientManager, this.cacheManager);
 
   /// Verifies whether command is accepted or not
   ///

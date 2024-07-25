@@ -83,7 +83,7 @@ void main() {
 }
 
 class TestUpdateVerbHandler extends AbstractVerbHandler {
-  TestUpdateVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  TestUpdateVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) {

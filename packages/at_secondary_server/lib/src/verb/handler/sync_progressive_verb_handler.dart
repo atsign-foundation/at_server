@@ -16,7 +16,7 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  SyncProgressiveVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  SyncProgressiveVerbHandler(super.keyStore);
 
   /// Represents the size of the sync buffer
   @visibleForTesting

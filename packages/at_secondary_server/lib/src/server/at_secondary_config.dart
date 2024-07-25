@@ -960,5 +960,5 @@ class ModifiableConfigurationEntry {
 }
 
 class ElementNotFoundException extends AtException {
-  ElementNotFoundException(message) : super(message);
+  ElementNotFoundException(super.message);
 }

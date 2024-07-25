@@ -1413,7 +1413,7 @@ void main() {
           throwsA(predicate((e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'atleast one namespace must be specified for new client enroll:request')));
+                  'At least one namespace must be specified for new client enroll:request')));
     });
     test('A test to validate enrollmentId is mandatory for enroll:approve',
         () async {
