@@ -13,7 +13,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NotifyFetchVerbHandler extends AbstractVerbHandler {
   static NotifyFetch notifyFetch = NotifyFetch();
 
-  NotifyFetchVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyFetchVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

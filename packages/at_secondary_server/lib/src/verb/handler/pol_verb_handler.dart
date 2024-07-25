@@ -22,9 +22,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
   OutboundClient? _outboundClient;
 
-  PolVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager);
 
   // Method to verify whether command is accepted or not
   // Input: command

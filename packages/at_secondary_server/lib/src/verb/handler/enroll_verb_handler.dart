@@ -39,7 +39,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
       .inMilliseconds;
 
-  EnrollVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  EnrollVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) => command.startsWith('enroll:');
@@ -406,11 +406,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Encrypted keys will be used later on by the approving app to send the keys to a new enrolling app
   Future<void> _storeEncryptionKeys(
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
-    var privKeyJson = {};
-    privKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
+    var privateKeyJson = {};
+    privateKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
-        AtData()..data = jsonEncode(privKeyJson),
+        AtData()..data = jsonEncode(privateKeyJson),
         skipCommit: true);
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
@@ -635,7 +635,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           if (enrollParams.namespaces == null ||
               enrollParams.namespaces!.isEmpty) {
             throw AtEnrollmentException(
-                'atleast one namespace must be specified for new client enroll:request');
+                'At least one namespace must be specified for new client enroll:request');
           }
         }
 

@@ -23,7 +23,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
   final int _maxKeyLength = 255;
 
-  NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyVerbHandler(super.keyStore);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 

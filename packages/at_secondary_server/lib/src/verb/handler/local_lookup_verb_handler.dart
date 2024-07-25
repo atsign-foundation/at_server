@@ -13,7 +13,7 @@ import 'package:at_utils/at_utils.dart';
 class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
 
-  LocalLookupVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  LocalLookupVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

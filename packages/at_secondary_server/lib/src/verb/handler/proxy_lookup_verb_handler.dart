@@ -20,8 +20,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   ProxyLookupVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+      super.keyStore, this.outboundClientManager, this.cacheManager);
 
   // Method to verify whether command is accepted or not
   // Input: command

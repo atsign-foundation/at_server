@@ -13,7 +13,7 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  CramVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  CramVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

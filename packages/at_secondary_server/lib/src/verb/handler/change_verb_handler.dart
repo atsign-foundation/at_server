@@ -1,7 +1,6 @@
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -11,8 +10,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 /// verbHandler to write the commitId to SDK.
 abstract class ChangeVerbHandler extends AbstractVerbHandler {
   final StatsNotificationService statsNotificationService;
-  ChangeVerbHandler(SecondaryKeyStore keyStore, this.statsNotificationService)
-      : super(keyStore);
+  ChangeVerbHandler(super.keyStore, this.statsNotificationService);
 
   Response? _responseInternal;
 
