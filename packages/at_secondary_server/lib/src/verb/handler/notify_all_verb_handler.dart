@@ -18,7 +18,7 @@ import 'abstract_verb_handler.dart';
 class NotifyAllVerbHandler extends AbstractVerbHandler {
   static NotifyAll notifyAll = NotifyAll();
 
-  NotifyAllVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  NotifyAllVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>

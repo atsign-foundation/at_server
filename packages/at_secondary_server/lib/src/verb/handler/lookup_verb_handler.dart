@@ -21,8 +21,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   LookupVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+      super.keyStore, this.outboundClientManager, this.cacheManager);
 
   @override
   bool accept(String command) =>

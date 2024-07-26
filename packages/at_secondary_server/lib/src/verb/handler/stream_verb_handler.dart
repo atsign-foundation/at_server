@@ -14,7 +14,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
 
   InboundConnection? atConnection;
 
-  StreamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  StreamVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.stream));

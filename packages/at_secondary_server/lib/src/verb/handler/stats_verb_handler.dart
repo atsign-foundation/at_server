@@ -4,7 +4,6 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -98,7 +97,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
 
   dynamic _regex;
 
-  StatsVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  StatsVerbHandler(super.keyStore);
 
   // Method to verify whether command is accepted or not
   // Input: command

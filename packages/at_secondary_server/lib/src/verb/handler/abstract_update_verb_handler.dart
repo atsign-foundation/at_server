@@ -6,7 +6,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -22,10 +21,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static const int maxKeyLengthWithoutCached = 248;
 
   AbstractUpdateVerbHandler(
-      SecondaryKeyStore keyStore,
-      StatsNotificationService statsNotificationService,
-      this.notificationManager)
-      : super(keyStore, statsNotificationService);
+    super.keyStore,
+    super.statsNotificationService,
+    this.notificationManager,
+  );
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true

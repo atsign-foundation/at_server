@@ -14,7 +14,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class KeysVerbHandler extends AbstractVerbHandler {
   static Keys keys = Keys();
 
-  KeysVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  KeysVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) => command.startsWith('keys:');
@@ -130,7 +130,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
   /// If current enrollment has __manage access then return both __global and __manage keys with visibility [keyVisibility]
   /// Otherwise return only __global keys with visibility [keyVisibility]
-  /// Also return the encrypted default encrption private key and encrypted self encryption key for enrollmentId [enrollIdFromMetadata]
+  /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enrollIdFromMetadata]
   Future<List<String>> _getFilteredKeys(String? keyVisibility,
       bool hasManageAccess, String enrollIdFromMetadata, String atSign) async {
     final result = keyVisibility != null && keyVisibility.isNotEmpty

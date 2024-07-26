@@ -289,9 +289,8 @@ int calcActualAllowableIdleTime(
 }
 
 class MockInboundConnectionImpl extends InboundConnectionImpl {
-  MockInboundConnectionImpl(Socket socket, String sessionId)
-      : super(socket, sessionId,
-            owningPool: InboundConnectionPool.getInstance());
+  MockInboundConnectionImpl(super.socket, String super.sessionId)
+      : super(owningPool: InboundConnectionPool.getInstance());
 
   @override
   Future<void> close() async {
