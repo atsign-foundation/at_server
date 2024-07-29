@@ -3,7 +3,8 @@
 - fix: respect isEncrypted:false if supplied in the notify: command, and 
   ensure that the correct value is always transmitted onwards
 - fix: info verb no longer lists "beta" features which are now live
-
+- fix: in MonitorVerbHandler, add "sharedKeyEnc" to the metadata to propagate the sharedEncryptedKey in
+  notifications from the server to the client.
 ## 3.0.48
 - feat Add expiresAt and availableAt params to notify:list response
 
