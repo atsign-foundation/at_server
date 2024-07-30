@@ -106,6 +106,42 @@ void main() {
           (!updateResponse.contains('null')));
     });
 
+    //  1. Cram authenticate and send the enroll request for buzz namespace with read and write access
+    //  2. pkam using the enroll id
+    //  3. Create a key with at_contact.buzz
+    //  4. Assert that buzz key is created without an exception
+    //  5. Do a llookup of the key and assert that value is returned 
+    test(
+        'enroll request on authenticated connection for buzz namespace and creating a at_contact.buzz key',
+        () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      var enrollRequest =
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection and create a new connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      // now do the apkam using the enrollment id
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      String atContactBuzzKey = 'atconnections.bob.alice.at_contact.buzz$firstAtSign';
+      String updateResponse = await firstAtSignConnection.sendRequestToServer(
+          'update:$atContactBuzzKey bob');
+      assert((!updateResponse.contains('Invalid syntax')) &&
+          (!updateResponse.contains('null')));
+      String llookupResponse = await firstAtSignConnection
+          .sendRequestToServer('llookup:$atContactBuzzKey');
+      expect(llookupResponse, 'data:bob');
+    });
+
     // Prerequisite - create a atmosphere key
     //  1. Cram authenticate and send the enroll request for wavi namespace
     //  2. pkam using the enroll id
