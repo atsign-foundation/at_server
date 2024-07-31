@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
-          push: false
+          push: true
           tags: |
             atsigncompany/vebase:normemojitest
             atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
@@ -88,10 +88,10 @@ jobs:
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
-          push: false
+          push: true
           provenance: false
           tags: |
-            atsigncompany/virtualenv:vip
+            atsigncompany/virtualenv:normemojitest
             atsigncompany/virtualenv:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64
