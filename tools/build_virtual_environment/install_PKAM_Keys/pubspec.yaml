@@ -10,6 +10,7 @@ dependencies:
   at_demo_data:
     git:
       url: https://github.com/atsign-foundation/at_demos
+      path: at_demo_data
       ref: fix/unicode-ve-codepoints
   at_lookup: ^3.0.44
 
