@@ -28,9 +28,9 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
-          push: false
+          push: true
           tags: |
-            atsigncompany/vebase:latest
+            atsigncompany/vebase:normemojitest
             atsigncompany/vebase:ve_base-gha${{ github.run_number }}
           platforms: |
             linux/amd64

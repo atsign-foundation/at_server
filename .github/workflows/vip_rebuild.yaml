@@ -38,7 +38,7 @@ jobs:
           file: tools/build_virtual_environment/ve_base/Dockerfile
           push: false
           tags: |
-            atsigncompany/vebase:latest
+            atsigncompany/vebase:normemojitest
             atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
           platforms: |
             linux/amd64

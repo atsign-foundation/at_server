@@ -17,7 +17,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/main.dart -o secondary
 
-FROM atsigncompany/vebase:latest
+FROM atsigncompany/vebase:normemojitest
 USER root
 
 # Secondary binary and pubspec.yaml from first stage
