@@ -4,10 +4,13 @@ description: Tool to load PKAM keys into root server for testing atSigns
 # homepage: https://www.example.com
 
 environment:
-  sdk: '>=2.15.0 <4.0.0'
+  sdk: ">=2.15.0 <4.0.0"
 
 dependencies:
-  at_demo_data: ^1.0.3
+  at_demo_data:
+    git:
+      url: https://github.com/atsign-foundation/at_demos
+      ref: fix/unicode-ve-codepoints
   at_lookup: ^3.0.44
 
 dev_dependencies:

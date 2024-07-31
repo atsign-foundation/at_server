@@ -2,9 +2,9 @@ name: VE_base
 on:
   workflow_dispatch:
   schedule:
-    - cron: '42 6 * * 1' # At 0642 each Monday
+    - cron: "42 6 * * 1" # At 0642 each Monday
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
-          push: true
+          push: false
           tags: |
             atsigncompany/vebase:latest
             atsigncompany/vebase:ve_base-gha${{ github.run_number }}

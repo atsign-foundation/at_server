@@ -6,10 +6,10 @@ on:
     branches:
       - trunk
     paths:
-      - 'tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem'
+      - "tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem"
   workflow_dispatch:
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
-          push: true
+          push: false
           tags: |
             atsigncompany/vebase:latest
             atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
@@ -55,7 +55,7 @@ jobs:
           status: ${{ job.status }}
 
   push_prod_virtualenv_image:
-    needs: [ ve_base ]
+    needs: [ve_base]
     runs-on: ubuntu-latest
     steps:
       - name: Get latest production tag
@@ -88,7 +88,7 @@ jobs:
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
-          push: true
+          push: false
           provenance: false
           tags: |
             atsigncompany/virtualenv:vip
