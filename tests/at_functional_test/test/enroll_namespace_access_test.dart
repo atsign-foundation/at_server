@@ -110,7 +110,7 @@ void main() {
     //  2. pkam using the enroll id
     //  3. Create a key with at_contact.buzz
     //  4. Assert that buzz key is created without an exception
-    //  5. Do a llookup of the key and assert that value is returned 
+    //  5. Do a llookup of the key and assert that value is returned
     test(
         'enroll request on authenticated connection for buzz namespace and creating a at_contact.buzz key',
         () async {
@@ -132,14 +132,87 @@ void main() {
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
-      String atContactBuzzKey = 'atconnections.bob.alice.at_contact.buzz$firstAtSign';
-      String updateResponse = await firstAtSignConnection.sendRequestToServer(
-          'update:$atContactBuzzKey bob');
+      String atContactBuzzKey =
+          'atconnections.bob.alice.at_contact.buzz$firstAtSign';
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$atContactBuzzKey bob');
       assert((!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
       String llookupResponse = await firstAtSignConnection
           .sendRequestToServer('llookup:$atContactBuzzKey');
       expect(llookupResponse, 'data:bob');
+    });
+
+    //  1. Cram authenticate and send the enroll request for buzz namespace with read and write access
+    //  2. pkam using the enroll id
+    //  3. Create a key with at_contact.buzz
+    //  4. Assert that buzz key is created without an exception
+    //  5. Delete the key and assert that it is successful
+    test(
+        'enroll request on authenticated connection for buzz namespace and deleting a at_contact.buzz key',
+        () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      var enrollRequest =
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection and create a new connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      // now do the apkam using the enrollment id
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      String atContactBuzzKey =
+          'atconnections.bob.alice.at_contact.buzz$firstAtSign';
+      String deleteResponse = await firstAtSignConnection
+          .sendRequestToServer('delete:$atContactBuzzKey');
+      assert((!deleteResponse.contains('Invalid syntax')) &&
+          (!deleteResponse.contains('null')));
+    });
+
+    // key - @aquamarine659:5ea9cc57-8281-4ba6-a30e-d4cb8c3c67e8_53979647-2908-48bf-a0f8-331f7da6e59b.buzzkey.atbuzz@scrapbookgemini
+    //  1. Cram authenticate and send the enroll request for buzz namespace with read and write access
+    //  2. pkam using the enroll id
+    //  3. Create a key with buzzkey.buzz
+    //  4. Assert that buzz key is created without an exception
+    //  5. Do a llookup of the key and assert that value is returned
+    test(
+        'enroll request on authenticated connection for buzz namespace and creating a buzzkey',
+        () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      var enrollRequest =
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+      String enrollmentId = enrollJsonMap['enrollmentId'];
+      // Close the connection and create a new connection and authenticate with APKAM
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      // now do the apkam using the enrollment id
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      String atContactBuzzKey =
+          '$firstAtSign:123buzzkey.buzz$firstAtSign';
+      String updateResponse = await firstAtSignConnection
+          .sendRequestToServer('update:$atContactBuzzKey buzzkey');
+      assert((!updateResponse.contains('Invalid syntax')) &&
+          (!updateResponse.contains('null')));
+      String llookupResponse = await firstAtSignConnection
+          .sendRequestToServer('llookup:$atContactBuzzKey');
+      expect(llookupResponse, 'data:buzzkey');
     });
 
     // Prerequisite - create a atmosphere key
