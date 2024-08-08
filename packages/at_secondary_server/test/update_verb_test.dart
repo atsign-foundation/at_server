@@ -1308,6 +1308,36 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:secretdata@alice')));
     });
+
+    test(
+        'A test to verify write access is allowed to a key with a at_contact.buzz namespace for an enrollment with buzz namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
     tearDown(() async => await verbTestsTearDown());
   });
 }
