@@ -33,7 +33,7 @@ jobs:
 
       - name: Build and push new VE base
         id: docker_build_base
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
           push: true
@@ -84,7 +84,7 @@ jobs:
 
       - name: Build and push vip
         id: docker_build_vip
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
