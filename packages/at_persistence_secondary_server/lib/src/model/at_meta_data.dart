@@ -1,5 +1,4 @@
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
@@ -86,6 +85,8 @@ class AtMetaData extends HiveObject {
 
   Metadata toCommonsMetadata() {
     return Metadata()
+      ..createdAt = createdAt
+      ..updatedAt = updatedAt
       ..ttl = ttl
       ..ttb = ttb
       ..ttr = ttr
@@ -106,6 +107,8 @@ class AtMetaData extends HiveObject {
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
     var atMetadata = AtMetaData();
     atMetadata
+      ..createdAt = metadata.createdAt
+      ..updatedAt = metadata.updatedAt
       ..ttl = metadata.ttl
       ..ttb = metadata.ttb
       ..ttr = metadata.ttr
@@ -121,7 +124,7 @@ class AtMetaData extends HiveObject {
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo;
-    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+    return atMetadata;
   }
 
   Map toJson() {
@@ -161,8 +164,12 @@ class AtMetaData extends HiveObject {
   AtMetaData fromJson(Map json) {
     createdBy = json['createdBy'];
     updatedBy = json['updatedBy'];
-    createdAt = DateTime.parse(json['createdAt']);
-    updatedAt = DateTime.parse(json['updatedAt']);
+    createdAt = (json['createdAt'] == null || json['createdAt'] == 'null')
+        ? null
+        : DateTime.parse(json['createdAt']);
+    updatedAt = (json['updatedAt'] == null || json['updatedAt'] == 'null')
+        ? null
+        : DateTime.parse(json['updatedAt']);
     expiresAt = (json['expiresAt'] == null || json['expiresAt'] == 'null')
         ? null
         : DateTime.parse(json['expiresAt']);
@@ -173,26 +180,25 @@ class AtMetaData extends HiveObject {
         ? null
         : DateTime.parse(json['availableAt']);
     status = json['status'];
+    // convert to int for non-null value.
     version = (json['version'] is String)
         ? int.parse(json['version'])
-        : (json['version'] == null)
-            ? 0
-            : json['version'];
+        : json['version'];
     ttl = (json[AtConstants.ttl] is String)
         ? int.parse(json[AtConstants.ttl])
         : (json[AtConstants.ttl] == null)
-            ? null
-            : json[AtConstants.ttl];
+        ? null
+        : json[AtConstants.ttl];
     ttb = (json[AtConstants.ttb] is String)
         ? int.parse(json[AtConstants.ttb])
         : (json[AtConstants.ttb] == null)
-            ? null
-            : json[AtConstants.ttb];
+        ? null
+        : json[AtConstants.ttb];
     ttr = (json[AtConstants.ttr] is String)
         ? int.parse(json[AtConstants.ttr])
         : (json[AtConstants.ttr] == null)
-            ? null
-            : json[AtConstants.ttr];
+        ? null
+        : json[AtConstants.ttr];
     isCascade = json[AtConstants.ccd];
     isBinary = json[AtConstants.isBinary];
     isEncrypted = json[AtConstants.isEncrypted];
@@ -212,32 +218,32 @@ class AtMetaData extends HiveObject {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AtMetaData &&
-          runtimeType == other.runtimeType &&
-          createdBy == other.createdBy &&
-          updatedBy == other.updatedBy &&
-          createdAt == other.createdAt &&
-          updatedAt == other.updatedAt &&
-          expiresAt == other.expiresAt &&
-          status == other.status &&
-          version == other.version &&
-          availableAt == other.availableAt &&
-          ttb == other.ttb &&
-          ttl == other.ttl &&
-          ttr == other.ttr &&
-          refreshAt == other.refreshAt &&
-          isCascade == other.isCascade &&
-          isBinary == other.isBinary &&
-          isEncrypted == other.isEncrypted &&
-          dataSignature == other.dataSignature &&
-          sharedKeyEnc == other.sharedKeyEnc &&
-          pubKeyCS == other.pubKeyCS &&
-          encoding == other.encoding &&
-          encKeyName == other.encKeyName &&
-          encAlgo == other.encAlgo &&
-          ivNonce == other.ivNonce &&
-          skeEncKeyName == other.skeEncKeyName &&
-          skeEncAlgo == other.skeEncAlgo;
+          other is AtMetaData &&
+              runtimeType == other.runtimeType &&
+              createdBy == other.createdBy &&
+              updatedBy == other.updatedBy &&
+              createdAt == other.createdAt &&
+              updatedAt == other.updatedAt &&
+              expiresAt == other.expiresAt &&
+              status == other.status &&
+              version == other.version &&
+              availableAt == other.availableAt &&
+              ttb == other.ttb &&
+              ttl == other.ttl &&
+              ttr == other.ttr &&
+              refreshAt == other.refreshAt &&
+              isCascade == other.isCascade &&
+              isBinary == other.isBinary &&
+              isEncrypted == other.isEncrypted &&
+              dataSignature == other.dataSignature &&
+              sharedKeyEnc == other.sharedKeyEnc &&
+              pubKeyCS == other.pubKeyCS &&
+              encoding == other.encoding &&
+              encKeyName == other.encKeyName &&
+              encAlgo == other.encAlgo &&
+              ivNonce == other.ivNonce &&
+              skeEncKeyName == other.skeEncKeyName &&
+              skeEncAlgo == other.skeEncAlgo;
 
   @override
   int get hashCode =>
