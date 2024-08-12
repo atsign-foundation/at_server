@@ -15,6 +15,14 @@ dependencies:
   uuid: ^3.0.7
   elliptic: ^0.3.8
 
+dependency_overrides:
+  # 20240812 apkam changes to at_demo_data haven't been published yet
+  at_demo_data:
+      git:
+        url: https://github.com/atsign-foundation/at_demos.git
+        path: packages/at_demo_data
+        ref: trunk
+
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.24.3
