@@ -27,24 +27,10 @@ class AtNotificationKeystore
 
   final _logger = AtSignLogger('AtNotificationKeystore');
 
-  bool _register = false;
-
   @override
-  Future<void> initialize() async {
+    void initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!_register) {
-      Hive.registerAdapter(AtNotificationAdapter());
-      Hive.registerAdapter(OperationTypeAdapter());
-      Hive.registerAdapter(NotificationTypeAdapter());
-      Hive.registerAdapter(NotificationStatusAdapter());
-      Hive.registerAdapter(NotificationPriorityAdapter());
-      Hive.registerAdapter(MessageTypeAdapter());
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-      _register = true;
-    }
-    await super.openBox(_boxName);
+     super.openBox(_boxName);
   }
 
   bool isEmpty() {
@@ -89,7 +75,7 @@ class AtNotificationKeystore
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
     AtNotificationCallback.getInstance().invokeCallbacks(value);
-    await _getBox().put(key, value);
+     _getBox().put(key, value);
   }
 
   @override
@@ -131,9 +117,6 @@ class AtNotificationKeystore
       _logger.severe('Exception in deleteExpired keys: ${e.toString()}');
       throw DataStoreException(
           'exception in deleteExpiredKeys: ${e.toString()}');
-    } on HiveError catch (error) {
-      _logger.severe('Error occurred in notification keystore: $error');
-      throw DataStoreException(error.message);
     }
     return result;
   }
@@ -188,9 +171,6 @@ class AtNotificationKeystore
     } on Exception catch (e) {
       _logger.severe('exception in hive get expired keys:${e.toString()}');
       throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
-    } on HiveError catch (error) {
-      _logger.severe('HiveKeystore get error: $error');
-      throw DataStoreException(error.message);
     }
     return expiredKeys;
   }
@@ -232,7 +212,7 @@ class AtNotificationKeystore
     return notificationLogMap;
   }
 
-  BoxBase _getBox() {
+  Box _getBox() {
     return super.getBox();
   }
 

@@ -23,18 +23,13 @@ class HivePersistenceManager with HiveBase {
   final Random _random = Random();
 
   @override
-  Future<void> initialize() async {
+  void initialize() {
     try {
-      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
-        Hive.registerAdapter(AtDataAdapter());
-      }
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-
-      var secret = await _getHiveSecretFromFile(_atsign!, storagePath);
+      Hive.registerAdapter('AtData', AtData.fromJson);
+      var secret =  _getHiveSecretFromFile(_atsign!, storagePath);
+      print('*** secret: $secret');
       _boxName = AtUtils.getShaForAtSign(_atsign!);
-      await super.openBox(_boxName, hiveSecret: secret);
+      super.openBox(_boxName, hiveSecret: secret);
     } on Exception catch (e) {
       logger.severe('AtPersistence.init exception: $e');
       throw DataStoreException(
@@ -45,39 +40,8 @@ class HivePersistenceManager with HiveBase {
     }
   }
 
-//  Future<void> openVault(String atsign,
-//      {List<int>? hiveSecret, bool isLazy = false}) async {
-//    try {
-//      // assert(hiveSecret != null);
-//      hiveSecret ??= _secret;
-//      atsign = atsign.trim().toLowerCase().replaceAll(' ', '');
-//      if (_debug) {
-//        logger.finer('AtPersistence.openVault received atsign: $atsign');
-//      }
-//      _atsign = atsign;
-//      _boxName = AtUtils.getShaForAtSign(atsign);
-//      if (_isLazy) {
-//        await Hive.openLazyBox(_boxName,
-//            encryptionCipher: HiveAesCipher(hiveSecret!));
-//      } else {
-//        await Hive.openBox(_boxName,
-//            encryptionCipher: HiveAesCipher(hiveSecret!));
-//      }
-//      if (_debug) {
-//        logger.finer('AtPersistence.openVault opened Hive box:_boxName');
-//      }
-//      if (_getBox().isOpen) {
-//        logger.info('KeyStore initialized successfully.');
-//      }
-//    } on Exception catch (exception) {
-//      logger.severe('AtPersistence.openVault exception: $exception');
-//    } catch (error) {
-//      logger.severe('AtPersistence().openVault error: $error');
-//    }
-//  }
-
-  Future<List<int>?> _getHiveSecretFromFile(
-      String atsign, String storagePath) async {
+  List<int>? _getHiveSecretFromFile(
+      String atsign, String storagePath)  {
     List<int>? secretAsUint8List;
     try {
       atsign = atsign.trim().toLowerCase();
@@ -101,8 +65,9 @@ class HivePersistenceManager with HiveBase {
       } else {
         secretAsUint8List = _generatePersistenceSecret();
         hiveSecretString = String.fromCharCodes(secretAsUint8List);
-        var newFile = await File(filePath).create(recursive: true);
-        newFile.writeAsStringSync(hiveSecretString);
+        var secretFile = File(filePath);
+        secretFile.createSync(recursive: true);
+        secretFile.writeAsStringSync(hiveSecretString);
       }
     } on Exception catch (exception) {
       logger.severe('getHiveSecretFromFile exception: $exception');
@@ -113,10 +78,11 @@ class HivePersistenceManager with HiveBase {
   }
 
   //TODO change into to Duration and construct cron string dynamically
-  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval, bool skipCommits = false}) {
+  void scheduleKeyExpireTask(int? runFrequencyMins,
+      {Duration? runTimeInterval, bool skipCommits = false}) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     Schedule schedule;
-    if(runTimeInterval != null){
+    if (runTimeInterval != null) {
       schedule = Schedule(seconds: runTimeInterval.inSeconds);
     } else {
       schedule = Schedule.parse('*/$runFrequencyMins * * * *');
@@ -131,6 +97,9 @@ class HivePersistenceManager with HiveBase {
   }
 
   List<int> _generatePersistenceSecret() {
-    return Hive.generateSecureKey();
+    Random secureRandom = Random.secure();
+    //#TODO revisit this temporary impl
+    return List<int>.generate(
+        32, (index) => 0 + secureRandom.nextInt(256 - 0 + 1));
   }
 }

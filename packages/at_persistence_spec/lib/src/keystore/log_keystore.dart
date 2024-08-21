@@ -13,20 +13,20 @@ abstract class LogKeyStore<K, V> {
   /// @param value - Value to be associated with the specified key.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> add(V value);
+  void add(V value);
 
   /// Updates the existing key with the given value
-  Future<dynamic> update(K key, V value);
+  void update(K key, V value);
 
   /// Removes the mapping for a key from this key store if it is present
   ///
   /// @param key - Key associated with a value.
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> remove(K key);
+  void remove(K key);
 
   /// Removes the list of keys from storage.
-  Future<void> removeAll(List<K> deleteKeysList);
+  void removeAll(List<K> deleteKeysList);
 
   /// Returns the total number of keys in storage.
   /// @return int Returns the total number of keys.

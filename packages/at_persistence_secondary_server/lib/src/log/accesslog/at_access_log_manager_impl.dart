@@ -17,7 +17,7 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
       {String? accessLogPath}) async {
     if (!_accessLogMap.containsKey(atSign)) {
       var accessLogKeyStore = AccessLogKeyStore(atSign);
-      await accessLogKeyStore.init(accessLogPath!);
+       accessLogKeyStore.init(accessLogPath!);
       _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
     }
     return _accessLogMap[atSign];

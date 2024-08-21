@@ -3,7 +3,6 @@ import 'package:at_persistence_secondary_server/src/event_listener/at_change_eve
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
 
 abstract class BaseAtCommitLog implements AtLogType<int, CommitEntry> {
   Future<CommitEntry?> lastSyncedEntry() async {
@@ -67,14 +66,11 @@ class AtCommitLog extends BaseAtCommitLog {
     var entry = CommitEntry(
         key, operation, DateTime.now().toUtcMillisecondsPrecision());
     try {
-      result = await _commitLogKeyStore.add(entry);
+      result = _commitLogKeyStore.add(entry);
       await _publishChangeEvent(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
     return result;
   }
@@ -121,7 +117,7 @@ class AtCommitLog extends BaseAtCommitLog {
   /// Closes the [CommitLogKeyStore] instance.
   @server
   Future<void> close() async {
-    await _commitLogKeyStore.close();
+    _commitLogKeyStore.close();
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
@@ -167,9 +163,6 @@ class AtCommitLog extends BaseAtCommitLog {
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException while deleting for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error while deleting for compaction:${e.toString()}');
     }
   }
 
@@ -181,9 +174,6 @@ class AtCommitLog extends BaseAtCommitLog {
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException getting keys to delete for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error getting keys to delete for compaction:${e.toString()}');
     }
     return entries;
   }
@@ -219,9 +209,6 @@ class ClientAtCommitLog extends AtCommitLog {
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
   }
 
@@ -231,9 +218,6 @@ class ClientAtCommitLog extends AtCommitLog {
       await _commitLogKeyStore.update(commitId, commitEntry);
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error updating entry to commit log:${e.toString()}');
     }
   }
 
@@ -260,9 +244,6 @@ class ClientAtCommitLog extends AtCommitLog {
           regex: regex, limit: limit);
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
     // ignore: unnecessary_null_comparison
     if (changes == null) {

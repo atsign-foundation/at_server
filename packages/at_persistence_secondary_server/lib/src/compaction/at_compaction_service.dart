@@ -49,7 +49,7 @@ class AtCompactionService {
   @visibleForTesting
   Future<void> executeCompactionInternal(AtLogType atLogType) async {
     final keysToCompact = await atLogType.getKeysToDeleteOnCompaction();
-    await atLogType.deleteKeyForCompaction(keysToCompact);
+    atLogType.deleteKeyForCompaction(keysToCompact);
   }
 
   AtCompactionStats _generateStats(

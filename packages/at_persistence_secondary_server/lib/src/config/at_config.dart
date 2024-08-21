@@ -5,7 +5,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
 
 /// Class to configure blocklist for atConnections.
 class AtConfig {
@@ -26,7 +25,8 @@ class AtConfig {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)!
         .getHivePersistenceManager()!;
-    configKey = HiveKeyStoreHelper.getInstance().prepareKey('private:blocklist$_atSign');
+    configKey = HiveKeyStoreHelper.getInstance()
+        .prepareKey('private:blocklist$_atSign');
   }
 
   ///Returns 'success' on adding unique [blockList] into blocklist.
@@ -45,9 +45,6 @@ class AtConfig {
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
     return result;
   }
@@ -71,8 +68,6 @@ class AtConfig {
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException('Hive error adding to commit log:${e.message}');
     }
     return result;
   }
@@ -89,9 +84,6 @@ class AtConfig {
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
     return blockList;
   }
@@ -100,13 +92,10 @@ class AtConfig {
   Future<AtData?> get(String key) async {
     AtData? value;
     try {
-      value = await (persistenceManager.getBox() as LazyBox).get(key);
+      value = await (persistenceManager.getBox()).get(key);
     } on Exception catch (exception) {
       logger.severe('HiveKeystore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
-    } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
-      throw DataStoreException(error.message);
     }
     return value;
   }
@@ -120,9 +109,6 @@ class AtConfig {
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
     }
     return result;
   }
@@ -136,7 +122,7 @@ class AtConfig {
         .prepareDataForKeystoreOperation(newData, existingAtData: existingData);
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
-    await persistenceManager.getBox().put(configKey, newData);
+    persistenceManager.getBox().put(configKey, newData);
     await _commitLog!.commit(configKey, CommitOp.UPDATE);
     return 'success';
   }
@@ -169,9 +155,9 @@ class AtConfig {
               newAtData,
               existingAtData: existingData);
           // store the existing data with the new key
-          await persistenceManager.getBox().put(configKey, newAtData);
+          persistenceManager.getBox().put(configKey, newAtData);
           logger.info('Successfully migrated configKey data to new key format');
-          await persistenceManager.getBox().delete(oldConfigKey);
+          persistenceManager.getBox().delete(oldConfigKey);
         }
       } on KeyNotFoundException catch (e) {
         logger.finer('Could not fetch data with OLD config-key | ${e.message}');

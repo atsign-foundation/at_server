@@ -4,52 +4,36 @@ import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
 mixin HiveBase<E> {
-  bool _isLazy = true;
   late String _boxName;
   late String storagePath;
   final _logger = AtSignLogger('HiveBase');
-  Future<void> init(String storagePath, {bool isLazy = true}) async {
-    _isLazy = isLazy;
+  void init(String storagePath) {
     this.storagePath = storagePath;
-    Hive.init(storagePath);
-    await initialize();
+    Hive.defaultDirectory = storagePath;
+    initialize();
   }
 
-  Future<void> initialize();
+  void initialize();
 
-  Future<void> openBox(String boxName, {List<int>? hiveSecret}) async {
+  void openBox(String boxName, {List<int>? hiveSecret}) {
+    print('***open box');
     _boxName = boxName;
-    if (_isLazy) {
-      if (hiveSecret != null) {
-        await Hive.openLazyBox(_boxName,
-            encryptionCipher: HiveAesCipher(hiveSecret));
-      } else {
-        await Hive.openLazyBox(boxName);
-      }
+    if (hiveSecret != null) {
+      Hive.box(name: _boxName, directory:storagePath, encryptionKey: hiveSecret.toString());
     } else {
-      if (hiveSecret != null) {
-        await Hive.openBox(_boxName,
-            encryptionCipher: HiveAesCipher(hiveSecret));
-      } else {
-        await Hive.openBox(boxName);
-      }
+      Hive.box(name: _boxName, directory: storagePath);
     }
     if (getBox().isOpen) {
       _logger.info('$boxName initialized successfully');
     }
   }
 
-  BoxBase getBox() {
-    if (_isLazy) {
-      return Hive.lazyBox(_boxName);
-    }
-    return Hive.box(_boxName);
+  Box getBox() {
+    return Hive.box(name: _boxName);
   }
 
   Future<E?> getValue(dynamic key) async {
-    return _isLazy
-        ? await (getBox() as LazyBox).get(key)
-        : await (getBox() as Box).get(key);
+    return await getBox().get(key);
   }
 
   int getSize() {
@@ -64,9 +48,9 @@ mixin HiveBase<E> {
     return logSize ~/ 1024;
   }
 
-  Future<void> close() async {
+  void close() async {
     if (getBox().isOpen) {
-      await getBox().close();
+      getBox().close();
     }
   }
 }

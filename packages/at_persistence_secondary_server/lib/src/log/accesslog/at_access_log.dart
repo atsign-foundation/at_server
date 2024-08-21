@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_key
 import 'package:hive/hive.dart';
 
 /// Class to main access logs on the secondary server for from, cram, pol, lookup and plookup verbs
-class AtAccessLog implements AtLogType<int, AccessLogEntry> {
+class AtAccessLog implements AtLogType<String, AccessLogEntry> {
   // ignore: prefer_typing_uninitialized_variables
   late AccessLogKeyStore _accessLogKeyStore;
 
@@ -18,20 +18,14 @@ class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   ///@param fromAtSign : The another user atsign
   ///@param verbName : The verb performed by the atsign user
   ///@param lookupKey : The optional parameter to hold lookup key when performing lookup or plookup verb.
-  Future<int?> insert(String fromAtSign, String verbName,
-      {String? lookupKey}) async {
-    int? result;
+  void insert(String fromAtSign, String verbName, {String? lookupKey}) async {
     var entry = AccessLogEntry(fromAtSign, DateTime.now(), verbName, lookupKey);
     try {
-      result = await _accessLogKeyStore.add(entry);
+      _accessLogKeyStore.add(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
     }
-    return result;
   }
 
   ///The functions returns the top [length] visited atSign's.
@@ -56,20 +50,17 @@ class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   }
 
   @override
-  Future<void> deleteKeyForCompaction(List<int> keysList) async {
+  void deleteKeyForCompaction(List<String> keysList) {
     try {
-      await _accessLogKeyStore.removeAll(keysList);
+      _accessLogKeyStore.removeAll(keysList);
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException while deleting for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error while deleting for compaction:${e.toString()}');
     }
   }
 
   @override
-  Future<List<int>> getKeysToDeleteOnCompaction() async {
+  Future<List<String>> getKeysToDeleteOnCompaction() async {
     int totalKeys = entriesCount();
     int firstNKeys =
         (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
@@ -78,9 +69,6 @@ class AtAccessLog implements AtLogType<int, AccessLogEntry> {
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException while getting keys for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error while getting keys for compaction:${e.toString()}');
     }
   }
 

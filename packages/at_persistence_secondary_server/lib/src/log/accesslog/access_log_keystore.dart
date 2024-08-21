@@ -5,75 +5,59 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
-
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 
 class AccessLogKeyStore
     with HiveBase<AccessLogEntry?>
-    implements LogKeyStore<int, AccessLogEntry?> {
+    implements LogKeyStore<String, AccessLogEntry?> {
   final String _currentAtSign;
   late String _boxName;
 
   AccessLogKeyStore(this._currentAtSign);
 
   @override
-  Future<void> initialize() async {
+  void initialize() {
     _boxName = 'access_log_${AtUtils.getShaForAtSign(_currentAtSign)}';
-
-    if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
-      Hive.registerAdapter(AccessLogEntryAdapter());
-    }
-    await super.openBox(_boxName);
+    super.openBox(_boxName);
   }
 
   @override
-  Future add(AccessLogEntry? accessLogEntry) async {
-    int result;
+  void add(AccessLogEntry? accessLogEntry) {
     try {
-      result = await _getBox().add(accessLogEntry);
+       _getBox().add(accessLogEntry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
     }
-    return result;
   }
 
   @override
-  Future<AccessLogEntry?> get(int key) async {
+  Future<AccessLogEntry?> get(String key) async {
     try {
       var accessLogEntry = await getValue(key);
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception get access log entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error getting entry from access log:${e.toString()}');
     }
   }
 
   @override
-  Future remove(int key) async {
+  void remove(String key) {
     try {
-      await _getBox().delete(key);
+       _getBox().delete(key);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error deleting entry from access log:${e.toString()}');
     }
   }
 
   @override
-  Future<void> removeAll(List<int> deleteKeysList) async {
+  void removeAll(List<String> deleteKeysList) {
     if (deleteKeysList.isEmpty) {
       return;
     }
-    await _getBox().deleteAll(deleteKeysList);
+     _getBox().deleteAll(deleteKeysList);
   }
 
   /// Returns the total number of keys
@@ -109,22 +93,19 @@ class AccessLogKeyStore
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
   @override
-  List<int> getFirstNEntries(int N) {
-    List<int> entries;
+  List<String> getFirstNEntries(int N) {
+    List<String> entries;
     try {
-      entries = List<int>.from(_getBox().keys.toList().take(N).toList());
+      entries = List<String>.from(_getBox().keys.toList().take(N).toList());
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
     }
     return entries;
   }
 
   @override
-  Future update(int key, AccessLogEntry? value) {
+  void update(String key, AccessLogEntry? value) {
     // TODO: implement update
     throw 'Not implemented';
   }
@@ -144,14 +125,6 @@ class AccessLogKeyStore
       }
     });
 
-    // box.toMap().forEach((key, value) {
-    //   //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
-    //   if (value.verbName == 'pol') {
-    //     atSignMap.containsKey(value.fromAtSign)
-    //         ? atSignMap[value.fromAtSign] = atSignMap[value.fromAtSign] + 1
-    //         : atSignMap[value.fromAtSign] = 1;
-    //   }
-    // });
     // Iterate over the atKeys map and sort the keys on value
     var sortedKeys = atSignMap.keys.toList(growable: false)
       ..sort((k1, k2) => atSignMap[k2].compareTo(atSignMap[k1]));
@@ -223,7 +196,7 @@ class AccessLogKeyStore
     return accessLogMap;
   }
 
-  BoxBase _getBox() {
+  Box _getBox() {
     return super.getBox();
   }
 }

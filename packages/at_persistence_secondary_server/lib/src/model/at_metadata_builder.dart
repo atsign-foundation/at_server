@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -30,7 +31,7 @@ class AtMetadataBuilder {
     bool? isEncrypted,
     String? dataSignature,
     String? sharedKeyEncrypted,
-    String? publicKeyChecksum,
+    String? publicKeyCheckSum,
     String? encoding,
     String? encKeyName,
     String? encAlgo,
@@ -78,7 +79,7 @@ class AtMetadataBuilder {
     isEncrypted ??= newAtMetaData.isEncrypted;
     dataSignature ??= newAtMetaData.dataSignature;
     sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
-    publicKeyChecksum ??= newAtMetaData.pubKeyCS;
+    publicKeyCheckSum ??= newAtMetaData.pubKeyCS;
     encoding ??= newAtMetaData.encoding;
     encKeyName ??= newAtMetaData.encKeyName;
     encAlgo ??= newAtMetaData.encAlgo;
@@ -103,7 +104,7 @@ class AtMetadataBuilder {
     atMetaData.isEncrypted = isEncrypted;
     atMetaData.dataSignature = dataSignature;
     atMetaData.sharedKeyEnc = sharedKeyEncrypted;
-    atMetaData.pubKeyCS = publicKeyChecksum;
+    atMetaData.pubKeyCS = publicKeyCheckSum;
     atMetaData.encoding = encoding;
     atMetaData.encKeyName = encKeyName;
     atMetaData.encAlgo = encAlgo;

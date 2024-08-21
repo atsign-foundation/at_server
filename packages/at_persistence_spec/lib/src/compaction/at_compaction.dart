@@ -14,7 +14,7 @@ abstract class AtCompaction<K, V> {
   Future<List<K>> getKeysToDeleteOnCompaction();
 
   /// Deletes a passed [key] from the [SecondaryKeyStore] or [AtLogType]
-  Future<void> deleteKeyForCompaction(List<K> key);
+  void deleteKeyForCompaction(List<K> key);
 }
 
 /// The configurations for the AtCompaction Job.
