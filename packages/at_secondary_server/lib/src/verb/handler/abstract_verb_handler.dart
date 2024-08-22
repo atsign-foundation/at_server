@@ -164,15 +164,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     // If namespace is null or empty, fetch namespace from AtKey.
+    String keyWithNamespace = '';
     if ((namespace == null || namespace.isEmpty) && atKey != null) {
-      namespace = AtKey.fromString(atKey).namespace;
+      AtKey atKeyObj = AtKey.fromString(atKey);
+      namespace = atKeyObj.namespace;
+      keyWithNamespace = '${atKeyObj.key}.$namespace';
     }
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
     // access of the namespace.
-    (String, String?) authorizedNamespace =
-        _checkForNamespaceAuthorization(enrollDataStoreValue, namespace);
+    (String, String?) authorizedNamespace = _checkForNamespaceAuthorization(
+        enrollDataStoreValue, namespace, keyWithNamespace);
 
     // "authorizedNamespace.$1" represents the namespace and "authorizedNamespace.$2" represents
     // the access of the namespace.
@@ -218,13 +221,28 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// - Returns: A tuple containing the authorised namespace and its access level.
   ///   If no matching namespace is found, it returns an empty string and `null` for access.
   (String, String?) _checkForNamespaceAuthorization(
-      EnrollDataStoreValue enrollDataStoreValue, String? namespace) {
+      EnrollDataStoreValue enrollDataStoreValue,
+      String? namespace,
+      String? keyWithNamespace) {
     String authorisedNamespace = '';
     String? access;
     for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
       if ('.$namespace'.endsWith('.$enrolledNamespace')) {
         authorisedNamespace = enrolledNamespace;
         break;
+      }
+    }
+
+    /// If the namespace contains a period ('.'), AtKey(key).namespace will return only the last segment of the namespace.
+    /// For example, if the namespace is 'foo.bar', AtKey(key).namespace will return 'bar'. In such cases, authorisedNamespace
+    /// cannot be cannot be fetched due to incomplete namespace.
+    /// Currently, to authorize such keys, use the full key along with the namespace to perform the authorization check.
+    if (keyWithNamespace != null && authorisedNamespace.isEmpty) {
+      for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
+        if (keyWithNamespace.endsWith('.$enrolledNamespace')) {
+          authorisedNamespace = enrolledNamespace;
+          break;
+        }
       }
     }
     // If enrolledDataStore value contains *, it means at is authorised for all namespaces
