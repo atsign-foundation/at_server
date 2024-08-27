@@ -137,6 +137,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "ivNonce": atNotification.atMetadata?.ivNonce,
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
+          "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
         };
 
       await _checkAndSend(notification);
