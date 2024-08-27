@@ -328,6 +328,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
       if (skipCommit) {
+        logger.finer('Skipping commit log entry for expired key deletion: $key');
+        CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(key);
+        if(commitEntry != null) {
+          _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+        }
         return -1;
       } else {
         return await _commitLog.commit(key, CommitOp.DELETE);
