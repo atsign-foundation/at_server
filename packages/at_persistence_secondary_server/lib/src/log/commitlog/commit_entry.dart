@@ -1,5 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
 class CommitEntry {
   final String? _atKey;
@@ -9,6 +11,8 @@ class CommitEntry {
   final DateTime? _opTime;
 
   int? commitId;
+
+  late int key; //same as commit id. for backward compatibility
 
   CommitEntry(this._atKey, this.operation, this._opTime);
 
@@ -20,12 +24,20 @@ class CommitEntry {
         'atKey': _atKey,
         'operation': operation.name,
         'opTime': _opTime.toString(),
-        'commitId': commitId
+        'commitId': commitId,
+        'key': key
       };
+
+  factory CommitEntry.fromJson(dynamic json) {
+    return CommitEntry(json['atKey'], _getCommitOpFromSymbol(json['operation']),
+        json['optime'])
+      ..commitId = json['commitId']
+      ..key = json['key'];
+  }
 
   @override
   String toString() {
-    return 'CommitEntry{AtKey: $_atKey, operation: $operation, commitId:$commitId, opTime: $_opTime}';
+    return 'CommitEntry{AtKey: $_atKey, operation: $operation, commitId:$commitId, key:$key,,opTime: $_opTime}';
   }
 }
 
@@ -46,6 +58,25 @@ extension CommitOpSymbols on CommitOp? {
         return null;
     }
   }
+}
+
+CommitOp? _getCommitOpFromSymbol(String symbol) {
+  CommitOp? commitOp;
+  switch (symbol) {
+    case '-':
+      commitOp = CommitOp.DELETE;
+      break;
+    case '+':
+      commitOp = CommitOp.UPDATE;
+      break;
+    case '#':
+      commitOp = CommitOp.UPDATE_META;
+      break;
+    case '*':
+      commitOp = CommitOp.UPDATE_ALL;
+      break;
+  }
+  return commitOp;
 }
 
 /// Represents a CommitEntry with all instances pointing to null/defaults.

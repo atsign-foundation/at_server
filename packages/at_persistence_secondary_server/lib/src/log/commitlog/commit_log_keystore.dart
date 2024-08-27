@@ -9,8 +9,7 @@ import 'package:meta/meta.dart';
 class CommitLogKeyStore extends BaseCommitLogKeyStore {
   final _logger = AtSignLogger('CommitLogKeyStore');
   late CommitLogCache commitLogCache;
-  //#TODO revisit this for thread safety
-  static int _internalKey = 0;
+  int internalKey = -1;
 
   int get latestCommitId => commitLogCache.latestCommitId;
 
@@ -19,43 +18,47 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   @override
-  void initialize() async {
-     _boxName = "commit_log_${AtUtils.getShaForAtSign(currentAtSign)}";
+  void initialize() {
+    _boxName = "commit_log_${AtUtils.getShaForAtSign(currentAtSign)}";
+    Hive.registerAdapter('CommitEntry', CommitEntry.fromJson);
     super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');
-
-    await repairCommitLogAndCreateCachedMap();
+    repairCommitLogAndCreateCachedMap();
     if (getBox().keys.isNotEmpty) {
       var lastKey = getBox().keys.last;
       var lastCommitEntry = getBox().get(lastKey);
-      print('*** lastCommitEntry: $lastCommitEntry');
-
       if (lastCommitEntry != null) {
-        _internalKey = lastCommitEntry.commitId!;
+        internalKey = lastCommitEntry.commitId!;
       }
     }
   }
 
   int add(CommitEntry? commitEntry) {
     try {
-      _internalKey++;
+      internalKey++;
+
       //set the hive generated key as commit id
-      commitEntry!.commitId = _internalKey;
-      getBox().add(commitEntry!);
+      commitEntry!.commitId = internalKey;
+      commitEntry.key = internalKey;
+      getBox().put(internalKey.toString(), commitEntry!);
 
       CommitEntry? cachedCommitEntry =
           commitLogCache.getEntry(commitEntry.atKey!);
 
       // Delete old commit entry for the same key from the commit log
       if (cachedCommitEntry?.commitId != null) {
-        getBox().delete(cachedCommitEntry!.atKey!);
+        getBox().delete(cachedCommitEntry!.commitId.toString());
       }
       // update the commitId in cache commitMap.
       commitLogCache.update(commitEntry.atKey!, commitEntry);
+      // print('commit log keys:${getBox().keys}');
+      // for (var commmitKey in getBox().keys) {
+      //   print('value: ${getBox().get(commmitKey)}');
+      // }
     } on Exception catch (e) {
       throw DataStoreException('Exception updating entry:${e.toString()}');
     }
-    return _internalKey;
+    return internalKey;
   }
 
   /// Returns the latest committed sequence number with rexxgex
@@ -88,7 +91,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   int? firstCommittedSequenceNumber() {
     var firstCommittedSequenceNum =
         getBox().keys.isNotEmpty ? getBox().keys.first : null;
-    if(firstCommittedSequenceNum != null) {
+    if (firstCommittedSequenceNum != null) {
       var value = getBox().get(firstCommittedSequenceNum);
       return value.commitId;
     }
@@ -119,7 +122,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   @override
   Future<void> remove(int commitEntryIndex) async {
-    CommitEntry? commitEntry =getBox()[commitEntryIndex];
+    CommitEntry? commitEntry = getBox()[commitEntryIndex];
     await super.remove(commitEntryIndex);
     // On removing the entry from commit log keystore, remove the stale entries from
     // commit log cache map
@@ -247,14 +250,14 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   ///Returns the key-value pair of commit-log where key is hive internal key and
   ///value is [CommitEntry]
-  Future<Map<int, CommitEntry>> toMap() async {
+  Map<int, CommitEntry> toMap() {
     var commitLogMap = <int, CommitEntry>{};
     var keys = getBox().keys;
 
-    await Future.forEach(keys, (key) async {
-      var value = await getValue(key) as CommitEntry;
-      commitLogMap.putIfAbsent(key as int, () => value);
-    });
+    for (var key in keys) {
+      var value = getValue(key) as CommitEntry;
+      commitLogMap.putIfAbsent(int.parse(key), () => value);
+    }
     return commitLogMap;
   }
 
@@ -267,12 +270,12 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// Repairs entries with null commit IDs
   /// Clears and repopulates the [commitLogCache]
   @visibleForTesting
-  Future<bool> repairCommitLogAndCreateCachedMap() async {
+  bool repairCommitLogAndCreateCachedMap() {
     // Ensures the below code runs only when initialized from secondary server.
     // enableCommitId is set to true in secondary server and to false in client SDK.
-    Map<int, CommitEntry> allEntries = await toMap();
-    await removeEntriesWithMalformedAtKeys(allEntries);
-   // await repairNullCommitIDs(allEntries);
+    Map<int, CommitEntry> allEntries = toMap();
+    removeEntriesWithMalformedAtKeys(allEntries);
+    repairNullCommitIDs(allEntries);
     commitLogCache.clear();
     commitLogCache.initialize();
     return true;
@@ -281,22 +284,22 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// Removes all entries which have a malformed [CommitEntry.atKey]
   /// Returns the list of [CommitEntry.atKey]s which were removed
   @visibleForTesting
-  Future<List<String>> removeEntriesWithMalformedAtKeys(
-      Map<int, CommitEntry> allEntries) async {
+  List<String> removeEntriesWithMalformedAtKeys(
+      Map<int, CommitEntry> allEntries) {
     List<String> removed = [];
-    await Future.forEach(allEntries.keys, (int seqNum) async {
+    for (var seqNum in allEntries.keys) {
       CommitEntry? commitEntry = allEntries[seqNum];
       if (commitEntry == null) {
         _logger.warning(
             'CommitLog seqNum $seqNum has a null commitEntry - removing');
         remove(seqNum);
-        return;
+        break;
       }
       String? atKey = commitEntry.atKey;
       if (atKey == null) {
         _logger.warning(
             'CommitLog seqNum $seqNum has an entry with a null atKey - removed');
-        return;
+        break;
       }
       KeyType keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
       if (keyType == KeyType.invalidKey) {
@@ -304,12 +307,12 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
             'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
         remove(seqNum);
-        return;
+        break;
       } else {
         _logger.finer(
             'CommitLog seqNum $seqNum has valid type $keyType for atkey $atKey');
       }
-    });
+    }
     return removed;
   }
 
@@ -317,15 +320,15 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// the hive internal key
   // @visibleForTesting
   // TODO commented
-  // Future<void> repairNullCommitIDs(Map<int, CommitEntry> commitLogMap) async {
-  //   await Future.forEach(commitLogMap.keys, (key) async {
-  //     CommitEntry? commitEntry = commitLogMap[key];
-  //     if (commitEntry?.commitId == null) {
-  //       commitEntry!.commitId = key as int;
-  //       await getBox().put(commitEntry.commitId, commitEntry);
-  //     }
-  //   });
-  // }
+  Future<void> repairNullCommitIDs(Map<int, CommitEntry> commitLogMap) async {
+    await Future.forEach(commitLogMap.keys, (key) async {
+      CommitEntry? commitEntry = commitLogMap[key];
+      if (commitEntry?.commitId == null) {
+        commitEntry!.commitId = key as int;
+        getBox().put(commitEntry.commitId.toString(), commitEntry);
+      }
+    });
+  }
 
   /// Not a part of API. Added for unit test
   @visibleForTesting
@@ -340,9 +343,9 @@ abstract class BaseCommitLogKeyStore with HiveBase<CommitEntry?> {
 
   BaseCommitLogKeyStore(this.currentAtSign);
 
-  Future<CommitEntry?> get(int commitId) async {
+  CommitEntry? get(int commitId) {
     try {
-      return await getValue(commitId);
+      return getValue(commitId);
     } on Exception catch (e) {
       throw DataStoreException('Exception get entry:${e.toString()}');
     }
@@ -350,7 +353,7 @@ abstract class BaseCommitLogKeyStore with HiveBase<CommitEntry?> {
 
   Future<void> remove(int commitEntryIndex) async {
     try {
-       getBox().deleteAt(commitEntryIndex);
+      getBox().deleteAt(commitEntryIndex);
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
     }
@@ -381,17 +384,20 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
   @override
   void initialize() async {
     _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
-     super.openBox(_boxName);
+    Hive.registerAdapter('CommitEntry', CommitEntry.fromJson);
+    super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');
   }
 
   /// Adds a [CommitEntry] to the commitlog
   /// Returns numeric value generated as the key to persist the data
-  // @override
-  // Future<int> add(CommitEntry? commitEntry) async {
-  //   //return  getBox().put(commitEntry);
-  //   throw UnimplementedError();
-  // }
+  @override
+  int add(CommitEntry? commitEntry) {
+    internalKey++;
+    commitEntry!.key = internalKey;
+    getBox().put(internalKey.toString(), commitEntry);
+    return internalKey;
+  }
 
   /// Updates the [commitEntry.commitId] with the given [commitId].
   ///
@@ -405,8 +411,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
   Future<void> update(int commitId, CommitEntry? commitEntry) async {
     try {
       commitEntry!.commitId = commitId;
-     //TODO commenting for compile error
-      // await getBox().put(commitEntry.key, commitEntry);
+      getBox().put(commitEntry.key.toString(), commitEntry);
 
       if (_lastSyncedEntryCacheMap.isEmpty) {
         return;
@@ -432,19 +437,19 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       }
       var changes = <CommitEntry>[];
       // TODO commenting for compile errors
-      // var regexString = (regex != null) ? regex : '';
-      // var values = getBox().values;
-      // var startKey = sequenceNumber + 1;
-      // limit ??= values.length + 1;
-      // for (CommitEntry element in values) {
-      //   if (element.key >= startKey &&
-      //       _acceptKey(element.atKey!, regexString) &&
-      //       changes.length <= limit) {
-      //     if (element.commitId == null) {
-      //       changes.add(element);
-      //     }
-      //   }
-      // }
+      var regexString = (regex != null) ? regex : '';
+      var values = getBox().getBetween();
+      var startKey = sequenceNumber + 1;
+      limit ??= values.length + 1;
+      for (CommitEntry element in values) {
+        if (element.key >= startKey &&
+            _acceptKey(element.atKey!, regexString) &&
+            changes.length <= limit) {
+          if (element.commitId == null) {
+            changes.add(element);
+          }
+        }
+      }
       return changes;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting changes:${e.toString()}');
@@ -466,9 +471,11 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       return lastSyncedEntry;
     }
     var values = [];
-    // TODO commenting for compile error
-   // (getBox() as Box).values.toList()..sort(_sortByCommitId);
-
+    final hiveBox = getBox();
+    for (var key in getBox().keys) {
+      values.add(hiveBox.get(key));
+    }
+    values.sort(_sortByCommitId);
     if (values.isEmpty) {
       return null;
     }
@@ -516,7 +523,9 @@ class CommitLogCache {
 
   /// Initializes the CommitLogCache
   void initialize() {
-    Iterable iterable = commitLogKeyStore.getBox().getBetween(); //TODO verify whether this returns all values
+    Iterable iterable = commitLogKeyStore
+        .getBox()
+        .getBetween(); //TODO verify whether this returns all values
     _logger.finer('Initializing CommitLogCache');
     for (var value in iterable) {
       if (value.commitId == null) {

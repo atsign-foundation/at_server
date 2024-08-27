@@ -6,7 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:crypto/crypto.dart';
-import 'package:hive/hive.dart';
+import 'package:isar/isar.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -896,21 +896,27 @@ void main() async {
 }
 
 Future<void> tearDownFunc(String atSign) async {
-  await Hive.deleteBoxFromDisk('commit_log_$atSign');
-  await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
-  await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive/').exists();
+  var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+      .getSecondaryPersistenceStore('@test_user_1')!;
+  var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+  for (String key in keyStore.getKeys()) {
+    await keyStore.remove(key);
+  }
+  var isExists = Directory('test/hive/').existsSync();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
   }
 }
 
 Future<void> setUpFunc(String storageDir, String atSign) async {
+  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  // create storage dir
+  Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atSign, commitLogPath: storageDir);
   var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(atSign)!;
-  await persistenceManager.getHivePersistenceManager()!.init(storageDir);
+  persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
 }
 

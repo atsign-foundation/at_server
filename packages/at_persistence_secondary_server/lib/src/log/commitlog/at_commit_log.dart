@@ -17,7 +17,7 @@ abstract class BaseAtCommitLog implements AtLogType<int, CommitEntry> {
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry
-  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
+  CommitEntry? getEntry(int? sequenceNumber) {
     // Implemented by [ClientAtCommitLog]
     throw UnimplementedError();
   }
@@ -203,9 +203,9 @@ class ClientAtCommitLog extends AtCommitLog {
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry
   @override
-  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
+  CommitEntry? getEntry(int? sequenceNumber) {
     try {
-      var commitEntry = await _commitLogKeyStore.get(sequenceNumber!);
+      var commitEntry = _commitLogKeyStore.get(sequenceNumber!);
       return commitEntry;
     } on Exception catch (e) {
       throw DataStoreException('Exception getting entry:${e.toString()}');

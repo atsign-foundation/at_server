@@ -19,7 +19,10 @@ mixin HiveBase<E> {
     print('***open box');
     _boxName = boxName;
     if (hiveSecret != null) {
-      Hive.box(name: _boxName, directory:storagePath, encryptionKey: hiveSecret.toString());
+      Hive.box(
+          name: _boxName,
+          directory: storagePath,
+          encryptionKey: hiveSecret.toString());
     } else {
       Hive.box(name: _boxName, directory: storagePath);
     }
@@ -32,8 +35,8 @@ mixin HiveBase<E> {
     return Hive.box(name: _boxName);
   }
 
-  Future<E?> getValue(dynamic key) async {
-    return await getBox().get(key);
+  E? getValue(dynamic key) {
+    return getBox().get(key.toString());
   }
 
   int getSize() {

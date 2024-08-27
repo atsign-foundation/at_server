@@ -17,16 +17,16 @@ class CommitLogCompactionService implements AtChangeEventListener {
   /// into [_commitLogEntriesMap].
   CommitLogCompactionService(CommitLogKeyStore commitLogKeyStore) {
     _commitLogKeyStore = commitLogKeyStore;
-    _commitLogKeyStore.toMap().then((map) => map.forEach((key, commitEntry) {
-          // If _commitLogEntriesMap contains the key, then more than one commitEntry exists.
-          // Increment the keysToCompactCount.
-          if (_commitLogEntriesMap.containsKey(commitEntry.atKey)) {
-            keysToCompactCount = keysToCompactCount + 1;
-          }
-          _commitLogEntriesMap.putIfAbsent(
-              commitEntry.atKey!, () => CompactionSortedList());
-          _commitLogEntriesMap[commitEntry.atKey]!.add(key);
-        }));
+    _commitLogKeyStore.toMap().forEach((key, commitEntry) {
+      // If _commitLogEntriesMap contains the key, then more than one commitEntry exists.
+      // Increment the keysToCompactCount.
+      if (_commitLogEntriesMap.containsKey(commitEntry.atKey)) {
+        keysToCompactCount = keysToCompactCount + 1;
+      }
+      _commitLogEntriesMap.putIfAbsent(
+          commitEntry.atKey!, () => CompactionSortedList());
+      _commitLogEntriesMap[commitEntry.atKey]!.add(key);
+    });
   }
 
   @override

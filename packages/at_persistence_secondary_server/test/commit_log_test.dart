@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:hive/hive.dart';
+import 'package:isar/isar.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -23,7 +24,7 @@ void main() async {
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
         var hiveKey =
             await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
-        var committedEntry = await (commitLogInstance.getEntry(hiveKey));
+        var committedEntry = commitLogInstance.getEntry(hiveKey);
         expect(committedEntry?.key, hiveKey);
         expect(committedEntry?.atKey, 'location@alice');
         expect(committedEntry?.operation, CommitOp.UPDATE);
@@ -58,9 +59,9 @@ void main() async {
         await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
         await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
 
-        CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
+        CommitEntry? commitEntry0 = commitLogInstance?.getEntry(0);
         await commitLogInstance?.update(commitEntry0!, 1);
-        CommitEntry? commitEntry1 = await commitLogInstance?.getEntry(1);
+        CommitEntry? commitEntry1 = commitLogInstance?.getEntry(1);
         await commitLogInstance?.update(commitEntry1!, 0);
         var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
         expect(lastSyncedEntry!.commitId, 1);
@@ -134,14 +135,18 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_false_$i.wavi@alice',
-                CommitOp.UPDATE,
-                DateTime.now()));
+            commitLogKeystore.getBox().put(
+                i.toString(),
+                CommitEntry('test_key_false_$i.wavi@alice', CommitOp.UPDATE,
+                    DateTime.now())
+                  ..key = i);
           } else {
-            await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
-              ..commitId = i);
+            commitLogKeystore.getBox().put(
+                i.toString(),
+                CommitEntry('test_key_false_$i.wavi@alice', CommitOp.UPDATE,
+                    DateTime.now())
+                  ..commitId = i
+                  ..key = i);
           }
         }
         List<CommitEntry> changes =
@@ -413,34 +418,41 @@ void main() async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
         // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.getBox().add(
+        commitLogInstance!.commitLogKeyStore.getBox().put(
+            "0",
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
-              ..commitId = 0);
+              ..commitId = 0
+              ..key = 0);
         // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore.getBox().add(
-            CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
+        commitLogInstance.commitLogKeyStore.getBox().put(
+            "1",
+            CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
+              ..key = 1);
         // Inserting commitEntry with commitId 2
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        commitLogInstance.commitLogKeyStore.getBox().put(
+            "2",
             CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
-              ..commitId = 2);
+              ..commitId = 2
+              ..key = 2);
         // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore
-            .getBox()
-            .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
+        commitLogInstance.commitLogKeyStore.getBox().put(
+            "3",
+            CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now())
+              ..key = 3);
 
-        var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+        var commitLogMap = commitLogInstance.commitLogKeyStore.toMap();
         await commitLogInstance.commitLogKeyStore
             .repairNullCommitIDs(commitLogMap);
-        commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+        commitLogMap = commitLogInstance.commitLogKeyStore.toMap();
         commitLogMap.forEach((key, value) {
           assert(value.commitId != null);
           expect(value.commitId, key);
         });
 
         // verify the commit id's return correct key's
-        expect((await commitLogInstance.commitLogKeyStore.get(1))?.atKey,
+        expect((commitLogInstance.commitLogKeyStore.get(1))?.atKey,
             'location@alice');
-        expect((await commitLogInstance.commitLogKeyStore.get(3))?.atKey,
+        expect((commitLogInstance.commitLogKeyStore.get(3))?.atKey,
             'mobile@alice');
       });
     });
@@ -627,12 +639,16 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
-          } else {
-            await commitLogKeystore.getBox().add(
+            commitLogKeystore.getBox().put(
+                i.toString(),
                 CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
-                  ..commitId = i);
+                  ..key = i);
+          } else {
+            commitLogKeystore.getBox().put(
+                i.toString(),
+                CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
+                  ..commitId = i
+                  ..key = i);
           }
         }
         Iterator<MapEntry<String, CommitEntry>>? changes =
@@ -699,6 +715,8 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
+  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice',
           commitLogPath: storageDir, enableCommitId: enableCommitId);
@@ -706,7 +724,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
       .getSecondaryPersistenceStore('@alice')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir);
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
