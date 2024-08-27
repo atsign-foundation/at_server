@@ -1,3 +1,5 @@
+## 3.0.50
+- fix: Enhance namespace authorisation check to verify when namespace has a period in it
 ## 3.0.49
 - feat: Enforce superset access check for approving apps
 - fix: respect isEncrypted:false if supplied in the notify: command, and 
