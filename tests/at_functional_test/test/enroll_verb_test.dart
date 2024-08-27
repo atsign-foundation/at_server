@@ -676,6 +676,131 @@ void main() {
     });
   });
 
+  group('A group of tests related to APKAM unrevoke operation', () {
+    test('A test to verify enrollment unrevoke operation', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+
+      String otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
+
+      // connect to the second client
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      //send second enroll request with otp
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      var secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
+      String secondEnrollmentId = enrollJson['enrollmentId'];
+
+      // connect to the first client to approve the enroll request
+      var approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', '');
+      var approveJson = jsonDecode(approveResponse);
+      expect(approveJson['status'], 'approved');
+      expect(approveJson['enrollmentId'], secondEnrollmentId);
+
+      String revokeCommand =
+          'enroll:revoke:{"enrollmentId":"$secondEnrollmentId"}';
+      String revokeEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(revokeCommand);
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], secondEnrollmentId);
+      // unrevoke command
+      String unrevokeCommand =
+          'enroll:unrevoke:{"enrollmentId":"$secondEnrollmentId"}';
+      String unrevokeEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(unrevokeCommand);
+      var unrevokeEnrollmentMap =
+          jsonDecode(unrevokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(unrevokeEnrollmentMap['status'], 'approved');
+      expect(unrevokeEnrollmentMap['enrollmentId'], secondEnrollmentId);
+      firstAtSignConnection.close();
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
+      expect(authResponse, 'data:success');
+    });
+
+    test(
+        'A test to verify unrevoke operation cannot be performed without revoke enrollment first',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+
+      String otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
+
+      // connect to the second client
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      //send second enroll request with otp
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      var secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
+      String secondEnrollmentId = enrollJson['enrollmentId'];
+
+      // connect to the first client to approve the enroll request
+      var approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', '');
+      var approveJson = jsonDecode(approveResponse);
+      expect(approveJson['status'], 'approved');
+      expect(approveJson['enrollmentId'], secondEnrollmentId);
+      String unrevokeEnrollmentResponse =
+          (await firstAtSignConnection.sendRequestToServer(
+                  'enroll:unrevoke:{"enrollmentId":"$secondEnrollmentId"}'))
+              .replaceAll('error:', '');
+      expect(jsonDecode(unrevokeEnrollmentResponse)['errorDescription'],
+          'Internal server exception : Failed to unrevoke enrollment id: $secondEnrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked');
+    });
+  });
+
   group('A group of negative tests on enroll verb', () {
     late String enrollmentId;
     late String enrollmentResponse;
