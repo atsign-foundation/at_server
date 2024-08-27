@@ -52,9 +52,10 @@ void main() async {
       AtCommitLog? commitLog = keyStore?.commitLog as AtCommitLog;
       expect(
           commitLog.getLatestCommitEntry(key)?.operation, CommitOp.UPDATE_ALL);
-      // the latest commit entry is one with an UPDATE_ALL op which indicates that
-      // the deleteExpiredKeys did not add a DELETE commitEntry to the commitLog
-      expect(commitLog.entriesCount(), 1);
+      // expects 0 commitEntries as when skipCommits is enabled, that does not
+      // add new commitEntries for deletion of expired keys and also removes
+      // the UPDATE_ALL commitEntry created while deletion
+      expect(commitLog.entriesCount(), 0);
     });
 
     test('manually deleted keys add a commitEntry to commitLog', () async {
@@ -81,9 +82,12 @@ void main() async {
       expect(() async => await keyStore?.get(key2),
           throwsA(predicate((e) => e is KeyNotFoundException)));
       expect(commitLog.getLatestCommitEntry(key2)?.operation, CommitOp.DELETE);
-      // the latest commitEntry for key2 has CommitOp.DELETE indicating that the commits are not being
-      // skipped for the keys that are not deleted as part of deleteExpiredKeys()
-      expect(keyStore?.commitLog?.entriesCount(), 2);
+      // expects 1 commitEntries as when skipCommits is enabled, that does not
+      // add new commitEntries for deletion of expired keys and also removes
+      // the UPDATE_ALL commitEntry created while deletion
+      //
+      // 1 commit entry available belongs to the key created and deleted manually
+      expect(keyStore?.commitLog?.entriesCount(), 1);
     });
 
     tearDown(() async => await tearDownFunc());
@@ -99,7 +103,7 @@ void main() async {
       assert(keyStore != null);
     });
 
-    test('ensure expired keys deletion entry is not added to commitLog',
+    test('ensure expired keys deletion entry is added to commitLog',
         () async {
       AtCommitLog? commitLog = keyStore?.commitLog as AtCommitLog;
       String key = 'commit_test$atsign';
