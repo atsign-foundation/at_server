@@ -1,3 +1,5 @@
+## 3.0.50
+- fix: Enhance namespace authorisation check to verify when namespace has a period in it
 ## 3.0.49
 - feat: Enforce superset access check for approving apps
 - fix: respect isEncrypted:false if supplied in the notify: command, and 
@@ -5,6 +7,8 @@
 - fix: info verb no longer lists "beta" features which are now live
 - fix: in MonitorVerbHandler, add "sharedKeyEnc" to the metadata to propagate the sharedEncryptedKey in
   notifications from the server to the client.
+- build[deps]: Upgraded the following package:
+  - at_persistence_secondary_server to v3.0.63
 ## 3.0.48
 - feat Add expiresAt and availableAt params to notify:list response
 

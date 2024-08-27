@@ -317,6 +317,77 @@ void main() {
     });
 
     test(
+        'A test to verify llookup verb of a at_contact.buzz namespace is allowed when namespace is buzz ',
+        () async {
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with buzz namespace
+      String updateCommand = 'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Local Lookup a key with at_contact.buzz namespace
+      String llookupCommand = 'llookup:atconnections.bob.alice.at_contact.buzz$alice';
+      HashMap<String, String?> llookupVerbParams =
+          getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, 'bob');
+    });
+
+    test(
+        'A test to verify llookup verb of a at_contact.buzz namespace is allowed when namespace is at_contact.buzz ',
+        () async {
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'at_contact.buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      // Update a key with at_contact.buzz namespace
+      String updateCommand =
+          'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      // Local Lookup a key with at_contact.buzz namespace
+      String llookupCommand =
+          'llookup:atconnections.bob.alice.at_contact.buzz$alice';
+      HashMap<String, String?> llookupVerbParams =
+          getVerbParam(VerbSyntax.llookup, llookupCommand);
+      LocalLookupVerbHandler localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore);
+      await localLookupVerbHandler.processVerb(
+          response, llookupVerbParams, inboundConnection);
+      expect(response.data, 'bob');
+    });
+
+    test(
         'A test to verify llookup verb throws exception when namespace is not authorized',
         () async {
       final enrollJson = {

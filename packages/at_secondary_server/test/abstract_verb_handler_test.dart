@@ -36,7 +36,7 @@ void main() {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'wavi': 'rw'},
+        'namespaces': {'wavi': 'rw', 'buzz': 'rw'},
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
@@ -60,6 +60,39 @@ void main() {
           namespace: 'wavi');
       expect(isAuthorized, true);
     });
+
+    test(
+        'test isAuthorized command with at_contact.buzz namespace in atKey and  buzz namespace passes',
+        () async {
+      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var atKey = AtKey()
+        ..sharedBy = '@alice'
+        ..sharedWith = '@bob'
+        ..namespace = 'at_contact.buzz'
+        ..key = 'phone';
+      var isAuthorized = await handler.isAuthorized(
+          inboundConnection.metaData as InboundConnectionMetadata,
+          atKey: atKey.toString(),
+          namespace: 'buzz');
+      expect(isAuthorized, true);
+    });
+
+    test(
+        'test isAuthorized command with persona.buzz namespace in atKey and  buzz namespace passes',
+        () async {
+      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var atKey = AtKey()
+        ..sharedBy = '@alice'
+        ..sharedWith = '@bob'
+        ..namespace = 'persona.buzz'
+        ..key = 'phone';
+      var isAuthorized = await handler.isAuthorized(
+          inboundConnection.metaData as InboundConnectionMetadata,
+          atKey: atKey.toString(),
+          namespace: 'buzz');
+      expect(isAuthorized, true);
+    });
+
     test(
         'test isAuthorized command with namespace in atKey and namespace passed with different values',
         () async {
