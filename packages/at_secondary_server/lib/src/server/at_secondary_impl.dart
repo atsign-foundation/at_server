@@ -613,6 +613,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
+    // Initialize Secondary Storage
+    var secondaryPersistenceStore =
+        SecondaryPersistenceStoreFactory.getInstance()
+            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+    var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
+    manager.init(storagePath!, isarLibPath: AtSecondaryConfig.isarLibPath);
     // Initialize commit log
     _commitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
@@ -635,12 +641,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
 
-    // Initialize Secondary Storage
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
-    var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    manager.init(storagePath!, isarLibPath: AtSecondaryConfig.isarLibPath);
     // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
