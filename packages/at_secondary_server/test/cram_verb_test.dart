@@ -14,6 +14,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:isar/isar.dart';
 
 import 'test_utils.dart';
 
@@ -158,11 +159,12 @@ void main() {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir, isarLibPath: getIsarLibPath());
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;

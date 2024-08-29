@@ -56,7 +56,7 @@ class CramVerbHandler extends AbstractVerbHandler {
       var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
           .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
       try {
-        await atAccessLog?.insert(atSign, cram.name());
+        atAccessLog?.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }

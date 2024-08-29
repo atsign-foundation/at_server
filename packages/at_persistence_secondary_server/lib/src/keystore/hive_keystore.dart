@@ -63,12 +63,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   @override
-  Future<AtData?> get(String key) async {
+  AtData? get(String key) {
     key = key.toLowerCase();
     AtData? value;
     try {
       String hiveKey = keyStoreHelper.prepareKey(key);
-      value = await (persistenceManager!.getBox()).get(hiveKey);
+      value = (persistenceManager!.getBox()).get(hiveKey);
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
@@ -162,7 +162,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             skeEncAlgo: skeEncAlgo,
             skipCommit: skipCommit);
       } else {
-        AtData? existingData = await get(key);
+        AtData? existingData = get(key);
         String hive_key = keyStoreHelper.prepareKey(key);
         var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingAtData: existingData!,
@@ -184,6 +184,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
             atSign: persistenceManager?.atsign);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
+        hive_value.key = hive_key;
         persistenceManager!.getBox().put(hive_key, hive_value);
         _updateMetadataCache(key, hive_value.metaData);
         if (skipCommit) {
@@ -248,6 +249,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         ivNonce: ivNonce,
         skeEncKeyName: skeEncKeyName,
         skeEncAlgo: skeEncAlgo);
+    hive_data.key = hive_key;
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
@@ -410,7 +412,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     // cache map. To preserve the existing behaviour, returning "null"
     // when KeyNotFoundException is thrown.
     try {
-      return (await get(key.toLowerCase()))?.metaData;
+      return (get(key.toLowerCase()))?.metaData;
     } on KeyNotFoundException {
       return null;
     }
@@ -430,7 +432,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     _checkMaxLength(hive_key);
     AtData? existingData;
     if (isKeyExists(key)) {
-      existingData = await get(key);
+      existingData = get(key);
     }
     value!.metaData = AtMetadataBuilder(
             newAtMetaData: metadata,
@@ -449,7 +451,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     String hive_key = keyStoreHelper.prepareKey(key);
     AtData? existingData;
     if (isKeyExists(key)) {
-      existingData = await get(key);
+      existingData = get(key);
     }
     // putMeta is intended to updates only the metadata of a key.
     // So, fetch the value from the existing key and set the same value.

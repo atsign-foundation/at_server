@@ -156,7 +156,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     AtAccessLog? atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
 
-    await atAccessLog!.insert(key, value);
+    atAccessLog!.insert(key, value);
     return;
   }
 }

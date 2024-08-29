@@ -28,6 +28,7 @@ class AtData {
 
   factory AtData.fromJson(dynamic json) {
     return AtData()
+      ..key = json['key']
       ..data = json['data']
       ..metaData = AtMetaData().fromJson(json['metaData']);
   }

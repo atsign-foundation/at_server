@@ -35,14 +35,15 @@ Future<void> setUpMethod() async {
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(atSign);
+  // Init the hive instances
+  secondaryPersistenceStore!
+      .getHivePersistenceManager()!
+      .init(storageDir, isarLibPath: getIsarLibPath());
   // Initialize commit log
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(atSign, commitLogPath: storageDir, enableCommitId: true);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+
   // Set currentAtSign
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
 }
@@ -545,7 +546,7 @@ void main() {
         // throw exception for invalid key, calling put method on the hive box.
         // and inserting the entry into the commit log
         // The "**" in the key - @invalidkey**.buzz@alice is added to set key as invalid key
-        await secondaryPersistenceStore!
+        secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.persistenceManager
             ?.getBox()
@@ -614,7 +615,7 @@ void main() {
           ccd: true,
           dataSignature: 'dummy_data_signature',
           sharedKeyEncrypted: 'dummy_shared_key',
-          publicKeyChecksum: 'dummy_checksum',
+          publicKeyCheckSum: 'dummy_checksum',
           encoding: 'base64',
           encKeyName: 'an_encrypting_key_name',
           encAlgo: 'an_encrypting_algorithm_name',

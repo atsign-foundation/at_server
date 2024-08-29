@@ -102,7 +102,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog?.insert(fromAtSign, from.name());
+      atAccessLog?.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }

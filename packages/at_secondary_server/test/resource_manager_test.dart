@@ -10,6 +10,8 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'test_utils.dart';
+
 class MockOutboundClient extends Mock implements OutboundClient {}
 
 void main() async {
@@ -194,7 +196,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir, isarLibPath: getIsarLibPath());
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var keyStoreManager =
@@ -206,14 +208,14 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getAccessLog(atsign ?? '@bob', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
   notificationInstance.currentAtSign = atsign ?? '@bob';
-  await notificationInstance.init(storageDir);
+  notificationInstance.init(storageDir);
   return keyStoreManager;
 }
 
 Future<void> tearDownFunc() async {
   var isExists = await Directory('test/hive').exists();
   AtNotificationMap.getInstance().clear();
-  await AtNotificationKeystore.getInstance().close();
+  AtNotificationKeystore.getInstance().close();
   if (isExists) {
     await Directory('test/hive').delete(recursive: true);
   }

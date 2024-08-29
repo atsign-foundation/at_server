@@ -151,7 +151,7 @@ class OutboundClient {
       }
       doing =
           'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
-      atData = AtData().fromJson(jsonDecode(remoteResponse));
+      atData = AtData.fromJson(jsonDecode(remoteResponse));
 
       doing = 'checkRemotePublicKey updating $cachedPublicKeyName in cache';
       // Note: Potentially the put here may be doing a lot more than just the put.

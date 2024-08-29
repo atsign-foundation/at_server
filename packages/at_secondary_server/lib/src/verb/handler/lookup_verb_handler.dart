@@ -152,7 +152,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
       try {
-        await atAccessLog!
+        atAccessLog!
             .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
@@ -191,7 +191,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
       try {
-        await atAccessLog!
+        atAccessLog!
             .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
@@ -250,7 +250,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
           response.data.toString(), thisServersAtSign);
     }
     try {
-      await atAccessLog!
+      atAccessLog!
           .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');

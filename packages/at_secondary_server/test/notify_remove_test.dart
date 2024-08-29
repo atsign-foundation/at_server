@@ -85,7 +85,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getSecondaryPersistenceStore(atsign ?? '@test_user_1')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir, isarLibPath: getIsarLibPath());
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var keyStoreManager =
@@ -97,7 +97,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
   notificationInstance.currentAtSign = atsign ?? '@test_user_1';
-  await notificationInstance.init(storageDir);
+  notificationInstance.init(storageDir);
   return keyStoreManager;
 }
 

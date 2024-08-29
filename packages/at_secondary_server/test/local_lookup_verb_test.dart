@@ -567,11 +567,12 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir, isarLibPath: getIsarLibPath());
+  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog('@test_user_1', commitLogPath: storageDir);
+
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
@@ -582,7 +583,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
   final notificationStore = AtNotificationKeystore.getInstance();
   notificationStore.currentAtSign = '@test_user_1';
-  await notificationStore.init(storageDir);
+  notificationStore.init(storageDir);
   return keyStoreManager;
 }
 

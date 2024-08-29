@@ -135,13 +135,14 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     if (deleteKeysList.isEmpty) {
       return;
     }
-    getBox().deleteRange(0, deleteKeysList.last);
+    var box = getBox();
     // Removes stale entries from the commit log cache map
     for (int key in deleteKeysList) {
-      CommitEntry? commitEntry = getBox()[key];
+      CommitEntry? commitEntry = box.get(key.toString());
       if (commitEntry != null) {
         commitLogCache.remove(commitEntry.atKey!);
       }
+      box.delete(key.toString());
     }
   }
 
@@ -319,7 +320,6 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// For each commitEntry with a null commitId, replace the commitId with
   /// the hive internal key
   // @visibleForTesting
-  // TODO commented
   Future<void> repairNullCommitIDs(Map<int, CommitEntry> commitLogMap) async {
     await Future.forEach(commitLogMap.keys, (key) async {
       CommitEntry? commitEntry = commitLogMap[key];

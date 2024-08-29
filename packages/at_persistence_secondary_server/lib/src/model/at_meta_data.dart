@@ -134,8 +134,10 @@ class AtMetaData {
   AtMetaData fromJson(Map json) {
     createdBy = json['createdBy'];
     updatedBy = json['updatedBy'];
-    createdAt = DateTime.parse(json['createdAt']);
-    updatedAt = DateTime.parse(json['updatedAt']);
+    createdAt =
+        json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null;
+    updatedAt =
+        json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null;
     expiresAt = (json['expiresAt'] == null || json['expiresAt'] == 'null')
         ? null
         : DateTime.parse(json['expiresAt']);

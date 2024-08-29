@@ -28,9 +28,10 @@ class AtNotificationKeystore
   final _logger = AtSignLogger('AtNotificationKeystore');
 
   @override
-    void initialize() async {
+  void initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
-     super.openBox(_boxName);
+    Hive.registerAdapter('AtNotification', AtNotification.fromJson);
+    super.openBox(_boxName);
   }
 
   bool isEmpty() {
@@ -48,8 +49,8 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<AtNotification?> get(key) async {
-    return await getValue(key);
+  AtNotification? get(key) {
+    return getValue(key);
   }
 
   @override
@@ -75,7 +76,7 @@ class AtNotificationKeystore
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
     AtNotificationCallback.getInstance().invokeCallbacks(value);
-     _getBox().put(key, value);
+    _getBox().put(key, value);
   }
 
   @override

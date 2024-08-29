@@ -8,6 +8,9 @@ class AccessLogEntry {
 
   final String? _lookupKey;
 
+  late int
+      key; // hive new version doesn't have method to get auto increment key.
+
   AccessLogEntry(
       this._fromAtSign, this._requestDateTime, this._verbName, this._lookupKey);
 
@@ -21,10 +24,17 @@ class AccessLogEntry {
 
   Map toJson() => {
         'fromAtSign': _fromAtSign,
-        'requestDateTime': _requestDateTime,
+        'requestDateTime': _requestDateTime.toString(),
         'verbName': _verbName,
         'lookupKey': _lookupKey
       };
+  factory AccessLogEntry.fromJson(dynamic json) {
+    return AccessLogEntry(
+        json['fromAtSign'],
+        DateTime.parse(json['requestDateTime']),
+        json['verbName'],
+        json['lookupKey']);
+  }
 
   @override
   String toString() {

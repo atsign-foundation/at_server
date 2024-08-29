@@ -78,7 +78,7 @@ void main() {
       // Response should have been cached
       expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
       // Cached data should be identical to what was sent by @bob
-      AtData cachedAtData = (await secondaryKeyStore.get(cachedKeyName))!;
+      AtData cachedAtData = secondaryKeyStore.get(cachedKeyName)!;
       expect(cachedAtData.data, bobData.data);
       expect(cachedAtData.metaData!.toCommonsMetadata(),
           bobData.metaData!.toCommonsMetadata());

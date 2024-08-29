@@ -2,14 +2,22 @@ import 'dart:io';
 
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
+import 'package:isar/isar.dart';
 
 mixin HiveBase<E> {
   late String _boxName;
   late String storagePath;
+  late String isarLibPath;
   final _logger = AtSignLogger('HiveBase');
-  void init(String storagePath) {
+  void init(String storagePath, {String? isarLibPath}) {
+    if (!Directory(storagePath).existsSync()) {
+      Directory(storagePath).createSync(recursive: true);
+    }
     this.storagePath = storagePath;
     Hive.defaultDirectory = storagePath;
+    if (isarLibPath != null) {
+      Isar.initialize(isarLibPath);
+    }
     initialize();
   }
 

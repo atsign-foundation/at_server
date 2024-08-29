@@ -57,7 +57,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog?.insert(atSign!, pLookup.name(), lookupKey: keyName);
+      atAccessLog?.insert(atSign!, pLookup.name(), lookupKey: keyName);
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }

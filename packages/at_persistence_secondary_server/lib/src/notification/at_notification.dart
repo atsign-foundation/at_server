@@ -92,24 +92,55 @@ class AtNotification {
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
-        'notificationDateTime': _notificationDateTime,
+        'notificationDateTime': _notificationDateTime.toString(),
         'toAtSign': _toAtSign,
         'notification': _notification,
-        'type': _type,
-        'opType': _opType,
-        'messageType': _messageType,
-        'priority': priority,
-        'notificationStatus': notificationStatus,
+        'type': _type?.name,
+        'opType': _opType?.name,
+        'messageType': _messageType?.name,
+        'priority': priority?.name,
+        'notificationStatus': notificationStatus?.name,
         'retryCount': retryCount,
         'strategy': _strategy,
         'depth': _depth,
         'notifier': _notifier,
-        'expiresAt': _expiresAt,
+        'expiresAt': _expiresAt.toString(),
         'atValue': _atValue,
         'atMetadata': _atMetadata?.toJson(),
         'ttl': _ttl
       };
 
+  AtNotification.fromJson(dynamic json)
+      : _id = json['id'],
+        _fromAtSign = json['fromAtSign'],
+        _notificationDateTime = DateTime.parse(json['notificationDateTime']),
+        _toAtSign = json['toAtSign'],
+        _notification = json['notification'],
+        _type = json['type'] != null
+            ? NotificationType.values.byName(json['type'])
+            : null,
+        _opType = json['opType'] != null
+            ? OperationType.values.byName(json['opType'])
+            : null,
+        _messageType = json['messageType'] != null
+            ? MessageType.values.byName(json['messageType'])
+            : null,
+        _expiresAt = DateTime.parse(json['expiresAt']),
+        priority = json['priority'] != null
+            ? NotificationPriority.values.byName(json['priority'])
+            : null,
+        notificationStatus = json['notificationStatus'] != null
+            ? NotificationStatus.values.byName(json['notificationStatus'])
+            : null,
+        retryCount = json['retryCount'],
+        _strategy = json['strategy'],
+        _notifier = json['notifier'],
+        _depth = json['depth'],
+        _atValue = json['atValue'],
+        _atMetadata = json['atMetadata'] != null
+            ? AtMetaData.fromJson(json['atMetadata'])
+            : null,
+        _ttl = json['ttl'];
   @override
   String toString() {
     return 'AtNotification{id: $_id, notificationStatus:$notificationStatus, '

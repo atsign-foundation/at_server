@@ -207,7 +207,7 @@ void main() {
         await cacheManager.put(cachedKeyName, bobOriginalData);
         expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
 
-        AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
+        AtData bobNewData = AtData.fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
         bobOriginalData.metaData!.ttr = 60; // 1 minute, just to distinguish
         String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
@@ -248,7 +248,7 @@ void main() {
         await cacheManager.put(cachedKeyName, bobOriginalData);
         expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
 
-        AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
+        AtData bobNewData = AtData.fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
         bobOriginalData.metaData!.ttr =
             60; // 2 seconds, just to be different from original
@@ -292,7 +292,7 @@ void main() {
         await cacheManager.put(cachedKeyName, bobOriginalData);
         expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
 
-        AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
+        AtData bobNewData = AtData.fromJson(bobOriginalData.toJson());
         bobOriginalData.metaData!.ttr = -1;
         bobOriginalData.metaData!.ttl = 24 * 60 * 60 * 1000;
         bobNewData.data = "New data";

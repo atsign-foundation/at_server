@@ -898,6 +898,8 @@ void main() async {
 Future<void> tearDownFunc(String atSign) async {
   var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
+  var storageDir = '${Directory.current.path}/test/hive';
+  keyStoreManager.getHivePersistenceManager()!.init(storageDir);
   var keyStore = keyStoreManager.getSecondaryKeyStore()!;
   for (String key in keyStore.getKeys()) {
     await keyStore.remove(key);
@@ -909,7 +911,7 @@ Future<void> tearDownFunc(String atSign) async {
 }
 
 Future<void> setUpFunc(String storageDir, String atSign) async {
-  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  Isar.initialize(TestUtils.getIsarLibPath());
   // create storage dir
   Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()

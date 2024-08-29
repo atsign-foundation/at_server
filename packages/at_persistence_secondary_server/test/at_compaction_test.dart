@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:test/test.dart';
+import 'package:isar/isar.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
@@ -10,6 +11,8 @@ AtCommitLog? atCommitLog;
 
 Future<void> setUpMethod({bool enableCommitId = true}) async {
   String atSign = '@alice';
+  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  Directory(storageDir).createSync(recursive: true);
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(atSign);
@@ -18,9 +21,7 @@ Future<void> setUpMethod({bool enableCommitId = true}) async {
       commitLogPath: storageDir, enableCommitId: enableCommitId);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  secondaryPersistenceStore!.getHivePersistenceManager()!.init(storageDir);
 }
 
 void main() {
@@ -70,13 +71,13 @@ void main() {
     test(
         'A test to verify commit log compaction on the client side does not remove null values',
         () async {
-      await atCommitLog!.commitLogKeyStore.add(
+      atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
             ..commitId = 1);
-      await atCommitLog!.commitLogKeyStore.add(
+      atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
             ..commitId = 2);
-      await atCommitLog!.commitLogKeyStore.add(
+      atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
       var atCompactionService = AtCompactionService.getInstance();
       await atCompactionService.executeCompactionInternal(atCommitLog!);
@@ -94,11 +95,10 @@ void main() {
           .getAccessLog('@alice', accessLogPath: storageDir);
     });
     test('A test to verify access log compaction job', () async {
-      await atAccessLog?.insert('@alice', 'from');
-      await atAccessLog?.insert('@alice', 'pol');
-      await atAccessLog?.insert('@alice', 'scan');
-      await atAccessLog?.insert('@alice', 'lookup',
-          lookupKey: '@alice:phone@bob');
+      atAccessLog?.insert('@alice', 'from');
+      atAccessLog?.insert('@alice', 'pol');
+      atAccessLog?.insert('@alice', 'scan');
+      atAccessLog?.insert('@alice', 'lookup', lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
       var atCompactionService = AtCompactionService.getInstance();

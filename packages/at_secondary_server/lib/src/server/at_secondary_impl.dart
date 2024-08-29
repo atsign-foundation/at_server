@@ -589,7 +589,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Closing AccessLog");
       await AtAccessLogManagerImpl.getInstance().close();
       logger.info("Closing NotificationKeyStore");
-      await AtNotificationKeystore.getInstance().close();
+      AtNotificationKeystore.getInstance().close();
       logger.info("Closing SecondaryKeyStore");
       await SecondaryPersistenceStoreFactory.getInstance().close();
 
@@ -630,7 +630,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Initialize notification storage
     var notificationKeystore = AtNotificationKeystore.getInstance();
     notificationKeystore.currentAtSign = serverContext!.currentAtSign!;
-    await notificationKeystore.init(notificationStoragePath!);
+    notificationKeystore.init(notificationStoragePath!,
+        isarLibPath: AtSecondaryConfig.isarLibPath);
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
 
@@ -639,7 +640,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(storagePath!);
+    manager.init(storagePath!, isarLibPath: AtSecondaryConfig.isarLibPath);
     // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
@@ -658,7 +659,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     keyStoreManager.keyStore = secondaryKeyStore;
     // Initialize the hive store
-    await secondaryKeyStore.initialize();
+    secondaryKeyStore.initialize();
     serverContext!.isKeyStoreInitialized = true;
     var keyStore = keyStoreManager.getKeyStore();
     if (!keyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
@@ -676,7 +677,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await keyStore.get(
+      var signingPrivateKey = keyStore.get(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {

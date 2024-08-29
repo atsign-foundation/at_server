@@ -150,7 +150,7 @@ void main() {
           'all', bobNewPublicKeyAtData,
           key: 'public:publickey$bob')!;
       bobNewPublicKeyAtData =
-          AtData().fromJson(jsonDecode(bobNewPublicKeyAsJson));
+          AtData.fromJson(jsonDecode(bobNewPublicKeyAsJson));
       when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
@@ -235,7 +235,7 @@ void main() {
           'all', bobNewPublicKeyAtData,
           key: 'public:publickey$bob')!;
       bobNewPublicKeyAtData =
-          AtData().fromJson(jsonDecode(bobNewPublicKeyAsJson));
+          AtData.fromJson(jsonDecode(bobNewPublicKeyAsJson));
       when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);

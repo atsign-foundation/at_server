@@ -473,7 +473,8 @@ void main() {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put(testNotificationId, notification);
+      await AtNotificationKeystore.getInstance()
+          .put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
           keyStoreManager.getKeyStore(), mockOutboundClientManager);
@@ -602,12 +603,12 @@ void main() {
       expect(atNotification['fromAtSign'], '@test_user_1');
       expect(atNotification['toAtSign'], '@bob');
       expect(atNotification['notification'], 'key-2');
-      expect(atNotification['type'], NotificationType.received.toString());
-      expect(atNotification['notificationStatus'],
-          NotificationStatus.queued.toString());
-      expect(atNotification['priority'], NotificationPriority.low.toString());
-      expect(atNotification['opType'], OperationType.update.toString());
-      expect(atNotification['messageType'], MessageType.key.toString());
+      expect(atNotification['type'], NotificationType.received.name);
+      expect(
+          atNotification['notificationStatus'], NotificationStatus.queued.name);
+      expect(atNotification['priority'], NotificationPriority.low.name);
+      expect(atNotification['opType'], OperationType.update.name);
+      expect(atNotification['messageType'], MessageType.key.name);
     });
 
     test('test to fetch a non existent notification using notification-id',
@@ -639,7 +640,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getSecondaryPersistenceStore(atsign ?? '@test_user_1')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir, isarLibPath: getIsarLibPath());
 //  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var keyStoreManager =
@@ -651,7 +652,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
       .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
   var notificationInstance = AtNotificationKeystore.getInstance();
   notificationInstance.currentAtSign = atsign ?? '@test_user_1';
-  await notificationInstance.init(storageDir);
+  notificationInstance.init(storageDir);
   return keyStoreManager;
 }
 

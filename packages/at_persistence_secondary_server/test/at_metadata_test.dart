@@ -5,6 +5,9 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:collection/collection.dart';
 import 'package:test/test.dart';
+import 'package:isar/isar.dart';
+
+import 'test_utils.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -244,6 +247,9 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
+  Isar.initialize(TestUtils.getIsarLibPath());
+  // create storage dir
+  Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice',
           commitLogPath: storageDir, enableCommitId: enableCommitId);
@@ -251,7 +257,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
       .getSecondaryPersistenceStore('@alice')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =

@@ -29,6 +29,8 @@ class AtSecondaryConfig {
   static const String _accessLogPath = 'storage/accessLog';
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
   static const int _expiringRunFreqMins = 10;
+  static const String _isarLibPath =
+      '/Users/murali/Downloads/libisar_macos.dylib';
 
   //Commit Log
   static const int _commitLogCompactionFrequencyMins = 18;
@@ -419,6 +421,17 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'storagePath']);
     } on ElementNotFoundException {
       return _storagePath;
+    }
+  }
+
+  static String? get isarLibPath {
+    if (_envVars.containsKey('isarLibPath')) {
+      return _envVars['isarLibPath'];
+    }
+    try {
+      return getConfigFromYaml(['hive', 'isarLibPath']);
+    } on ElementNotFoundException {
+      return _isarLibPath;
     }
   }
 

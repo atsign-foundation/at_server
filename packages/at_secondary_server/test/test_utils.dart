@@ -18,6 +18,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:isar/isar.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
@@ -97,28 +98,34 @@ SecondaryPersistenceStore? secondaryPersistenceStore;
 AtCommitLog? atCommitLog;
 
 verbTestsSetUpAll() async {
+  Isar.initialize(getIsarLibPath());
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
+}
+
+String getIsarLibPath() {
+  //##TODO read from env var
+  return '/Users/murali/Downloads/libisar_macos.dylib';
 }
 
 verbTestsSetUp() async {
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(alice);
+  // Init the hive instances
+  secondaryPersistenceStore!
+      .getHivePersistenceManager()!
+      .init(storageDir, isarLibPath: getIsarLibPath());
   // Initialize commit log
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
 
   secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
 
   var notificationKeystore = AtNotificationKeystore.getInstance();
   notificationKeystore.currentAtSign = alice;
-  await notificationKeystore.init(storageDir);
+  notificationKeystore.init(storageDir, isarLibPath: getIsarLibPath());
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -213,7 +220,7 @@ verbTestsSetUp() async {
       'all', bobOriginalPublicKeyAtData,
       key: 'public:publickey$bob')!;
   bobOriginalPublicKeyAtData =
-      AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
+      AtData.fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
 
   when(() => mockOutboundConnection.write(any()))
       .thenAnswer((Invocation invocation) async {

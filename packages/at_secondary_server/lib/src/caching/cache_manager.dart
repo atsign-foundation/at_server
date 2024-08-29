@@ -156,7 +156,7 @@ class AtCacheManager {
           "remoteLookUp: remote atServer returned String value 'null' for $remoteKeyName");
     }
 
-    AtData atData = AtData().fromJson(jsonDecode(remoteResponse));
+    AtData atData = AtData.fromJson(jsonDecode(remoteResponse));
 
     // We only cache other people's stuff
     if (cachedKeyName.endsWith(atSign)) {

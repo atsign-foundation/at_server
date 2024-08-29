@@ -5,6 +5,9 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
+import 'package:isar/isar.dart';
+
+import 'test_utils.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -15,6 +18,9 @@ void main() async {
       () {
     // verifies that deletion of expired keys does NOT create/update commit entries
     setUp(() async {
+      Isar.initialize(TestUtils.getIsarLibPath());
+      // create storage dir
+      Directory(storageDir).createSync(recursive: true);
       var keyStoreManager =
           await getKeystoreManager(storageDir, atsign, optimizeCommits: true);
       keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
@@ -160,7 +166,7 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(atsign)!;
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-  await manager.init(storageDir);
+  manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
       runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);
   var keyStoreManager =

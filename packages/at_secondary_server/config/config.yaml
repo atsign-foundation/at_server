@@ -43,6 +43,7 @@ hive:
   # The keys added to the following list will be considered as protectedKeys and will be forbidden from deletion
   # Any key that contains the 'atSign' should be formatted as key<@atsign>. <@atsign> will be replaced with the actual atsign during runtime
   protectedKeys: []
+  isarLibPath: '/Users/murali/Downloads/libisar_macos.dylib'
 
 # The atProtocol connection configurations.
 connection:

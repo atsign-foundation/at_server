@@ -3,12 +3,13 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:isar/isar.dart';
 
 import 'test_utils.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
-  setUp(() async => await setUpFunc(storageDir));
+  setUp(() => setUpFunc(storageDir));
   group('A group of notification keystore impl tests', () {
     test('test put and get', () async {
       var keyStore = AtNotificationKeystore.getInstance();
@@ -36,7 +37,7 @@ void main() async {
             ..atMetaData = atMetaData)
           .build();
       await keyStore.put(atNotification.id, atNotification);
-      final value = await keyStore.get(atNotification.id);
+      final value = keyStore.get(atNotification.id);
       expect(value, isNotNull);
       expect(value!.id, '123');
       expect(value.atMetadata?.skeEncKeyName, commonsMetadata.skeEncKeyName);
@@ -51,7 +52,7 @@ void main() async {
           .build();
       await keyStore.put(atNotification.id, atNotification);
       await keyStore.remove(atNotification.id);
-      final value = await keyStore.get(atNotification.id);
+      final value = keyStore.get(atNotification.id);
       expect(value, isNull);
     });
     test('test delete expired keys - key expired', () async {
@@ -65,7 +66,7 @@ void main() async {
       sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
       await keyStore.deleteExpiredKeys();
-      final value = await keyStore.get(atNotification.id);
+      final value = keyStore.get(atNotification.id);
       expect(value, isNull);
     });
     test('test delete expired keys - key not expired', () async {
@@ -79,7 +80,7 @@ void main() async {
       sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
       await keyStore.deleteExpiredKeys();
-      final value = await keyStore.get(atNotification.id);
+      final value = keyStore.get(atNotification.id);
       expect(value, isNotNull);
       expect(value!.id, '123');
     });
@@ -161,16 +162,20 @@ void main() async {
   }
 }
 
-Future<AtNotificationKeystore> setUpFunc(storageDir) async {
+AtNotificationKeystore setUpFunc(storageDir) {
+  Isar.initialize(TestUtils.getIsarLibPath());
+
   var notificationKeystoreInstance = AtNotificationKeystore.getInstance();
   notificationKeystoreInstance.currentAtSign = '@alice';
-  await notificationKeystoreInstance.init('$storageDir/${Uuid().v4()}');
+  var notificationDir = '$storageDir/${Uuid().v4()}';
+  Directory(notificationDir).createSync(recursive: true);
+  notificationKeystoreInstance.init(notificationDir);
   return notificationKeystoreInstance;
 }
 
 Future<void> tearDownFunc() async {
   print('tear down');
-  await AtNotificationKeystore.getInstance().close();
+  AtNotificationKeystore.getInstance().close();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

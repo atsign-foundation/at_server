@@ -12,19 +12,30 @@ class AccessLogKeyStore
     implements LogKeyStore<String, AccessLogEntry?> {
   final String _currentAtSign;
   late String _boxName;
+  int internalKey = -1;
 
   AccessLogKeyStore(this._currentAtSign);
 
   @override
   void initialize() {
     _boxName = 'access_log_${AtUtils.getShaForAtSign(_currentAtSign)}';
+    Hive.registerAdapter('AccessLogEntry', AccessLogEntry.fromJson);
     super.openBox(_boxName);
+    if (getBox().keys.isNotEmpty) {
+      var lastKey = getBox().keys.last;
+      var lastAccessEntry = getBox().get(lastKey);
+      if (lastAccessEntry != null) {
+        internalKey = lastAccessEntry.key!;
+      }
+    }
   }
 
   @override
   void add(AccessLogEntry? accessLogEntry) {
     try {
-       _getBox().add(accessLogEntry);
+      internalKey++;
+      accessLogEntry!.key = internalKey;
+      _getBox().put(internalKey.toString(), accessLogEntry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to access log:${e.toString()}');
@@ -34,7 +45,7 @@ class AccessLogKeyStore
   @override
   Future<AccessLogEntry?> get(String key) async {
     try {
-      var accessLogEntry = await getValue(key);
+      var accessLogEntry = getValue(key);
       return accessLogEntry;
     } on Exception catch (e) {
       throw DataStoreException(
@@ -45,7 +56,7 @@ class AccessLogKeyStore
   @override
   void remove(String key) {
     try {
-       _getBox().delete(key);
+      _getBox().delete(key);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception deleting access log entry:${e.toString()}');
@@ -57,16 +68,14 @@ class AccessLogKeyStore
     if (deleteKeysList.isEmpty) {
       return;
     }
-     _getBox().deleteAll(deleteKeysList);
+    _getBox().deleteAll(deleteKeysList);
   }
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override
   int entriesCount() {
-    int? totalKeys = 0;
-    totalKeys = _getBox().keys.length;
-    return totalKeys;
+    return _getBox().length;
   }
 
   /// Returns the list of expired keys.
@@ -172,8 +181,8 @@ class AccessLogKeyStore
 
   ///Get last [AccessLogEntry] entry.
   Future<AccessLogEntry> getLastEntry() async {
-    var accessLogMap = await _toMap();
-    return accessLogMap!.values.last;
+    final box = getBox();
+    return box.get(box.keys.last);
   }
 
   ///Get last [AccessLogEntry] entry.
@@ -189,10 +198,10 @@ class AccessLogKeyStore
     var accessLogMap = {};
     var keys = _getBox().keys;
     AccessLogEntry? value;
-    await Future.forEach(keys, (key) async {
-      value = await getValue(key);
+    for (var key in keys) {
+      value = getValue(key);
       accessLogMap.putIfAbsent(key, () => value);
-    });
+    }
     return accessLogMap;
   }
 
