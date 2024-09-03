@@ -26,18 +26,20 @@ class AccessLogEntry {
         'fromAtSign': _fromAtSign,
         'requestDateTime': _requestDateTime.toString(),
         'verbName': _verbName,
-        'lookupKey': _lookupKey
+        'lookupKey': _lookupKey,
+        'key': key
       };
   factory AccessLogEntry.fromJson(dynamic json) {
     return AccessLogEntry(
         json['fromAtSign'],
         DateTime.parse(json['requestDateTime']),
         json['verbName'],
-        json['lookupKey']);
+        json['lookupKey'])
+      ..key = json['key'];
   }
 
   @override
   String toString() {
-    return 'AccessLogEntry{fromAtSign: $_fromAtSign, requestDateTime: $_requestDateTime, verbName:$_verbName, lookupKey:$_lookupKey}';
+    return 'AccessLogEntry{key: $key, fromAtSign: $_fromAtSign, requestDateTime: $_requestDateTime, verbName:$_verbName, lookupKey:$_lookupKey}';
   }
 }
