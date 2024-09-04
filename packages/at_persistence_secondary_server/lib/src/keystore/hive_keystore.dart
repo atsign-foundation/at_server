@@ -328,9 +328,8 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
       if (skipCommit) {
-        logger.finer('Skipping commit log entry for expired key deletion: $key');
         CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(key);
-        if(commitEntry != null) {
+        if (commitEntry != null) {
           _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
         }
         return -1;
@@ -379,6 +378,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
+
     return result;
   }
 
