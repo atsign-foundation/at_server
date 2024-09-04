@@ -31,12 +31,13 @@ void main() async {
       String key = '123$atsign';
       var atData = AtData()..data = 'abc';
       await keyStore?.put(key, atData, time_to_live: 5 * 1000);
-      var atDataResponse = await keyStore?.get(key);
+      var atDataResponse = keyStore?.get(key);
       assert(atDataResponse?.data == 'abc');
-      stdout.writeln('Sleeping for 23s');
-      await Future.delayed(Duration(seconds: 23));
+      stdout.writeln('Sleeping for 10s');
+      await Future.delayed(Duration(seconds: 10));
+      await keyStore!.deleteExpiredKeys();
       expect(
-          () async => getKey(keyStore, key),
+          () => getKey(keyStore, key),
           throwsA(predicate((e) =>
               e.toString().contains('123$atsign does not exist in keystore'))));
     }, timeout: Timeout(Duration(minutes: 1)));
@@ -156,8 +157,8 @@ void main() async {
   });
 }
 
-Future<String?> getKey(keyStore, key) async {
-  AtData? atData = await keyStore.get(key);
+String? getKey(keyStore, key) {
+  AtData? atData = keyStore.get(key);
   return atData?.data;
 }
 
@@ -168,7 +169,7 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
-      runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);
+      runTimeInterval: Duration(seconds: 5), skipCommits: optimizeCommits);
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;

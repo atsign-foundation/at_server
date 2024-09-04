@@ -5,8 +5,10 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:hive/hive.dart';
+import 'package:isar/isar.dart';
 import 'package:test/test.dart';
+
+import 'test_utils.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
 void main() async {
@@ -91,7 +93,7 @@ void main() async {
           await AtCommitLogManagerImpl.getInstance()
               .getCommitLog('@test_user_1'),
           '@test_user_1');
-      LazyBox box = atConfig.persistenceManager.getBox() as LazyBox;
+      var box = atConfig.persistenceManager.getBox();
       List<String> blockedAtsigns = [
         '@blocked_user_1',
         '@blocked_user_2',
@@ -101,7 +103,8 @@ void main() async {
       AtData atData = AtData()..data = jsonEncode(blockedConfig);
       atData = HiveKeyStoreHelper.getInstance()
           .prepareDataForKeystoreOperation(atData);
-      await box.put(atConfig.oldConfigKey, atData);
+      atData.key = atConfig.oldConfigKey;
+      box.put(atConfig.oldConfigKey, atData);
       // fetch the data that has been put into the keystore using the new config key
       var blockList = await atConfig.getBlockList();
       expect(blockList.toList(), blockedAtsigns);
@@ -116,13 +119,15 @@ void main() async {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+  Isar.initialize(TestUtils.getIsarLibPath());
+  Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
+  persistenceManager.init(storageDir);
   // commented this line for coverage test
   // persistenceManager.scheduleKeyExpireTask(1);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
@@ -135,9 +140,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
 
 Future<void> tearDownFunc() async {
   // closes the instance of hive keystore
-  await SecondaryPersistenceStoreFactory.getInstance()
+  SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!
-      .getHivePersistenceManager()?.close();
+      .getHivePersistenceManager()
+      ?.close();
 
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {

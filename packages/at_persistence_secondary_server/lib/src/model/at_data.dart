@@ -22,7 +22,7 @@ class AtData {
       map['key'] = Utf7.decode(key!);
     }
     map['data'] = data;
-    map['metaData'] = metaData!.toJson();
+    map['metaData'] = metaData?.toJson();
     return map;
   }
 

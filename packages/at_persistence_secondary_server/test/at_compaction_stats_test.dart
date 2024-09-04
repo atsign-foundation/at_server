@@ -4,6 +4,9 @@ import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:isar/isar.dart';
+
+import 'test_utils.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
@@ -15,6 +18,9 @@ late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
 Future<void> setUpMethod() async {
   // Initialize secondary persistent store
+  Isar.initialize(TestUtils.getIsarLibPath());
+  // create storage dir
+  Directory(storageDir).createSync(recursive: true);
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@alice');
   // Initialize commit log
@@ -27,11 +33,9 @@ Future<void> setUpMethod() async {
   // AtNotification Keystore
   atNotificationKeystore = AtNotificationKeystore.getInstance();
   atNotificationKeystore.currentAtSign = '@alice';
-  await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
+  atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  secondaryPersistenceStore!.getHivePersistenceManager()!.init(storageDir);
 }
 
 Future<void> main() async {
@@ -97,18 +101,17 @@ Future<void> main() async {
     });
 
     test("verify accessLog stats in keystore", () async {
-      await atAccessLog?.insert('@alice', 'from');
-      await atAccessLog?.insert('@alice', 'pol');
-      await atAccessLog?.insert('@alice', 'scan');
-      await atAccessLog?.insert('@alice', 'lookup',
-          lookupKey: '@alice:phone@bob');
+      atAccessLog?.insert('@alice', 'from');
+      atAccessLog?.insert('@alice', 'pol');
+      atAccessLog?.insert('@alice', 'scan');
+      atAccessLog?.insert('@alice', 'lookup', lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
       var atCompactionService = AtCompactionService.getInstance();
       var atCompactionStats =
           await atCompactionService.executeCompaction(atAccessLog!);
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
-      AtData? atData = await secondaryPersistenceStore!
+      AtData? atData = secondaryPersistenceStore!
           .getSecondaryKeyStore()
           ?.get(at_commons.AtConstants.accessLogCompactionKey);
       var data = (atData?.data);

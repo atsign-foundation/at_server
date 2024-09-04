@@ -8,6 +8,8 @@ import 'package:test/test.dart';
 import 'package:hive/hive.dart';
 import 'package:isar/isar.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   AtSignLogger.root_level = 'finer';
@@ -715,7 +717,7 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
-  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  Isar.initialize(TestUtils.getIsarLibPath());
   Directory(storageDir).createSync(recursive: true);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice',

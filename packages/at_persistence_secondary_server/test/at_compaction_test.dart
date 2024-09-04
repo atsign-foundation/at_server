@@ -5,13 +5,15 @@ import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.d
 import 'package:test/test.dart';
 import 'package:isar/isar.dart';
 
+import 'test_utils.dart';
+
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 AtCommitLog? atCommitLog;
 
 Future<void> setUpMethod({bool enableCommitId = true}) async {
   String atSign = '@alice';
-  Isar.initialize('/Users/murali/Downloads/libisar_macos.dylib');
+  Isar.initialize(TestUtils.getIsarLibPath());
   Directory(storageDir).createSync(recursive: true);
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
