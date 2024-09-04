@@ -16,6 +16,7 @@ class EnrollDataStoreValue {
   EnrollRequestType? requestType;
   EnrollApproval? approval;
   String? encryptedAPKAMSymmetricKey;
+  Duration? apkamKeysExpiryDuration;
 
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);

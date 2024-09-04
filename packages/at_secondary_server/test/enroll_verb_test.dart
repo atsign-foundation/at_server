@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
@@ -1013,6 +1014,58 @@ void main() {
               e is AtEnrollmentException &&
               e.message ==
                   'Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
+    });
+
+    test('A test to verify apkam expiry is set for approved enrollment',
+        () async {
+      Response response = Response();
+
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"wavi":"r"},"otp":"${response.data}"'
+          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key",'
+          '"apkamKeysExpiryInMillis":1000}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      expect(jsonDecode(response.data!)['status'], 'pending');
+      // Assert the enrollment expiry is set to default value.
+      AtData? enrollmentAtData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(
+          enrollmentAtData?.metaData?.ttl,
+          Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours)
+              .inMilliseconds);
+
+      String approveEnrollment =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollment);
+      inboundConnection.metaData.isAuthenticated = true;
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+
+      enrollmentAtData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(enrollmentAtData?.metaData?.ttl, 1000);
     });
     tearDown(() async => await verbTestsTearDown());
   });

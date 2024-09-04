@@ -34,7 +34,15 @@ dependencies:
   yaml: 3.1.2
   logging: 1.2.0
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: 2074-introducing-auto-expiry-and-time-to-birth-features-for-apkam-keys
+
 dev_dependencies:
+  build_runner: ^2.3.3
   test: ^1.24.4
   coverage: ^1.6.1
   lints: ^4.0.0
