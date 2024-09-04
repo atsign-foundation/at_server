@@ -327,7 +327,7 @@ class NotificationsMetricImpl implements MetricProvider {
   }
 
   bool _check(var notifications, String key, String? value) {
-    return _asString(notifications.toJson()[key]) == value;
+    return notifications.toJson()[key] == value;
   }
 
   Future<Map<String, dynamic>> getNotificationStats(
