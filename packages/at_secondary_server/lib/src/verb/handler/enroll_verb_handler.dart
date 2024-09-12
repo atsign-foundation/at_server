@@ -242,7 +242,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     if (enrollParams.apkamKeysExpiryDuration != null) {
       enrollmentValue.apkamKeysExpiryDuration =
-          enrollParams.apkamKeysExpiryDuration;
+          enrollParams.apkamKeysExpiryDuration!;
     }
 
     AtData enrollData;
@@ -607,7 +607,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Update key with new data
       // Update ttl value to support auto expiry of APKAM keys
       enrollMetaData?.ttl =
-          enrollDataStoreValue.apkamKeysExpiryDuration?.inMilliseconds;
+          enrollDataStoreValue.apkamKeysExpiryDuration.inMilliseconds;
       atData.metaData = enrollMetaData;
     }
     await keyStore.put(enrollmentKey, atData, skipCommit: true);

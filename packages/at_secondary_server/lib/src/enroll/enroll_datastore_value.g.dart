@@ -22,9 +22,8 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
           : EnrollApproval.fromJson(json['approval'] as Map<String, dynamic>)
       ..encryptedAPKAMSymmetricKey =
           json['encryptedAPKAMSymmetricKey'] as String?
-      ..apkamKeysExpiryDuration = (json['apkamExpiryInMillis'] == null)
-          ? null
-          : Duration(milliseconds: json['apkamExpiryInMillis']);
+      ..apkamKeysExpiryDuration =
+          Duration(milliseconds: json['apkamKeysExpiryInMillis'] ?? 0);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -37,7 +36,8 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'requestType': _$EnrollRequestTypeEnumMap[instance.requestType],
       'approval': instance.approval,
       'encryptedAPKAMSymmetricKey': instance.encryptedAPKAMSymmetricKey,
-      'apkamExpiryInMillis': instance.apkamKeysExpiryDuration?.inMilliseconds,
+      'apkamKeysExpiryInMillis':
+          instance.apkamKeysExpiryDuration?.inMilliseconds,
     };
 
 const _$EnrollRequestTypeEnumMap = {
