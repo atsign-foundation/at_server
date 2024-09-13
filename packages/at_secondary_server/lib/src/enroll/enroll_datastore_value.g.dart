@@ -37,7 +37,7 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'approval': instance.approval,
       'encryptedAPKAMSymmetricKey': instance.encryptedAPKAMSymmetricKey,
       'apkamKeysExpiryInMillis':
-          instance.apkamKeysExpiryDuration?.inMilliseconds,
+          instance.apkamKeysExpiryDuration.inMilliseconds,
     };
 
 const _$EnrollRequestTypeEnumMap = {
