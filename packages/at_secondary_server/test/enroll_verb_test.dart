@@ -127,6 +127,7 @@ void main() {
     });
     tearDown(() async => await verbTestsTearDown());
   });
+
   group('A group of tests to verify enroll list operation', () {
     setUp(() async {
       await verbTestsSetUp();
@@ -1662,7 +1663,8 @@ void main() {
                   'Connection with enrollment ID 123 is not authorized to update key: 123.new.enrollments.__manage@alice')));
     });
 
-    test('A test to verify delete verb cannot delete the enrollment key',
+    test(
+        'A test to verify delete verb cannot delete the enrollment key (using delete verb)',
         () async {
       String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
@@ -1686,6 +1688,90 @@ void main() {
               e is UnAuthorizedException &&
               e.message ==
                   'Connection with enrollment ID 123 is not authorized to delete key: 123.new.enrollments.__manage@alice')));
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('Group of tests to validate enroll delete operation', () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test('Validate behaviour of deleting denied enrollment', () async {
+      String dummyEnrollId = '2134567809009';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.denied.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+
+      Response verbResponse = await enrollVerb.processInternal(
+          enrollDeleteCommand, inboundConnection);
+      expect(verbResponse.data, '{"$dummyEnrollId":"deleted"}');
+    });
+
+    test(
+        'Validate negative behaviour of deleting denied enrollment from unAuthenticated connection',
+        () async {
+      String dummyEnrollId = '39458346583465';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-1', 'dummy-app-1', 'dummy-device-1', 'dummmy-key-1')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.denied.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = false;
+      castMetadata(inboundConnection).enrollmentId = '123653';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+
+      expect(
+          () => enrollVerb.processInternal(
+              enrollDeleteCommand, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Cannot delete enrollment without authentication')));
+    });
+
+    test('Validate negative behaviour of deleting approved enrollment',
+        () async {
+      String dummyEnrollId = '345345345141';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-2', 'dummy-app-2', 'dummy-device-2', 'dummmy-key-2')
+        ..namespaces = {'test_namespace-2': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123653';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      expect(() => enrollVerb.processInternal(
+              enrollDeleteCommand, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied enrollments can be deleted')));
     });
 
     tearDown(() async => await verbTestsTearDown());
