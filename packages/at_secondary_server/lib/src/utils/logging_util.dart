@@ -13,7 +13,7 @@ extension AtConnectionMetadataLogging on AtSignLogger {
     if (atConnectionMetaData.sessionID != null) {
       stringBuffer.write('${atConnectionMetaData.sessionID?.hashCode}|');
     }
-    stringBuffer.write('$logMsg|');
+    stringBuffer.write(logMsg);
     return stringBuffer.toString();
   }
 

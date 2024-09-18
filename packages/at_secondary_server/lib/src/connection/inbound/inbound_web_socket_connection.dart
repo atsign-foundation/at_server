@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/connection/base_connection.dart';
@@ -46,12 +47,8 @@ class InboundWebSocketConnection implements InboundConnection {
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
 
-    logger.info(logger.getAtConnectionLogMessage(
-        metaData,
-        'New connection ('
-        'this side: ${underlying.address}:${underlying.port}'
-        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-        ')'));
+    logger.info(
+        logger.getAtConnectionLogMessage(metaData, 'New WebSocket ($this)'));
 
     ws.done.then((doneValue) {
       logger.info('ws.done called. Calling this.close()');
@@ -95,26 +92,32 @@ class InboundWebSocketConnection implements InboundConnection {
   Future<void> close() async {
     // Some defensive code just in case we accidentally call close multiple times
     if (metaData.isClosed) {
+      logger.info('already closed; returning');
       return;
     }
 
+    metaData.isClosed = true;
+
     try {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'destroying WebSocket $this'));
-      await ws.close();
+          metaData, 'closing WebSocket (readyState ${ws.readyState})'));
+      try {
+        await ws.close();
+      } catch (e) {
+        logger.severe('ws.close() exception: $e');
+      }
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
-    } finally {
-      metaData.isClosed = true;
     }
   }
 
   @override
   Future<void> write(String data) async {
     ws.add(data);
-    logger.info(logger.getAtConnectionLogMessage(
-        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+    logger.info(logger.getAtConnectionLogMessage(metaData, 'SENT: $data'));
   }
 
   @override

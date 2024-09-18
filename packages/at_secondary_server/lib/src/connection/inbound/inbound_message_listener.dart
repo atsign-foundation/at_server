@@ -42,7 +42,19 @@ class InboundMessageListener {
 
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
-  Future<void> _messageHandler(data) async {
+  Future<void> _messageHandler(streamData) async {
+    logger.finest('_messageHandler received ${streamData.runtimeType}'
+        ' : $streamData ');
+    List<int> data;
+    if (streamData is List<int>) {
+      data = streamData;
+    } else if (streamData is String) {
+      data = streamData.codeUnits;
+    } else {
+      logger.severe('Un-handled data type: ${streamData.runtimeType}');
+      await _finishedHandler();
+      return;
+    }
     //ignore the data read if the connection is stale or closed
     if (connection.metaData.isStale || connection.metaData.isClosed) {
       //clear buffer as data is redundant
