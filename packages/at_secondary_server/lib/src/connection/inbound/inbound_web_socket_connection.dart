@@ -4,16 +4,22 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
-import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_utils.dart';
 
 import 'connection_util.dart';
-import 'dummy_inbound_connection.dart';
 
-class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
-    implements InboundConnection {
+class InboundWebSocketConnection implements InboundConnection {
+  WebSocket ws;
+
+  AtSignLogger logger = AtSignLogger('InboundWebSocketConnection');
+
+  @override
+  late InboundConnectionMetadata metaData;
+
   @override
   bool? isMonitor = false;
 
@@ -26,8 +32,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
 
-  InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
-      : super(socket) {
+  InboundWebSocketConnection(this.ws, String? sessionId, {this.owningPool}) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
@@ -48,31 +53,23 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
         ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
         ')'));
 
-    socket.done.onError((error, stackTrace) {
-      logger
-          .info('socket.done.onError called with $error. Calling this.close()');
-      this.close();
+    ws.done.then((doneValue) {
+      logger.info('ws.done called. Calling this.close()');
+      close();
+    }, onError: (error, stackTrace) {
+      logger.info('ws.done.onError called with $error. Calling this.close()');
+      close();
     });
   }
 
-  /// Returns true if the underlying socket is not null and socket's remote address and port match.
+  /// Returns true if the web sockets are identical
   @override
   bool equals(InboundConnection connection) {
-    // An InboundConnectionImpl can never be equal to a DummyInboundConnection.
-    if (connection is DummyInboundConnection) {
+    if (connection is! InboundWebSocketConnection) {
       return false;
     }
 
-    // Without the above check, we were getting runtime errors on the next check
-    // since DummyInboundConnection.getSocket throws a "not implemented" error
-
-    if (underlying.remoteAddress.address ==
-            connection.underlying.remoteAddress.address &&
-        underlying.remotePort == connection.underlying.remotePort) {
-      return true;
-    }
-
-    return false;
+    return ws == connection.ws;
   }
 
   /// Returning true indicates to the caller that this connection **can** be closed if needed
@@ -96,10 +93,6 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
   @override
   Future<void> close() async {
-    // Over-riding BaseConnection.close() (which calls socket.close()), as may want to keep different
-    // behaviours for inbound and outbound connections
-    // (Note however that, at time of writing, outbound_connection_impl also calls socket.destroy)
-
     // Some defensive code just in case we accidentally call close multiple times
     if (metaData.isClosed) {
       return;
@@ -107,12 +100,8 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
     try {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData,
-          'destroying socket ('
-          'this side: ${underlying.address}:${underlying.port}'
-          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-          ')'));
-      underlying.destroy();
+          metaData, 'destroying WebSocket $this'));
+      await ws.close();
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
@@ -123,11 +112,9 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
 
   @override
   Future<void> write(String data) async {
-    await super.write(data);
-    if (metaData is InboundConnectionMetadata) {
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
-    }
+    ws.add(data);
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }
 
   @override
@@ -146,4 +133,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   bool isRequestAllowed() {
     return rateLimiter.isRequestAllowed();
   }
+
+  @override
+  get underlying => ws;
 }

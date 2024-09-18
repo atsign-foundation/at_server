@@ -1328,7 +1328,8 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      String updateCommand = 'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      String updateCommand =
+          'update:atconnections.bob.alice.at_contact.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
@@ -1339,7 +1340,7 @@ void main() {
       expect(response.isError, false);
     });
 
-     test(
+    test(
         'A test to verify write access is allowed to a key with a at_contact.buzz namespace for an enrollment with at_contact.buzz namespace access',
         () async {
       inboundConnection.metadata.isAuthenticated =
@@ -1389,8 +1390,7 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      String updateCommand =
-          'update:atconnections.bob.alice.buzz$alice bob';
+      String updateCommand = 'update:atconnections.bob.alice.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(

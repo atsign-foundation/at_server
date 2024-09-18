@@ -453,8 +453,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await GlobalExceptionHandler.getInstance()
           .handle(e, atConnection: connection, clientSocket: ws);
     }
-
   }
+
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
   /// Throws [AtConnection] if unable to create a connection
   /// Throws [SocketException] for exceptions on socket
@@ -516,8 +516,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           logger.info(
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
           var inBoundConnectionManager = InboundConnectionManager.getInstance();
-          connection = inBoundConnectionManager
-              .createSocketConnection(clientSocket, sessionId: '_${Uuid().v4()}');
+          connection = inBoundConnectionManager.createSocketConnection(
+              clientSocket,
+              sessionId: '_${Uuid().v4()}');
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {
