@@ -1275,4 +1275,150 @@ void main() {
           'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
   });
+
+  group('tests to validate enroll delete',() {
+    test('negative test - delete an approved enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      var enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+      // try to delete the above enrollment through a cram authenticated connection
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await firstAtSignConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('error:', '');
+      Map jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(
+          jsonDecodedResponse['errorDescription'],
+          'Internal server exception : Failed to delete enrollment id: '
+          '$enrollmentId | Cause: Cannot delete approved enrollments. '
+          'Only denied enrollments can be deleted');
+    });
+
+    test('negative test - delete an pending enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a cram  authenticated connection and delete the pending enrollment
+      OutboundConnectionFactory secondAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('error:', '');
+      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(
+          jsonDecodedResponse['errorDescription'],
+          'Internal server exception : Failed to delete enrollment id: '
+          '$enrollmentId | Cause: Cannot delete pending enrollments. '
+          'Only denied enrollments can be deleted');
+    });
+
+    test('negative test - delete an revoked enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+      OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+      await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+      jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a new cram authenticated connection
+      OutboundConnectionFactory secondAuthenticatedConnection =
+      OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+
+      // approve then revoke the above created enrollment
+      String approveCommand = 'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncryptionPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse = await secondAuthenticatedConnection.sendRequestToServer(approveCommand);
+      String revokeCommand = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollmentResponse = await secondAuthenticatedConnection.sendRequestToServer(revokeCommand);
+      jsonDecodedResponse = jsonDecode(enrollmentResponse.replaceFirst('data:', ""));
+      expect(jsonDecodedResponse['status'], 'revoked');
+
+      // now try to delete the revoked enrollment
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('error:', '');
+      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(
+          jsonDecodedResponse['errorDescription'],
+          'Internal server exception : Failed to delete enrollment id: '
+              '$enrollmentId | Cause: Cannot delete revoked enrollments. '
+              'Only denied enrollments can be deleted');
+    });
+
+    test(
+        'A test to verify delete operation cannot be performed on an unauthenticated connection',
+        () async {
+      // using a dummy enrollId as the enrollId will NOT be validated for this test
+      String enrollmentId = '023409340293-2342397-23423984729';
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse =
+          await socketConnection2.sendRequestToServer(deleteEnrollmentCommand);
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot delete enrollment without authentication');
+    });
+  }, skip: true);
 }
