@@ -1015,6 +1015,154 @@ void main() {
               e.message ==
                   'Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
     });
+  });
+
+  group('A group of tests related enrollment unrevoke operation', () {
+    String enrollmentIdWithManageNamespace = Uuid().v4();
+    String? otp;
+    late String enrollmentId;
+    late EnrollVerbHandler enrollVerbHandler;
+    HashMap<String, String?> enrollVerbParams;
+    Response defaultResponse = Response();
+    setUp(() async {
+      await verbTestsSetUp();
+      // Store an enrollment request which has access to "__manage" namespace to approve enrollment requests.
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'manage-session-id',
+          'buzz',
+          'my-phone',
+          'manage-enrollment-public-key')
+        ..namespaces = {'__manage': 'rw', 'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      await secondaryKeyStore.put(
+          '$enrollmentIdWithManageNamespace.$newEnrollmentKeyPattern.$enrollManageNamespace$alice',
+          AtData()..data = jsonEncode(enrollDataStoreValue.toJson()));
+      // Fetch OTP
+      String totpCommand = 'otp:get';
+      HashMap<String, String?> totpVerbParams =
+          getVerbParam(VerbSyntax.otp, totpCommand);
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      inboundConnection.metaData.isAuthenticated = true;
+      await otpVerbHandler.processVerb(
+          defaultResponse, totpVerbParams, inboundConnection);
+      otp = defaultResponse.data;
+      // Enroll a request on an unauthenticated connection which will expire in 1 minute
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      enrollVerbHandler.enrollmentExpiryInMills = 60000;
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+      HashMap<String, String?> enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          defaultResponse, enrollVerbParams, inboundConnection);
+      enrollmentId = jsonDecode(defaultResponse.data!)['enrollmentId'];
+      String status = jsonDecode(defaultResponse.data!)['status'];
+      expect(status, 'pending');
+    });
+
+    test(
+        'A test to verify unrevoke enrollment sets the enrollment state to approved',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+      // un- revoke enrollment
+      String unrevokeEnrollmentCommand =
+          'enroll:unrevoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+    });
+
+    test(
+        'A test to verify unrevoke enrollment throws exception when enrollment state is not revoked',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      // un- revoke enrollment
+      String unrevokeEnrollmentCommand =
+          'enroll:unrevoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
+
+      await expectLater(
+          () => enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'Failed to unrevoke enrollment id: $enrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked')));
+    });
+
+    test(
+        'A test to verify unrevoke enrollment throws exception when enrollmentId is not supplied',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      //revoke enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, revokeEnrollmentCommand);
+      await enrollVerbHandler.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+      // un- revoke enrollment
+      String unrevokeEnrollmentCommand = 'enroll:unrevoke:{"enrollmentId":""}';
+      enrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
+      await expectLater(
+          () => enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is AtEnrollmentException &&
+              e.message ==
+                  'enrollmentId is mandatory for enroll:revoke/enroll:deny')));
+    });
     tearDown(() async => await verbTestsTearDown());
   });
 
