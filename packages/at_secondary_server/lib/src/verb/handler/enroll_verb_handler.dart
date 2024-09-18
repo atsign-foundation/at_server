@@ -59,6 +59,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     final responseJson = {};
+
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -90,6 +91,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
       case 'approve':
       case 'deny':
+      case 'unrevoke':
         await _handleEnrollmentPermissions(
             (atConnection.metaData as InboundConnectionMetadata),
             enrollVerbParams!,
@@ -133,7 +135,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             enrollVerbParams, currentAtSign, response);
         return;
     }
-
     response.data = jsonEncode(responseJson);
     return;
   }
@@ -425,7 +426,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final operationMap = {
       'approve': EnrollmentStatus.approved,
       'deny': EnrollmentStatus.denied,
-      'revoke': EnrollmentStatus.revoked
+      'revoke': EnrollmentStatus.revoked,
+      // If an enrollment is un-revoked, then it should be go back to approved state to authenticate with the APKAM keys
+      // corresponding to the enrollment-id. Therefore setting "EnrollmentStatus.approved"
+      'unrevoke': EnrollmentStatus.approved
     };
 
     return operationMap[enrollmentOperation] ?? EnrollmentStatus.pending;
@@ -551,6 +555,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }
+    if (operation == 'unrevoke' && EnrollmentStatus.revoked != enrollStatus) {
+      throw AtEnrollmentException(
+          'Cannot un-revoke a ${enrollStatus.name} enrollment. Only revoked enrollments can be un-revoked');
+    }
   }
 
   /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
@@ -656,6 +664,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         break;
       case 'revoke':
       case 'deny':
+      case 'unrevoke':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw AtEnrollmentException(
               'enrollmentId is mandatory for enroll:revoke/enroll:deny');
