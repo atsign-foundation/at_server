@@ -1116,8 +1116,9 @@ void main() {
           'enroll:unrevoke:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
-      expect(
-          () async => await enrollVerbHandler.processVerb(
+
+      await expectLater(
+          () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
@@ -1153,8 +1154,8 @@ void main() {
       String unrevokeEnrollmentCommand = 'enroll:unrevoke:{"enrollmentId":""}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
-      expect(
-          () async => await enrollVerbHandler.processVerb(
+      await expectLater(
+          () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
