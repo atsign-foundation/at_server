@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1273,6 +1274,47 @@ void main() {
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
           'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
+    });
+  });
+
+  group('A group of tests related to APKAM keys auto expiry', () {
+    test('A test to verify apkam authentication fails with expired apkam keys',
+        () async {
+      // Fetch OTP.
+      await firstAtSignConnection.authenticateConnection();
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":1}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with a PKAM Authenticated connection
+      String approveEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      approveEnrollmentResponse =
+          approveEnrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse,
+          'error:AT0028:enrollment_id: $enrollmentId is expired or invalid');
     });
   });
 }

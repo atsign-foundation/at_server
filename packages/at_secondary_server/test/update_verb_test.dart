@@ -7,6 +7,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -1328,7 +1329,8 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      String updateCommand = 'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      String updateCommand =
+          'update:atconnections.bob.alice.at_contact.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
@@ -1339,7 +1341,7 @@ void main() {
       expect(response.isError, false);
     });
 
-     test(
+    test(
         'A test to verify write access is allowed to a key with a at_contact.buzz namespace for an enrollment with at_contact.buzz namespace access',
         () async {
       inboundConnection.metadata.isAuthenticated =
@@ -1389,8 +1391,7 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
-      String updateCommand =
-          'update:atconnections.bob.alice.buzz$alice bob';
+      String updateCommand = 'update:atconnections.bob.alice.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
@@ -1404,5 +1405,48 @@ void main() {
                   'Connection with enrollment ID $enrollmentId is not authorized to update key: atconnections.bob.alice.buzz$alice')));
     });
     tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to apkam keys expiry', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('A test to verify update verb fails when apkam keys are expired',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
+      enrollDataStoreValue.namespaces = {'wavi': 'rw'};
+      enrollDataStoreValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName,
+          AtData()
+            ..data = jsonEncode(enrollDataStoreValue.toJson())
+            ..metaData = (AtMetaData()..ttl = 1));
+
+      String updateCommand = 'update:@alice:phone.wavi@alice 123';
+
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      response = await updateVerbHandler.processInternal(
+          updateCommand, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'The enrollment id: $enrollmentId is expired. Closing the connection');
+    });
   });
 }

@@ -53,6 +53,16 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (getVerb().requiresAuth() && !atConnectionMetadata.isAuthenticated) {
       throw UnAuthenticatedException('Command cannot be executed without auth');
     }
+    // This check verifies whether the enrollment is active on the already APKAM authenticated existing connection
+    // and terminates if the enrollment is expired.
+    // At this stage, the enrollmentId is not set to the InboundConnectionMetadata for the new connections.
+    // This will not terminate an un-authenticated connection when attempting to execute a PKAM verb with an expired enrollmentId.
+    (bool, Response) isEnrollmentActive =
+        await _verifyIfEnrollmentIsActive(response, atConnectionMetadata);
+    if (isEnrollmentActive.$1 == false) {
+      await atConnection.close();
+      return isEnrollmentActive.$2;
+    }
     try {
       // Parse the command
       var verbParams = parse(command);
@@ -71,6 +81,54 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on Exception {
       rethrow;
     }
+  }
+
+  /// When authenticated with the APKAM keys, checks if the enrollment is active.
+  /// Returns true if the enrollment is active; otherwise, returns false.
+  Future<(bool, Response)> _verifyIfEnrollmentIsActive(
+      Response response, AtConnectionMetaData atConnectionMetadata) async {
+    // When authenticated with legacy keys, enrollment id is null. APKAM expiry does not
+    // apply to such connections. Therefore, return true.
+    if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
+        null) {
+      logger.finest(
+          "Enrollment id is not found. Returning true from _verifyIfEnrollmentIsActive");
+      return (true, response);
+    }
+    final enrollmentKey = '${(atConnectionMetadata).enrollmentId}'
+        '.$newEnrollmentKeyPattern'
+        '.$enrollManageNamespace'
+        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    try {
+      EnrollDataStoreValue enrollDataStoreValue =
+          await getEnrollDataStoreValue(enrollmentKey);
+      // If the enrollment status is expired, then the enrollment is not active. Return false.
+      if (enrollDataStoreValue.approval?.state ==
+          EnrollmentStatus.expired.name) {
+        logger.severe(
+            'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
+        response
+          ..isError = true
+          ..errorCode = 'AT0028'
+          ..errorMessage =
+              'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
+        return (false, response);
+      }
+      // The expired enrollments are removed from the keystore. In such cases, KeyNotFoundException is
+      // thrown. Return false.
+    } on KeyNotFoundException {
+      logger.severe(
+          'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
+      response
+        ..isError = true
+        ..errorCode = 'AT0028'
+        ..errorMessage =
+            'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
+      return (false, response);
+    }
+    logger.finest(
+        "Enrollment id ${atConnectionMetadata.enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
+    return (true, response);
   }
 
   /// Return the instance of the current verb
@@ -93,9 +151,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtData enrollData = await keyStore.get(enrollmentKey);
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-      if (!SecondaryUtil.isActiveKey(enrollData) &&
-          enrollDataStoreValue.approval!.state !=
-              EnrollmentStatus.approved.name) {
+      if (!SecondaryUtil.isActiveKey(enrollData)) {
         enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
       }
       return enrollDataStoreValue;
