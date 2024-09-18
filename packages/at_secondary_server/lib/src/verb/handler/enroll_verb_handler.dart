@@ -560,7 +560,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     if (operation == 'delete' && EnrollmentStatus.denied != enrollStatus) {
       throw AtEnrollmentException(
-          'Cannot delete ${enrollStatus.name} enrollments. Only denied enrollments can be deleted');
+          'Cannot delete ${enrollStatus
+              .name} enrollments. Only denied enrollments can be deleted');
+    }
     if (operation == 'unrevoke' && EnrollmentStatus.revoked != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot un-revoke a ${enrollStatus.name} enrollment. Only revoked enrollments can be un-revoked');
