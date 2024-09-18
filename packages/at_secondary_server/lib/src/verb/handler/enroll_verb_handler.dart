@@ -734,6 +734,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     await keyStore.remove(deleteKey);
-    responseJson[enrollParams.enrollmentId] = 'deleted';
+    responseJson['enrollmentId'] = enrollParams.enrollmentId;
+    responseJson['status'] = 'deleted';
   }
 }

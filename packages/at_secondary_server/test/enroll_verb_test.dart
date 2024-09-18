@@ -1718,7 +1718,7 @@ void main() {
 
       Response verbResponse = await enrollVerb.processInternal(
           enrollDeleteCommand, inboundConnection);
-      expect(verbResponse.data, '{"$dummyEnrollId":"deleted"}');
+      expect(verbResponse.data, '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
     });
 
     test(
