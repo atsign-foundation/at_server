@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:uuid/uuid.dart';
 import 'package:at_commons/at_commons.dart';
@@ -51,7 +52,7 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
-  InboundConnection createWebSocketConnection(WebSocket socket,
+  InboundConnection createWebSocketConnection(WebSocket ws,
       {String? sessionId}) {
     if (!_isInitialized) {
       init(defaultPoolSize);
@@ -61,11 +62,10 @@ class InboundConnectionManager implements AtConnectionFactory {
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
+    var atConnection = InboundWebSocketConnection(ws, sessionId, _pool);
+    _pool.add(atConnection);
 
-    throw UnimplementedError('not yet implemented');
-    // _pool.add(atConnection);
-    //
-    // return atConnection;
+    return atConnection;
   }
 
   bool hasCapacity() {

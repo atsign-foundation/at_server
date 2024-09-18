@@ -32,7 +32,7 @@ class InboundWebSocketConnection implements InboundConnection {
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
 
-  InboundWebSocketConnection(this.ws, String? sessionId, {this.owningPool}) {
+  InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
