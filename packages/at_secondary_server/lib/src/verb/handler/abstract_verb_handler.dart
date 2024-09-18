@@ -159,7 +159,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     bool isValid = _applyEnrollmentValidations(
         enrollDataStoreValue, enrollmentKey, operation, atKey, namespace);
-    if (isValid == false) {
+    if (!isValid) {
       return isValid;
     }
 

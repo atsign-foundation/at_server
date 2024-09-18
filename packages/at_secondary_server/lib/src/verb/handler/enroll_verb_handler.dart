@@ -122,7 +122,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               forceFlag != null, atConnection, responseJson);
         }
         break;
-
       case 'list':
         response.data = await _fetchEnrollmentRequests(
             atConnection, currentAtSign,
@@ -132,6 +131,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         response.data = await _fetchEnrollmentInfoById(
             enrollVerbParams, currentAtSign, response);
         return;
+      case 'delete':
+        await _deleteDeniedEnrollment(
+            enrollVerbParams, currentAtSign, responseJson);
+        break;
     }
 
     response.data = jsonEncode(responseJson);
@@ -551,6 +554,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }
+    if (operation == 'delete' && EnrollmentStatus.denied != enrollStatus) {
+      throw AtEnrollmentException(
+          'Cannot delete ${enrollStatus.name} enrollments. Only denied enrollments can be deleted');
+    }
   }
 
   /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
@@ -656,9 +663,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         break;
       case 'revoke':
       case 'deny':
+      case 'delete':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw AtEnrollmentException(
-              'enrollmentId is mandatory for enroll:revoke/enroll:deny');
+              'enrollmentId is mandatory for enroll:revoke/enroll:deny/enroll:delete');
         }
         break;
     }
@@ -707,5 +715,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   int getEnrollmentResponseDelayInMilliseconds() {
     return delayForInvalidOTPSeries.last;
+  }
+
+  Future<void> _deleteDeniedEnrollment(
+      EnrollParams? enrollParams, String atsign, Map responseJson) async {
+    String deleteKey =
+        '${enrollParams!.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$atsign';
+    EnrollDataStoreValue enrollValue = await getEnrollDataStoreValue(deleteKey);
+    EnrollmentStatus enrollmentStatus =
+        getEnrollStatusFromString(enrollValue.approval!.state);
+    // ensures only denied entries can be deleted
+    try {
+      _verifyEnrollmentStateBeforeAction(
+          EnrollOperationEnum.delete.name, enrollmentStatus);
+    } on AtEnrollmentException catch (e) {
+      throw AtEnrollmentException(
+          'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
+    }
+
+    await keyStore.remove(deleteKey);
+    responseJson[enrollParams.enrollmentId] = 'deleted';
   }
 }
