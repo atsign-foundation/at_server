@@ -1161,7 +1161,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'enrollmentId is mandatory for enroll:revoke/enroll:deny/enroll:delete')));
+                  'enrollmentId is mandatory for enroll:unrevoke')));
     });
     tearDown(() async => await verbTestsTearDown());
   });

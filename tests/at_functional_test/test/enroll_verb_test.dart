@@ -1605,5 +1605,5 @@ void main() {
       expect(revokeEnrollmentResponse.trim(),
           'error:AT0401-Exception: Cannot delete enrollment without authentication');
     });
-  }, skip: true);
+  });
 }

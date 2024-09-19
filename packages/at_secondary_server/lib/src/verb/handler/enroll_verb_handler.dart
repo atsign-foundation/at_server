@@ -676,7 +676,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       case 'unrevoke':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw AtEnrollmentException(
-              'enrollmentId is mandatory for enroll:revoke/enroll:deny/enroll:delete');
+              'enrollmentId is mandatory for enroll:$operation');
         }
         break;
     }
