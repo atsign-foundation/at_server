@@ -1436,6 +1436,7 @@ void main() {
           AtData()
             ..data = jsonEncode(enrollDataStoreValue.toJson())
             ..metaData = (AtMetaData()..ttl = 1));
+      await Future.delayed(Duration(milliseconds: 2));
 
       String updateCommand = 'update:@alice:phone.wavi@alice 123';
 
