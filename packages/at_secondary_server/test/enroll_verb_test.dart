@@ -1155,13 +1155,13 @@ void main() {
       String unrevokeEnrollmentCommand = 'enroll:unrevoke:{"enrollmentId":""}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
-      await expectLater(
+      expect(
           () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'enrollmentId is mandatory for enroll:revoke/enroll:deny')));
+                  'enrollmentId is mandatory for enroll:revoke/enroll:deny/enroll:delete')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1866,7 +1866,8 @@ void main() {
 
       Response verbResponse = await enrollVerb.processInternal(
           enrollDeleteCommand, inboundConnection);
-      expect(verbResponse.data, '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
+      expect(verbResponse.data,
+          '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
     });
 
     test(
@@ -1915,7 +1916,8 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
-      expect(() => enrollVerb.processInternal(
+      expect(
+          () => enrollVerb.processInternal(
               enrollDeleteCommand, inboundConnection),
           throwsA(predicate((e) =>
               e.toString() ==
