@@ -1160,8 +1160,7 @@ void main() {
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
-              e.message ==
-                  'enrollmentId is mandatory for enroll:unrevoke')));
+              e.message == 'enrollmentId is mandatory for enroll:unrevoke')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1870,6 +1869,30 @@ void main() {
           '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
     });
 
+    test('Validate behaviour of deleting revoked enrollment', () async {
+      String dummyEnrollId = '34534253436';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+
+      Response verbResponse = await enrollVerb.processInternal(
+          enrollDeleteCommand, inboundConnection);
+      expect(verbResponse.data,
+          '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
+    });
+
     test(
         'Validate negative behaviour of deleting denied enrollment from unAuthenticated connection',
         () async {
@@ -1886,6 +1909,34 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated = false;
       castMetadata(inboundConnection).enrollmentId = '123653';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+
+      expect(
+          () => enrollVerb.processInternal(
+              enrollDeleteCommand, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Cannot delete enrollment without authentication')));
+    });
+
+    test(
+        'Validate negative behaviour of deleting revoked enrollment from unAuthenticated connection',
+        () async {
+      String dummyEnrollId = '4750345034850983';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-11', 'dummy-app-11', 'dummy-device-11', 'dummmy-key-11')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = false;
+      castMetadata(inboundConnection).enrollmentId = '1425365';
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);

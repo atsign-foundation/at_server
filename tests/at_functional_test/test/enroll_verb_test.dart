@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
@@ -592,13 +593,13 @@ void main() {
           enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
       //Create a new connection to login using the APKAM
-          OutboundConnectionFactory socketConnection2 =
+      OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String authResponse = await socketConnection2.authenticateConnection(
-              authType: AuthType.apkam, enrollmentId: enrollmentId);
-          expect(authResponse.trim(), 'data:success');
-          await socketConnection2.close();
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
 
       // Revoke the enrollment
       String revokeEnrollmentCommand =
@@ -625,13 +626,13 @@ void main() {
           enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
       //Create a new connection to login using the APKAM
-          OutboundConnectionFactory socketConnection2 =
+      OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String authResponse = await socketConnection2.authenticateConnection(
-              authType: AuthType.apkam, enrollmentId: enrollmentId);
-          expect(authResponse.trim(), 'data:success');
-          await socketConnection2.close();
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
 
       // Revoke the enrollment
       String revokeEnrollmentCommand =
@@ -646,14 +647,13 @@ void main() {
           "Enrollment is revoked. Closing the connection in 10 seconds");
 
       socketConnection2 = await OutboundConnectionFactory()
-              .initiateConnectionWithListener(
+          .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String pkamResult = await socketConnection2.authenticateConnection(
-              authType: AuthType.apkam, enrollmentId: enrollmentId);
-          socketConnection2.close();
-          assert(pkamResult.contains(
-              'enrollment_id: $enrollmentId is revoked'));
-        });
+      String pkamResult = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      socketConnection2.close();
+      assert(pkamResult.contains('enrollment_id: $enrollmentId is revoked'));
+    });
 
     test(
         'A test to verify revoke operation cannot be performed on an unauthenticated connection',
@@ -671,12 +671,12 @@ void main() {
       OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String revokeEnrollmentCommand =
-              'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
-          String revokeEnrollmentResponse =
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
+      String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(revokeEnrollmentCommand);
-          expect(revokeEnrollmentResponse.trim(),
-              'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
     });
   });
 
@@ -1458,6 +1458,62 @@ void main() {
       expect(jsonDecodedResponse['enrollmentId'], enrollmentId);
     });
 
+    test('delete an revoked enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a new cram authenticated connection
+      OutboundConnectionFactory secondAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+
+      // approve then revoke the above created enrollment
+      String approveCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncryptionPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(approveCommand);
+      String revokeCommand = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(revokeCommand);
+      jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceFirst('data:', ""));
+      expect(jsonDecodedResponse['status'], 'revoked');
+
+      // now try to delete the revoked enrollment
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('data:', '');
+      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['enrollmentId'], enrollmentId);
+      expect(jsonDecodedResponse['status'], 'deleted');
+    });
+
     test('negative test - delete an approved enrollment', () async {
       // Send an enrollment request on the authenticated connection
       await firstAtSignConnection.authenticateConnection(
@@ -1527,66 +1583,6 @@ void main() {
           jsonDecodedResponse['errorDescription'],
           'Internal server exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete pending enrollments. '
-          'Only denied enrollments can be deleted');
-    });
-
-    test('negative test - delete an revoked enrollment', () async {
-      // Send an enrollment request on the authenticated connection
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.cram);
-      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceFirst('data:', '');
-      await firstAtSignConnection.close();
-
-      // Submit an enrollment request from an un-authenticated connection
-      OutboundConnectionFactory unAuthenticatedConnection =
-          OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
-      String enrollRequest =
-          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
-      var enrollmentResponse =
-          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
-      Map jsonDecodedResponse =
-          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
-      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
-      expect(jsonDecodedResponse['status'], 'pending');
-      assert(enrollmentId != null);
-      await unAuthenticatedConnection.close();
-
-      // create a new cram authenticated connection
-      OutboundConnectionFactory secondAuthenticatedConnection =
-          OutboundConnectionFactory();
-      await secondAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
-      await secondAuthenticatedConnection.authenticateConnection(
-          authType: AuthType.cram);
-
-      // approve then revoke the above created enrollment
-      String approveCommand =
-          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncryptionPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
-      enrollmentResponse = await secondAuthenticatedConnection
-          .sendRequestToServer(approveCommand);
-      String revokeCommand = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
-      enrollmentResponse = await secondAuthenticatedConnection
-          .sendRequestToServer(revokeCommand);
-      jsonDecodedResponse =
-          jsonDecode(enrollmentResponse.replaceFirst('data:', ""));
-      expect(jsonDecodedResponse['status'], 'revoked');
-
-      // now try to delete the revoked enrollment
-      String deleteEnrollmentCommand =
-          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
-      String revokeEnrollmentResponse = await secondAuthenticatedConnection
-          .sendRequestToServer(deleteEnrollmentCommand);
-      revokeEnrollmentResponse =
-          revokeEnrollmentResponse.replaceFirst('error:', '');
-      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
-      expect(jsonDecodedResponse['errorCode'], 'AT0011');
-      expect(
-          jsonDecodedResponse['errorDescription'],
-          'Internal server exception : Failed to delete enrollment id: '
-          '$enrollmentId | Cause: Cannot delete revoked enrollments. '
           'Only denied enrollments can be deleted');
     });
 
