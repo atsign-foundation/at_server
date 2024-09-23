@@ -31,11 +31,8 @@ class InfoVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     Map infoMap = {};
-    String? apkamMetadataKey;
-    String? result;
     InboundConnectionMetadata atConnectionMetadata = atConnection.metaData
         as InboundConnectionMetadata; // structure of what is returned is documented in the [Info] verb in at_server_spec
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
     Duration uptime = Duration(
