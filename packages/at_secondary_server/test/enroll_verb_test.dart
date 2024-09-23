@@ -1161,7 +1161,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
-                  'enrollmentId is mandatory for enroll:revoke/enroll:deny')));
+                  'enrollmentId is mandatory for revoke,unrevoke, deny and fetch operations of an enrollment')));
     });
 
     test('A test to verify apkam expiry is set for approved enrollment',

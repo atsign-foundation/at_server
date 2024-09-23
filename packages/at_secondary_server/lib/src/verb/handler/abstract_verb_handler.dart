@@ -95,13 +95,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
           "Enrollment id is not found. Returning true from _verifyIfEnrollmentIsActive");
       return (true, response);
     }
-    final enrollmentKey = '${(atConnectionMetadata).enrollmentId}'
-        '.$newEnrollmentKeyPattern'
-        '.$enrollManageNamespace'
-        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
     try {
       EnrollDataStoreValue enrollDataStoreValue =
-          await getEnrollDataStoreValue(enrollmentKey);
+          await AtSecondaryServerImpl.getInstance()
+              .enrollmentManager
+              .get(atConnectionMetadata.enrollmentId!);
       // If the enrollment status is expired, then the enrollment is not active. Return false.
       if (enrollDataStoreValue.approval?.state ==
           EnrollmentStatus.expired.name) {
@@ -200,21 +198,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return true;
     }
 
-    // Step 1: From the enrollmentId fetch the enrollment details
-    final enrollmentKey = '${inboundConnectionMetadata.enrollmentId}'
-        '.$newEnrollmentKeyPattern'
-        '.$enrollManageNamespace'
-        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
     EnrollDataStoreValue enrollDataStoreValue;
+
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
+      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .get(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $enrollmentKey');
+      logger.shout(
+          'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
       return false;
     }
 
     bool isValid = _applyEnrollmentValidations(
-        enrollDataStoreValue, enrollmentKey, operation, atKey, namespace);
+        enrollDataStoreValue, operation, atKey, namespace);
     if (isValid == false) {
       return isValid;
     }
@@ -310,18 +307,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return (authorisedNamespace, access);
   }
 
-  bool _applyEnrollmentValidations(
-      EnrollDataStoreValue enrollDataStoreValue,
-      String enrollmentKey,
-      String operation,
-      String? atKey,
-      String? namespace) {
+  bool _applyEnrollmentValidations(EnrollDataStoreValue enrollDataStoreValue,
+      String operation, String? atKey, String? namespace) {
     // Only approved enrollmentId is authorised to perform operations. Return false for enrollments
     // which are not approved.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $enrollmentKey'
-          ' is ${enrollDataStoreValue.approval?.state}');
+      // logger.warning('Enrollment state for $enrollmentKey'
+      //     ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
     // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke

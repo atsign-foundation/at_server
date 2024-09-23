@@ -64,10 +64,10 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     Map<String, String> enrolledNamespaces = {};
 
     if (enrollmentId != null && enrollmentId.isNotEmpty) {
-      String enrollmentKey =
-          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
-      enrolledNamespaces =
-          (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+      enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
+              .enrollmentManager
+              .get(enrollmentId))
+          .namespaces;
     }
 
     while (commitEntryIterator.moveNext() &&

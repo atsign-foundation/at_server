@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -45,6 +46,8 @@ Future<void> setUpMethod() async {
       .init(storageDir);
   // Set currentAtSign
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
+  AtSecondaryServerImpl.getInstance().enrollmentManager = EnrollmentManager(
+      secondaryPersistenceStore?.getSecondaryKeyStore() as SecondaryKeyStore);
 }
 
 void main() {

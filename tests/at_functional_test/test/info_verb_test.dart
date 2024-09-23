@@ -58,12 +58,11 @@ void main() {
     Map infoResponse = jsonDecode(infoVerbResponse);
     print('infoResponse: $enrollResponse');
     expect(infoResponse['apkam_metadata'], isNotEmpty);
-    var apkamMetadata = jsonDecode(infoResponse['apkam_metadata']);
     // Assert the APKAM metadata
-    expect(apkamMetadata['appName'], 'wavi-$random');
-    expect(apkamMetadata['deviceName'], 'pixel-$random');
-    expect(apkamMetadata['namespaces'], {"wavi": "rw"});
-    expect(apkamMetadata['sessionId'], isNotNull);
-    expect(apkamMetadata['apkamPublicKey'], isNotNull);
+    expect(infoResponse['apkam_metadata']['appName'], 'wavi-$random');
+    expect(infoResponse['apkam_metadata']['deviceName'], 'pixel-$random');
+    expect(infoResponse['apkam_metadata']['namespaces'], {"wavi": "rw"});
+    expect(infoResponse['apkam_metadata']['sessionId'], isNotNull);
+    expect(infoResponse['apkam_metadata']['apkamPublicKey'], isNotNull);
   });
 }
