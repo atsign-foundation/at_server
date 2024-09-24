@@ -272,7 +272,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
     }
     logger.finer('enrollData: $enrollData');
-    //await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
     await AtSecondaryServerImpl.getInstance()
         .enrollmentManager
         .put(newEnrollmentId, enrollData);

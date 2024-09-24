@@ -8,13 +8,35 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 
+/// Manages enrollment data in the secondary server.
+///
+/// This class provides methods to retrieve and store enrollment data
+/// associated with a given enrollment ID. It interacts with the
+/// SecondaryKeyStore to persist and retrieve enrollment information.
 class EnrollmentManager {
   final SecondaryKeyStore _keyStore;
 
   final logger = AtSignLogger('AtSecondaryServer');
 
+  /// Creates an instance of [EnrollmentManager].
+  ///
+  /// The [keyStore] is required to interact with the persistence layer.
   EnrollmentManager(this._keyStore);
 
+  /// Retrieves the enrollment data for a given [enrollmentId].
+  ///
+  /// This method constructs an enrollment key, fetches the corresponding
+  /// data from the key store, and returns it as an [EnrollDataStoreValue].
+  /// If the key is not found, a [KeyNotFoundException] is thrown.
+  ///
+  /// If the retrieved enrollment data is no longer active, the status
+  /// will be set to `expired`.
+  ///
+  /// Returns:
+  ///   An [EnrollDataStoreValue] containing the enrollment details.
+  ///
+  /// Throws:
+  ///   [KeyNotFoundException] if the enrollment key does not exist.
   Future<EnrollDataStoreValue> get(String enrollmentId) async {
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
     try {
@@ -33,10 +55,26 @@ class EnrollmentManager {
     }
   }
 
+  /// Constructs the enrollment key based on the provided [enrollmentId].
+  ///
+  /// The key format combines the [enrollmentId], a new enrollment key pattern,
+  /// and the current AtSign.
+  ///
+  /// Returns:
+  ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enrollmentId) {
     return '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
   }
 
+  /// Stores the enrollment data associated with the given [enrollmentId].
+  ///
+  /// This method constructs an enrollment key and saves the provided [AtData]
+  /// to the key store. The skipCommit is set to true, to prevent the enrollment
+  /// data being synced to the client(s).
+  ///
+  /// Parameters:
+  ///   - [enrollmentId]: The ID associated with the enrollment.
+  ///   - [atData]: The [AtData] object to be stored.
   Future<void> put(String enrollmentId, AtData atData) async {
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
     await _keyStore.put(enrollmentKey, atData, skipCommit: true);
