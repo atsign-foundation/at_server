@@ -63,7 +63,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    //Approve, deny, revoke or list enrollments only on authenticated connections
+    // //Approve, deny, revoke or list enrollments only on authenticated connections
     if (operation != 'request' && !atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
@@ -124,7 +124,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               forceFlag != null, atConnection, responseJson);
         }
         break;
-
       case 'list':
         response.data = await _fetchEnrollmentRequests(
             atConnection, currentAtSign,
@@ -134,6 +133,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         response.data = await _fetchEnrollmentInfoById(
             enrollVerbParams, currentAtSign, response);
         return;
+      case 'delete':
+        await _deleteDeniedEnrollment(
+            enrollVerbParams, currentAtSign, responseJson, response);
+        break;
     }
     response.data = jsonEncode(responseJson);
     return;
@@ -555,6 +558,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw AtEnrollmentException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }
+    if (operation == 'delete' &&
+        !(EnrollmentStatus.denied == enrollStatus ||
+            EnrollmentStatus.revoked == enrollStatus)) {
+      throw AtEnrollmentException(
+          'Cannot delete ${enrollStatus.name} enrollments. Only denied enrollments can be deleted');
+    }
     if (operation == 'unrevoke' && EnrollmentStatus.revoked != enrollStatus) {
       throw AtEnrollmentException(
           'Cannot un-revoke a ${enrollStatus.name} enrollment. Only revoked enrollments can be un-revoked');
@@ -603,6 +612,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If an enrollment is approved, we need the enrollment to be active
     // to subsequently revoke the enrollment. Hence reset TTL and
     // expiredAt on metadata.
+    ///ToDo: should unrevoke be added in the below condition
     if (operation == 'approve') {
       // Fetch the existing data
       AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
@@ -664,10 +674,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         break;
       case 'revoke':
       case 'deny':
+      case 'delete':
       case 'unrevoke':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw AtEnrollmentException(
-              'enrollmentId is mandatory for enroll:revoke/enroll:deny');
+              'enrollmentId is mandatory for enroll:$operation');
         }
         break;
     }
@@ -716,5 +727,35 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   int getEnrollmentResponseDelayInMilliseconds() {
     return delayForInvalidOTPSeries.last;
+  }
+
+  Future<void> _deleteDeniedEnrollment(EnrollParams? enrollParams,
+      String atsign, Map responseJson, response) async {
+    String deleteKey =
+        '${enrollParams!.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$atsign';
+    EnrollDataStoreValue enrollValue = await getEnrollDataStoreValue(deleteKey);
+    EnrollmentStatus enrollmentStatus =
+        getEnrollStatusFromString(enrollValue.approval!.state);
+    if (EnrollmentStatus.expired == enrollmentStatus) {
+      response.isError = true;
+      response.errorCode = 'AT0028';
+      response.errorMessage =
+          'enrollment_id: ${enrollParams.enrollmentId} is expired or invalid';
+    }
+    if (response.isError) {
+      return;
+    }
+    // ensures only denied entries can be deleted
+    try {
+      _verifyEnrollmentStateBeforeAction(
+          EnrollOperationEnum.delete.name, enrollmentStatus);
+    } on AtEnrollmentException catch (e) {
+      throw AtEnrollmentException(
+          'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
+    }
+
+    await keyStore.remove(deleteKey);
+    responseJson['enrollmentId'] = enrollParams.enrollmentId;
+    responseJson['status'] = 'deleted';
   }
 }
