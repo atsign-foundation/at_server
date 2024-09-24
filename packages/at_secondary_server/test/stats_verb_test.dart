@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -469,6 +470,41 @@ void main() {
       expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][0],
           (int.parse(lastCommitId) + 5));
       expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][1], '-');
+    });
+
+    test(
+        'A test to validate when entry count is greater than default sync buffer zie',
+        () async {
+      secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(alice);
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var lastCommitId =
+          await LastCommitIDMetricImpl.getInstance().getMetrics();
+      print('lastCommitId before op: $lastCommitId');
+      var randomString = Uuid().v4();
+      int phoneNumber = 1234;
+      int min = 5;
+      int max = 100;
+      // generate a random integer between 5 and 100
+      int randomNumber = min + Random().nextInt(max - min) + 1;
+      for (int i = 1; i <= randomNumber; i++) {
+        phoneNumber = phoneNumber + i;
+        await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
+            '@alice:phone-${randomString}_$i@alice',
+            AtData()..data = phoneNumber.toString());
+      }
+      lastCommitId = await LastCommitIDMetricImpl.getInstance().getMetrics();
+      var latestCommitIdForEachKey =
+          await LatestCommitEntryOfEachKey().getMetrics();
+      Map<String, dynamic> latestCommitIdMap =
+          jsonDecode(latestCommitIdForEachKey);
+      for (int i = 1; i <= randomNumber; i++) {
+        expect(
+            latestCommitIdMap
+                .containsKey('@alice:phone-${randomString}_$i@alice'),
+            true);
+      }
     });
 
     test(
