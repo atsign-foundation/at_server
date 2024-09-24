@@ -212,7 +212,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     bool isValid = _applyEnrollmentValidations(
         enrollDataStoreValue, operation, atKey, namespace);
-    if (isValid == false) {
+    if (!isValid) {
       return isValid;
     }
 
@@ -313,8 +313,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // which are not approved.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      // logger.warning('Enrollment state for $enrollmentKey'
-      //     ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
     // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke
