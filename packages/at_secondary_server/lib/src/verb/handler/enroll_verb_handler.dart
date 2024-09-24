@@ -301,7 +301,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     //   2. Enrollment key is not active
     try {
       // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
-      // Therefore, by the control comes here, enrollmentId will not be null.
+      // Therefore, when control comes here, enrollmentId will not be null.
       enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
           .get(enrollParams.enrollmentId!);
@@ -735,10 +735,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _deleteDeniedEnrollment(EnrollParams? enrollParams,
-      String atsign, Map responseJson, response) async {
-    String deleteKey =
-        '${enrollParams!.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$atsign';
-    EnrollDataStoreValue enrollValue = await getEnrollDataStoreValue(deleteKey);
+      String atSign, Map responseJson, response) async {
+    // Note: The enrollmentId is verified for the null check in the _validateParams methods.
+    // Therefore, when control comes here, enrollmentId will not be null.
+    EnrollDataStoreValue enrollValue = await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .get(enrollParams!.enrollmentId!);
     EnrollmentStatus enrollmentStatus =
         getEnrollStatusFromString(enrollValue.approval!.state);
     if (EnrollmentStatus.expired == enrollmentStatus) {
@@ -746,10 +748,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.errorCode = 'AT0028';
       response.errorMessage =
           'enrollment_id: ${enrollParams.enrollmentId} is expired or invalid';
-    }
-    if (response.isError) {
       return;
     }
+
     // ensures only denied entries can be deleted
     try {
       _verifyEnrollmentStateBeforeAction(
@@ -759,7 +760,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
     }
 
-    await keyStore.remove(deleteKey);
+    String enrollmentKeyToDelete = AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .buildEnrollmentKey(enrollParams.enrollmentId!);
+    await keyStore.remove(enrollmentKeyToDelete);
+
     responseJson['enrollmentId'] = enrollParams.enrollmentId;
     responseJson['status'] = 'deleted';
   }

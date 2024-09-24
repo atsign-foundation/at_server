@@ -1160,8 +1160,7 @@ void main() {
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
-              e.message ==
-                  'enrollmentId is mandatory for revoke,unrevoke, deny and fetch operations of an enrollment')));
+              e.message == 'enrollmentId is mandatory for enroll:unrevoke')));
     });
 
     test('A test to verify apkam expiry is set for approved enrollment',
@@ -1894,6 +1893,8 @@ void main() {
   });
 
   group('Group of tests to validate enroll delete operation', () {
+    Response response = Response();
+
     setUp(() async {
       await verbTestsSetUp();
     });
@@ -1914,11 +1915,13 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '123';
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
-      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
 
-      Response verbResponse = await enrollVerb.processInternal(
-          enrollDeleteCommand, inboundConnection);
-      expect(verbResponse.data,
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      await enrollVerb.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(response.data,
           '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
     });
 
@@ -1938,11 +1941,13 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '123';
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
-      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
 
-      Response verbResponse = await enrollVerb.processInternal(
-          enrollDeleteCommand, inboundConnection);
-      expect(verbResponse.data,
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      await enrollVerb.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(response.data,
           '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
     });
 
@@ -1964,11 +1969,13 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '123653';
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       expect(
-          () => enrollVerb.processInternal(
-              enrollDeleteCommand, inboundConnection),
+          () async => await enrollVerb.processVerb(
+              response, enrollVerbParams, inboundConnection),
           throwsA(predicate((e) =>
               e.toString() ==
               'Exception: Cannot delete enrollment without authentication')));
@@ -1992,11 +1999,13 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '1425365';
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       expect(
-          () => enrollVerb.processInternal(
-              enrollDeleteCommand, inboundConnection),
+          () => enrollVerb.processVerb(
+              response, enrollVerbParams, inboundConnection),
           throwsA(predicate((e) =>
               e.toString() ==
               'Exception: Cannot delete enrollment without authentication')));
@@ -2019,15 +2028,16 @@ void main() {
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
-      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerbHandler.parse(enrollDeleteCommand);
       expect(
-          () => enrollVerb.processInternal(
-              enrollDeleteCommand, inboundConnection),
+          () => enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
           throwsA(predicate((e) =>
               e.toString() ==
               'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied enrollments can be deleted')));
     });
-
     tearDown(() async => await verbTestsTearDown());
   });
 }
