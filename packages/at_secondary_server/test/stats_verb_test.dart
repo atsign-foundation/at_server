@@ -473,7 +473,7 @@ void main() {
     });
 
     test(
-        'A test to validate when entry count is greater than default sync buffer zie',
+        'A test to validate commit entries when commit log entry count is greater than default sync buffer zie',
         () async {
       secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(alice);
@@ -591,6 +591,18 @@ void main() {
       var lastCommitId =
           await LastCommitIDMetricImpl.getInstance().getMetrics(regex: 'buzz');
       expect(lastCommitId, '2');
+    });
+    test('A test to check LatestCommitEntryOfEachKey for empty commit log',
+        () async {
+      secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(alice);
+      LastCommitIDMetricImpl.getInstance().atCommitLog =
+          secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
+      var latestCommitIdForEachKey =
+          await LatestCommitEntryOfEachKey().getMetrics();
+      Map<String, dynamic> latestCommitIdMap =
+          jsonDecode(latestCommitIdForEachKey);
+      expect(latestCommitIdMap.isEmpty, true);
     });
     tearDown(() async => await verbTestsTearDown());
   });
