@@ -493,14 +493,19 @@ class LatestCommitEntryOfEachKey implements MetricProvider {
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
 
-    Iterator commitEntryIterator = atCommitLog!.getEntries(-1, regex: regex);
-
-    while (commitEntryIterator.moveNext()) {
-      CommitEntry commitEntry = commitEntryIterator.current.value;
-      responseMap[commitEntry.atKey!] = [
-        commitEntry.commitId,
-        commitEntry.operation.name
-      ];
+    int? lastCommitId = atCommitLog?.lastCommittedSequenceNumber();
+    int lastCommitIdReceived = -1;
+    while (lastCommitId != null && lastCommitIdReceived != lastCommitId) {
+      Iterator commitEntryIterator =
+          atCommitLog!.getEntries(lastCommitIdReceived, regex: regex);
+      while (commitEntryIterator.moveNext()) {
+        CommitEntry commitEntry = commitEntryIterator.current.value;
+        responseMap[commitEntry.atKey!] = [
+          commitEntry.commitId,
+          commitEntry.operation.name
+        ];
+        lastCommitIdReceived = commitEntry.commitId!;
+      }
     }
     return jsonEncode(responseMap);
   }

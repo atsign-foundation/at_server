@@ -2,6 +2,7 @@
 - feat: Introduce option to unrevoke revoked enrollments
 - feat: Introduce option to delete enrollments that are denied/revoked
 - build[deps]: update dependency versions of at_commons -> 4.1.2, at_utils -> 3.0.18, at_lookup -> 3.0.48
+- fix: LatestCommitEntryOfEachKey metric fixed to return commit log entries till last commitID instead of default limit 25.
 ## 3.0.50
 - fix: Enhance namespace authorisation check to verify when namespace has a period in it
 - feat: Enable expiration of APKAM keys based on the specified duration.
