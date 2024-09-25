@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -82,22 +81,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<ApkamVerificationResult> handleApkamVerification(
-      String enrollId, String atSign) async {
-    String enrollmentKey =
-        '$enrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$atSign';
+  Future<ApkamVerificationResult> handleApkamVerification(String enrollmentId,
+      String atSign) async {
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
     EnrollmentStatus? enrollStatus;
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
+      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .get(enrollmentId);
       enrollStatus =
           getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
     } on KeyNotFoundException catch (e) {
       logger.finer('Caught exception trying to fetch enrollment key: $e');
       enrollStatus = EnrollmentStatus.expired;
     }
-    apkamResult.response = _getApprovalStatus(enrollStatus, enrollId);
+    apkamResult.response = _getApprovalStatus(enrollStatus, enrollmentId);
     if (apkamResult.response.isError) {
       return apkamResult;
     }

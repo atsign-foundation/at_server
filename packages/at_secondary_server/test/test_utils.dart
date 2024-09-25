@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
@@ -11,6 +12,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -18,7 +20,6 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:at_lookup/at_lookup.dart' as at_lookup;
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -47,14 +48,19 @@ class MockSecureSocket extends Mock implements SecureSocket {}
 
 class MockSocket extends Mock implements Socket {
   Completer completer = Completer();
+
   @override
   Future get done => completer.future;
+
   @override
   InternetAddress get remoteAddress => InternetAddress('127.0.0.1');
+
   @override
   int get remotePort => 9999;
+
   @override
   InternetAddress get address => InternetAddress('127.0.0.1');
+
   @override
   int get port => 5555;
 }
@@ -200,6 +206,8 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
+  AtSecondaryServerImpl.getInstance().enrollmentManager =
+      EnrollmentManager(secondaryKeyStore);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();

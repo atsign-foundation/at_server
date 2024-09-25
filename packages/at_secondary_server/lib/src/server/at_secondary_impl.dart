@@ -7,11 +7,12 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
@@ -31,8 +32,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
-import 'package:uuid/uuid.dart';
 import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
@@ -106,6 +107,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
+  late EnrollmentManager enrollmentManager;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -168,6 +170,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(currentAtSign)!;
+
+    // Initialize enrollment manager
+    enrollmentManager = EnrollmentManager(secondaryKeyStore);
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =

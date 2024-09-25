@@ -53,6 +53,16 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (getVerb().requiresAuth() && !atConnectionMetadata.isAuthenticated) {
       throw UnAuthenticatedException('Command cannot be executed without auth');
     }
+    // This check verifies whether the enrollment is active on the already APKAM authenticated existing connection
+    // and terminates if the enrollment is expired.
+    // At this stage, the enrollmentId is not set to the InboundConnectionMetadata for the new connections.
+    // This will not terminate an un-authenticated connection when attempting to execute a PKAM verb with an expired enrollmentId.
+    (bool, Response) isEnrollmentActive =
+        await _verifyIfEnrollmentIsActive(response, atConnectionMetadata);
+    if (isEnrollmentActive.$1 == false) {
+      await atConnection.close();
+      return isEnrollmentActive.$2;
+    }
     try {
       // Parse the command
       var verbParams = parse(command);
@@ -71,6 +81,52 @@ abstract class AbstractVerbHandler implements VerbHandler {
     } on Exception {
       rethrow;
     }
+  }
+
+  /// When authenticated with the APKAM keys, checks if the enrollment is active.
+  /// Returns true if the enrollment is active; otherwise, returns false.
+  Future<(bool, Response)> _verifyIfEnrollmentIsActive(
+      Response response, AtConnectionMetaData atConnectionMetadata) async {
+    // When authenticated with legacy keys, enrollment id is null. APKAM expiry does not
+    // apply to such connections. Therefore, return true.
+    if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
+        null) {
+      logger.finest(
+          "Enrollment id is not found. Returning true from _verifyIfEnrollmentIsActive");
+      return (true, response);
+    }
+    try {
+      EnrollDataStoreValue enrollDataStoreValue =
+          await AtSecondaryServerImpl.getInstance()
+              .enrollmentManager
+              .get(atConnectionMetadata.enrollmentId!);
+      // If the enrollment status is expired, then the enrollment is not active. Return false.
+      if (enrollDataStoreValue.approval?.state ==
+          EnrollmentStatus.expired.name) {
+        logger.severe(
+            'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
+        response
+          ..isError = true
+          ..errorCode = 'AT0028'
+          ..errorMessage =
+              'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
+        return (false, response);
+      }
+      // The expired enrollments are removed from the keystore. In such cases, KeyNotFoundException is
+      // thrown. Return false.
+    } on KeyNotFoundException {
+      logger.severe(
+          'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
+      response
+        ..isError = true
+        ..errorCode = 'AT0028'
+        ..errorMessage =
+            'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
+      return (false, response);
+    }
+    logger.finest(
+        "Enrollment id ${atConnectionMetadata.enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
+    return (true, response);
   }
 
   /// Return the instance of the current verb
@@ -93,9 +149,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtData enrollData = await keyStore.get(enrollmentKey);
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-      if (!SecondaryUtil.isActiveKey(enrollData) &&
-          enrollDataStoreValue.approval!.state !=
-              EnrollmentStatus.approved.name) {
+      if (!SecondaryUtil.isActiveKey(enrollData)) {
         enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
       }
       return enrollDataStoreValue;
@@ -144,21 +198,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return true;
     }
 
-    // Step 1: From the enrollmentId fetch the enrollment details
-    final enrollmentKey = '${inboundConnectionMetadata.enrollmentId}'
-        '.$newEnrollmentKeyPattern'
-        '.$enrollManageNamespace'
-        '${AtSecondaryServerImpl.getInstance().currentAtSign}';
     EnrollDataStoreValue enrollDataStoreValue;
+
     try {
-      enrollDataStoreValue = await getEnrollDataStoreValue(enrollmentKey);
+      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .get(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
-      logger.shout('Could not retrieve enrollment data for $enrollmentKey');
+      logger.shout(
+          'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
       return false;
     }
 
     bool isValid = _applyEnrollmentValidations(
-        enrollDataStoreValue, enrollmentKey, operation, atKey, namespace);
+        enrollDataStoreValue, operation, atKey, namespace);
     if (!isValid) {
       return isValid;
     }
@@ -254,18 +307,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return (authorisedNamespace, access);
   }
 
-  bool _applyEnrollmentValidations(
-      EnrollDataStoreValue enrollDataStoreValue,
-      String enrollmentKey,
-      String operation,
-      String? atKey,
-      String? namespace) {
+  bool _applyEnrollmentValidations(EnrollDataStoreValue enrollDataStoreValue,
+      String operation, String? atKey, String? namespace) {
     // Only approved enrollmentId is authorised to perform operations. Return false for enrollments
     // which are not approved.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
-      logger.warning('Enrollment state for $enrollmentKey'
-          ' is ${enrollDataStoreValue.approval?.state}');
       return false;
     }
     // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke

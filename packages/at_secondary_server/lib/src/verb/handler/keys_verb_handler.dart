@@ -40,19 +40,22 @@ class KeysVerbHandler extends AbstractVerbHandler {
           'Keys verb cannot be accessed without an enrollmentId');
     }
     logger.finer('enrollIdFromMetadata:$enrollIdFromMetadata');
-    final key =
-        '$enrollIdFromMetadata.$newEnrollmentKeyPattern.$enrollManageNamespace';
 
-    var enrollData = await _getEnrollData(key, atSign);
-    if (enrollData != null) {
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+    try {
+      EnrollDataStoreValue enrollDataStoreValue =
+          await AtSecondaryServerImpl.getInstance()
+              .enrollmentManager
+              .get(connectionMetadata.enrollmentId!);
+
       if (enrollDataStoreValue.approval?.state != 'approved') {
         throw AtEnrollmentException(
             'Enrollment Id $enrollIdFromMetadata is not approved. current state: ${enrollDataStoreValue.approval?.state}');
       }
       hasManageAccess =
           enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
+    } on KeyNotFoundException {
+      logger.severe(
+          'Enrollment details not found for the enrollmentId: ${connectionMetadata.enrollmentId}');
     }
 
     final value = verbParams[AtConstants.keyValue];
@@ -75,15 +78,6 @@ class KeysVerbHandler extends AbstractVerbHandler {
       case 'delete':
         await _handleDeleteOperation(verbParams, response);
         break;
-    }
-  }
-
-  Future<AtData?> _getEnrollData(String key, String atSign) async {
-    try {
-      return await keyStore.get('$key$atSign');
-    } on KeyNotFoundException {
-      logger.warning('enrollment key not found in keystore $key');
-      throw AtEnrollmentException('Enrollment Id $key not found in keystore');
     }
   }
 
