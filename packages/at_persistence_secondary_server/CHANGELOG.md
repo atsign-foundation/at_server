@@ -1,3 +1,7 @@
+## 3.0.64
+- build[deps]: Upgraded the following packages:
+  - at_commons to v5.0.0
+  - at_utils to v3.0.19
 ## 3.0.63
 - fix: Ensure only latest commitEntry for each present in CommitLogCache
 ## 3.0.62
