@@ -63,7 +63,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    // //Approve, deny, revoke or list enrollments only on authenticated connections
+    // Approve, deny, revoke or list enrollments only on authenticated connections
     if (operation != 'request' && !atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
@@ -145,23 +145,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Fetches the enrollment request with enrollment id.
   Future<String> _fetchEnrollmentInfoById(
       EnrollParams? enrollVerbParams, currentAtSign, Response response) async {
-    String? enrollmentId = enrollVerbParams?.enrollmentId;
-
-    String enrollmentKey =
-        '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-    AtData atData;
-    try {
-      atData = await keyStore.get(enrollmentKey);
-    } on KeyNotFoundException {
-      throw KeyNotFoundException(
-          'An Enrollment with Id: ${enrollVerbParams?.enrollmentId} does not exist or has expired.');
-    }
-    if (atData.data == null) {
-      throw AtEnrollmentException(
-          'Enrollment details not found for enrollment id: ${enrollVerbParams?.enrollmentId}');
-    }
+    // Note: The enrollmentId is verified for null check in _validateParams.
     EnrollDataStoreValue enrollDataStoreValue =
-        EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+        await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .get(enrollVerbParams!.enrollmentId!);
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
@@ -231,9 +219,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
     var newEnrollmentId = Uuid().v4();
-    var key =
-        '$newEnrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    logger.finer('key: $key$currentAtSign');
+    var enrollmentKey = AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .buildEnrollmentKey(newEnrollmentId);
+    logger.finer('New enrollment key created : $enrollmentKey$currentAtSign');
 
     responseJson['enrollmentId'] = newEnrollmentId;
     final enrollmentValue = EnrollDataStoreValue(
@@ -243,6 +232,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollParams.apkamPublicKey!);
     enrollmentValue.namespaces = enrollNamespaces;
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
+
+    if (enrollParams.apkamKeysExpiryDuration != null) {
+      enrollmentValue.apkamKeysExpiryDuration =
+          enrollParams.apkamKeysExpiryDuration!;
+    }
+
     AtData enrollData;
     if (atConnection.metaData.authType != null &&
         atConnection.metaData.authType == AuthType.cram) {
@@ -266,7 +261,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.encryptedAPKAMSymmetricKey =
           enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
-      await _storeNotification(key, enrollParams, currentAtSign);
+      await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
       responseJson['status'] = 'pending';
       enrollData = AtData()
         ..data = jsonEncode(enrollmentValue.toJson())
@@ -277,7 +272,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
     }
     logger.finer('enrollData: $enrollData');
-    await keyStore.put('$key$currentAtSign', enrollData, skipCommit: true);
+    await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .put(newEnrollmentId, enrollData);
     // Remove the OTP from keystore to prevent reuse.
     await keyStore.remove(
         'private:${enrollParams.otp?.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}');
@@ -295,10 +292,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Map<dynamic, dynamic> responseJson,
       Response response) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
-    String enrollmentKey =
-        '$enrollmentIdFromParams.$newEnrollmentKeyPattern.$enrollManageNamespace';
-    logger.finer(
-        'Enrollment key: $enrollmentKey$currentAtSign | Enrollment operation: $operation');
     EnrollDataStoreValue? enrollDataStoreValue;
     EnrollmentStatus? enrollStatus;
     // Fetch and returns enrollment data from the keystore.
@@ -306,8 +299,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     //   1. Enrollment key is not present in keystore
     //   2. Enrollment key is not active
     try {
-      enrollDataStoreValue =
-          await getEnrollDataStoreValue('$enrollmentKey$currentAtSign');
+      // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
+      // Therefore, when control comes here, enrollmentId will not be null.
+      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .get(enrollParams.enrollmentId!);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       enrollStatus = EnrollmentStatus.expired;
@@ -356,7 +352,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
     // Update the enrollment status against the enrollment key in keystore.
     await _updateEnrollmentValueAndResetTTL(
-        '$enrollmentKey$currentAtSign', enrollDataStoreValue, operation);
+        enrollParams.enrollmentId!, enrollDataStoreValue, operation);
     // when enrollment is approved store the apkamPublicKey of the enrollment
     if (operation == 'approve') {
       var apkamPublicKeyInKeyStore =
@@ -459,10 +455,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // check if the enrollment has access to __manage namespace.
     // If enrollApprovalId has access to __manage namespace, return all the enrollments,
     // Else return only the specific enrollment.
-    final enrollmentKey =
-        '$enrollApprovalId.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
     EnrollDataStoreValue enrollDataStoreValue =
-        await getEnrollDataStoreValue(enrollmentKey);
+        await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .get(enrollApprovalId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
@@ -470,6 +466,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } else {
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
+        String enrollmentKey = AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .buildEnrollmentKey(enrollApprovalId);
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
@@ -527,7 +526,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
       logger.finer('notificationValue:$notificationValue');
       final atNotification = (AtNotificationBuilder()
-            ..notification = '$key$atSign'
+            ..notification = key
             ..fromAtSign = atSign
             ..toAtSign = atSign
             ..ttl = 24 * 60 * 60 * 1000
@@ -606,23 +605,27 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _updateEnrollmentValueAndResetTTL(String enrollmentKey,
+  Future<void> _updateEnrollmentValueAndResetTTL(String enrollmentId,
       EnrollDataStoreValue enrollDataStoreValue, String operation) async {
     AtData atData = AtData()..data = jsonEncode(enrollDataStoreValue.toJson());
     // If an enrollment is approved, we need the enrollment to be active
     // to subsequently revoke the enrollment. Hence reset TTL and
     // expiredAt on metadata.
-    ///ToDo: should unrevoke be added in the below condition
     if (operation == 'approve') {
       // Fetch the existing data
+      String enrollmentKey = AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .buildEnrollmentKey(enrollmentId);
       AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
       // Update key with new data
-      // only update ttl, expiresAt in metadata to preserve all the other valid data fields
-      enrollMetaData?.ttl = 0;
-      enrollMetaData?.expiresAt = null;
+      // Update ttl value to support auto expiry of APKAM keys
+      enrollMetaData?.ttl =
+          enrollDataStoreValue.apkamKeysExpiryDuration.inMilliseconds;
       atData.metaData = enrollMetaData;
     }
-    await keyStore.put(enrollmentKey, atData, skipCommit: true);
+    await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .put(enrollmentId, atData);
   }
 
   void _validateParams(EnrollParams? enrollParams, String operation,
@@ -676,6 +679,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       case 'deny':
       case 'delete':
       case 'unrevoke':
+      case 'fetch':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw AtEnrollmentException(
               'enrollmentId is mandatory for enroll:$operation');
@@ -730,10 +734,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _deleteDeniedEnrollment(EnrollParams? enrollParams,
-      String atsign, Map responseJson, response) async {
-    String deleteKey =
-        '${enrollParams!.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$atsign';
-    EnrollDataStoreValue enrollValue = await getEnrollDataStoreValue(deleteKey);
+      String atSign, Map responseJson, response) async {
+    // Note: The enrollmentId is verified for the null check in the _validateParams methods.
+    // Therefore, when control comes here, enrollmentId will not be null.
+    EnrollDataStoreValue enrollValue = await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .get(enrollParams!.enrollmentId!);
     EnrollmentStatus enrollmentStatus =
         getEnrollStatusFromString(enrollValue.approval!.state);
     if (EnrollmentStatus.expired == enrollmentStatus) {
@@ -741,10 +747,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.errorCode = 'AT0028';
       response.errorMessage =
           'enrollment_id: ${enrollParams.enrollmentId} is expired or invalid';
-    }
-    if (response.isError) {
       return;
     }
+
     // ensures only denied entries can be deleted
     try {
       _verifyEnrollmentStateBeforeAction(
@@ -754,7 +759,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
     }
 
-    await keyStore.remove(deleteKey);
+    String enrollmentKeyToDelete = AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .buildEnrollmentKey(enrollParams.enrollmentId!);
+    await keyStore.remove(enrollmentKeyToDelete);
+
     responseJson['enrollmentId'] = enrollParams.enrollmentId;
     responseJson['status'] = 'deleted';
   }

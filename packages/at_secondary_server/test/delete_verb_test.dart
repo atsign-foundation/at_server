@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -489,5 +490,48 @@ void main() {
       });
     }
     tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to apkam keys expiry', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('A test to verify delete verb fails when apkam keys are expired',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
+      enrollDataStoreValue.namespaces = {'wavi': 'rw'};
+      enrollDataStoreValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName,
+          AtData()
+            ..data = jsonEncode(enrollDataStoreValue.toJson())
+            ..metaData = (AtMetaData()..ttl = 1));
+
+      String deleteCommand = 'delete:@alice:phone.wavi@alice';
+
+      DeleteVerbHandler deleteVerbHandler =
+          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      response = await deleteVerbHandler.processInternal(
+          deleteCommand, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'The enrollment id: $enrollmentId is expired. Closing the connection');
+    });
   });
 }

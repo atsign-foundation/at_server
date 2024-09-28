@@ -1,14 +1,18 @@
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
@@ -70,6 +74,8 @@ void main() {
       // dummy enroll value
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
+      AtSecondaryServerImpl.getInstance().enrollmentManager =
+          EnrollmentManager(mockKeyStore);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -137,6 +143,52 @@ void main() {
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,
           'enrollment_id: enrollId is expired or invalid');
+    });
+  });
+
+  group('A group of tests related to apkam keys expiry', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('A test to verify pkam verb fails when apkam keys are expired',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
+      enrollDataStoreValue.namespaces = {'wavi': 'rw'};
+      enrollDataStoreValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
+
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName,
+          AtData()
+            ..data = jsonEncode(enrollDataStoreValue.toJson())
+            ..metaData = (AtMetaData()..ttl = 1));
+
+      String pkamCommand =
+          'pkam:enrollmentid:$enrollmentId:dummy-pkam-challenge';
+
+      HashMap<String, String?> pkamVerbParams =
+          getVerbParam(VerbSyntax.pkam, pkamCommand);
+
+      PkamVerbHandler pkamVerbHandler = PkamVerbHandler(secondaryKeyStore);
+      await pkamVerbHandler.processVerb(
+          response, pkamVerbParams, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'enrollment_id: $enrollmentId is expired or invalid');
     });
   });
 }
