@@ -817,6 +817,7 @@ void main() {
       expect(
           updateCommand,
           'update'
+          ':isEncrypted:false'
           ':sharedKeyEnc:$ske'
           ':pubKeyCS:$pubKeyCS'
           ':encKeyName:some_key'
@@ -928,6 +929,7 @@ void main() {
       expect(
           updateCommand,
           'update'
+          ':isEncrypted:false'
           ':ivNonce:some_iv'
           ':$bob:$atKey$alice $value');
 
