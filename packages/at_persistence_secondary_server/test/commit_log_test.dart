@@ -134,12 +134,12 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice',
                 CommitOp.UPDATE,
                 DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = i);
           }
@@ -413,19 +413,18 @@ void main() async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
         // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.getBox().add(
+        await commitLogInstance!.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 0);
         // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
         // Inserting commitEntry with commitId 2
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 2);
         // Inserting commitEntry with null commitId
         await commitLogInstance.commitLogKeyStore
-            .getBox()
             .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
         var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
@@ -627,10 +626,10 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(
+            await commitLogKeystore.add(
                 CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
                   ..commitId = i);
           }
@@ -648,6 +647,61 @@ void main() async {
             expect(changes.current.value.commitId, i);
           }
           i++;
+        }
+      });
+      test(
+          'A test to verify delete commit entries are NOT returned when skipDeletes is true',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        //loop to create 10 keys - even keys have commitId null - odd keys have commitId
+        for (int i = 0; i < 10; i++) {
+          if (i % 2 == 0) {
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.UPDATE, DateTime.now()));
+          } else {
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.DELETE, DateTime.now())
+              ..commitId = i);
+          }
+        }
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletes: true);
+        while (changes.moveNext()) {
+          expect(changes.current.value.operation != CommitOp.DELETE, true);
+        }
+      });
+      test(
+          'A test to verify delete commit entries are returned when skipDeletes is not set',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        //loop to create 10 keys - even keys have commitId null - odd keys have commitId
+        for (int i = 0; i < 10; i++) {
+          if (i % 2 == 0) {
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.UPDATE, DateTime.now()));
+          } else {
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.DELETE, DateTime.now())
+              ..commitId = i);
+          }
+        }
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1);
+        int i = 0;
+        for (int i = 0; i < 10; i++) {
+          while (changes.moveNext()) {
+            if (i % 2 == 0) {
+              expect(changes.current.value.operation, CommitOp.UPDATE);
+            } else {
+              expect(changes.current.value.operation, CommitOp.DELETE);
+            }
+            i++;
+          }
         }
       });
       test(

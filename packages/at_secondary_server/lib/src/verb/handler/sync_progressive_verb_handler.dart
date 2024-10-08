@@ -43,7 +43,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Get entries to sync
     var commitEntryIterator = atCommitLog!.getEntries(
         int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
-        regex: verbParams['regex']);
+        regex: verbParams['regex'],
+        skipDeletes: verbParams['skipDeletes'] == 'true');
 
     List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(capacity, syncResponse, commitEntryIterator,

@@ -232,13 +232,15 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
   Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25}) {
+      {String regex = '.*', int limit = 25, bool skipDeletes = false}) {
     Iterable<MapEntry<String, CommitEntry>> commitEntriesIterable =
         commitLogCache
             .entriesList()
             .where((element) =>
                 element.value.commitId! >= commitId &&
-                _acceptKey(element.value.atKey!, regex))
+                _acceptKey(element.value.atKey!, regex) &&
+                (!skipDeletes || element.value.operation != CommitOp.DELETE))
+            // do not include DELETE commits, if skipDeletes=true
             .take(limit);
     return commitEntriesIterable.iterator;
   }
@@ -564,7 +566,8 @@ class CommitLogCache {
     if (existingCommitId != null &&
         commitEntry.commitId != null &&
         existingCommitId > commitEntry.commitId!) {
-      _logger.shout('Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
+      _logger.shout(
+          'Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
       return;
     }
     _updateCacheLog(key, commitEntry);
