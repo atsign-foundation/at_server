@@ -250,6 +250,42 @@ void main() async {
         expect(commitId, 0);
         expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
       });
+      test('test to verify last committed sequenceNumber with regex', () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        await commitLogInstance?.commit(
+            'public:location_1.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:phone.buzz@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:location_2.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:email.buzz@alice', CommitOp.UPDATE);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+            3);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+            2);
+        await commitLogInstance?.commit(
+            'public:location_1.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:location_2.wavi@alice', CommitOp.DELETE);
+        await commitLogInstance?.commit(
+            'public:phone.buzz@alice', CommitOp.DELETE);
+        await commitLogInstance?.commit(
+            'public:email.buzz@alice', CommitOp.DELETE);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+            7);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+            5);
+      });
     });
     group('A group of commit log compaction tests', () {
       setUp(() async => await setUpFunc(storageDir));

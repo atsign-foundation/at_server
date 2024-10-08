@@ -220,7 +220,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   bool _isSpecialKey(String atKey) {
     return atKey.contains(AtConstants.atEncryptionSharedKey) ||
-        atKey.startsWith('public:') ||
+        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
         atKey.contains(AtConstants.atPkamSignature) ||
         atKey.contains(AtConstants.atSigningPrivateKey);
   }
@@ -564,7 +564,8 @@ class CommitLogCache {
     if (existingCommitId != null &&
         commitEntry.commitId != null &&
         existingCommitId > commitEntry.commitId!) {
-      _logger.shout('Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
+      _logger.shout(
+          'Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
       return;
     }
     _updateCacheLog(key, commitEntry);
