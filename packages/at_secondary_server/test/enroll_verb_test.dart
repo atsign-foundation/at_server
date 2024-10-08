@@ -70,7 +70,7 @@ void main() {
     });
 
     test(
-        'A test to verify enrollment of CRAM auth connection have __manage and * namespaces added to enrollment value',
+        'A test to verify enrollment of CRAM auth connection have __manage and * namespaces added to enrollment value and enrollment info is added to public hidden key',
         () async {
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
@@ -94,6 +94,15 @@ void main() {
           await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
+      var enrollmentAtData = await secondaryKeyStore
+          .get('public:$enrollmentPublicHiddenKey$alice');
+      expect(enrollmentAtData, isNotNull);
+      var enrollmentInfoJson = jsonDecode(enrollmentAtData!.data!);
+      var firstEnrollmentInfo = jsonDecode(enrollmentInfoJson[0]);
+      expect(firstEnrollmentInfo['enrollmentId'], enrollmentId);
+      expect(firstEnrollmentInfo['appName'], "wavi");
+      expect(firstEnrollmentInfo['deviceName'], "mydevice");
+      expect(firstEnrollmentInfo['namespaces']['wavi'], "r");
     });
 
     test(
@@ -723,7 +732,9 @@ void main() {
       expect(response.errorCode, 'AT0028');
     });
 
-    test('A test to verify TTL on approved enrollment is reset', () async {
+    test(
+        'A test to verify TTL on approved enrollment is reset and enrollment info is added to public hidden key',
+        () async {
       Response response = Response();
       // Enroll a request on an unauthenticated connection which will expire in 1 minute
       EnrollVerbHandler enrollVerbHandler =
@@ -759,6 +770,15 @@ void main() {
       enrollmentData = await secondaryKeyStore.get(enrollmentKey);
       expect(enrollmentData!.metaData!.expiresAt, null);
       expect(enrollmentData.metaData!.ttl, 0);
+      var enrollmentAtData = await secondaryKeyStore
+          .get('public:$enrollmentPublicHiddenKey$alice');
+      expect(enrollmentAtData, isNotNull);
+      var enrollmentInfoJson = jsonDecode(enrollmentAtData!.data!);
+      var secondEnrollmentInfo = jsonDecode(enrollmentInfoJson[0]);
+      expect(secondEnrollmentInfo['enrollmentId'], enrollmentId);
+      expect(secondEnrollmentInfo['appName'], "wavi");
+      expect(secondEnrollmentInfo['deviceName'], "mydevice");
+      expect(secondEnrollmentInfo['namespaces']['wavi'], "r");
     });
 
     test(
@@ -874,6 +894,14 @@ void main() {
           response, approveEnrollVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
       expect(jsonDecode(response.data!)['status'], 'approved');
+      // verify enrollmentId is present in hidden public key before enroll:revoke
+      var enrollmentAtData = await secondaryKeyStore
+          .get('public:$enrollmentPublicHiddenKey$alice');
+      expect(enrollmentAtData, isNotNull);
+      var enrollmentInfoJson = jsonDecode(enrollmentAtData!.data!);
+      var enrollmentInfo = jsonDecode(enrollmentInfoJson[0]);
+      expect(enrollmentInfo['enrollmentId'], enrollmentId);
+
       //revoke enrollment
       String revokeEnrollmentCommand =
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
@@ -883,6 +911,12 @@ void main() {
           response, enrollVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
       expect(jsonDecode(response.data!)['status'], 'revoked');
+      // verify enrollmentId is removed from hidden public key after enroll:revoke
+      enrollmentAtData = await secondaryKeyStore
+          .get('public:$enrollmentPublicHiddenKey$alice');
+      var enrollmentInfoJsonAfterRevoke =
+          jsonDecode(enrollmentAtData!.data!) as List;
+      expect(enrollmentInfoJsonAfterRevoke.length, 0);
     });
 
     test('A test to verify revoke enrollment with force flag', () async {
