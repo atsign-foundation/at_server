@@ -482,6 +482,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           req.response.statusCode = HttpStatus.badRequest;
           req.response.close();
         } else {
+          // TODO URL decoding, need to handle emojis for example
           var lookupKey = req.uri.path.substring(1);
           if (!lookupKey.startsWith('public:')) {
             lookupKey = 'public:$lookupKey';
@@ -491,14 +492,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           }
           logger.finer('Key to look up: $lookupKey');
           secondaryKeyStore.get(lookupKey)!.then((AtData? value) {
-            req.response.writeln('Hello there, http client!\n\n'
-                'The value stored for ${req.uri} ($lookupKey) is: \n'
-                '\t     data: ${value?.data}\n\n'
-                '\t metadata: ${value?.metaData}\n');
+            req.response.writeln('data:${value?.data}');
             req.response.close();
           }, onError: (error) {
-            req.response.writeln('Hello there, http client!\n\n'
-                'No value available for ${req.uri} ($lookupKey)\n');
+            req.response.writeln('error:no such key $lookupKey');
             req.response.close();
           });
         }
