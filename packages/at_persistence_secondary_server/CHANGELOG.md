@@ -1,3 +1,5 @@
+## 3.0.65
+- fix: Modified check for public encryption key in _specialKey method in commit log keystore
 ## 3.0.64
 - build[deps]: Upgraded the following packages:
   - at_commons to v5.0.0
