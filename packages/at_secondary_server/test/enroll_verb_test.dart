@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -2038,6 +2039,238 @@ void main() {
               e.toString() ==
               'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied and revoked enrollments can be deleted')));
     });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of tests to validate the commit log state when performing enrollment operations',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify commit log state during create approve revoke and delete an enrollment request',
+        () async {
+      Response response = Response();
+      // OTP Verb
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String otp = response.data!;
+
+      // 1. Create an enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"buzz":"r"},"otp":"$otp"'
+          ',"apkamPublicKey":"lorem_apkam"'
+          ',"encryptedAPKAMSymmetricKey": "ipsum_apkam"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      String enrollmentKey =
+          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+
+      // Verify key is created in the secondary keystore.
+      AtData? atData = await secondaryKeyStore.get(enrollmentKey);
+      expect(atData!.data!.isNotEmpty, true);
+
+      AtCommitLog? atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      var itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // 2. Approve an enrollment and verify enrollmentKey is not stored in the commit log.
+      String approveEnrollment =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
+      HashMap<String, String?> approveEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollment);
+      inboundConnection.metaData.isAuthenticated = true;
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      while (itr!.moveNext()) {
+        // When approving an enrollment, stores the public key with
+        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
+        // commit log has an entry.
+        expect(
+            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
+      }
+      // Ensure there are no other keys in the commit log.
+      expect(itr.moveNext(), false);
+
+      // 3. Revoke an enrollment and verify the commit log state.
+      enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> revokeEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, revokeEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      while (itr!.moveNext()) {
+        // When approving an enrollment, stores the public key with
+        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
+        // commit log has an entry.
+        expect(
+            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
+      }
+      // Ensure there are no other keys in the commit log.
+      expect(itr.moveNext(), false);
+
+      // 4. Delete an enrollment request.
+      enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'deleted');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      while (itr!.moveNext()) {
+        // When approving an enrollment, stores the public key with
+        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
+        // commit log has an entry.
+        expect(
+            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
+      }
+      // Ensure there are no other keys in the commit log.
+      expect(itr.moveNext(), false);
+
+      // Verify key is deleted in the secondary keystore.
+      expect(() async => await secondaryKeyStore.get(enrollmentKey),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
+    });
+
+    test(
+        'A test to verify commit log state during create deny and delete an enrollment request',
+        () async {
+      Response response = Response();
+      // OTP Verb
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String otp = response.data!;
+
+      // 1. Create an enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"buzz":"r"},"otp":"$otp"'
+          ',"apkamPublicKey":"lorem_apkam"'
+          ',"encryptedAPKAMSymmetricKey": "ipsum_apkam"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      String enrollmentKey =
+          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+
+      // Verify key is created in the secondary keystore.
+      AtData? atData = await secondaryKeyStore.get(enrollmentKey);
+      expect(atData!.data!.isNotEmpty, true);
+
+      AtCommitLog? atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      var itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // 3. Deny an enrollment and verify the commit log state.
+      enrollmentRequest = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> revokeEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, revokeEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'denied');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      while (itr!.moveNext()) {
+        // When approving an enrollment, stores the public key with
+        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
+        // commit log has an entry.
+        expect(
+            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
+      }
+      // Ensure there are no other keys in the commit log.
+      expect(itr.moveNext(), false);
+
+      // 3. Delete an enrollment request.
+      enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'deleted');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      while (itr!.moveNext()) {
+        // When approving an enrollment, stores the public key with
+        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
+        // commit log has an entry.
+        expect(
+            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
+      }
+      // Ensure there are no other keys in the commit log.
+      expect(itr.moveNext(), false);
+
+      // Verify key is deleted in the secondary keystore.
+      expect(() async => await secondaryKeyStore.get(enrollmentKey),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
+    });
+
     tearDown(() async => await verbTestsTearDown());
   });
 }
