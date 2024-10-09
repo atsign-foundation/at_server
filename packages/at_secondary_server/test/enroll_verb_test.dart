@@ -2036,7 +2036,7 @@ void main() {
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((e) =>
               e.toString() ==
-              'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied enrollments can be deleted')));
+              'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied and revoked enrollments can be deleted')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
