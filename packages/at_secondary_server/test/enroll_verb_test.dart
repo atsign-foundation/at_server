@@ -2214,31 +2214,23 @@ void main() {
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       expect(itr!.moveNext(), false);
 
-      // 3. Deny an enrollment and verify the commit log state.
+      // 2. Deny an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
-      HashMap<String, String?> revokeEnrollmentVerbParams =
+      HashMap<String, String?> denyEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       response = Response();
       enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
-          response, revokeEnrollmentVerbParams, inboundConnection);
+          response, denyEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'denied');
 
       atCommitLog =
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       itr = atCommitLog?.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      while (itr!.moveNext()) {
-        // When approving an enrollment, stores the public key with
-        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
-        // commit log has an entry.
-        expect(
-            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
-      }
-      // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(itr!.moveNext(), false);
 
       // 3. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2256,15 +2248,7 @@ void main() {
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       itr = atCommitLog?.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      while (itr!.moveNext()) {
-        // When approving an enrollment, stores the public key with
-        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
-        // commit log has an entry.
-        expect(
-            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
-      }
-      // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(itr!.moveNext(), false);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),
