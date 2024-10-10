@@ -635,8 +635,6 @@ void main() {
       Iterator iterator =
           (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       iterator.moveNext();
-      expect(iterator.current.key,
-          'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');
       expect(iterator.moveNext(), false);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -2084,6 +2082,11 @@ void main() {
       // Verify key is created in the secondary keystore.
       AtData? atData = await secondaryKeyStore.get(enrollmentKey);
       expect(atData!.data!.isNotEmpty, true);
+      var enrollmentDataMap = jsonDecode(atData.data!);
+      expect(enrollmentDataMap['appName'], 'wavi');
+      expect(enrollmentDataMap['deviceName'], 'mydevice');
+      expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
+      expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
       AtCommitLog? atCommitLog =
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
@@ -2105,15 +2108,8 @@ void main() {
       atCommitLog =
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       itr = atCommitLog?.getEntries(-1);
-      while (itr!.moveNext()) {
-        // When approving an enrollment, stores the public key with
-        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
-        // commit log has an entry.
-        expect(
-            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
-      }
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(itr!.moveNext(), false);
 
       // 3. Revoke an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
@@ -2130,16 +2126,8 @@ void main() {
       atCommitLog =
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       itr = atCommitLog?.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
-      while (itr!.moveNext()) {
-        // When approving an enrollment, stores the public key with
-        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
-        // commit log has an entry.
-        expect(
-            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
-      }
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(itr!.moveNext(), false);
 
       // 4. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2157,15 +2145,8 @@ void main() {
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       itr = atCommitLog?.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      while (itr!.moveNext()) {
-        // When approving an enrollment, stores the public key with
-        // public:appName.deviceName.pkam.__pkams.__public_keys@atSign key. Therefore,
-        // commit log has an entry.
-        expect(
-            itr.current.key.contains('pkam.__pkams.__public_keys$alice'), true);
-      }
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(itr!.moveNext(), false);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),
@@ -2207,6 +2188,11 @@ void main() {
       // Verify key is created in the secondary keystore.
       AtData? atData = await secondaryKeyStore.get(enrollmentKey);
       expect(atData!.data!.isNotEmpty, true);
+      var enrollmentDataMap = jsonDecode(atData.data!);
+      expect(enrollmentDataMap['appName'], 'wavi');
+      expect(enrollmentDataMap['deviceName'], 'mydevice');
+      expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
+      expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
       AtCommitLog? atCommitLog =
           await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);

@@ -255,7 +255,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = enrollParams.apkamPublicKey!);
+          AtData()..data = enrollParams.apkamPublicKey!,
+          skipCommit: true);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
       enrollmentValue.encryptedAPKAMSymmetricKey =
@@ -359,7 +360,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.$pkamNamespace.__public_keys$currentAtSign';
       var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
       var atData = AtData()..data = jsonEncode(valueJson);
-      await keyStore.put(apkamPublicKeyInKeyStore, atData);
+      await keyStore.put(apkamPublicKeyInKeyStore, atData, skipCommit: true);
       await _storeEncryptionKeys(
           enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
