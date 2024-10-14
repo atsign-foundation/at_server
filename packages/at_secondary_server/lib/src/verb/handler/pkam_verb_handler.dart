@@ -131,12 +131,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.errorMessage =
             'enrollment_id: $enrollId is expired or invalid';
         break;
-      default:
-        response.isError = true;
-        response.errorCode = 'AT0026';
-        response.errorMessage =
-            'Could not fetch enrollment status for enrollment_id: $enrollId';
-        break;
     }
     return response;
   }
