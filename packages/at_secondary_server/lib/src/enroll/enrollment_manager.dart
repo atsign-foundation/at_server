@@ -79,4 +79,18 @@ class EnrollmentManager {
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
     await _keyStore.put(enrollmentKey, atData, skipCommit: true);
   }
+
+  /// Deletes the enrollment key from the keystore.
+  ///
+  /// This method generates an enrollment key using the provided enrollmentId and
+  /// removes the enrollment key from the keystore. The skipCommit parameter is
+  /// set to true to prevent this deletion from being logged in the commit log,
+  /// ensuring it is not synced to the clients.
+  ///
+  /// Parameters:
+  ///  - [enrollmentId]: The ID associated with the enrollment.
+  Future<void> remove(String enrollmentId) async {
+    String enrollmentKey = buildEnrollmentKey(enrollmentId);
+    await _keyStore.remove(enrollmentKey, skipCommit: true);
+  }
 }
