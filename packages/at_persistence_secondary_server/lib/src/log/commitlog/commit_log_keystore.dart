@@ -219,10 +219,9 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 
   bool _isSpecialKey(String atKey) {
-    return atKey.contains(AtConstants.atEncryptionSharedKey) ||
-        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
-        atKey.contains(AtConstants.atPkamSignature) ||
-        atKey.contains(AtConstants.atSigningPrivateKey);
+    return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
+            RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
+        atKey.startsWith(AtConstants.atEncryptionPublicKey);
   }
 
   /// Returns the latest commitEntry of the key.
