@@ -38,6 +38,11 @@ dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      ref: special_key_bug
+      path: packages/at_commons
 
 dev_dependencies:
   build_runner: ^2.3.3
