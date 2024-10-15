@@ -179,6 +179,9 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
+  /// match a key to be passed in getEntries/getChanges when these conditions are met
+  /// if enrolledNamespace is passed, key namespace has be in list of enrolled namespace with required authorization
+  /// if regex is passed, key has to match the regex or it has to be a special key.
   bool _acceptKey(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
     return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
@@ -218,6 +221,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return RegExp(regex).hasMatch(atKey);
   }
 
+  /// match only reserved keys which have to be synced from server to client
+  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice
   bool _isSpecialKey(String atKey) {
     return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
             RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||

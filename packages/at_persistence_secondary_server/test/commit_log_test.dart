@@ -134,12 +134,12 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice',
                 CommitOp.UPDATE,
                 DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = i);
           }
@@ -449,19 +449,18 @@ void main() async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
         // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.getBox().add(
+        await commitLogInstance!.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 0);
         // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
         // Inserting commitEntry with commitId 2
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 2);
         // Inserting commitEntry with null commitId
         await commitLogInstance.commitLogKeyStore
-            .getBox()
             .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
         var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
@@ -663,10 +662,10 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(
+            await commitLogKeystore.add(
                 CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
                   ..commitId = i);
           }
@@ -706,6 +705,54 @@ void main() async {
         assert(
             thirdCommitId! > firstCommitId! && thirdCommitId > secondCommitId!);
         expect(commitEntryInCache?.commitId, thirdCommitId);
+      });
+      test(
+          'A test to verify only reserved key - shared key is returned in getEntries when namespace is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            '@bob:shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'shared_key.bob@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'bob:test_shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1, regex: '.buzz');
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          if (commitEntry.commitId == 0) {
+            expect(commitEntry.atKey, '@bob:shared_key@alice');
+          } else if (commitEntry.commitId == 1) {
+            expect(commitEntry.atKey, 'shared_key.bob@alice');
+          }
+        }
+      });
+      test(
+          'A test to verify non reserved key - shared key is returned in getEntries only when namespace is passed and key namespace matches passed namespace',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            '@bob:shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'shared_key.bob@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'bob:test_shared_key.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1, regex: '.buzz');
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          if (commitEntry.commitId == 0) {
+            expect(commitEntry.atKey, '@bob:shared_key@alice');
+          } else if (commitEntry.commitId == 1) {
+            expect(commitEntry.atKey, 'shared_key.bob@alice');
+          } else if (commitEntry.commitId == 2) {
+            expect(commitEntry.atKey, 'bob:test_shared_key.buzz@alice');
+          }
+        }
       });
     });
     tearDown(() async => await tearDownFunc());
