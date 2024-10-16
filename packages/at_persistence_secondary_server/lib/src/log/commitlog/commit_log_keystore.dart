@@ -185,8 +185,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
     return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
-        (_doesKeyMatchRegex(atKey, regex) ||
-            _shouldKeyBeIncludedInSyncIfNoRegexMatch(atKey));
+        (_keyMatchesRegex(atKey, regex) || _alwaysIncludeInSync(atKey));
   }
 
   bool _isNamespaceAuthorised(
@@ -218,13 +217,14 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return false;
   }
 
-  bool _doesKeyMatchRegex(String atKey, String regex) {
+  bool _keyMatchesRegex(String atKey, String regex) {
     return RegExp(regex).hasMatch(atKey);
   }
 
-  /// match only reserved keys and public keys without namespace which have to be synced from server to client, if regex doesn't match
-  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice, public:phone@alice
-  bool _shouldKeyBeIncludedInSyncIfNoRegexMatch(String atKey) {
+  /// match keys which have to included in sync irrespective of whether regex matches
+  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice,
+  /// public:phone@alice (public key without namespace)
+  bool _alwaysIncludeInSync(String atKey) {
     return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
             RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
         atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
