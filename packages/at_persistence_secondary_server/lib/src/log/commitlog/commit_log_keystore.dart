@@ -61,7 +61,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
       {List<String>? enrolledNamespace}) async {
     var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex,
+        (entry) => (_shouldIncludeKeyInSyncResponse(entry.atKey, regex,
             enrolledNamespace: enrolledNamespace)),
         orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
@@ -182,10 +182,11 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// match a key to be passed in getEntries/getChanges when these conditions are met
   /// if enrolledNamespace is passed, key namespace has be in list of enrolled namespace with required authorization
   /// if regex is passed, key has to match the regex or it has to be a special key.
-  bool _acceptKey(String atKey, String regex,
+  bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
     return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
-        (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
+        (_doesKeyMatchRegex(atKey, regex) ||
+            _shouldKeyBeIncludedInSyncIfNoRegexMatch(atKey));
   }
 
   bool _isNamespaceAuthorised(
@@ -217,16 +218,17 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return false;
   }
 
-  bool _isRegexMatches(String atKey, String regex) {
+  bool _doesKeyMatchRegex(String atKey, String regex) {
     return RegExp(regex).hasMatch(atKey);
   }
 
-  /// match only reserved keys which have to be synced from server to client
-  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice
-  bool _isSpecialKey(String atKey) {
+  /// match only reserved keys and public keys without namespace which have to be synced from server to client, if regex doesn't match
+  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice, public:phone@alice
+  bool _shouldKeyBeIncludedInSyncIfNoRegexMatch(String atKey) {
     return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
             RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
-        atKey.startsWith(AtConstants.atEncryptionPublicKey);
+        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
+        (atKey.startsWith('public:') && !atKey.contains('.'));
   }
 
   /// Returns the latest commitEntry of the key.
@@ -242,7 +244,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
             .entriesList()
             .where((element) =>
                 element.value.commitId! >= commitId &&
-                _acceptKey(element.value.atKey!, regex))
+                _shouldIncludeKeyInSyncResponse(element.value.atKey!, regex))
             .take(limit);
     return commitEntriesIterable.iterator;
   }
@@ -424,7 +426,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       // Iterate through the regex's in the _lastSyncedEntryCacheMap.
       // Updates the commitEntry against the matching regexes.
       for (var regex in _lastSyncedEntryCacheMap.keys) {
-        if (_acceptKey(commitEntry.atKey!, regex)) {
+        if (_shouldIncludeKeyInSyncResponse(commitEntry.atKey!, regex)) {
           _lastSyncedEntryCacheMap[regex] = commitEntry;
         }
       }
@@ -450,7 +452,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       limit ??= values.length + 1;
       for (CommitEntry element in values) {
         if (element.key >= startKey &&
-            _acceptKey(element.atKey!, regexString) &&
+            _shouldIncludeKeyInSyncResponse(element.atKey!, regexString) &&
             changes.length <= limit) {
           if (element.commitId == null) {
             changes.add(element);
@@ -487,8 +489,8 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
     // Returns the commitEntry with maximum commitId matching the given regex.
     // otherwise returns NullCommitEntry
     lastSyncedEntry = values.lastWhere(
-        (entry) =>
-            (_acceptKey(entry!.atKey!, regex) && (entry.commitId != null)),
+        (entry) => (_shouldIncludeKeyInSyncResponse(entry!.atKey!, regex) &&
+            (entry.commitId != null)),
         orElse: () => NullCommitEntry());
 
     if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
