@@ -1,3 +1,7 @@
+# 3.0.52
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.1
+  - at_persistence_secondary_server to v3.0.65
 ## 3.0.51
 - feat: Introduce option to unrevoke revoked enrollments
 - feat: Introduce option to delete enrollments that are denied/revoked
