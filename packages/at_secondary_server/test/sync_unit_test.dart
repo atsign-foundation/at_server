@@ -491,17 +491,12 @@ void main() {
 
         List syncResponse = jsonDecode(response.data!);
 
-        expect(syncResponse.length, 2);
-        // As per design, all the public keys are not filtered when matching with regex.
-        expect(syncResponse[0]['atKey'], 'public:country.wavi@alice');
-        expect(syncResponse[0]['commitId'], 1);
+        expect(syncResponse.length, 1);
+
+        expect(syncResponse[0]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[0]['commitId'], 3);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
-
-        expect(syncResponse[1]['atKey'], 'firstname.buzz@alice');
-        expect(syncResponse[1]['commitId'], 3);
-        expect(syncResponse[1]['operation'], '+');
-        expect(syncResponse[1]['metadata']['version'], '0');
       });
       test('test to verify sync response does not exceed the buffer limit',
           () async {

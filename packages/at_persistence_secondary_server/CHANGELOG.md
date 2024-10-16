@@ -1,3 +1,5 @@
+## 3.0.65
+- fix: Modified checks in _specialKey method in commit log keystore to match only reserved shared_key and encryption public key.
 ## 3.0.64
 - build[deps]: Upgraded the following packages:
   - at_commons to v5.0.0

@@ -1,6 +1,6 @@
 name: at_persistence_secondary_server
 description: A Dart library with the implementation classes for the persistence layer of the secondary server.
-version: 3.0.64
+version: 3.0.65
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://docs.atsign.com/
 
@@ -18,6 +18,14 @@ dependencies:
   at_utils: ^3.0.19
   at_persistence_spec: ^2.0.14
   meta: ^1.8.0
+
+#TODO replace with published version
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      ref: special_key_bug
+      path: packages/at_commons
 
 dev_dependencies:
   lints: ^2.0.1
