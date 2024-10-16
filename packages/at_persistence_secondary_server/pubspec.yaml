@@ -14,18 +14,10 @@ dependencies:
   crypto: ^3.0.3
   uuid: ^3.0.6
   at_utf7: ^1.0.0
-  at_commons: ^5.0.0
+  at_commons: ^5.0.1
   at_utils: ^3.0.19
   at_persistence_spec: ^2.0.14
   meta: ^1.8.0
-
-#TODO replace with published version
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      ref: special_key_bug
-      path: packages/at_commons
 
 dev_dependencies:
   lints: ^2.0.1
