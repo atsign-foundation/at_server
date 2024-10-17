@@ -840,6 +840,33 @@ void main() async {
         expect(commitEntriesMap.containsKey('public:phone.wavi@alice'), false);
         expect(commitEntriesMap.containsKey('public:location@alice'), true);
       });
+      test(
+          'A test to verify delete commit entries are NOT returned when skipDeletes is true',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletes: true);
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('test_key_true_1@alice'), true);
+        expect(commitEntriesMap.containsKey('test_key_true_2@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_3@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_4@alice'), true);
+      });
     });
     tearDown(() async => await tearDownFunc());
   });

@@ -127,12 +127,13 @@ class AtCommitLog extends BaseAtCommitLog {
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
   @server
   Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String? regex, int limit = 25}) {
+      {String? regex, int limit = 25, bool skipDeletes = false}) {
     // If regex is null or isEmpty set regex to match all keys
     if (regex == null || regex.isEmpty) {
       regex = '.*';
     }
-    return _commitLogKeyStore.getEntries(commitId, regex: regex, limit: limit);
+    return _commitLogKeyStore.getEntries(commitId,
+        regex: regex, limit: limit, skipDeletes: skipDeletes);
   }
 
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
