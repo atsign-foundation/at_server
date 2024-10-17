@@ -36,7 +36,10 @@ dependencies:
 
 dependency_overrides:
   at_commons:
-    path: ../../../at_libraries/packages/at_commons
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: sync_skip_delete
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
 
