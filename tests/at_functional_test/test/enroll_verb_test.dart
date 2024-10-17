@@ -1629,7 +1629,7 @@ void main() {
           jsonDecodedResponse['errorDescription'],
           'Internal server exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete approved enrollments. '
-          'Only denied enrollments can be deleted');
+          'Only denied and revoked enrollments can be deleted');
     });
 
     test('negative test - delete an pending enrollment', () async {
@@ -1675,7 +1675,7 @@ void main() {
           jsonDecodedResponse['errorDescription'],
           'Internal server exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete pending enrollments. '
-          'Only denied enrollments can be deleted');
+          'Only denied and revoked enrollments can be deleted');
     });
 
     test(

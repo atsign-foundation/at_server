@@ -470,6 +470,39 @@ void main() {
       });
 
       test(
+          'test to verify delete commit entries are not sent when skipDeletes is true',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_1@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_1@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_2@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_2@alice');
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletes', () => 'true');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        for (var entry in syncResponse) {
+          expect(entry['atKey'] != 'test_key_1@alice', true);
+          expect(entry['atKey'] != 'test_key_2@alice', true);
+        }
+      });
+
+      test(
           'test to verify only entries matching the regex are added to sync response',
           () async {
         /// Preconditions:
@@ -491,17 +524,12 @@ void main() {
 
         List syncResponse = jsonDecode(response.data!);
 
-        expect(syncResponse.length, 2);
-        // As per design, all the public keys are not filtered when matching with regex.
-        expect(syncResponse[0]['atKey'], 'public:country.wavi@alice');
-        expect(syncResponse[0]['commitId'], 1);
+        expect(syncResponse.length, 1);
+
+        expect(syncResponse[0]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[0]['commitId'], 3);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
-
-        expect(syncResponse[1]['atKey'], 'firstname.buzz@alice');
-        expect(syncResponse[1]['commitId'], 3);
-        expect(syncResponse[1]['operation'], '+');
-        expect(syncResponse[1]['metadata']['version'], '0');
       });
       test('test to verify sync response does not exceed the buffer limit',
           () async {

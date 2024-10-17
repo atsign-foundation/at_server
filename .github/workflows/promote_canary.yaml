@@ -19,7 +19,7 @@ jobs:
     outputs:
       digest: ${{ steps.docker_build_canary_to_prod.outputs.digest }}
     steps:
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
       # Extract version for docker tag
       - name: Get version
@@ -80,7 +80,7 @@ jobs:
     outputs:
       digest: ${{ steps.docker_build_canary_to_vip.outputs.digest }}
     steps:
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938  # v4.2.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871  # v4.2.1
 
       # Extract version for docker tag
       - name: Get version
@@ -139,7 +139,7 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for sigstore
       attestations: write
     steps:
-      - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
       - name: Get latest canary tag

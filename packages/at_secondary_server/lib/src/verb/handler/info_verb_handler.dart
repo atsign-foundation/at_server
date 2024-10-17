@@ -58,11 +58,10 @@ class InfoVerbHandler extends AbstractVerbHandler {
     int uHours = uptime.inHours.remainder(24);
     int uMins = uptime.inMinutes.remainder(60);
     int uSeconds = uptime.inSeconds.remainder(60);
-    // ignore: prefer_interpolation_to_compose_strings
-    String uptimeAsWords = (uDays > 0 ? "$uDays days " : "") +
-        ((uDays > 0 || uHours > 0) ? "$uHours hours " : "") +
-        ((uDays > 0 || uHours > 0 || uMins > 0) ? "$uMins minutes " : "") +
-        "$uSeconds seconds";
+    String uptimeAsWords = '${uDays > 0 ? '$uDays days ' : ''}'
+        '${(uDays > 0 || uHours > 0) ? '$uHours hours ' : ''}'
+        '${(uDays > 0 || uHours > 0 || uMins > 0) ? '$uMins minutes ' : ''}'
+        '$uSeconds seconds';
     return uptimeAsWords;
   }
 }
