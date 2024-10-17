@@ -1,4 +1,4 @@
-FROM dart:3.5.2@sha256:93ce3d39d7ec4914f9035e853ebb6c09eb7c5ea20d06a62f28abb807d3513391 AS buildimage
+FROM dart:3.5.2@sha256:8e175c500bf2372d4205e470dea1352a5af868f24a5426c4ed7413008f640400 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/install_PKAM_Keys.dart -o install_PKAM_Keys
 
-FROM debian:stable-20240926-slim@sha256:939e69ef5aa4dc178893a718ea567f1ca390df60793fd08c0bc7008362f72a57
+FROM debian:stable-20241016-slim@sha256:fffe16098bcefa876d01862a61f8f30ef4292c9485940e905d41a15d8459828b
 # was debian:stable-20221114-slim
 USER root
 
