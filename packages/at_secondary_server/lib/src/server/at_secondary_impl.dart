@@ -525,6 +525,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } else {
         // ALPN support
         // selectedProtocol is neither null nor 'atProtocol/1.0'
+        // TODO check specifically for http/1.1
         logger.info('Transferring socket to HttpServer for handling');
         pseudoServerSocket.add(clientSocket);
       }
