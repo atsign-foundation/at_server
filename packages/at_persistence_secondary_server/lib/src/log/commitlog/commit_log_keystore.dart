@@ -1,6 +1,9 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
@@ -10,10 +13,13 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   final _logger = AtSignLogger('CommitLogKeyStore');
   late CommitLogCache commitLogCache;
 
+  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
+
   int get latestCommitId => commitLogCache.latestCommitId;
 
   CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
     commitLogCache = CommitLogCache(this);
+    _syncKeysFetchStrategy = FetchAllKeysStrategy();
   }
 
   @override
@@ -184,51 +190,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// if regex is passed, key has to match the regex or it has to be a special key.
   bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
-    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
-        (_keyMatchesRegex(atKey, regex) || _alwaysIncludeInSync(atKey));
-  }
-
-  bool _isNamespaceAuthorised(
-      String atKeyAsString, List<String>? enrolledNamespace) {
-    // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
-    if (atKeyAsString.toLowerCase() == 'configkey') {
-      return true;
-    }
-    late AtKey atKey;
-    try {
-      atKey = AtKey.fromString(atKeyAsString);
-    } on InvalidSyntaxException catch (_) {
-      _logger.warning(
-          '_isNamespaceAuthorized found an invalid key "$atKeyAsString" in the commit log. Returning false');
-      return false;
-    }
-    String? keyNamespace = atKey.namespace;
-    // If enrolledNamespace is null or keyNamespace is null, fallback to
-    // existing behaviour - the key is authorized for the client to receive. So return true.
-    if (enrolledNamespace == null ||
-        enrolledNamespace.isEmpty ||
-        (keyNamespace == null || keyNamespace.isEmpty)) {
-      return true;
-    }
-    if (enrolledNamespace.contains('*') ||
-        enrolledNamespace.contains(keyNamespace)) {
-      return true;
-    }
-    return false;
-  }
-
-  bool _keyMatchesRegex(String atKey, String regex) {
-    return RegExp(regex).hasMatch(atKey);
-  }
-
-  /// match keys which have to included in sync irrespective of whether regex matches
-  /// e.g @bob:shared_key@alice, shared_key.bob@alice, public:publickey@alice,
-  /// public:phone@alice (public key without namespace)
-  bool _alwaysIncludeInSync(String atKey) {
-    return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
-            RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
-        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
-        (atKey.startsWith('public:') && !atKey.contains('.'));
+    return _syncKeysFetchStrategy.shouldIncludeKeyInSyncResponse(atKey, regex,
+        enrolledNamespace: enrolledNamespace);
   }
 
   /// Returns the latest commitEntry of the key.
@@ -238,13 +201,15 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
   Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25}) {
+      {String regex = '.*', int limit = 25, bool skipDeletes = false}) {
+    SyncKeysFetchStrategy syncKeysFetchStrategy =
+        skipDeletes ? SkipDeleteStrategy() : _syncKeysFetchStrategy;
     Iterable<MapEntry<String, CommitEntry>> commitEntriesIterable =
         commitLogCache
             .entriesList()
             .where((element) =>
-                element.value.commitId! >= commitId &&
-                _shouldIncludeKeyInSyncResponse(element.value.atKey!, regex))
+                syncKeysFetchStrategy.shouldIncludeEntryInSyncResponse(
+                    element.value, commitId, regex))
             .take(limit);
     return commitEntriesIterable.iterator;
   }
