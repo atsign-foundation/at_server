@@ -53,15 +53,15 @@ jobs:
 
         # Setup gcloud CLI
         - id: 'auth'
-          uses: google-github-actions/auth@8254fb75a33b976a221574d287e93919e6a36f70 # v2.1.6
+          uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
           with:
             credentials_json: '${{ secrets.GKE_SA_DEV_KEY }}'
 
         - name: 'Set up Cloud SDK'
-          uses: google-github-actions/setup-gcloud@f0990588f1e5b5af6827153b93673613abdc6ec7 # v2.1.1
+          uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
         # Get the GKE credentials so we can deploy to the cluster
-        - uses: google-github-actions/get-gke-credentials@6051de21ad50fbb1767bc93c11357a49082ad116 # v2.2.1
+        - uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
           with:
             cluster_name: ${{ secrets.GKE_DEV_CLUSTER }}
             location: ${{ secrets.GKE_DEV_ZONE }}
