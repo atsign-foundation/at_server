@@ -1,3 +1,11 @@
+## 2.1.2
+- build[deps]: Upgraded the following package:
+  - args to v2.6.0
+  - at_commons to v5.0.1
+  - at_utils to v3.0.19
+  - at_server_spec to v5.0.2
+  - test to v1.25.8
+  - coverage to v1.10.0
 ## 2.1.1
 - dependency upgrade in pubspec for at_commons, at_server_spec, at_utils
 ## 2.1.0
