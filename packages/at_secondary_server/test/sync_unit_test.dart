@@ -499,10 +499,99 @@ void main() {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
         for (var entry in syncResponse) {
-          expect(entry['atKey'] != 'test_key_1@alice', true);
-          expect(entry['atKey'] != 'test_key_2@alice', true);
+          syncResponseList.add(entry['atKey']);
         }
+        expect(syncResponseList.contains('test_key_1@alice'), false);
+        expect(syncResponseList.contains('test_key_2@alice'), false);
+        expect(syncResponseList.contains('test_key_3@alice'), true);
+      });
+
+      test(
+          'test to verify last delete commit entry is sent when skipDeletes flag is set',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_1@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_1@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_2@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_2@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_3@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_3@alice');
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry['atKey']);
+        }
+        expect(syncResponseList.contains('test_key_1@alice'), false);
+        expect(syncResponseList.contains('test_key_2@alice'), false);
+        expect(syncResponseList.contains('test_key_3@alice'), true);
+      });
+
+      test(
+          'test to verify delete commit entries are not sent when skipDeletes flag is set and only matching keys are sent when regex is set',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_1.wavi@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_1.wavi@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_2.buzz@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_2.buzz@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_3.buzz@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_4.wavi@alice', AtData()..data = 'alice');
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('regex', () => 'buzz');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry['atKey']);
+        }
+        expect(syncResponseList.contains('test_key_1.wavi@alice'), false);
+        expect(syncResponseList.contains('test_key_2.buzz@alice'), false);
+        expect(syncResponseList.contains('test_key_3.buzz@alice'), true);
+        expect(syncResponseList.contains('test_key_4.wavi@alice'), false);
       });
 
       test(
