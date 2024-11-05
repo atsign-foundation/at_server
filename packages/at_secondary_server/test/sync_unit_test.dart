@@ -470,7 +470,7 @@ void main() {
       });
 
       test(
-          'test to verify delete commit entries are not sent when skipDeletes is true',
+          'test to verify delete commit entries are not sent when skipDeletes flag is set',
           () async {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -484,6 +484,9 @@ void main() {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.remove('test_key_2@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_3@alice', AtData()..data = 'alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -492,7 +495,7 @@ void main() {
         atConnection.metaData.isAuthenticated = true;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
-        syncVerbParams.putIfAbsent('skipDeletes', () => 'true');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);

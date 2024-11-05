@@ -40,11 +40,14 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    int? skipDeletesUntil = verbParams['skipDeletesUntil'] != null
+        ? int.parse(verbParams['skipDeletesUntil']!)
+        : null;
     // Get entries to sync
     var commitEntryIterator = atCommitLog!.getEntries(
         int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
         regex: verbParams['regex'],
-        skipDeletes: verbParams['skipDeletes'] == 'true');
+        skipDeletesUntil: skipDeletesUntil);
 
     List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(capacity, syncResponse, commitEntryIterator,
@@ -70,7 +73,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
               .get(enrollmentId))
           .namespaces;
     }
-
     while (commitEntryIterator.moveNext() &&
         syncResponse.length < AtSecondaryConfig.syncPageLimit) {
       var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,

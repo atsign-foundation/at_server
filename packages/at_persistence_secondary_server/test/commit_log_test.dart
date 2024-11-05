@@ -841,7 +841,7 @@ void main() async {
         expect(commitEntriesMap.containsKey('public:location@alice'), true);
       });
       test(
-          'A test to verify delete commit entries are NOT returned when skipDeletes is true',
+          'A test to verify delete commit entries are NOT returned when skipDeletesUntil is set',
           () async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
@@ -856,7 +856,66 @@ void main() async {
             'test_key_true_4@alice', CommitOp.UPDATE, DateTime.now()));
         Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
             .commitLogKeyStore
-            .getEntries(-1, skipDeletes: true);
+            .getEntries(-1, skipDeletesUntil: 25);
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('test_key_true_1@alice'), true);
+        expect(commitEntriesMap.containsKey('test_key_true_2@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_3@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_4@alice'), true);
+      });
+      test(
+          'A test to verify correct commit entries are returned when skipDeletesUntil is set and regex is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2.buzz@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3.wavi@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletesUntil: 25, regex: '.buzz');
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(
+            commitEntriesMap.containsKey('test_key_true_1.wavi@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_2.buzz@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_3.wavi@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_4.buzz@alice'), true);
+      });
+      test(
+          'A test to verify last delete commit entry is returned when its commitId is equal to latest commitId',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4@alice', CommitOp.DELETE, DateTime.now()));
+        int? latestCommitId = commitLogInstance.lastCommittedSequenceNumber();
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletesUntil: latestCommitId);
         Map<String?, CommitEntry> commitEntriesMap = {};
         while (changes.moveNext()) {
           var commitEntry = changes.current.value;
