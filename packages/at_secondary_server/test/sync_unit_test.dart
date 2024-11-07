@@ -470,45 +470,6 @@ void main() {
       });
 
       test(
-          'test to verify delete commit entries are not sent when skipDeletes flag is set',
-          () async {
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_1@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_1@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_2@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_2@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_3@alice', AtData()..data = 'alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!);
-        var response = Response();
-        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
-        atConnection.metaData.isAuthenticated = true;
-        var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
-        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
-        await syncProgressiveVerbHandler.processVerb(
-            response, syncVerbParams, atConnection);
-        List syncResponse = jsonDecode(response.data!);
-        var syncResponseList = [];
-        for (var entry in syncResponse) {
-          syncResponseList.add(entry['atKey']);
-        }
-        expect(syncResponseList.contains('test_key_1@alice'), false);
-        expect(syncResponseList.contains('test_key_2@alice'), false);
-        expect(syncResponseList.contains('test_key_3@alice'), true);
-      });
-
-      test(
           'test to verify last delete commit entry is sent when skipDeletes flag is set',
           () async {
         await secondaryPersistenceStore!
@@ -1048,6 +1009,597 @@ void main() {
         expect(syncResponseList[1]['atKey'], 'public:mobile.buzz@alice');
         expect(syncResponseList[1]['operation'], '+');
       });
+      tearDown(() async => await tearDownMethod());
+    });
+    group('A group of tests to verify skip deletes feature', () {
+      setUp(() async => await setUpMethod());
+      test(
+          'test to verify delete commit entries are not sent when skipDeletes flag is set',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_1@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_1@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_2@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_2@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_3@alice', AtData()..data = 'alice');
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry['atKey']);
+        }
+        expect(
+            syncResponseList.contains('test_key_1@alice'), false); //deleted key
+        expect(
+            syncResponseList.contains('test_key_2@alice'), false); //deleted key
+        expect(syncResponseList.contains('test_key_3@alice'), true);
+      });
+
+      test(
+          'a test to verify sync response with skip deletes when first batch has all deletes',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '50');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        // deletes from commitID 25-49 should be skipped
+        for (int i = 25; i < 49; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        // last delete should be sent
+        expect(commitIdMap.containsKey(49), true);
+        expect(commitIdMap[49], '-');
+      });
+      test(
+          'a test to verify sync response with skip deletes when commit log has only deletes in second batch',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 25; i < 50; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '100');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 25; i < 50; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        response = Response();
+        syncVerbParams[AtConstants.fromCommitSequence] = '49';
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '100');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        syncResponse = jsonDecode(response.data!);
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        //deletes from commitID 50-74 should be skipped
+        for (int i = 50; i < 74; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        // last delete should be sent
+        expect(commitIdMap.containsKey(74), true);
+        expect(commitIdMap[74], '-');
+      });
+      test(
+          'a test to verify sync response with skip deletes when last entry in first batch is delete',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 1; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '100');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 1; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // last delete should be sent
+        expect(commitIdMap.containsKey(25), true);
+        expect(commitIdMap[25], '-');
+      });
+      test(
+          'a test to verify sync response - deletes after skipDeletes should be sent',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '30');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 10; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // deletes till 30 should not be sent
+        for (int i = 25; i <= 30; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        // rest of the deletes should be sent
+        for (int i = 31; i <= 34; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '-');
+        }
+      });
+      test(
+          'a test to verify sync response with skip deletes when first entry in second batch is delete',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_25@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_25@alice');
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '50');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 0; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        //get the next batch
+        syncVerbParams[AtConstants.fromCommitSequence] = '24';
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '50');
+        response = Response();
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        syncResponse = jsonDecode(response.data!);
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        // test_key_25 commitId should not be present in second batch
+        expect(commitIdMap.containsKey(25), false);
+        // last delete should be sent
+        expect(commitIdMap.containsKey(26), true);
+        expect(commitIdMap[26], '-');
+      });
+
+      test(
+          'a test to verify sync response skipDeletesUntil is (last commit ID in batch - 1)',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '33');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 10; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // deletes till 33 should not be sent
+        for (int i = 25; i <= 33; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        // last delete should be sent
+        expect(commitIdMap.containsKey(34), true);
+        expect(commitIdMap[34], '-');
+      });
+      test(
+          'a test to verify sync response skipDeletesUntil is (last commit ID in batch)',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '34');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 10; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // deletes till 33 should not be sent
+        for (int i = 25; i <= 33; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        // last delete should be sent even though skipDeleteUntil is 34
+        expect(commitIdMap.containsKey(34), true);
+        expect(commitIdMap[34], '-');
+      });
+      test(
+          'a test to verify sync response skipDeletesUntil is (last commit ID in batch + 1)',
+          () async {
+        for (int i = 0; i < 25; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        for (int i = 25; i < 30; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '36');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 10; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // deletes till 34 should not be sent
+        for (int i = 25; i <= 34; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        //updates from 35-39 should be sent
+        for (int i = 35; i <= 39; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+      });
+      test(
+          'a test to verify sync response when skipDeletesUntil is accidentally set to a higher value greater than latest server commit id',
+          () async {
+        //1. creates commitId from 0-29
+        for (int i = 0; i < 30; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        //2. 10-29 commit id will be updates. 30-39 will be deletes since only one key entry will be maintained for update followed by delete.
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent(
+            'skipDeletesUntil', () => '100'); //set to a higher value
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        var commitIdList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry);
+          commitIdList.add(entry['commitId']);
+        }
+        // should contain updates from commit id 10-29 and last commit id 39 which is delete. 30-38 will be skipped.
+        // assert all update commits are present
+        for (int i = 10; i < 30; i++) {
+          expect(commitIdList.contains(i), true);
+        }
+        // assert deletes in between are skipped
+        for (int i = 30; i < 39; i++) {
+          expect(commitIdList.contains(i), false);
+        }
+        // assert last delete is present
+        expect(commitIdList.contains(39), true);
+
+        expect(syncResponseList[0]['atKey'], 'test_key_10@alice');
+        expect(syncResponseList[0]['operation'], '+');
+        expect(syncResponseList[0]['commitId'], 10);
+        expect(syncResponseList[19]['atKey'], 'test_key_29@alice');
+        expect(syncResponseList[19]['operation'], '+');
+        expect(syncResponseList[19]['commitId'], 29);
+        expect(syncResponseList[20]['atKey'], 'test_key_9@alice');
+        expect(syncResponseList[20]['operation'], '-');
+        expect(syncResponseList[20]['commitId'], 39);
+      });
+      test(
+          'a test to verify sync response with skip deletes when commit log has less entries than default entry buffer count(25)',
+          () async {
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 5; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        var commitIdList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry);
+          commitIdList.add(entry['commitId']);
+        }
+
+        // update commits from 5-9 should be present
+        for (int i = 5; i < 10; i++) {
+          expect(commitIdList.contains(i), true);
+        }
+        // delete commits from 10-13 should be skipped
+        for (int i = 10; i < 14; i++) {
+          expect(commitIdList.contains(i), false);
+        }
+
+        // last commit delete should be present
+        expect(commitIdList.contains(14), true);
+      });
+      test(
+          'a test to verify sync response with skip deletes when commit log has greater entries than default entry buffer count(25)',
+          () async {
+        for (int i = 0; i < 10; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 0; i < 5; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        for (int i = 10; i < 20; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+        for (int i = 10; i < 15; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.remove('test_key_$i@alice');
+        }
+        for (int i = 20; i < 50; i++) {
+          await secondaryPersistenceStore!
+              .getSecondaryKeyStore()
+              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+        }
+
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '70');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        Map<int, String> commitIdMap = {};
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        // commit log will have
+        // 5-9 updates
+        // 10-14 deletes
+        // 20-24 updates
+        // 25-29 deletes
+        // 30-59 updates
+        // total entries in commit log 50
+        for (int i = 5; i < 10; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        for (int i = 10; i < 15; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        for (int i = 20; i < 25; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        for (int i = 25; i < 30; i++) {
+          expect(commitIdMap.containsKey(i), false);
+        }
+        for (int i = 30; i < 45; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+        // get the remaining updates in next sync batch
+        syncVerbParams[AtConstants.fromCommitSequence] = '44';
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '70');
+        response = Response();
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        syncResponse = jsonDecode(response.data!);
+        for (var entry in syncResponse) {
+          commitIdMap[entry['commitId']] = entry['operation'];
+        }
+        for (int i = 45; i < 60; i++) {
+          expect(commitIdMap.containsKey(i), true);
+          expect(commitIdMap[i], '+');
+        }
+      });
+
       tearDown(() async => await tearDownMethod());
     });
   });
