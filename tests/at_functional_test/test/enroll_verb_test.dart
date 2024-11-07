@@ -593,13 +593,13 @@ void main() {
           enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
       //Create a new connection to login using the APKAM
-          OutboundConnectionFactory socketConnection2 =
+      OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String authResponse = await socketConnection2.authenticateConnection(
-              authType: AuthType.apkam, enrollmentId: enrollmentId);
-          expect(authResponse.trim(), 'data:success');
-          await socketConnection2.close();
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
 
       // Revoke the enrollment
       String revokeEnrollmentCommand =
@@ -626,13 +626,13 @@ void main() {
           enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
       //Create a new connection to login using the APKAM
-          OutboundConnectionFactory socketConnection2 =
+      OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String authResponse = await socketConnection2.authenticateConnection(
-              authType: AuthType.apkam, enrollmentId: enrollmentId);
-          expect(authResponse.trim(), 'data:success');
-          await socketConnection2.close();
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
 
       // Revoke the enrollment
       String revokeEnrollmentCommand =
@@ -647,7 +647,7 @@ void main() {
           "Enrollment is revoked. Closing the connection in 10 seconds");
 
       socketConnection2 = await OutboundConnectionFactory()
-              .initiateConnectionWithListener(
+          .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
       String pkamResult = await socketConnection2.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -671,12 +671,12 @@ void main() {
       OutboundConnectionFactory socketConnection2 =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-          String revokeEnrollmentCommand =
-              'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
-          String revokeEnrollmentResponse =
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
+      String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(revokeEnrollmentCommand);
-          expect(revokeEnrollmentResponse.trim(),
-              'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
     });
   });
 
@@ -1582,11 +1582,35 @@ void main() {
       await secondAuthenticatedConnection.authenticateConnection(
           authType: AuthType.cram);
 
-      // approve then revoke the above created enrollment
+      // approve the above created enrollment
       String approveCommand =
           'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncryptionPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       enrollmentResponse = await secondAuthenticatedConnection
           .sendRequestToServer(approveCommand);
+
+      // Scan to verify the enrollment key, default private and self encryption keys are created.
+      String scan = 'scan $enrollmentId';
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      List enrollmentList = jsonDecode(enrollmentResponse);
+      expect(enrollmentList.length, 3);
+      expect(
+          enrollmentList.contains(
+              '$enrollmentId.default_enc_private_key.__manage$firstAtSign'),
+          true);
+      expect(
+          enrollmentList.contains(
+              '$enrollmentId.default_self_enc_key.__manage$firstAtSign'),
+          true);
+      expect(
+          enrollmentList
+              .contains('$enrollmentId.new.enrollments.__manage$firstAtSign'),
+          true);
+
+      // Revoke the enrollment.
       String revokeCommand = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
       enrollmentResponse = await secondAuthenticatedConnection
           .sendRequestToServer(revokeCommand);
@@ -1604,6 +1628,13 @@ void main() {
       jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
       expect(jsonDecodedResponse['enrollmentId'], enrollmentId);
       expect(jsonDecodedResponse['status'], 'deleted');
+
+      // Scan to verify the enrollment key, default private and self encryption keys are deleted.
+      // Ensure no keys with the deleted enrollment exists.
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      expect((jsonDecode(enrollmentResponse) as List).isEmpty, true);
     });
 
     test('negative test - delete an approved enrollment', () async {
