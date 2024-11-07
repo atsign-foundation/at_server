@@ -470,7 +470,7 @@ void main() {
       });
 
       test(
-          'test to verify last delete commit entry is sent when skipDeletes flag is set',
+          'test to verify last delete commit entry is sent when skipDeletesUntil flag is set',
           () async {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -512,7 +512,7 @@ void main() {
       });
 
       test(
-          'test to verify delete commit entries are not sent when skipDeletes flag is set and only matching keys are sent when regex is set',
+          'test to verify delete commit entries are not sent when skipDeletesUntil flag is set and only matching keys are sent when regex is set',
           () async {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -1014,7 +1014,7 @@ void main() {
     group('A group of tests to verify skip deletes feature', () {
       setUp(() async => await setUpMethod());
       test(
-          'test to verify delete commit entries are not sent when skipDeletes flag is set',
+          'test to verify delete commit entries are not sent when skipDeletesUntil flag is set',
           () async {
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -1186,7 +1186,7 @@ void main() {
         expect(commitIdMap[25], '-');
       });
       test(
-          'a test to verify sync response - deletes after skipDeletes should be sent',
+          'a test to verify sync response - deletes after skipDeletesUntil should be sent',
           () async {
         for (int i = 0; i < 25; i++) {
           await secondaryPersistenceStore!
