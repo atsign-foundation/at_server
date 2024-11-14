@@ -148,8 +148,8 @@ jobs:
           echo ${CANARY}
           mkdir sboms
           cd sboms
-          wget https://github.com/atsign-foundation/at_server/releases/download/${CANARY}/atserver_sbom.spdx.json
-          wget https://github.com/atsign-foundation/at_server/releases/download/${CANARY}/atserver_sbom.cyclonedx.json
+          wget https://github.com/atsign-foundation/at_server/releases/download/${CANARY}/atserver-${CANARY}-sbom.cdx.json
+          mv atserver-${CANARY}-sbom.cdx.json atserver-${{github.ref_name}}-sbom.cdx.json
           sha256sum * > checksums.txt
       - name: Upload artifacts to GitHub Release
         env:
