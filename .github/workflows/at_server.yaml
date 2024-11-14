@@ -127,7 +127,7 @@ jobs:
           COMPONENT_ID: '3hQHrn8mwK'
           LOCK_FILE: ${{ env.root-working-directory }}/pubspec.lock
           SBOM_VERSION: ${{github.ref_name}}
-          OUTPUT_FILE: 'sboms/atdirectory-${{github.ref_name}}-sbom.cdx.json'
+          OUTPUT_FILE: 'sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json'
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
@@ -139,10 +139,18 @@ jobs:
           COMPONENT_ID: 'wF66pn8rHZ'
           LOCK_FILE: ${{ env.secondary-working-directory }}/pubspec.lock
           SBOM_VERSION: ${{github.ref_name}}
-          OUTPUT_FILE: 'sboms/atserver-${{github.ref_name}}-sbom.cdx.json'
+          OUTPUT_FILE: 'sboms/atserver-gha${{github.run_number}}-sbom.cdx.json'
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        name: Rename SBOMs to use release tag
+        run: |
+          cd sboms
+          mv atdirectory-gha${{github.run_number}}-sbom.cdx.json \
+            atdirectory-${{github.ref_name}}-sbom.cdx.json
+          mv atserver-gha${{github.run_number}}-sbom.cdx.json \
+            atserver-${{github.ref_name}}-sbom.cdx.json
       - if: ${{ matrix.dart-channel == 'stable' }}
         name: Generate SHA256 checksums
         working-directory: sboms
