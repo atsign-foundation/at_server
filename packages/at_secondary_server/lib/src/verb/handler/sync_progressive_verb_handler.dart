@@ -150,11 +150,24 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     if (metaData == null) {
       return metaDataMap;
     }
-    metaData.toJson().forEach((key, value) {
-      if (value != null) {
-        metaDataMap[key] = value.toString();
+    Iterator itr = metaData.toJson().entries.iterator;
+    while (itr.moveNext()) {
+      // The value of [AtConstants.sharedWithPublicKeyHash] stores a Map containing
+      // the hash value and the hashing algorithm used for hashing the data.
+      // For example, {"hash":"dummy_value", "hashingAlgo":"sha512"}.
+      // Using toString() will not allow convert this into a Map, which is necessary
+      // for constructing the PublicKeyHash type on the client side.
+      // Therefore, a JSON-encoded string is used here, and on the client side,
+      // "jsonDecode" will be used to retrieve the Map and build the PublicKeyHash instance.
+      if (itr.current.key == AtConstants.sharedWithPublicKeyHash &&
+          itr.current.value != null) {
+        metaDataMap[itr.current.key] = jsonEncode(itr.current.value);
+        continue;
       }
-    });
+      if (itr.current.value != null) {
+        metaDataMap[itr.current.key] = itr.current.value.toString();
+      }
+    }
     return metaDataMap;
   }
 

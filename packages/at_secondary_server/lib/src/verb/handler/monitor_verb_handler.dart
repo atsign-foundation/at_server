@@ -138,6 +138,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
           "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
+          "pubKeyHash":
+              jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
         };
 
       await _checkAndSend(notification);
@@ -222,7 +224,8 @@ class Notification {
       "availableAt": atNotification.atMetadata?.availableAt.toString(),
       "expiresAt":
           (atNotification.atMetadata?.expiresAt ?? atNotification.expiresAt)
-              .toString()
+              .toString(),
+      'pubKeyHash': jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
     };
   }
 
