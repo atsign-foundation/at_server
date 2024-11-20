@@ -556,6 +556,58 @@ void main() {
       });
 
       test(
+          'test to verify last delete commit entry is NOT sent when skipDeletesUntil flag is set and key does not match regex',
+          () async {
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_1.wavi@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_1.wavi@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_2.buzz@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_2.buzz@alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_3.buzz@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_4.wavi@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.put('test_key_5.buzz@alice', AtData()..data = 'alice');
+        await secondaryPersistenceStore!
+            .getSecondaryKeyStore()
+            ?.remove('test_key_4.wavi@alice');
+        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
+            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+        var response = Response();
+        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+        syncVerbParams.putIfAbsent('regex', () => 'buzz');
+        syncVerbParams.putIfAbsent('skipDeletesUntil', () => '20');
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+        List syncResponse = jsonDecode(response.data!);
+        var syncResponseList = [];
+        for (var entry in syncResponse) {
+          syncResponseList.add(entry['atKey']);
+        }
+        expect(syncResponseList.contains('test_key_1.wavi@alice'), false);
+        expect(syncResponseList.contains('test_key_2.buzz@alice'), false);
+        expect(syncResponseList.contains('test_key_3.buzz@alice'), true);
+        expect(syncResponseList.contains('test_key_5.buzz@alice'), true);
+        // last commit entry should not be included since regex doesn't match
+        expect(syncResponseList.contains('test_key_4.wavi@alice'), false);
+      });
+
+      test(
           'test to verify only entries matching the regex are added to sync response',
           () async {
         /// Preconditions:
