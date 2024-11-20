@@ -763,6 +763,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         .enrollmentManager
         .remove(enrollParams.enrollmentId!);
 
+    // Delete the APKAM Public key
+    var apkamPublicKeyInKeyStore =
+        'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.$pkamNamespace.__public_keys$atSign';
+    await keyStore.remove(apkamPublicKeyInKeyStore, skipCommit: true);
+
+    // Delete private encryption key
+    await keyStore.remove(
+        '${enrollParams.enrollmentId!}.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
+        skipCommit: true);
+
+    // Delete self encryption key
+    await keyStore.remove(
+        '${enrollParams.enrollmentId!}.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
+        skipCommit: true);
+
     responseJson['enrollmentId'] = enrollParams.enrollmentId;
     responseJson['status'] = 'deleted';
   }
