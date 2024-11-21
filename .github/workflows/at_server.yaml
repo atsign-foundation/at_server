@@ -116,10 +116,10 @@ jobs:
 
       # Generating SBOMs also needs pubspec.lock
       # Only run on stable channel
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Create sbom folder
         run: mkdir sboms        
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atDirectory SBOM
         uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
         env:
@@ -131,7 +131,7 @@ jobs:
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atServer SBOM
         uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
         env:
@@ -151,11 +151,11 @@ jobs:
             atdirectory-${{github.ref_name}}-sbom.cdx.json
           mv atserver-gha${{github.run_number}}-sbom.cdx.json \
             atserver-${{github.ref_name}}-sbom.cdx.json
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate SHA256 checksums
         working-directory: sboms
         run: sha256sum * > checksums.txt
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Upload SBOMs
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
