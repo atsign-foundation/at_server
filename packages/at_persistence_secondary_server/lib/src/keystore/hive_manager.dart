@@ -31,6 +31,9 @@ class HivePersistenceManager with HiveBase {
       if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
       }
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapater().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapater());
+      }
 
       var secret = await _getHiveSecretFromFile(_atsign!, storagePath);
       _boxName = AtUtils.getShaForAtSign(_atsign!);
@@ -113,10 +116,11 @@ class HivePersistenceManager with HiveBase {
   }
 
   //TODO change into to Duration and construct cron string dynamically
-  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval, bool skipCommits = false}) {
+  void scheduleKeyExpireTask(int? runFrequencyMins,
+      {Duration? runTimeInterval, bool skipCommits = false}) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     Schedule schedule;
-    if(runTimeInterval != null){
+    if (runTimeInterval != null) {
       schedule = Schedule(seconds: runTimeInterval.inSeconds);
     } else {
       schedule = Schedule.parse('*/$runFrequencyMins * * * *');
