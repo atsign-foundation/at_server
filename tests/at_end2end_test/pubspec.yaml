@@ -11,6 +11,14 @@ dependencies:
   at_demo_data: ^1.0.3
   at_lookup: ^3.0.48
 
+
+dependency_overrides:
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: 2121-uptake-public-key-hash-at-persistence_secondary-server
+
 dev_dependencies:
   lints: ^1.0.1
   test: ^1.14.4
