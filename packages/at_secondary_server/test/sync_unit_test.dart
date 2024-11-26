@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -45,6 +46,8 @@ Future<void> setUpMethod() async {
       .init(storageDir);
   // Set currentAtSign
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
+  AtSecondaryServerImpl.getInstance().enrollmentManager = EnrollmentManager(
+      secondaryPersistenceStore?.getSecondaryKeyStore() as SecondaryKeyStore);
 }
 
 void main() {
@@ -488,17 +491,12 @@ void main() {
 
         List syncResponse = jsonDecode(response.data!);
 
-        expect(syncResponse.length, 2);
-        // As per design, all the public keys are not filtered when matching with regex.
-        expect(syncResponse[0]['atKey'], 'public:country.wavi@alice');
-        expect(syncResponse[0]['commitId'], 1);
+        expect(syncResponse.length, 1);
+
+        expect(syncResponse[0]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[0]['commitId'], 3);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
-
-        expect(syncResponse[1]['atKey'], 'firstname.buzz@alice');
-        expect(syncResponse[1]['commitId'], 3);
-        expect(syncResponse[1]['operation'], '+');
-        expect(syncResponse[1]['metadata']['version'], '0');
       });
       test('test to verify sync response does not exceed the buffer limit',
           () async {

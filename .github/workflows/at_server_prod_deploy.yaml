@@ -19,14 +19,14 @@ jobs:
       digest: ${{ steps.docker_build.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -37,7 +37,7 @@ jobs:
       # Build the Docker image for Dev
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
@@ -67,22 +67,22 @@ jobs:
     runs-on: [self-hosted, linux, x64, K8s]
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       # Setup gcloud CLI
       - id: 'auth'
-        uses: google-github-actions/auth@62cf5bd3e4211a0a0b51f2c6d6a37129d828611d # v2.1.5
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
         with:
           credentials_json: '${{ secrets.GKE_SA_PROD_KEY }}'
 
       - name: 'Set up Cloud SDK'
-        uses: google-github-actions/setup-gcloud@f0990588f1e5b5af6827153b93673613abdc6ec7 # v2.1.1
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       # Get the GKE credentials so we can deploy to the cluster
-      - uses: google-github-actions/get-gke-credentials@6051de21ad50fbb1767bc93c11357a49082ad116 # v2.2.1
+      - uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
         with:
           cluster_name: ${{ secrets.GKE_PROD_CLUSTER }}
           location: ${{ secrets.GKE_PROD_ZONE }}

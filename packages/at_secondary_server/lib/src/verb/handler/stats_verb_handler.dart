@@ -5,7 +5,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
@@ -157,9 +156,10 @@ class StatsVerbHandler extends AbstractVerbHandler {
       List<String> enrolledNamespaces = [];
       if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId !=
           null) {
-        var enrollmentKey =
-            '${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
-        enrolledNamespaces = (await getEnrollDataStoreValue(enrollmentKey))
+        enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
+                .enrollmentManager
+                .get((atConnection.metaData as InboundConnectionMetadata)
+                    .enrollmentId!))
             .namespaces
             .keys
             .toList();

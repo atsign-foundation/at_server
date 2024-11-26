@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -26,8 +27,8 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:crypton/crypton.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
@@ -1139,6 +1140,8 @@ void main() {
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyAllVerbHandler = NotifyAllVerbHandler(keyStore);
       inboundConnection = DummyInboundConnection();
+      AtSecondaryServerImpl.getInstance().enrollmentManager =
+          EnrollmentManager(keyStore);
       registerFallbackValue(inboundConnection);
     });
     test(
@@ -1752,6 +1755,8 @@ void main() {
       notifyListVerbHandler =
           NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       inboundConnection = DummyInboundConnection();
+      AtSecondaryServerImpl.getInstance().enrollmentManager =
+          EnrollmentManager(keyStore);
       registerFallbackValue(inboundConnection);
     });
     test('A test to verify notify:list authorization', () async {

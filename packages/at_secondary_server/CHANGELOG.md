@@ -1,5 +1,23 @@
+# 3.0.52
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.1
+  - at_persistence_secondary_server to v3.0.65
+## 3.0.51
+- feat: Introduce option to unrevoke revoked enrollments
+- feat: Introduce option to delete enrollments that are denied/revoked
+- fix: LatestCommitEntryOfEachKey metric fixed to return commit log entries till last commitID instead of default limit 25.
+- feat: Implement an option to automatically expire APKAM keys after a specified duration
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.0
+  - at_utils to v3.0.19
+  - at_chops to v2.0.1
+  - at_lookup to v3.0.49
+  - at_persistence_secondary_server to v3.0.64
+  - at_server_spec to v5.0.2
 ## 3.0.50
 - fix: Enhance namespace authorisation check to verify when namespace has a period in it
+- feat: Enable expiration of APKAM keys based on the specified duration.
+
 ## 3.0.49
 - feat: Enforce superset access check for approving apps
 - fix: respect isEncrypted:false if supplied in the notify: command, and 
@@ -9,6 +27,7 @@
   notifications from the server to the client.
 - build[deps]: Upgraded the following package:
   - at_persistence_secondary_server to v3.0.63
+
 ## 3.0.48
 - feat Add expiresAt and availableAt params to notify:list response
 

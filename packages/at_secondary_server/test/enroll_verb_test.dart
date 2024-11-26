@@ -6,6 +6,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
@@ -633,8 +635,6 @@ void main() {
       Iterator iterator =
           (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
       iterator.moveNext();
-      expect(iterator.current.key,
-          'public:wavi.mydevice.pkam.__pkams.__public_keys@alice');
       expect(iterator.moveNext(), false);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -1154,13 +1154,64 @@ void main() {
       String unrevokeEnrollmentCommand = 'enroll:unrevoke:{"enrollmentId":""}';
       enrollVerbParams =
           getVerbParam(VerbSyntax.enroll, unrevokeEnrollmentCommand);
-      await expectLater(
+      expect(
           () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
-              e.message ==
-                  'enrollmentId is mandatory for enroll:revoke/enroll:deny')));
+              e.message == 'enrollmentId is mandatory for enroll:unrevoke')));
+    });
+
+    test('A test to verify apkam expiry is set for approved enrollment',
+        () async {
+      Response response = Response();
+
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"wavi":"r"},"otp":"${response.data}"'
+          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key",'
+          '"apkamKeysExpiryInMillis":1000}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+      expect(jsonDecode(response.data!)['status'], 'pending');
+      // Assert the enrollment expiry is set to default value.
+      AtData? enrollmentAtData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(
+          enrollmentAtData?.metaData?.ttl,
+          Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours)
+              .inMilliseconds);
+
+      String approveEnrollment =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollment);
+      inboundConnection.metaData.isAuthenticated = true;
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+
+      enrollmentAtData = await secondaryKeyStore.get(
+          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice');
+      expect(enrollmentAtData?.metaData?.ttl, 1000);
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1810,7 +1861,8 @@ void main() {
                   'Connection with enrollment ID 123 is not authorized to update key: 123.new.enrollments.__manage@alice')));
     });
 
-    test('A test to verify delete verb cannot delete the enrollment key',
+    test(
+        'A test to verify delete verb cannot delete the enrollment key (using delete verb)',
         () async {
       String key = '123.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
@@ -1834,6 +1886,359 @@ void main() {
               e is UnAuthorizedException &&
               e.message ==
                   'Connection with enrollment ID 123 is not authorized to delete key: 123.new.enrollments.__manage@alice')));
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('Group of tests to validate enroll delete operation', () {
+    Response response = Response();
+
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test('Validate behaviour of deleting denied enrollment', () async {
+      String dummyEnrollId = '2134567809009';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.denied.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      await enrollVerb.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(response.data,
+          '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
+    });
+
+    test('Validate behaviour of deleting revoked enrollment', () async {
+      String dummyEnrollId = '34534253436';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      await enrollVerb.processVerb(
+          response, enrollVerbParams, inboundConnection);
+      expect(response.data,
+          '{"enrollmentId":"$dummyEnrollId","status":"deleted"}');
+    });
+
+    test(
+        'Validate negative behaviour of deleting denied enrollment from unAuthenticated connection',
+        () async {
+      String dummyEnrollId = '39458346583465';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-1', 'dummy-app-1', 'dummy-device-1', 'dummmy-key-1')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.denied.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = false;
+      castMetadata(inboundConnection).enrollmentId = '123653';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      expect(
+          () async => await enrollVerb.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Cannot delete enrollment without authentication')));
+    });
+
+    test(
+        'Validate negative behaviour of deleting revoked enrollment from unAuthenticated connection',
+        () async {
+      String dummyEnrollId = '4750345034850983';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-11', 'dummy-app-11', 'dummy-device-11', 'dummmy-key-11')
+        ..namespaces = {'test_namespace': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = false;
+      castMetadata(inboundConnection).enrollmentId = '1425365';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
+
+      expect(
+          () => enrollVerb.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Cannot delete enrollment without authentication')));
+    });
+
+    test('Validate negative behaviour of deleting approved enrollment',
+        () async {
+      String dummyEnrollId = '345345345141';
+      String enrollmentKey =
+          '$dummyEnrollId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-sId-2', 'dummy-app-2', 'dummy-device-2', 'dummmy-key-2')
+        ..namespaces = {'test_namespace-2': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
+      await secondaryKeyStore.put(enrollmentKey, enrollAtData);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123653';
+      String enrollDeleteCommand =
+          'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      var enrollVerbParams = enrollVerbHandler.parse(enrollDeleteCommand);
+      expect(
+          () => enrollVerbHandler.processVerb(
+              response, enrollVerbParams, inboundConnection),
+          throwsA(predicate((e) =>
+              e.toString() ==
+              'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied and revoked enrollments can be deleted')));
+    });
+    tearDown(() async => await verbTestsTearDown());
+  });
+
+  group(
+      'A group of tests to validate the commit log state when performing enrollment operations',
+      () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify commit log state during create approve revoke and delete an enrollment request',
+        () async {
+      Response response = Response();
+      // OTP Verb
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String otp = response.data!;
+
+      // 1. Create an enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"buzz":"r"},"otp":"$otp"'
+          ',"apkamPublicKey":"lorem_apkam"'
+          ',"encryptedAPKAMSymmetricKey": "ipsum_apkam"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      String enrollmentKey =
+          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+
+      // Verify key is created in the secondary keystore.
+      AtData? atData = await secondaryKeyStore.get(enrollmentKey);
+      expect(atData!.data!.isNotEmpty, true);
+      var enrollmentDataMap = jsonDecode(atData.data!);
+      expect(enrollmentDataMap['appName'], 'wavi');
+      expect(enrollmentDataMap['deviceName'], 'mydevice');
+      expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
+      expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
+
+      AtCommitLog? atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      var itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // 2. Approve an enrollment and verify enrollmentKey is not stored in the commit log.
+      String approveEnrollment =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
+      HashMap<String, String?> approveEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollment);
+      inboundConnection.metaData.isAuthenticated = true;
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Ensure there are no other keys in the commit log.
+      expect(itr!.moveNext(), false);
+
+      // 3. Revoke an enrollment and verify the commit log state.
+      enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> revokeEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, revokeEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'revoked');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Ensure there are no other keys in the commit log.
+      expect(itr!.moveNext(), false);
+
+      // 4. Delete an enrollment request.
+      enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'deleted');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      // Ensure there are no other keys in the commit log.
+      expect(itr!.moveNext(), false);
+
+      // Verify key is deleted in the secondary keystore.
+      expect(() async => await secondaryKeyStore.get(enrollmentKey),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
+    });
+
+    test(
+        'A test to verify commit log state during create deny and delete an enrollment request',
+        () async {
+      Response response = Response();
+      // OTP Verb
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      String otp = response.data!;
+
+      // 1. Create an enrollment request
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"buzz":"r"},"otp":"$otp"'
+          ',"apkamPublicKey":"lorem_apkam"'
+          ',"encryptedAPKAMSymmetricKey": "ipsum_apkam"}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+      String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      String enrollmentKey =
+          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+
+      // Verify key is created in the secondary keystore.
+      AtData? atData = await secondaryKeyStore.get(enrollmentKey);
+      expect(atData!.data!.isNotEmpty, true);
+      var enrollmentDataMap = jsonDecode(atData.data!);
+      expect(enrollmentDataMap['appName'], 'wavi');
+      expect(enrollmentDataMap['deviceName'], 'mydevice');
+      expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
+      expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
+
+      AtCommitLog? atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      var itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // 2. Deny an enrollment and verify the commit log state.
+      enrollmentRequest = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> denyEnrollmentVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, denyEnrollmentVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'denied');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // 3. Delete an enrollment request.
+      enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      HashMap<String, String?> verbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      response = Response();
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore);
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['status'], 'deleted');
+
+      atCommitLog =
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
+      itr = atCommitLog?.getEntries(-1);
+      // Since there are no entries in commit log, iterator.moveNext() returns false.
+      expect(itr!.moveNext(), false);
+
+      // Verify key is deleted in the secondary keystore.
+      expect(() async => await secondaryKeyStore.get(enrollmentKey),
+          throwsA(predicate((dynamic e) => e is KeyNotFoundException)));
     });
 
     tearDown(() async => await verbTestsTearDown());

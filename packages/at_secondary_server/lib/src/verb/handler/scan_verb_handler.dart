@@ -183,10 +183,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
       InboundConnectionMetadata atConnectionMetadata,
       List<String> localKeysList,
       String currentAtSign) async {
-    var enrollmentKey =
-        '${atConnectionMetadata.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-    var enrollNamespaces =
-        (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+    // NOTE: The atConnectionMetadata.enrollmentId is verified for null check in the caller of this method - getLocalKeys
+    // Therefore, added non-null assertation operator.
+    var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .get(atConnectionMetadata.enrollmentId!))
+        .namespaces;
+
     // No namespace to filter keys. So, return.
     if (enrollNamespaces.isEmpty) {
       logger.finer(

@@ -121,7 +121,7 @@ void main() {
       expect(
           int.parse(
               jsonDecode(statsResponse.replaceAll('data:', ''))[0]['value']),
-          lastCommitIdBeforeUpdate + 4);
+          lastCommitIdBeforeUpdate + 3);
       await authenticatedSocket.close();
 
       await authenticatedSocket.initiateConnectionWithListener(
@@ -135,11 +135,11 @@ void main() {
       expect(syncResponseList.length, 2);
       expect(syncResponseList[0]['atKey'],
           '$secondAtSign:phone-$randomString.wavi$firstAtSign');
-      expect(syncResponseList[0]['commitId'], lastCommitIdBeforeUpdate + 2);
+      expect(syncResponseList[0]['commitId'], lastCommitIdBeforeUpdate + 1);
 
       expect(syncResponseList[1]['atKey'],
           '$secondAtSign:phone-$randomString.buzz$firstAtSign');
-      expect(syncResponseList[1]['commitId'], lastCommitIdBeforeUpdate + 3);
+      expect(syncResponseList[1]['commitId'], lastCommitIdBeforeUpdate + 2);
     });
   });
 

@@ -1,3 +1,7 @@
+## 5.0.2
+
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.0
 ## 5.0.1
 - fix: Modify the Otp verb in at_server_spec so that it also returns true from 
   requiresAuth (for consistency and clarity only, as the otp verb handler 

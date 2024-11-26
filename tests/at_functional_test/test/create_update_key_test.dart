@@ -19,7 +19,8 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {
@@ -50,7 +51,7 @@ void main() {
       expect(atData['metaData']['version'], 0);
       expect(
           DateTime.parse(atData['metaData']['createdAt'])
-                  .millisecondsSinceEpoch >
+                  .millisecondsSinceEpoch >=
               keyCreationDateTime.millisecondsSinceEpoch,
           true);
       expect(atData['metaData']['createdBy'], firstAtSign);
@@ -104,6 +105,7 @@ void main() {
       var commitIDValue = jsonDecode(jsonData[0]['value']);
       int noOfTests = 5;
       late String response;
+
       /// UPDATE VERB
       for (int i = 1; i <= noOfTests; i++) {
         response = await firstAtSignConnection.sendRequestToServer(
@@ -114,12 +116,15 @@ void main() {
       // sync
       response = await firstAtSignConnection.sendRequestToServer(
           'sync:from:${commitIDValue - 1}:limit:$noOfTests');
-      expect('public:location-$uniqueId$firstAtSign'.allMatches(response).length, 1);
+      expect(
+          'public:location-$uniqueId$firstAtSign'.allMatches(response).length,
+          1);
     });
 
     test('delete same key multiple times test', () async {
       int noOfTests = 3;
       late String response;
+
       /// Delete VERB
       for (int i = 1; i <= noOfTests; i++) {
         response = await firstAtSignConnection
@@ -134,6 +139,7 @@ void main() {
       late String response;
       var atKey = 'public:key-$uniqueId';
       var atValue = 'val';
+
       /// UPDATE VERB
       for (int i = 1, j = 1; i <= noOfTests; i++, j++) {
         response = await firstAtSignConnection
