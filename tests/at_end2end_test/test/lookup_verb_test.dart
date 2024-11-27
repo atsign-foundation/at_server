@@ -72,7 +72,7 @@ void main() {
     response = await sh2.read(timeoutMillis: 4000);
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['key'], '@bob🛠:special-code@alice🛠');
+    expect(decodedResponse['key'], '$atSign_2:special-code$atSign_1');
     expect(decodedResponse['metaData']['pubKeyHash']['hash'],
         'hashedValue-$randomHashValue');
     expect(decodedResponse['metaData']['pubKeyHash']['hashingAlgo'], 'sha512');
