@@ -5,7 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 /// Class to configure blocklist for atConnections.
 class AtConfig {
@@ -26,7 +26,8 @@ class AtConfig {
     persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(_atSign)!
         .getHivePersistenceManager()!;
-    configKey = HiveKeyStoreHelper.getInstance().prepareKey('private:blocklist$_atSign');
+    configKey = HiveKeyStoreHelper.getInstance()
+        .prepareKey('private:blocklist$_atSign');
   }
 
   ///Returns 'success' on adding unique [blockList] into blocklist.

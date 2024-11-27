@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 import 'hive_base.dart';
 
@@ -25,13 +25,6 @@ class HivePersistenceManager with HiveBase {
   @override
   Future<void> initialize() async {
     try {
-      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
-        Hive.registerAdapter(AtDataAdapter());
-      }
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-
       var secret = await _getHiveSecretFromFile(_atsign!, storagePath);
       _boxName = AtUtils.getShaForAtSign(_atsign!);
       await super.openBox(_boxName, hiveSecret: secret);
@@ -113,10 +106,11 @@ class HivePersistenceManager with HiveBase {
   }
 
   //TODO change into to Duration and construct cron string dynamically
-  void scheduleKeyExpireTask(int? runFrequencyMins, {Duration? runTimeInterval, bool skipCommits = false}) {
+  void scheduleKeyExpireTask(int? runFrequencyMins,
+      {Duration? runTimeInterval, bool skipCommits = false}) {
     logger.finest('scheduleKeyExpireTask starting cron job.');
     Schedule schedule;
-    if(runTimeInterval != null){
+    if (runTimeInterval != null) {
       schedule = Schedule(seconds: runTimeInterval.inSeconds);
     } else {
       schedule = Schedule.parse('*/$runFrequencyMins * * * *');

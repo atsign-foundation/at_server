@@ -5,7 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:test/test.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
@@ -137,7 +137,8 @@ Future<void> tearDownFunc() async {
   // closes the instance of hive keystore
   await SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!
-      .getHivePersistenceManager()?.close();
+      .getHivePersistenceManager()
+      ?.close();
 
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {

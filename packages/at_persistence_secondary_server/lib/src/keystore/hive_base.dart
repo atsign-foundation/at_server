@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
+import '../../hive_registrar.g.dart';
 
 mixin HiveBase<E> {
   bool _isLazy = true;
@@ -12,6 +13,7 @@ mixin HiveBase<E> {
     _isLazy = isLazy;
     this.storagePath = storagePath;
     Hive.init(storagePath);
+    Hive.registerAdapters();
     await initialize();
   }
 

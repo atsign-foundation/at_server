@@ -1,0 +1,8 @@
+# Build file to generate hive adapters
+# command-  dart run build_runner build --delete-conflicting-outputs
+# refer: https://pub.dev/packages/hive_ce
+targets:
+  $default:
+    builders:
+      hive_ce_generator|hive_schema_migrator:
+        enabled: true

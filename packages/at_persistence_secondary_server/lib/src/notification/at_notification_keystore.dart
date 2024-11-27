@@ -2,7 +2,7 @@
 
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 
@@ -27,23 +27,9 @@ class AtNotificationKeystore
 
   final _logger = AtSignLogger('AtNotificationKeystore');
 
-  bool _register = false;
-
   @override
   Future<void> initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!_register) {
-      Hive.registerAdapter(AtNotificationAdapter());
-      Hive.registerAdapter(OperationTypeAdapter());
-      Hive.registerAdapter(NotificationTypeAdapter());
-      Hive.registerAdapter(NotificationStatusAdapter());
-      Hive.registerAdapter(NotificationPriorityAdapter());
-      Hive.registerAdapter(MessageTypeAdapter());
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-      _register = true;
-    }
     await super.openBox(_boxName);
   }
 
