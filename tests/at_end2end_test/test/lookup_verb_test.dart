@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
+import 'package:version/version.dart';
 
 import 'e2e_test_utils.dart' as e2e;
 
@@ -46,4 +49,33 @@ void main() {
     print('lookup verb response : $response');
     expect(response, contains('data:$value'));
   }, timeout: Timeout(Duration(minutes: 3)));
+
+  test('A test to verify lookup metadata contains public key hash value',
+      () async {
+    Version atSign1ServerVersion = Version.parse(await sh1.getVersion());
+    if (atSign1ServerVersion < Version(3, 0, 52)) {
+      print(
+          'Found server version: $atSign1ServerVersion. This test is only applicable for server version greater than 3.0.52. Skipping the test');
+      return;
+    }
+    var lastValue = Random().nextInt(5);
+    var randomHashValue = Uuid().v4().hashCode;
+    var value = 'Q7878R$lastValue';
+    await sh1.writeCommand(
+        'update:pubKeyHash:hashedValue-$randomHashValue:hashingAlgo:sha512:$atSign_2:special-code$atSign_1 $value');
+    String response = await sh1.read();
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    ///lookup verb alice  atsign
+    await sh2.writeCommand('lookup:all:special-code$atSign_1');
+    response = await sh2.read(timeoutMillis: 4000);
+    response = response.replaceAll('data:', '');
+    var decodedResponse = jsonDecode(response);
+    expect(decodedResponse['key'], '@bob🛠:special-code@alice🛠');
+    expect(decodedResponse['metaData']['pubKeyHash']['hash'],
+        'hashedValue-$randomHashValue');
+    expect(decodedResponse['metaData']['pubKeyHash']['hashingAlgo'], 'sha512');
+    expect(decodedResponse['data'], value);
+  });
 }
