@@ -70,20 +70,21 @@ void main() {
     var randomHashValue = Uuid().v4().hashCode;
     var value = 'Q7878R$lastValue';
     await sh1.writeCommand(
-        'update:pubKeyHash:hashedValue-$randomHashValue:hashingAlgo:sha512:$atSign_2:special-code$atSign_1 $value');
+        'update:pubKeyHash:hashedValue-$randomHashValue:hashingAlgo:sha512:$atSign_2:special-code-$randomHashValue$atSign_1 $value');
     String response = await sh1.read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     ///lookup verb alice  atsign
-    await sh2.writeCommand('lookup:all:special-code$atSign_1');
+    await sh2.writeCommand('lookup:all:special-code-$randomHashValue$atSign_1');
     response = await sh2.read(timeoutMillis: 4000);
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['key'], '$atSign_2:special-code$atSign_1');
+    expect(decodedResponse['key'],
+        '$atSign_2:special-code-$randomHashValue$atSign_1');
     expect(decodedResponse['metaData']['pubKeyHash']['hash'],
         'hashedValue-$randomHashValue');
     expect(decodedResponse['metaData']['pubKeyHash']['hashingAlgo'], 'sha512');
     expect(decodedResponse['data'], value);
-  }, skip: 'Skip untill the changes are merged to trunk');
+  });
 }
