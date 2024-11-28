@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 

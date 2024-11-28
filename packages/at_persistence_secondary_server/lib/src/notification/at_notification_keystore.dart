@@ -2,7 +2,7 @@
 
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 

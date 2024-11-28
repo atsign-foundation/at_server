@@ -1,5 +1,5 @@
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 /// Represents an access entry with fromAtSign, requestDateTime, verbName and key lookup(if any).
 @HiveType(typeId: 4)

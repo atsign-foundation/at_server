@@ -1,7 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
 @HiveType(typeId: 2)
