@@ -9,7 +9,15 @@ environment:
 dependencies:
   encrypt: 5.0.3
   at_demo_data: ^1.0.3
-  at_lookup: ^3.0.48
+  at_lookup: ^3.0.49
+  at_commons: ^5.0.2
+
+dependency_overrides:
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: trunk
 
 dev_dependencies:
   lints: ^1.0.1
