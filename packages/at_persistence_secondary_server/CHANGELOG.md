@@ -1,3 +1,9 @@
+## 3.0.66
+- feat: Add "PublicKeyHash" to the "AtMetadata" which holds the hash value of encryption public key
+- build[deps]: Upgraded the following packages:
+  - at_commons to v5.0.2
+  - lints to v5.0.0
+  - test to v1.25.8
 ## 3.0.65
 - fix: Modified checks in commit log keystore _alwaysIncludeInSync method to match only reserved shared_key,
   encryption public key and public key without namespace.
