@@ -11,9 +11,16 @@ dependencies:
   at_demo_data: ^1.1.0
   at_chops: ^2.0.0
   at_lookup: ^3.0.48
-  at_commons: ^4.1.2
+  at_commons: ^5.0.2
   uuid: ^3.0.7
   elliptic: ^0.3.8
+
+dependency_overrides:
+  at_persistence_secondary_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: trunk
 
 dev_dependencies:
   lints: ^4.0.0
