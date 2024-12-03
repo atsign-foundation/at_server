@@ -7,6 +7,9 @@ import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 
 @server
 class CommitLogKeyStore extends BaseCommitLogKeyStore {
@@ -16,6 +19,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   late SyncKeysFetchStrategy _syncKeysFetchStrategy;
 
   int get latestCommitId => commitLogCache.latestCommitId;
+
+  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
 
   CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
     commitLogCache = CommitLogCache(this);

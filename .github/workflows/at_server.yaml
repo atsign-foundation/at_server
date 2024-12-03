@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v1.6.5
+      - uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v1.7.0
         with:
           sdk: ${{ matrix.dart-channel}}
 
@@ -116,24 +116,46 @@ jobs:
 
       # Generating SBOMs also needs pubspec.lock
       # Only run on stable channel
-      - if: ${{ matrix.dart-channel == 'stable' }}
-        name: Install Syft
-        uses: anchore/sbom-action/download-syft@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
-      - if: ${{ matrix.dart-channel == 'stable' }}
-        name: Generate SBOMs
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Create sbom folder
+        run: mkdir sboms        
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Generate atDirectory SBOM
+        uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: '3hQHrn8mwK'
+          LOCK_FILE: ${{ env.root-working-directory }}/pubspec.lock
+          SBOM_VERSION: ${{github.ref_name}}
+          OUTPUT_FILE: 'sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json'
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Generate atServer SBOM
+        uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: 'wF66pn8rHZ'
+          LOCK_FILE: ${{ env.secondary-working-directory }}/pubspec.lock
+          SBOM_VERSION: ${{github.ref_name}}
+          OUTPUT_FILE: 'sboms/atserver-gha${{github.run_number}}-sbom.cdx.json'
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        name: Rename SBOMs to use release tag
         run: |
-          mkdir sboms
-          syft scan file:${{ env.root-working-directory }}/pubspec.lock \
-            -o 'spdx-json=sboms/atdirectory_sbom.spdx.json' \
-            -o 'cyclonedx-json=sboms/atdirectory_sbom.cyclonedx.json'
-          syft scan file:${{ env.secondary-working-directory }}/pubspec.lock \
-            -o 'spdx-json=sboms/atserver_sbom.spdx.json' \
-            -o 'cyclonedx-json=sboms/atserver_sbom.cyclonedx.json'
-      - if: ${{ matrix.dart-channel == 'stable' }}
+          cd sboms
+          mv atdirectory-gha${{github.run_number}}-sbom.cdx.json \
+            atdirectory-${{github.ref_name}}-sbom.cdx.json
+          mv atserver-gha${{github.run_number}}-sbom.cdx.json \
+            atserver-${{github.ref_name}}-sbom.cdx.json
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate SHA256 checksums
         working-directory: sboms
         run: sha256sum * > checksums.txt
-      - if: ${{ matrix.dart-channel == 'stable' }}
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Upload SBOMs
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
@@ -196,7 +218,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v1.6.5
+      - uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v1.7.0
         with:
           sdk: ${{ matrix.dart-channel}}
 
@@ -223,7 +245,7 @@ jobs:
           ls -laR tools/build_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile
           context: tools/build_virtual_environment/ve
@@ -301,7 +323,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           push: true
           provenance: false
@@ -315,7 +337,7 @@ jobs:
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
-        uses: appleboy/ssh-action@25ce8cbbcb08177468c7ff7ec5cbfa236f9341e1 # v1.1.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
           username: ubuntu
@@ -334,7 +356,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v 1.6.5
+      - uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v 1.7.0
         with:
           sdk: stable
 
@@ -363,7 +385,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v1.6.5
+      - uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v1.7.0
         with:
           sdk: stable
 
@@ -392,7 +414,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v1.6.5
+      - uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v1.7.0
         with:
           sdk: stable
 
@@ -445,7 +467,7 @@ jobs:
           fi
 
       - name: Install Dart
-        uses: dart-lang/setup-dart@0a8a0fc875eb934c15d08629302413c671d3f672 # v1.6.5
+        uses: dart-lang/setup-dart@e630b99d28a3b71860378cafdc2a067c71107f94 # v1.7.0
         with:
           sdk: stable
 
@@ -660,7 +682,7 @@ jobs:
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
@@ -714,7 +736,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           push: true
           provenance: false
@@ -769,7 +791,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           push: true
           provenance: false
@@ -826,7 +848,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           push: true
           provenance: false
@@ -890,7 +912,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
@@ -956,7 +978,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           push: true
           provenance: false
@@ -1010,7 +1032,7 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
