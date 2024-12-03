@@ -1,21 +1,21 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 
 @server
 class CommitLogKeyStore extends BaseCommitLogKeyStore {
   final _logger = AtSignLogger('CommitLogKeyStore');
   late CommitLogCache commitLogCache;
 
-  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
-
   int get latestCommitId => commitLogCache.latestCommitId;
+
+  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
 
   CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
     commitLogCache = CommitLogCache(this);
