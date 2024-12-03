@@ -35,13 +35,11 @@ dependencies:
   logging: 1.2.0
 
 dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries.git
-      path: packages/at_commons
-      ref: sync_skip_delete
   at_persistence_secondary_server:
-    path: ../at_persistence_secondary_server
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_secondary_server
+      ref: sync_skip_deletes_persistence_changes
 
 dev_dependencies:
   build_runner: ^2.3.3
