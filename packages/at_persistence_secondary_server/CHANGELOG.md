@@ -1,3 +1,7 @@
+## 3.1.0
+- feat: commit log changes for sync skipDeletesUntil feature
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.0
 ## 3.0.66
 - feat: Add "PublicKeyHash" to the "AtMetadata" which holds the hash value of encryption public key
 - build[deps]: Upgraded the following packages:
