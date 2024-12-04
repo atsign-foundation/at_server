@@ -1,3 +1,8 @@
+# 3.1.0
+- feat: sync skip deletes until changes
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.0
+  - at_persistence_secondary_server to v3.1.0
 # 3.0.52
 - build[deps]: Upgraded the following package:
   - at_commons to v5.0.2
