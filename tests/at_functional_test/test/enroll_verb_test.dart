@@ -409,15 +409,16 @@ void main() {
       var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
       String selfKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:self');
-      print('** selfKeyResponse: $selfKeyResponse');
       expect(selfKeyResponse.contains(selfKey), true);
 
+      String selfKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$selfKey');
+      print('selfKeyGetResponse: $selfKeyGetResponse');
       // keys:get:private should return private encryption key
       var privateKey =
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
       String privateKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:private');
-      print('** privateKeyResponse: $privateKeyResponse');
       expect(privateKeyResponse.contains(privateKey), true);
     });
 
