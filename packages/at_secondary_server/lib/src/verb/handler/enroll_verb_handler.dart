@@ -249,9 +249,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
-      // Store default encryption private key and self encryption key(both encrypted)
-      // for future retrieval
-      await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(AtConstants.atPkamPublicKey,
