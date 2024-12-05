@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_demo_data/at_demo_data.dart';
@@ -387,8 +388,12 @@ void main() {
       var secondEnrollId = enrollJson['enrollmentId'];
 
       // connect to the first client to approve the enroll request
+      final encryptionPrivateKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
+      final selfEncryptionKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
       String approveResponse = (await firstAtSignConnection.sendRequestToServer(
-              'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+              'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encPrivateKeyIV":"$encryptionPrivateKeyIV","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}","selfEncKeyIV":"$selfEncryptionKeyIV"}'))
           .replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
@@ -404,6 +409,7 @@ void main() {
       var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
       String selfKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:self');
+      print('** selfKeyResponse: $selfKeyResponse');
       expect(selfKeyResponse.contains(selfKey), true);
 
       // keys:get:private should return private encryption key
@@ -411,6 +417,7 @@ void main() {
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
       String privateKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:private');
+      print('** privateKeyResponse: $privateKeyResponse');
       expect(privateKeyResponse.contains(privateKey), true);
     });
 

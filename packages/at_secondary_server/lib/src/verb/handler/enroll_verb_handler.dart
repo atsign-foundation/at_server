@@ -409,12 +409,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privateKeyJson = {};
     privateKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
+    if (enrollParams.encPrivateKeyIV != null) {
+      privateKeyJson['iv'] = enrollParams.encPrivateKeyIV;
+    }
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(privateKeyJson),
         skipCommit: true);
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
+    if (enrollParams.selfEncKeyIV != null) {
+      selfKeyJson['iv'] = enrollParams.selfEncKeyIV;
+    }
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(selfKeyJson),
