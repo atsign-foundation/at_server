@@ -414,12 +414,26 @@ void main() {
       String selfKeyGetResponse = await socketConnection2
           .sendRequestToServer('keys:get:keyName:$selfKey');
       print('selfKeyGetResponse: $selfKeyGetResponse');
+      selfKeyGetResponse = selfKeyGetResponse.replaceFirst('data:', '');
+      var selfKeyResponseJson = jsonDecode(selfKeyGetResponse);
+      expect(selfKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedSelfEncKey']);
+      expect(selfKeyResponseJson['iv'], selfEncryptionKeyIV);
+
       // keys:get:private should return private encryption key
       var privateKey =
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
       String privateKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:private');
       expect(privateKeyResponse.contains(privateKey), true);
+      String privateKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$privateKey');
+      print('**privateKeyGetResponse: $privateKeyGetResponse');
+      privateKeyGetResponse = privateKeyGetResponse.replaceFirst('data:', '');
+      var privateKeyResponseJson = jsonDecode(privateKeyGetResponse);
+      expect(privateKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']);
+      expect(privateKeyResponseJson['iv'], encryptionPrivateKeyIV);
     });
 
     test(
