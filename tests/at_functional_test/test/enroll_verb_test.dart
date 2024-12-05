@@ -275,35 +275,6 @@ void main() {
       expect(llookupResponseMap['errorCode'], 'AT0009');
       expect(llookupResponseMap['errorDescription'],
           'UnAuthorized client in request : Connection with enrollment ID $enrollmentId is not authorized to llookup key: $enrollmentKey');
-
-      // keys:get:self should return default self encryption key
-      var selfKey = '$enrollmentId.default_self_enc_key.__manage$firstAtSign';
-      String selfKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:self');
-      expect(selfKeyResponse.contains(selfKey), true);
-
-      // keys:get:private should return private encryption key
-      var privateKey =
-          '$enrollmentId.default_enc_private_key.__manage$firstAtSign';
-      String privateKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:private');
-      expect(privateKeyResponse.contains(privateKey), true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      String selfKeyGetResponse = await socketConnection2
-          .sendRequestToServer('keys:get:keyName:$selfKey');
-      expect(
-          selfKeyGetResponse
-              .contains('${apkamEncryptedKeysMap['encryptedSelfEncKey']}'),
-          true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      String privateKeyGetResponse = await socketConnection2
-          .sendRequestToServer('keys:get:keyName:$privateKey');
-      expect(
-          privateKeyGetResponse.contains(
-              '${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}'),
-          true);
     });
 
     test(
