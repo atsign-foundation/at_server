@@ -1,5 +1,7 @@
 # 3.1.0
-- feat: sync skip deletes until changes
+- feat: sync skip deletes until changes 
+- fix: Enable persistence of the Initialization Vector for "defaultEncryptionPrivateKey" and "selfEncryptionKey" in
+  the APKAM flow.
 - build[deps]: Upgraded the following package:
   - at_commons to v5.1.0
   - at_persistence_secondary_server to v3.1.0
