@@ -55,15 +55,15 @@ void main() {
   test('A test to verify lookup metadata contains public key hash value',
       () async {
     Version atSign1ServerVersion = Version.parse(await sh1.getVersion());
-    if (atSign1ServerVersion < Version(3, 1, 0)) {
+    if (atSign1ServerVersion < Version(3, 1, 1)) {
       print(
-          'Found $atSign_1 with server version: $atSign1ServerVersion. This test is only applicable for server version greater than 3.1.0. Skipping the test');
+          'Found $atSign_1 with server version: $atSign1ServerVersion. This test is only applicable for server version least 3.1.1. Skipping the test');
       return;
     }
     Version atSign2ServerVersion = Version.parse(await sh2.getVersion());
-    if (atSign2ServerVersion < Version(3, 1, 0)) {
+    if (atSign2ServerVersion < Version(3, 1, 1)) {
       print(
-          'Found $atSign_2 with server version: $atSign2ServerVersion. This test is only applicable for server version greater than 3.1.0. Skipping the test');
+          'Found $atSign_2 with server version: $atSign2ServerVersion. This test is only applicable for server version least 3.1.1. Skipping the test');
       return;
     }
     var lastValue = Random().nextInt(5);
