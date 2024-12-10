@@ -191,8 +191,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         verbParams[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     metadata.skeEncAlgo =
         verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
-    if (verbParams[AtConstants.sharedWithPublicKeyHash] != null &&
-        verbParams[AtConstants.sharedWithPublicKeyHashingAlgo] != null) {
+    if (verbParams[AtConstants.sharedWithPublicKeyHash].isNotNullOrEmpty &&
+        verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]
+            .isNotNullOrEmpty) {
       metadata.pubKeyHash = PublicKeyHash(
           verbParams[AtConstants.sharedWithPublicKeyHash]!,
           verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]!);
