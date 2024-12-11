@@ -358,6 +358,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (verbParams[AtConstants.sharedWithPublicKeyCheckSum] != null) {
       atMetadata.pubKeyCS = verbParams[AtConstants.sharedWithPublicKeyCheckSum];
     }
+    if (verbParams[AtConstants.sharedWithPublicKeyHash].isNotNullOrEmpty &&
+        verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]
+            .isNotNullOrEmpty) {
+      atMetadata.pubKeyHash = PublicKeyHash(
+          verbParams[AtConstants.sharedWithPublicKeyHash]!,
+          verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]!);
+    }
     if (verbParams[AtConstants.encryptingKeyName] != null) {
       atMetadata.encKeyName = verbParams[AtConstants.encryptingKeyName];
     }

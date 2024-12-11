@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -10,8 +11,8 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
@@ -115,7 +116,10 @@ void main() {
               ..ttb = 1000
               ..ttr = 100
               ..isBinary = false
-              ..encoding = 'base64'));
+              ..encoding = 'base64'
+              ..pubKeyHash =
+                  PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
+              ..pubKeyCS = 'dummy_pub_key_cs'));
 
       verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
       var response = Response();
@@ -136,6 +140,9 @@ void main() {
       expect(syncResponseMap['metadata']['ttr'], '100');
       expect(syncResponseMap['metadata']['isBinary'], 'false');
       expect(syncResponseMap['metadata']['encoding'], 'base64');
+      expect(syncResponseMap['metadata']['pubKeyCS'], 'dummy_pub_key_cs');
+      expect(syncResponseMap['metadata']['pubKeyHash'],
+          '{"hash":"dummy_hash","hashingAlgo":"sha512"}');
     });
 
     when(() => mockKeyStore.isKeyExists(any())).thenReturn(true);
