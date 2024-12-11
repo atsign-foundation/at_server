@@ -37,7 +37,7 @@ jobs:
       # Build the Docker image for Dev
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         with:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
@@ -82,7 +82,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       # Get the GKE credentials so we can deploy to the cluster
-      - uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
+      - uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
         with:
           cluster_name: ${{ secrets.GKE_PROD_CLUSTER }}
           location: ${{ secrets.GKE_PROD_ZONE }}

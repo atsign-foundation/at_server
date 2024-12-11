@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -18,26 +19,26 @@ class AtMetadataBuilder {
   /// ttb : Time to birth of the key. If ttb is null, atMetadata's ttb is assigned to ttb.
   /// ttr : Time to refresh of the key. If ttr is null, atMetadata's ttr is assigned to ttr.
   /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
-  AtMetadataBuilder({
-    String? atSign,
-    AtMetaData? newAtMetaData,
-    AtMetaData? existingMetaData,
-    int? ttl,
-    int? ttb,
-    int? ttr,
-    bool? ccd,
-    bool? isBinary,
-    bool? isEncrypted,
-    String? dataSignature,
-    String? sharedKeyEncrypted,
-    String? publicKeyChecksum,
-    String? encoding,
-    String? encKeyName,
-    String? encAlgo,
-    String? ivNonce,
-    String? skeEncKeyName,
-    String? skeEncAlgo,
-  }) {
+  AtMetadataBuilder(
+      {String? atSign,
+      AtMetaData? newAtMetaData,
+      AtMetaData? existingMetaData,
+      int? ttl,
+      int? ttb,
+      int? ttr,
+      bool? ccd,
+      bool? isBinary,
+      bool? isEncrypted,
+      String? dataSignature,
+      String? sharedKeyEncrypted,
+      String? publicKeyChecksum,
+      String? encoding,
+      String? encKeyName,
+      String? encAlgo,
+      String? ivNonce,
+      String? skeEncKeyName,
+      String? skeEncAlgo,
+      PublicKeyHash? publicKeyHash}) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     // createdAt indicates the date and time of the key created.
@@ -85,6 +86,7 @@ class AtMetadataBuilder {
     ivNonce ??= newAtMetaData.ivNonce;
     skeEncKeyName ??= newAtMetaData.skeEncKeyName;
     skeEncAlgo ??= newAtMetaData.skeEncAlgo;
+    publicKeyHash ??= newAtMetaData.pubKeyHash;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -110,6 +112,7 @@ class AtMetadataBuilder {
     atMetaData.ivNonce = ivNonce;
     atMetaData.skeEncKeyName = skeEncKeyName;
     atMetaData.skeEncAlgo = skeEncAlgo;
+    atMetaData.pubKeyHash = publicKeyHash;
   }
 
   void setTTL(int? ttl, {int? ttb}) {
