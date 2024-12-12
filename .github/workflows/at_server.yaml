@@ -569,11 +569,11 @@ jobs:
               sed -i "s/ATSIGN_1_NAME/@$AT_SIGN_1/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_1_PORT/$AT_SIGN_1_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_1_HOST/$AT_SIGN_1_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-#             TODO: add something like `sed -i "s/ATSIGN_1_CONNECTION_TYPE/$AT_SIGN_1_CONNECTION_TYPE/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml`
+              # TODO: add something like sed -i "s/ATSIGN_1_CONNECTION_TYPE/$AT_SIGN_1_CONNECTION_TYPE/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_2_NAME/@$AT_SIGN_2/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_2_PORT/$AT_SIGN_2_PORT/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               sed -i "s/ATSIGN_2_HOST/$AT_SIGN_2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
-#             TODO: add something like `sed -i "s/ATSIGN_2_CONNECTION_TYPE/$AT_SIGN_2_CONNECTION_TYPE/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml`
+              # TODO: add something like sed -i "s/ATSIGN_2_CONNECTION_TYPE/$AT_SIGN_2_CONNECTION_TYPE/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml
               mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
               cat tests/at_end2end_test/config/config.yaml 
               echo "Connection successful"
