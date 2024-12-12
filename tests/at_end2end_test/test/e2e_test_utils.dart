@@ -213,7 +213,6 @@ class _AtSignConfig {
   String host;
   int port;
   _ConnectionTypeEnum connectionType;
-  // TODO Add connectionType
 
   /// Creates and adds to [atSignConfigMap] or throws [_AtSignAlreadyAddedException] if we've already got it.
   _AtSignConfig(this.atSign, this.host, this.port, this.connectionType) {
