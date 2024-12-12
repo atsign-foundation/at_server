@@ -37,7 +37,8 @@ Future<SimpleOutboundSocketHandler> getSocketHandler(atSign) async {
       break;
     case _ConnectionTypeEnum.websocket:
       // TODO e.g. handler = SimpleOutboundWebsocketConnection._(asc.host, asc.port, atSign);
-      throw UnimplementedError('e2e_test_utils cannot yet create a websocket connection');
+      handler = SimpleOutboundSocketHandler._(asc.host, asc.port, atSign);
+      break;
   }
 
   await handler.connect();
