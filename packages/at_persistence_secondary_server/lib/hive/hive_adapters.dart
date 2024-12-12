@@ -4,7 +4,8 @@ import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.d
 import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-//#part 'hive_adapters.g.dart';
+
+//part 'hive_adapters.g.dart';
 
 @GenerateAdapters([
   AdapterSpec<AtData>(),

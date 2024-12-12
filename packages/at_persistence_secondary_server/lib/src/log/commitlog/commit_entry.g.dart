@@ -72,17 +72,13 @@ class CommitOpAdapter extends TypeAdapter<CommitOp> {
   void write(BinaryWriter writer, CommitOp obj) {
     switch (obj) {
       case CommitOp.UPDATE:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case CommitOp.DELETE:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
       case CommitOp.UPDATE_META:
-        writer.writeByte(2);
-        break;
+        return writer.writeByte(2);
       case CommitOp.UPDATE_ALL:
-        writer.writeByte(3);
-        break;
+        return writer.writeByte(3);
     }
   }
 

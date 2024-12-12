@@ -115,17 +115,13 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus> {
   void write(BinaryWriter writer, NotificationStatus obj) {
     switch (obj) {
       case NotificationStatus.delivered:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case NotificationStatus.errored:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
       case NotificationStatus.queued:
-        writer.writeByte(2);
-        break;
+        return writer.writeByte(2);
       case NotificationStatus.expired:
-        writer.writeByte(3);
-        break;
+        return writer.writeByte(3);
     }
   }
 
@@ -162,14 +158,11 @@ class NotificationTypeAdapter extends TypeAdapter<NotificationType> {
   void write(BinaryWriter writer, NotificationType obj) {
     switch (obj) {
       case NotificationType.sent:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case NotificationType.received:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
       case NotificationType.self:
-        writer.writeByte(2);
-        break;
+        return writer.writeByte(2);
     }
   }
 
@@ -204,11 +197,9 @@ class OperationTypeAdapter extends TypeAdapter<OperationType> {
   void write(BinaryWriter writer, OperationType obj) {
     switch (obj) {
       case OperationType.update:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case OperationType.delete:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
     }
   }
 
@@ -247,17 +238,13 @@ class NotificationPriorityAdapter extends TypeAdapter<NotificationPriority> {
   void write(BinaryWriter writer, NotificationPriority obj) {
     switch (obj) {
       case NotificationPriority.dummy:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case NotificationPriority.low:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
       case NotificationPriority.medium:
-        writer.writeByte(2);
-        break;
+        return writer.writeByte(2);
       case NotificationPriority.high:
-        writer.writeByte(3);
-        break;
+        return writer.writeByte(3);
     }
   }
 
@@ -292,11 +279,9 @@ class MessageTypeAdapter extends TypeAdapter<MessageType> {
   void write(BinaryWriter writer, MessageType obj) {
     switch (obj) {
       case MessageType.key:
-        writer.writeByte(0);
-        break;
+        return writer.writeByte(0);
       case MessageType.text:
-        writer.writeByte(1);
-        break;
+        return writer.writeByte(1);
     }
   }
 

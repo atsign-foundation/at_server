@@ -28,22 +28,22 @@ class AtMetaData extends HiveObject {
   int? version;
 
   @HiveField(7)
-  DateTime? availableAt;
-
-  @HiveField(8)
   int? ttb;
 
-  @HiveField(9)
+  @HiveField(8)
   int? ttl;
 
-  @HiveField(10)
+  @HiveField(9)
   int? ttr;
 
-  @HiveField(11)
+  @HiveField(10)
   DateTime? refreshAt;
 
-  @HiveField(12)
+  @HiveField(11)
   bool? isCascade;
+
+  @HiveField(12)
+  DateTime? availableAt;
 
   @HiveField(13)
   bool? isBinary;

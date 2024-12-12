@@ -29,17 +29,17 @@ types:
         index: 5
       version:
         index: 6
-      availableAt:
-        index: 7
       ttb:
-        index: 8
+        index: 7
       ttl:
-        index: 9
+        index: 8
       ttr:
-        index: 10
+        index: 9
       refreshAt:
-        index: 11
+        index: 10
       isCascade:
+        index: 11
+      availableAt:
         index: 12
       isBinary:
         index: 13
