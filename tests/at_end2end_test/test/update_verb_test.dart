@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
-import 'commons.dart';
 import 'e2e_test_utils.dart' as e2e;
 
 void main() {
@@ -77,6 +76,8 @@ void main() {
     expect(response, contains('data:$value'));
 
     //LOOKUP VERB in the other secondary
+    var maxRetryCount = 10;
+    var retryCount = 1;
     while (true) {
       await sh2.writeCommand('llookup:cached:$atSign_2:youtube_id$atSign_1');
       response = await sh2.read();

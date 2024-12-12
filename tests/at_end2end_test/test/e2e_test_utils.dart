@@ -28,10 +28,17 @@ Future<SimpleOutboundSocketHandler> getSocketHandler(atSign) async {
   if (asc == null) {
     throw _NoSuchAtSignException('$atSign not configured');
   }
-  // TODO switch on _AtSignConfig.connectionType and create a
-  // TODO SimpleOutboundSocketConnection or SimpleOutboundWebsocketConnection
-  // TODO as required
-  var handler = SimpleOutboundSocketHandler._(asc.host, asc.port, atSign);
+
+  // ignore: prefer_typing_uninitialized_variables
+  var handler;
+  switch(asc.connectionType!) {
+    case _ConnectionTypeEnum.socket:
+      handler = SimpleOutboundSocketHandler._(asc.host, asc.port, atSign);
+      break;
+    case _ConnectionTypeEnum.websocket:
+      // TODO e.g. handler = SimpleOutboundWebsocketConnection._(asc.host, asc.port, atSign);
+      throw UnimplementedError('e2e_test_utils cannot yet create a websocket connection');
+  }
 
   await handler.connect();
   handler.startListening();
@@ -212,11 +219,11 @@ class _AtSignConfig {
   String atSign;
   String host;
   int port;
-  _ConnectionTypeEnum connectionType;
+  _ConnectionTypeEnum? connectionType;
 
   /// Creates and adds to [atSignConfigMap] or throws [_AtSignAlreadyAddedException] if we've already got it.
   _AtSignConfig(this.atSign, this.host, this.port, this.connectionType) {
-    this.connectionType ??= _ConnectionTypeEnum.socket;
+    connectionType ??= _ConnectionTypeEnum.socket;
     if (atSignConfigMap.containsKey(atSign)) {
       throw _AtSignAlreadyAddedException("AtSignConfig for $atSign has already been created");
     }
