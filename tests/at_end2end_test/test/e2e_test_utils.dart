@@ -250,18 +250,32 @@ void _loadTheYaml() {
 
   _yamlLoaded = true;
 
+  String? connTypeStr1;
+  _ConnectionTypeEnum? connType1;
+  connTypeStr1 = ConfigUtil.getYaml()!['first_atsign_server']
+      ['first_atsign_connection_type'];
+  if (connTypeStr1 != null) {
+    connType1 = _ConnectionTypeEnum.values.byName(connTypeStr1);
+  }
   _AtSignConfig(
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'],
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'],
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'],
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_connection_type'],
+      connType1,
   );
 
+  String? connTypeStr2;
+  _ConnectionTypeEnum? connType2;
+  connTypeStr2 = ConfigUtil.getYaml()!['second_atsign_server']
+      ['second_atsign_connection_type'];
+  if (connTypeStr2 != null) {
+    connType2 = _ConnectionTypeEnum.values.byName(connTypeStr2);
+  }
   _AtSignConfig(
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'],
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'],
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'],
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_connection_type'],
+      connType2,
   );
 
   /// TODO Ideally instead of the current config.yaml we'd have yaml like this
