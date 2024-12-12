@@ -28,7 +28,11 @@ Future<SimpleOutboundSocketHandler> getSocketHandler(atSign) async {
   if (asc == null) {
     throw _NoSuchAtSignException('$atSign not configured');
   }
+  // TODO switch on _AtSignConfig.connectionType and create a
+  // TODO SimpleOutboundSocketConnection or SimpleOutboundWebsocketConnection
+  // TODO as required
   var handler = SimpleOutboundSocketHandler._(asc.host, asc.port, atSign);
+
   await handler.connect();
   handler.startListening();
   await handler.sendFromAndPkam();
@@ -38,6 +42,9 @@ Future<SimpleOutboundSocketHandler> getSocketHandler(atSign) async {
 
 /// A simple wrapper around a socket for @ protocol communication.
 class SimpleOutboundSocketHandler {
+  // TODO Turn this into an abstract base class, e.g. SimpleOutboundConnection
+  // TODO with two concrete subclasses, e.g. SimpleOutboundSocketConnection
+  // TODO and SimpleOutboundWebsocketConnection
   late Queue _queue;
   final _buffer = ByteBuffer(capacity: 10240000);
 
@@ -195,14 +202,22 @@ class SimpleOutboundSocketHandler {
     }
   }
 }
+
+enum _ConnectionTypeEnum {
+  socket,
+  websocket,
+}
 /// Simple data-holding class which adds its instances into [atSignConfigMap]
 class _AtSignConfig {
   String atSign;
   String host;
   int port;
+  _ConnectionTypeEnum connectionType;
+  // TODO Add connectionType
 
   /// Creates and adds to [atSignConfigMap] or throws [_AtSignAlreadyAddedException] if we've already got it.
-  _AtSignConfig(this.atSign, this.host, this.port) {
+  _AtSignConfig(this.atSign, this.host, this.port, this.connectionType) {
+    this.connectionType ??= _ConnectionTypeEnum.socket;
     if (atSignConfigMap.containsKey(atSign)) {
       throw _AtSignAlreadyAddedException("AtSignConfig for $atSign has already been created");
     }
@@ -232,12 +247,16 @@ void _loadTheYaml() {
   _AtSignConfig(
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'],
       ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'],
-      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port']);
+      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'],
+      ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_connection_type'],
+  );
 
   _AtSignConfig(
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'],
       ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_url'],
-      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port']);
+      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_port'],
+      ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_connection_type'],
+  );
 
   /// TODO Ideally instead of the current config.yaml we'd have yaml like this
   ///   at_sign_configs:
