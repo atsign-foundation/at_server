@@ -40,14 +40,28 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    int? skipDeletesUntil = verbParams['skipDeletesUntil'] != null
-        ? int.parse(verbParams['skipDeletesUntil']!)
+    int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
+        ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
+        : null;
+    int? syncLimit = verbParams[AtConstants.syncLimit] != null
+        ? int.parse(verbParams[AtConstants.syncLimit]!)
         : null;
     // Get entries to sync
-    var commitEntryIterator = atCommitLog!.getEntries(
-        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
-        regex: verbParams['regex'],
-        skipDeletesUntil: skipDeletesUntil);
+    Iterator<MapEntry<String, CommitEntry>> commitEntryIterator;
+    if (syncLimit != null) {
+      commitEntryIterator = atCommitLog!.getEntries(
+          int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
+          regex: verbParams['regex'],
+          skipDeletesUntil: skipDeletesUntil,
+          limit: syncLimit);
+    } else {
+      // for backward compatibility if some old client sets isPaginated to false
+      // (syncLimit will not be set) in SyncVerbBuilder
+      commitEntryIterator = atCommitLog!.getEntries(
+          int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
+          regex: verbParams['regex'],
+          skipDeletesUntil: skipDeletesUntil);
+    }
 
     List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(capacity, syncResponse, commitEntryIterator,

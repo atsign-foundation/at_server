@@ -15,6 +15,13 @@ dependencies:
   uuid: ^3.0.7
   elliptic: ^0.3.8
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_commons
+      ref: atlookup_add_default_values_sync_builder
+
 dev_dependencies:
   lints: ^5.0.0
   test: ^1.25.9
