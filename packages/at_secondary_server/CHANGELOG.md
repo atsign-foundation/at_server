@@ -1,3 +1,5 @@
+# 3.1.2
+- fix: add limit param in SyncProgressiveVerbHandler
 # 3.1.1
 - fix: Store "publicKeyHash" value in the keystore
 # 3.1.0
