@@ -1,5 +1,7 @@
 # 3.1.2
 - fix: add limit param in SyncProgressiveVerbHandler
+- build[deps]: Upgraded the following package:
+  at_commons to v5.1.2
 # 3.1.1
 - fix: Store "publicKeyHash" value in the keystore
 # 3.1.0
