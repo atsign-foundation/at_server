@@ -1,5 +1,7 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,13 +13,18 @@ void main() {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+   ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   group('A group of scan verb tests on authenticated connection', () {
     setUpAll(() async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse = await firstAtSignConnection.authenticateConnection();
       expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
     });
@@ -112,8 +119,8 @@ void main() {
 
   group('A group of scan verb tests on unauthenticated connection', () {
     setUpAll(() async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     });
 
     tearDownAll(() async {
@@ -125,8 +132,8 @@ void main() {
           'update:public:location-$uniqueId$firstAtSign California');
       await firstAtSignConnection.close();
       // Initiate unauthenticated connection and run scan verb
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String response =
           await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
       expect(response, contains('location-$uniqueId$firstAtSign'));

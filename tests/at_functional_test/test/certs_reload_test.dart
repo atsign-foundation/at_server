@@ -1,5 +1,7 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:test/test.dart';
 
 log(prefix, command, response) {
@@ -10,10 +12,18 @@ void main() async {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
   String atSign = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String host = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+  String port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+
+  ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   setUp(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnection(
+        atSign, host, port,
+        connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     String authResponse = await firstAtSignConnection.authenticateConnection();
     expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
   });
@@ -30,7 +40,7 @@ void main() async {
     response = await firstAtSignConnection.sendRequestToServer(command);
     log('', command, response);
     expect(response, 'data:true');
-  });
+  }, timeout: Timeout(Duration(minutes: 2)));
 
   test('test checkCertificateReload config', () async {
     String command, response;
@@ -91,7 +101,7 @@ void main() async {
         ' paused and should be available again shortly"}');
 
     /// Immediately try to reconnect; should fail
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnection(atSign, host, port, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     command = 'info:brief';
     response = await firstAtSignConnection.sendRequestToServer(command,
         maxWaitMilliSeconds: 100);
@@ -108,7 +118,7 @@ void main() async {
     /// so let's wait for a few seconds longer, to allow for a slow VM here, and then
     /// we should be able to connect
     await Future.delayed(Duration(milliseconds: 5500));
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnection(atSign, host, port, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     command = 'info:brief';
     response = await firstAtSignConnection.sendRequestToServer(command,
         maxWaitMilliSeconds: 1000);

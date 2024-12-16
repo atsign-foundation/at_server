@@ -1,4 +1,6 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:test/test.dart';
 
 import 'package:at_functional_test/conf/config_util.dart';
@@ -18,17 +20,24 @@ void main() async {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+  ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
 
   String secondAtSign =
       ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
 
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
+
   setUpAll(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(firstAtSign,
+        firstAtSignHost, firstAtSignPort,
+        connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
     // Generates Unique Id for each test that will be appended to keys to prevent
     // same keys being reused.
     uniqueId = Uuid().v4().hashCode.toString();
@@ -46,7 +55,7 @@ void main() async {
         'update:@alice:email-$uniqueId$firstAtSign bob@atsign.com');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-  });
+  }, timeout: Timeout(Duration(minutes: 3)));
 
   test('scan verb test $firstAtSign', () async {
     String response = await firstAtSignConnection

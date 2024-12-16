@@ -8,6 +8,7 @@ import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -18,8 +19,14 @@ void main() {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+
+  ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   String secondAtSign =
       ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
@@ -37,8 +44,10 @@ void main() {
   };
 
   setUp(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort,
+        connectionType: firstConnectionType,
+        secureSocketConfig: secureSocketConfig);
   });
 
   tearDown(() async {
@@ -184,8 +193,8 @@ void main() {
               .trim();
       // connect to the second client
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       //send second enroll request with otp
       var apkamPublicKey = pkamPublicKeyMap[firstAtSign];
       var secondEnrollRequest =
@@ -250,8 +259,8 @@ void main() {
 
       // connect to the second client with the above enrollment ID
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       await socketConnection2.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
 
@@ -345,8 +354,8 @@ void main() {
               .trim();
       // connect to the second client
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       //send second enroll request with otp
       String secondEnrollRequest =
           'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
@@ -421,8 +430,8 @@ void main() {
       await firstAtSignConnection.close();
       // Connect to unauthenticated socket to send an enrollment request
       firstAtSignConnection = await OutboundConnectionFactory()
-          .initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          .initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       var secondEnrollRequest =
           'enroll:request:{"appName":"buzz","deviceName": "$deviceName","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       var secondEnrollResponse =
@@ -431,9 +440,9 @@ void main() {
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
-
+      
       SecureSocket monitorSocket =
-          await SecureSocket.connect(firstAtSignHost, firstAtSignPort);
+          await SecureSocket.connect(firstAtSignHost, 2500) ;
       monitorSocket.listen(expectAsync1((data) {
         String serverResponse = utf8.decode(data);
         serverResponse = serverResponse.trim();
@@ -493,8 +502,8 @@ void main() {
       expect(enrollJsonMap['status'], 'approved');
       await firstAtSignConnection.close();
       // PKAM Auth
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam);
     });
@@ -510,8 +519,8 @@ void main() {
           .trim();
       // send an enroll request
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       var enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       String enrollResponse =
@@ -555,8 +564,8 @@ void main() {
 
       // connect to the second client
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       //send second enroll request with otp
       var apkamPublicKey = pkamPublicKeyMap[firstAtSign];
       var secondEnrollRequest =
@@ -585,8 +594,8 @@ void main() {
 
       //Create a new connection to login using the APKAM
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse = await socketConnection2.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
       expect(authResponse.trim(), 'data:success');
@@ -618,8 +627,8 @@ void main() {
 
       //Create a new connection to login using the APKAM
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String authResponse = await socketConnection2.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
       expect(authResponse.trim(), 'data:success');
@@ -638,8 +647,8 @@ void main() {
           "Enrollment is revoked. Closing the connection in 10 seconds");
 
       socketConnection2 = await OutboundConnectionFactory()
-          .initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          .initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String pkamResult = await socketConnection2.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
       await socketConnection2.close();
@@ -660,8 +669,8 @@ void main() {
           enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String revokeEnrollmentCommand =
           'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
       String revokeEnrollmentResponse =
@@ -692,8 +701,8 @@ void main() {
 
       // connect to the second client
       OutboundConnectionFactory secondConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
 
       //send second enroll request with otp
       var secondEnrollRequest =
@@ -736,8 +745,8 @@ void main() {
       // Perform APKAM authentication with approved enrollment-id
       OutboundConnectionFactory enrollmentAuthenticatedConnection =
           OutboundConnectionFactory();
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
@@ -766,8 +775,8 @@ void main() {
 
       // connect to the second client
       OutboundConnectionFactory secondConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
 
       //send second enroll request with otp
       var secondEnrollRequest =
@@ -809,8 +818,8 @@ void main() {
       // Close the connection and create a new connection and send an enrollment
       // request on an unauthenticated connection.
       OutboundConnectionFactory unauthenticatedConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollRequest =
           'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       enrollmentResponse =
@@ -914,8 +923,8 @@ void main() {
         'A test to verify exception is thrown when request exceed the configured limit',
         () async {
       OutboundConnectionFactory unAuthenticatedConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
@@ -943,8 +952,8 @@ void main() {
     test('A test to verify request is successful after the time window',
         () async {
       OutboundConnectionFactory unAuthenticatedConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
 
       otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
@@ -980,8 +989,8 @@ void main() {
 
     test('A test to verify rate limit is per connection', () async {
       OutboundConnectionFactory unAuthenticatedConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
 
       otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
@@ -1007,8 +1016,8 @@ void main() {
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
       OutboundConnectionFactory secondUnAuthenticatedConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
 
       otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
@@ -1041,8 +1050,8 @@ void main() {
       await firstAtSignConnection.close();
       // Close the connection and create a new connection and send an enrollment request on an
       // unauthenticated connection.
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollRequest =
           'enroll:request:{"appName":"my-first-app","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       enrollmentResponse =
@@ -1065,8 +1074,8 @@ void main() {
       String randomId = Uuid().v4();
       String enrollRequest =
           'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}';
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection();
       await firstAtSignConnection.sendRequestToServer(enrollRequest);
       await firstAtSignConnection.sendRequestToServer('stats:3');
@@ -1083,8 +1092,8 @@ void main() {
           'update:$secondAtSign:contact-$randomId.atmosphere$firstAtSign random-value');
 
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
 
@@ -1113,16 +1122,16 @@ void main() {
     setUpAll(() async {
       // create five enrollment requests
       for (int i = 0; i < 5; i++) {
-        await firstAtSignConnection.initiateConnectionWithListener(
-            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.initiateConnection(
+            firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
         await firstAtSignConnection.authenticateConnection();
         String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
         otp = otp.replaceFirst('data:', '');
         await firstAtSignConnection.close();
         // Close the connection and create a new connection and send an
         // enrollment request on an unauthenticated connection.
-        await firstAtSignConnection.initiateConnectionWithListener(
-            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.initiateConnection(
+            firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
         String enrollRequest =
             'enroll:request:{"appName":"test_app-${Uuid().v4().hashCode}","deviceName":"test_device","namespaces":{"filter_test":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
         String enrollmentResponse =
@@ -1140,8 +1149,8 @@ void main() {
     }
 
     test('validate filtering of enrollment requests - case approved', () async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection();
       String enrollListApprovedCommand =
           'enroll:list:{"enrollmentStatusFilter":["approved"]}';
@@ -1165,8 +1174,8 @@ void main() {
     });
 
     test('validate filtering of enrollment requests - case revoked', () async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection();
       String enrollListRevokedCommand =
           'enroll:list:{"enrollmentStatusFilter":["revoked"]}';
@@ -1176,8 +1185,8 @@ void main() {
           'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
       // authenticate using enrollmentIds[2]
       OutboundConnectionFactory tempSocketConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String authResponse = await tempSocketConnection.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentIds[2]);
       expect(authResponse.trim(), 'data:success');
@@ -1211,8 +1220,8 @@ void main() {
     });
 
     test('validate filtering of enrollment requests - case denied', () async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection();
       String enrollListDeniedCommand =
           'enroll:list:{"enrollmentStatusFilter":["denied"]}';
@@ -1235,8 +1244,8 @@ void main() {
     });
 
     test('validate filtering of enrollment requests - case pending', () async {
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection();
       String enrollListDeniedCommand =
           'enroll:list:{"enrollmentStatusFilter":["pending"]}';
@@ -1266,8 +1275,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
               'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
@@ -1287,8 +1296,8 @@ void main() {
       // Perform APKAM authentication with approved enrollment-id
       OutboundConnectionFactory enrollmentAuthenticatedConnection =
           OutboundConnectionFactory();
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -1299,8 +1308,8 @@ void main() {
           .sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
 
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
           'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
@@ -1316,8 +1325,8 @@ void main() {
           'Internal server exception : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
 
       // Authenticate the connection again with APKAM
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -1341,8 +1350,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
               'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
@@ -1361,8 +1370,8 @@ void main() {
       // Perform APKAM authentication with approved enrollment-id
       OutboundConnectionFactory enrollmentAuthenticatedConnection =
           OutboundConnectionFactory();
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -1373,8 +1382,8 @@ void main() {
           .sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '');
 
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
           'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
@@ -1407,8 +1416,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
               'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":1}');
@@ -1427,8 +1436,8 @@ void main() {
       // Perform APKAM authentication with approved enrollment-id
       OutboundConnectionFactory enrollmentAuthenticatedConnection =
           OutboundConnectionFactory();
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -1448,8 +1457,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(
               'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":30000}');
@@ -1469,8 +1478,8 @@ void main() {
       // Perform APKAM authentication with approved enrollment-id
       OutboundConnectionFactory enrollmentAuthenticatedConnection =
           OutboundConnectionFactory();
-      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await enrollmentAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String authResponse =
           await enrollmentAuthenticatedConnection.authenticateConnection(
               authType: AuthType.apkam, enrollmentId: enrollmentId);
@@ -1500,8 +1509,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollRequest =
           'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       var enrollmentResponse =
@@ -1516,8 +1525,8 @@ void main() {
       // create a new cram authenticated connection
       OutboundConnectionFactory secondAuthenticatedConnection =
           OutboundConnectionFactory();
-      await secondAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       await secondAuthenticatedConnection.authenticateConnection(
           authType: AuthType.cram);
 
@@ -1552,8 +1561,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
       String enrollRequest =
           'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       var enrollmentResponse =
@@ -1568,8 +1577,8 @@ void main() {
       // create a new cram authenticated connection
       OutboundConnectionFactory secondAuthenticatedConnection =
           OutboundConnectionFactory();
-      await secondAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await secondAuthenticatedConnection.authenticateConnection(
           authType: AuthType.cram);
 
@@ -1665,8 +1674,8 @@ void main() {
       // Submit an enrollment request from an un-authenticated connection
       OutboundConnectionFactory unAuthenticatedConnection =
           OutboundConnectionFactory();
-      await unAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await unAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String enrollRequest =
           'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       var enrollmentResponse =
@@ -1681,8 +1690,8 @@ void main() {
       // create a cram  authenticated connection and delete the pending enrollment
       OutboundConnectionFactory secondAuthenticatedConnection =
           OutboundConnectionFactory();
-      await secondAuthenticatedConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       await secondAuthenticatedConnection.authenticateConnection(
           authType: AuthType.cram);
       String deleteEnrollmentCommand =
@@ -1706,8 +1715,8 @@ void main() {
       // using a dummy enrollId as the enrollId will NOT be validated for this test
       String enrollmentId = '023409340293-2342397-23423984729';
       OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory().initiateConnection(
+              firstAtSign, firstAtSignHost, firstAtSignPort,connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
       String deleteEnrollmentCommand =
           'enroll:delete:{"enrollmentId":"$enrollmentId"}';
       String revokeEnrollmentResponse =

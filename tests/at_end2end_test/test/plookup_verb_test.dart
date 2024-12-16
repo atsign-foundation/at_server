@@ -7,10 +7,10 @@ import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -67,7 +67,7 @@ void main() {
   test('plookup verb on non existent key - negative case', () async {
     ///PLOOKUP VERB
     await sh1.writeCommand('plookup:no-key$atSign_1');
-    String response = await sh1.read();
+    String response = await sh1.read(timeoutMillis: 6000);
     print('plookup verb response $response');
     var version = await sh1.getVersion();
     print(version);

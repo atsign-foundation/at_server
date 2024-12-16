@@ -2,9 +2,11 @@
 firstAtSignServer:
   firstAtSignName: "@alice🛠"
   # # The port to connect to first atsign server
-  firstAtSignPort: 25000
+  firstAtSignPort: '25000'
   # # The url to connect to first atsign server
   firstAtSignUrl: vip.ve.atsign.zone
+  # the connection type of first atsign server
+  firstAtSignConnectionType: websocket
 
 secondAtSignServer:
   secondAtSignName: "@bob🛠"

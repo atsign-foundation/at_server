@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -14,8 +16,13 @@ void main() {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+  ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   Map<String, String> apkamEncryptedKeysMap = <String, String>{
     'encryptedDefaultEncPrivateKey': EncryptionUtil.encryptValue(
@@ -30,8 +37,10 @@ void main() {
   };
 
   setUp(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort,
+        connectionType: firstConnectionType,
+        secureSocketConfig: secureSocketConfig);
   });
 
   group('A group of tests to verify apkam enroll namespace access', () {
@@ -58,8 +67,10 @@ void main() {
       // close the connection and authenticate with APKAM
       await firstAtSignConnection.close();
       // now do the APKAM using the enrollment id
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
       String updateResponse = await firstAtSignConnection.sendRequestToServer(
@@ -94,8 +105,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection and create a new connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -127,8 +140,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection and create a new connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -164,8 +179,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection and create a new connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -202,8 +219,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection and create a new connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -237,8 +256,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection and create a new connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -284,8 +305,10 @@ void main() {
         // Close the connection
         await firstAtSignConnection.close();
         // now do the apkam using the enrollment id
-        await firstAtSignConnection.initiateConnectionWithListener(
-            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.initiateConnection(
+            firstAtSign, firstAtSignHost, firstAtSignPort,
+            connectionType: firstConnectionType,
+            secureSocketConfig: secureSocketConfig);
         await firstAtSignConnection.authenticateConnection(
             authType: AuthType.pkam, enrollmentId: enrollmentId);
         String llookupResponse = await firstAtSignConnection
@@ -325,8 +348,10 @@ void main() {
 
       String enrollmentId = enrollJsonMap['enrollmentId'];
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
@@ -367,8 +392,10 @@ void main() {
       String enrollmentId = enrollJsonMap['enrollmentId'];
       //Close the connection and authenticate with APKAM
       await firstAtSignConnection.close();
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
 
@@ -409,8 +436,10 @@ void main() {
       // Close the connection
       await firstAtSignConnection.close();
       // now do the apkam using the enrollment id
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+     await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
 
@@ -452,8 +481,10 @@ void main() {
 
       // connect to the second client
       OutboundConnectionFactory secondConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+          await OutboundConnectionFactory()
+          .initiateConnection(firstAtSign, firstAtSignHost, firstAtSignPort,
+              connectionType: firstConnectionType,
+              secureSocketConfig: secureSocketConfig);
 
       //send second enroll request with otp
       var secondEnrollRequest =
@@ -579,8 +610,10 @@ void main() {
 
       String enrollmentId = enrollJsonMap['enrollmentId'];
       // Close the connection. Create a new connection and authenticate via the APKAM
-      await firstAtSignConnection.initiateConnectionWithListener(
-          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.initiateConnection(
+          firstAtSign, firstAtSignHost, firstAtSignPort,
+          connectionType: firstConnectionType,
+          secureSocketConfig: secureSocketConfig);
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: enrollmentId);
 

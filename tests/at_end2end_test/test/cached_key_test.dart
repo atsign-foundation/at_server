@@ -1,15 +1,16 @@
 import 'dart:convert';
 
 import 'package:test/test.dart';
-import 'notify_verb_test.dart' as notification;
+
 import 'e2e_test_utils.dart' as e2e;
+import 'notify_verb_test.dart' as notification;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   int lastValue = DateTime.now().millisecondsSinceEpoch;
 

@@ -8,10 +8,10 @@ import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   var lastValue = Random().nextInt(30);
 
@@ -46,14 +46,15 @@ void main() {
   // atsign2 create connection, issue monitor command for that namespace
   // verify atsign2 receives all 5 notifications immediately
   test('monitor receives multiple pending notifications immediately', () async {
-    e2e.SimpleOutboundSocketHandler notifySH, monitorSH;
+    e2e.SimpleOutboundConnection notifySH, monitorSH;
     notifySH = await e2e.getSocketHandler(atSign_1);
     monitorSH = await e2e.getSocketHandler(atSign_2);
 
     try {
       var atServerVersion = Version.parse(await monitorSH.getVersion());
       if (atServerVersion < Version(3, 0, 43)) {
-        print ('\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
+        print(
+            '\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
         return;
       }
       List<String> sentNotificationIds = [];
@@ -106,7 +107,7 @@ void main() {
       notifySH.close();
       monitorSH.close();
     }
-  });
+  }, timeout: Timeout(Duration(minutes: 5)));
 
   test('notify verb for notifying a key update to the atsign', () async {
     /// NOTIFY VERB
@@ -845,7 +846,7 @@ void main() {
 
 // get notify status
 Future<String> getNotifyStatus(
-    e2e.SimpleOutboundSocketHandler sh, String notificationId,
+    e2e.SimpleOutboundConnection sh, String notificationId,
     {List<String>? returnWhenStatusIn, int timeOutMillis = 5000}) async {
   returnWhenStatusIn ??= ['expired'];
   print(
@@ -860,7 +861,7 @@ Future<String> getNotifyStatus(
   int endTime = DateTime.now().millisecondsSinceEpoch + timeOutMillis;
   while (DateTime.now().millisecondsSinceEpoch < endTime) {
     if (!first) {
-    await Future.delayed(Duration(milliseconds: loopDelay));
+      await Future.delayed(Duration(milliseconds: loopDelay));
     }
     first = false;
 
@@ -871,7 +872,7 @@ Future<String> getNotifyStatus(
         log: true, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
 
     if (response.startsWith('data:')) {
       String status = response.replaceFirst('data:', '').replaceAll('\n', '');
@@ -887,11 +888,8 @@ Future<String> getNotifyStatus(
   return response;
 }
 
-Future<String> retryCommandUntilMatchOrTimeout(
-    e2e.SimpleOutboundSocketHandler sh,
-    String command,
-    String shouldContain,
-    int timeoutMillis) async {
+Future<String> retryCommandUntilMatchOrTimeout(e2e.SimpleOutboundConnection sh,
+    String command, String shouldContain, int timeoutMillis) async {
   int loopDelay = 1000;
 
   String response = 'NO_RESPONSE';
@@ -909,7 +907,7 @@ Future<String> retryCommandUntilMatchOrTimeout(
         log: false, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
     if (readTimedOut) {
       continue;
     }

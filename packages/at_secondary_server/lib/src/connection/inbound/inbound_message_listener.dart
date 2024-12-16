@@ -47,11 +47,13 @@ class InboundMessageListener {
         ' : $streamData ');
     List<int> data;
     if (streamData is List<int>) {
+      print('inside if stmt');
       data = streamData;
     } else if (streamData is String) {
-      data = streamData.codeUnits;
+      data = utf8.encode(streamData);
     } else {
       logger.severe('Un-handled data type: ${streamData.runtimeType}');
+      print('inside else stmt');
       await _finishedHandler();
       return;
     }

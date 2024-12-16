@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,12 +14,17 @@ void main() {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+   ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   setUpAll(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort , connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
   });
 
   test('info verb test without authentication', () async {
@@ -47,8 +54,8 @@ void main() {
     enrollResponse = enrollResponse.replaceFirst('data:', '');
     await firstAtSignConnection.close();
 
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     await firstAtSignConnection.authenticateConnection(
         authType: AuthType.apkam, enrollmentId: enrollmentId);
     // check the info verb.. It should return the result

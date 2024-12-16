@@ -1,5 +1,7 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/connection_type_util.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -8,12 +10,17 @@ void main() {
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
   String firstAtSignHost =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
-  int firstAtSignPort =
+  String firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+   ConnectionType firstConnectionType =
+      ConnectionTypeUtil.getConnectionType('firstAtSignServer');
+
+  SecureSocketConfig secureSocketConfig = SecureSocketConfig();
+  secureSocketConfig.decryptPackets = false;
 
   setUpAll(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType, secureSocketConfig: secureSocketConfig);
     String authResponse = await firstAtSignConnection.authenticateConnection();
     expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
   });
@@ -62,8 +69,8 @@ void main() {
     // lookup of reference key should display the updatevalue
     // lookup of reference key without auth
     // looking up from a new socket connection without authentication
-    await firstAtSignConnection.initiateConnectionWithListener(
-        firstAtSign, firstAtSignHost, firstAtSignPort);
+    await firstAtSignConnection.initiateConnection(
+        firstAtSign, firstAtSignHost, firstAtSignPort, connectionType: firstConnectionType,secureSocketConfig: secureSocketConfig);
     String lookupResponse = await firstAtSignConnection
         .sendRequestToServer('lookup:landlineref$firstAtSign');
     expect(lookupResponse, contains(updateValue));
