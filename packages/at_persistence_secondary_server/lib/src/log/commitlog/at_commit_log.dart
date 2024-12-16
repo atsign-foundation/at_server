@@ -3,7 +3,7 @@ import 'package:at_persistence_secondary_server/src/event_listener/at_change_eve
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 abstract class BaseAtCommitLog implements AtLogType<int, CommitEntry> {
   Future<CommitEntry?> lastSyncedEntry() async {

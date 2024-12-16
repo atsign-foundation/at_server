@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:cron/cron.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 
 import 'hive_base.dart';
 
@@ -25,16 +25,6 @@ class HivePersistenceManager with HiveBase {
   @override
   Future<void> initialize() async {
     try {
-      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
-        Hive.registerAdapter(AtDataAdapter());
-      }
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-      if (!Hive.isAdapterRegistered(PublicKeyHashAdapater().typeId)) {
-        Hive.registerAdapter(PublicKeyHashAdapater());
-      }
-
       var secret = await _getHiveSecretFromFile(_atsign!, storagePath);
       _boxName = AtUtils.getShaForAtSign(_atsign!);
       await super.openBox(_boxName, hiveSecret: secret);

@@ -2,7 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:meta/meta.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
@@ -25,12 +25,6 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   @override
   Future<void> initialize() async {
     _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
-      Hive.registerAdapter(CommitEntryAdapter());
-    }
-    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
-      Hive.registerAdapter(CommitOpAdapter());
-    }
     await super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');
 
@@ -356,12 +350,6 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
   @override
   Future<void> initialize() async {
     _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
-      Hive.registerAdapter(CommitEntryAdapter());
-    }
-    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
-      Hive.registerAdapter(CommitOpAdapter());
-    }
     await super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');
   }
