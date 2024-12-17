@@ -40,17 +40,25 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    int? skipDeletesUntil = verbParams['skipDeletesUntil'] != null
-        ? int.parse(verbParams['skipDeletesUntil']!)
+    int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
+        ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
+        : null;
+    int? syncLimit = verbParams[AtConstants.syncLimit] != null
+        ? int.parse(verbParams[AtConstants.syncLimit]!)
         : null;
     // Get entries to sync
-    var commitEntryIterator = atCommitLog!.getEntries(
+    Iterator<MapEntry<String, CommitEntry>> commitEntryIterator;
+    // if client doesn't pass syncLimit set the default value from server
+    syncLimit ??= AtSecondaryConfig.syncPageLimit;
+    commitEntryIterator = atCommitLog!.getEntries(
         int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
         regex: verbParams['regex'],
-        skipDeletesUntil: skipDeletesUntil);
+        skipDeletesUntil: skipDeletesUntil,
+        limit: syncLimit);
 
     List<KeyStoreEntry> syncResponse = [];
-    await prepareResponse(capacity, syncResponse, commitEntryIterator,
+    await prepareResponse(
+        capacity, syncLimit, syncResponse, commitEntryIterator,
         enrollmentId:
             (atConnection.metaData as InboundConnectionMetadata).enrollmentId);
 
@@ -61,8 +69,11 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
   /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
   @visibleForTesting
-  Future<void> prepareResponse(int desiredMaxSyncResponseLength,
-      List<KeyStoreEntry> syncResponse, Iterator<dynamic> commitEntryIterator,
+  Future<void> prepareResponse(
+      int desiredMaxSyncResponseLength,
+      int syncPageLimit,
+      List<KeyStoreEntry> syncResponse,
+      Iterator<dynamic> commitEntryIterator,
       {String? enrollmentId}) async {
     int currentResponseLength = 0;
     Map<String, String> enrolledNamespaces = {};
@@ -73,8 +84,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
               .get(enrollmentId))
           .namespaces;
     }
-    while (commitEntryIterator.moveNext() &&
-        syncResponse.length < AtSecondaryConfig.syncPageLimit) {
+    while (
+        commitEntryIterator.moveNext() && syncResponse.length < syncPageLimit) {
       var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
           enforceNameSpace: false);
       if (atKeyType == KeyType.invalidKey) {
