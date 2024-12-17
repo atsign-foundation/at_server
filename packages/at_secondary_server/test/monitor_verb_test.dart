@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
@@ -104,6 +105,69 @@ void main() {
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
+    });
+
+    test(
+        'A test to verify publicKeyHash is written on InboundConnection when populated',
+        () async {
+      HashMap<String, String?> verbParams = HashMap<String, String?>();
+      verbParams[AtConstants.regex] = 'wavi';
+      inboundConnection.metaData.isAuthenticated = true;
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..atMetaData = (AtMetaData()
+              ..pubKeyHash =
+                  PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)))
+          .build();
+      await monitorVerbHandler.processAtNotification(atNotification);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      Map notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['metadata']['pubKeyHash'],
+          '{"hash":"dummy_hash","hashingAlgo":"sha512"}');
+    });
+
+    test(
+        'A test to verify publicKeyHash is set to null on InboundConnection when not populated',
+        () async {
+      HashMap<String, String?> verbParams = HashMap<String, String?>();
+      verbParams[AtConstants.regex] = 'wavi';
+      inboundConnection.metaData.isAuthenticated = true;
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..atMetaData = (AtMetaData()..encKeyName = 'encKeyName'))
+          .build();
+      await monitorVerbHandler.processAtNotification(atNotification);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['metadata']['pubKeyHash'], null);
     });
     tearDown(() async {
       await verbTestsTearDown();
