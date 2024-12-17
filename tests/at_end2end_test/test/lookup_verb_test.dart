@@ -9,10 +9,10 @@ import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();

@@ -49,7 +49,7 @@ class InboundMessageListener {
     if (streamData is List<int>) {
       data = streamData;
     } else if (streamData is String) {
-      data = streamData.codeUnits;
+      data = utf8.encode(streamData);
     } else {
       logger.severe('Un-handled data type: ${streamData.runtimeType}');
       await _finishedHandler();
