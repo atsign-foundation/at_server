@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_demo_data/at_demo_data.dart';
@@ -274,35 +275,6 @@ void main() {
       expect(llookupResponseMap['errorCode'], 'AT0009');
       expect(llookupResponseMap['errorDescription'],
           'UnAuthorized client in request : Connection with enrollment ID $enrollmentId is not authorized to llookup key: $enrollmentKey');
-
-      // keys:get:self should return default self encryption key
-      var selfKey = '$enrollmentId.default_self_enc_key.__manage$firstAtSign';
-      String selfKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:self');
-      expect(selfKeyResponse.contains(selfKey), true);
-
-      // keys:get:private should return private encryption key
-      var privateKey =
-          '$enrollmentId.default_enc_private_key.__manage$firstAtSign';
-      String privateKeyResponse =
-          await socketConnection2.sendRequestToServer('keys:get:private');
-      expect(privateKeyResponse.contains(privateKey), true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      String selfKeyGetResponse = await socketConnection2
-          .sendRequestToServer('keys:get:keyName:$selfKey');
-      expect(
-          selfKeyGetResponse
-              .contains('${apkamEncryptedKeysMap['encryptedSelfEncKey']}'),
-          true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      String privateKeyGetResponse = await socketConnection2
-          .sendRequestToServer('keys:get:keyName:$privateKey');
-      expect(
-          privateKeyGetResponse.contains(
-              '${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}'),
-          true);
     });
 
     test(
@@ -387,8 +359,12 @@ void main() {
       var secondEnrollId = enrollJson['enrollmentId'];
 
       // connect to the first client to approve the enroll request
+      final encryptionPrivateKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
+      final selfEncryptionKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
       String approveResponse = (await firstAtSignConnection.sendRequestToServer(
-              'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+              'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encPrivateKeyIV":"$encryptionPrivateKeyIV","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}","selfEncKeyIV":"$selfEncryptionKeyIV"}'))
           .replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
@@ -406,12 +382,27 @@ void main() {
           await socketConnection2.sendRequestToServer('keys:get:self');
       expect(selfKeyResponse.contains(selfKey), true);
 
+      String selfKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$selfKey');
+      selfKeyGetResponse = selfKeyGetResponse.replaceFirst('data:', '');
+      var selfKeyResponseJson = jsonDecode(selfKeyGetResponse);
+      expect(selfKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedSelfEncKey']);
+      expect(selfKeyResponseJson['iv'], selfEncryptionKeyIV);
+
       // keys:get:private should return private encryption key
       var privateKey =
           '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
       String privateKeyResponse =
           await socketConnection2.sendRequestToServer('keys:get:private');
       expect(privateKeyResponse.contains(privateKey), true);
+      String privateKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$privateKey');
+      privateKeyGetResponse = privateKeyGetResponse.replaceFirst('data:', '');
+      var privateKeyResponseJson = jsonDecode(privateKeyGetResponse);
+      expect(privateKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']);
+      expect(privateKeyResponseJson['iv'], encryptionPrivateKeyIV);
     });
 
     test(
