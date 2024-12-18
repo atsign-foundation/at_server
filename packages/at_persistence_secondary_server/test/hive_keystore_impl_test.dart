@@ -84,7 +84,8 @@ void main() async {
           ..encAlgo = 'AES/CTR/PKCS7Padding'
           ..ivNonce = 'someIvNonce'
           ..skeEncKeyName = 'someSkeEncKeyName'
-          ..skeEncAlgo = 'someSkeEncAlgo';
+          ..skeEncAlgo = 'someSkeEncAlgo'
+          ..pubKeyHash = PublicKeyHash('someHashValue', 'sha512');
         var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
         atData.metaData = atMetaData;
         await keyStore.create(key, atData);
@@ -92,6 +93,8 @@ void main() async {
         var dataFromHive = await (keyStore.get(key));
         expect(dataFromHive?.data, 'india');
         expect(dataFromHive?.metaData, atMetaData);
+        expect(dataFromHive?.metaData?.pubKeyHash?.hash, 'someHashValue');
+        expect(dataFromHive?.metaData?.pubKeyHash?.hashingAlgo, 'sha512');
 
         var updateData = AtData();
         var updateMetaData =

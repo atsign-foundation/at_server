@@ -1,7 +1,23 @@
+# 3.1.1
+- fix: Store "publicKeyHash" value in the keystore
+- fix: add limit param in SyncProgressiveVerbHandler
+- build[deps]: Upgraded the following package:
+  at_commons to v5.1.2
+# 3.1.0
+- feat: sync skip deletes until changes 
+- fix: Enable persistence of the Initialization Vector for "defaultEncryptionPrivateKey" and "selfEncryptionKey" in
+  the APKAM flow.
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.0
+  - at_persistence_secondary_server to v3.1.0
 # 3.0.52
 - build[deps]: Upgraded the following package:
-  - at_commons to v5.0.1
-  - at_persistence_secondary_server to v3.0.65
+  - at_commons to v5.0.2
+  - at_chops to v2.2.0
+  - meta to v1.16.0
+  - test to v1.25.9
+  - args to v2.6.0
+  - at_persistence_secondary_server to v3.0.66 to consume publicKeyHash changes.
 ## 3.0.51
 - feat: Introduce option to unrevoke revoked enrollments
 - feat: Introduce option to delete enrollments that are denied/revoked

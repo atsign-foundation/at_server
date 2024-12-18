@@ -249,9 +249,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
-      // Store default encryption private key and self encryption key(both encrypted)
-      // for future retrieval
-      await _storeEncryptionKeys(newEnrollmentId, enrollParams, currentAtSign);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(AtConstants.atPkamPublicKey,
@@ -409,12 +406,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privateKeyJson = {};
     privateKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
+    if (enrollParams.encPrivateKeyIV != null) {
+      privateKeyJson['iv'] = enrollParams.encPrivateKeyIV;
+    }
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(privateKeyJson),
         skipCommit: true);
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
+    if (enrollParams.selfEncKeyIV != null) {
+      selfKeyJson['iv'] = enrollParams.selfEncKeyIV;
+    }
     await keyStore.put(
         '$newEnrollmentId.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
         AtData()..data = jsonEncode(selfKeyJson),

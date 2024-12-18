@@ -1,10 +1,10 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore
@@ -41,6 +41,9 @@ class AtNotificationKeystore
       Hive.registerAdapter(MessageTypeAdapter());
       if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapater().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapater());
       }
       _register = true;
     }

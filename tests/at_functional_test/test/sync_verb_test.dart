@@ -70,6 +70,26 @@ void main() {
     assert((response.contains('Invalid syntax')));
   });
 
+  test('A test to verify publicKeyHash in set in sync response', () async {
+    String namespace = '.func.test';
+    String randomId = Uuid().v4();
+
+    var response = await firstAtSignConnection.sendRequestToServer(
+        'update:pubKeyHash:dummy_hash:hashingAlgo:sha512:$secondAtSign:twitter-$randomId$namespace$firstAtSign bob_tweet');
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String commitId = response.replaceAll('data:', '');
+    int syncId = int.parse(commitId);
+    // sync with regex
+    response = await firstAtSignConnection
+        .sendRequestToServer('sync:from:${syncId - 1}:limit:5:$namespace');
+    response = response.replaceAll('data:', '');
+    var responseMap = jsonDecode(response);
+    var publicKeyHashMap = jsonDecode(responseMap[0]['metadata']['pubKeyHash']);
+    expect(publicKeyHashMap['hash'], 'dummy_hash');
+    expect(publicKeyHashMap['hashingAlgo'], 'sha512');
+  });
+
   group('A group of tests to verify sync entries', () {
     late OutboundConnectionFactory authenticatedSocket =
         OutboundConnectionFactory();
