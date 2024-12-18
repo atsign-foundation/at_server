@@ -35,6 +35,8 @@ import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
+import 'pseudo_server_socket.dart';
+
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
@@ -302,6 +304,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // clean up malformed keys from keystore
     await removeMalformedKeys();
 
+    if (!useTLS!) {
+      throw AtServerException('Only TLS is supported; useTLS must be true');
+    }
     try {
       _isRunning = true;
       if (useTLS!) {
@@ -441,31 +446,97 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
+  webSocketListener(WebSocket ws) async {
+    InboundConnection? connection;
+    try {
+      var inBoundConnectionManager = InboundConnectionManager.getInstance();
+      connection = inBoundConnectionManager.createWebSocketConnection(ws,
+          sessionId: '_${Uuid().v4()}');
+      connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+      await connection.write('@');
+    } on InboundConnectionLimitException catch (e) {
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection, clientSocket: ws);
+    }
+  }
+
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
   /// Throws [AtConnection] if unable to create a connection
   /// Throws [SocketException] for exceptions on socket
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
-  void _listen(var serverSocket) {
-    logger.info('serverSocket _listen : ${serverSocket.runtimeType}');
+  void _listen(final serverSocket) {
+    // ALPN support.
+    // First, make a PseudoServerSocket to which we will pass sockets which
+    // have a selectedProtocol which is neither null nor 'atProtocol/1.0'.
+    // See later in this method for where we pass sockets received on the real
+    // serverSocket to the pseudoServerSocket.
+    final pseudoServerSocket = PseudoServerSocket(serverSocket);
+    // Second, make an HttpServer which is handling sockets which are passed
+    // to the pseudoServerSocket
+    HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
+    httpServer.listen((HttpRequest req) {
+      if (req.uri.path == '/ws') {
+        // Upgrade an HttpRequest to a WebSocket connection.
+        logger.info('Upgraded to WebSocket connection');
+        WebSocketTransformer.upgrade(req)
+            .then((WebSocket ws) => webSocketListener(ws));
+      } else {
+        logger.info('Got Http Request: ${req.method} ${req.uri}');
+        if (req.method.toUpperCase() != 'GET') {
+          req.response.statusCode = HttpStatus.badRequest;
+          req.response.close();
+        } else {
+          // TODO URL decoding, need to handle emojis for example
+          var lookupKey = req.uri.path.substring(1);
+          if (!lookupKey.startsWith('public:')) {
+            lookupKey = 'public:$lookupKey';
+          }
+          if (!lookupKey.endsWith(currentAtSign)) {
+            lookupKey = '$lookupKey$currentAtSign';
+          }
+          logger.finer('Key to look up: $lookupKey');
+          secondaryKeyStore.get(lookupKey)!.then((AtData? value) {
+            req.response.writeln('data:${value?.data}');
+            req.response.close();
+          }, onError: (error) {
+            req.response.writeln('error:no such key $lookupKey');
+            req.response.close();
+          });
+        }
+      }
+    });
+
+    logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) async {
-      var sessionID = '_${Uuid().v4()}';
-      InboundConnection? connection;
-      try {
-        logger.finer(
-            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
-        var inBoundConnectionManager = InboundConnectionManager.getInstance();
-        connection = inBoundConnectionManager
-            .createSocketConnection(clientSocket, sessionId: sessionID);
-        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-        await connection.write('@');
-      } on InboundConnectionLimitException catch (e) {
-        await GlobalExceptionHandler.getInstance()
-            .handle(e, atConnection: connection, clientSocket: clientSocket);
+      logger.info(
+          'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
+          clientSocket.selectedProtocol == null) {
+        InboundConnection? connection;
+        try {
+          logger.info(
+              'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          var inBoundConnectionManager = InboundConnectionManager.getInstance();
+          connection = inBoundConnectionManager.createSocketConnection(
+              clientSocket,
+              sessionId: '_${Uuid().v4()}');
+          connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+          await connection.write('@');
+        } on InboundConnectionLimitException catch (e) {
+          await GlobalExceptionHandler.getInstance()
+              .handle(e, atConnection: connection, clientSocket: clientSocket);
+        }
+      } else {
+        // ALPN support
+        // selectedProtocol is neither null nor 'atProtocol/1.0'
+        // TODO check specifically for http/1.1
+        logger.info('Transferring socket to HttpServer for handling');
+        pseudoServerSocket.add(clientSocket);
       }
     }), onError: (error) {
-      // We've got no action to take here, let's just log a message
-      logger.info("ServerSocket.listen called onError with '$error'");
+      // We've got no action to take here, let's just log a warning
+      logger.warning("ServerSocket.listen called onError with '$error'");
     });
   }
 
@@ -486,6 +557,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath());
         certsAvailable = true;
+        // secCon.setAlpnProtocols(['atp/1.0', 'h2', 'http/1.1'], true);
+        secCon.setAlpnProtocols(['atProtocol/1.0', 'http/1.1'], true);
       } on FileSystemException catch (e) {
         retryCount++;
         logger.info('${e.message}:${e.path}');

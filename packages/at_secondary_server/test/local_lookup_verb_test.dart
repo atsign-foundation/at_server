@@ -332,15 +332,18 @@ void main() {
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
-      String updateCommand = 'update:atconnections.bob.alice.at_contact.buzz$alice bob';
-      HashMap<String, String?> updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
+      String updateCommand =
+          'update:atconnections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
       // Local Lookup a key with at_contact.buzz namespace
-      String llookupCommand = 'llookup:atconnections.bob.alice.at_contact.buzz$alice';
+      String llookupCommand =
+          'llookup:atconnections.bob.alice.at_contact.buzz$alice';
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =

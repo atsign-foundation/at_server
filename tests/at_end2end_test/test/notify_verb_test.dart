@@ -8,10 +8,10 @@ import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   var lastValue = Random().nextInt(30);
 
@@ -46,7 +46,7 @@ void main() {
   // atsign2 create connection, issue monitor command for that namespace
   // verify atsign2 receives all 5 notifications immediately
   test('monitor receives multiple pending notifications immediately', () async {
-    e2e.SimpleOutboundSocketHandler notifySH, monitorSH;
+    e2e.SimpleOutboundConnection notifySH, monitorSH;
     notifySH = await e2e.getSocketHandler(atSign_1);
     monitorSH = await e2e.getSocketHandler(atSign_2);
 
@@ -845,7 +845,7 @@ void main() {
 
 // get notify status
 Future<String> getNotifyStatus(
-    e2e.SimpleOutboundSocketHandler sh, String notificationId,
+    e2e.SimpleOutboundConnection sh, String notificationId,
     {List<String>? returnWhenStatusIn, int timeOutMillis = 5000}) async {
   returnWhenStatusIn ??= ['expired'];
   print(
@@ -871,7 +871,7 @@ Future<String> getNotifyStatus(
         log: true, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
 
     if (response.startsWith('data:')) {
       String status = response.replaceFirst('data:', '').replaceAll('\n', '');
@@ -888,7 +888,7 @@ Future<String> getNotifyStatus(
 }
 
 Future<String> retryCommandUntilMatchOrTimeout(
-    e2e.SimpleOutboundSocketHandler sh,
+    e2e.SimpleOutboundConnection sh,
     String command,
     String shouldContain,
     int timeoutMillis) async {
@@ -909,7 +909,7 @@ Future<String> retryCommandUntilMatchOrTimeout(
         log: false, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
     if (readTimedOut) {
       continue;
     }
