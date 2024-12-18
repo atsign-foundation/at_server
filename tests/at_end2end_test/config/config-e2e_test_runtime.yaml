@@ -12,8 +12,6 @@ first_atsign_server:
   first_atsign_port: ATSIGN_1_PORT
   # # The url to connect to first atServer
   first_atsign_url: ATSIGN_1_HOST
-  # # The connection type of first atServer
-  first_atsign_connection_type: ATSIGN_1_CONNECTION_TYPE
 
 second_atsign_server:
   second_atsign_name: 'ATSIGN_2_NAME'
@@ -21,5 +19,3 @@ second_atsign_server:
   second_atsign_port: ATSIGN_2_PORT
   # # The url to connect to second atServer
   second_atsign_url: ATSIGN_2_HOST
-  # # The connection type of second atServer
-  first_atsign_connection_type: ATSIGN_2_CONNECTION_TYPE
