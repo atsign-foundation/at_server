@@ -140,6 +140,12 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
         };
 
+      notification.metadata?.putIfAbsent(
+          "pubKeyHash",
+          () => (atNotification.atMetadata?.pubKeyHash != null)
+              ? jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
+              : null);
+
       await _checkAndSend(notification);
     }
   }
@@ -224,6 +230,11 @@ class Notification {
           (atNotification.atMetadata?.expiresAt ?? atNotification.expiresAt)
               .toString()
     };
+    metadata?.putIfAbsent(
+        "pubKeyHash",
+        () => (atNotification.atMetadata?.pubKeyHash != null)
+            ? jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
+            : null);
   }
 
   Map toJson() => {

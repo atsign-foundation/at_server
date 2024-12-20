@@ -7,3 +7,5 @@ export 'package:at_server_spec/src/connection/at_connection.dart';
 export 'package:at_server_spec/src/connection/inbound_connection.dart';
 export 'package:at_server_spec/src/verb/update_meta.dart';
 export 'package:at_server_spec/src/verb/verb.dart';
+export 'package:at_server_spec/src/at_rate_limiter/at_rate_limiter.dart';
+

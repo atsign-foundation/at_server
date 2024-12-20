@@ -11,7 +11,7 @@ dependencies:
   at_demo_data: ^1.1.0
   at_chops: ^2.2.0
   at_lookup: ^3.0.49
-  at_commons: ^5.1.0
+  at_commons: ^5.1.2
   uuid: ^3.0.7
   elliptic: ^0.3.8
 

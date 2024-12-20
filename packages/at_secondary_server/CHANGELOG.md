@@ -1,5 +1,14 @@
+# 3.2.0
+- feat: Added WebSocket support for inbound connections
+# 3.1.1
+- fix: Store "publicKeyHash" value in the keystore
+- fix: add limit param in SyncProgressiveVerbHandler
+- build[deps]: Upgraded the following package:
+  at_commons to v5.1.2
 # 3.1.0
-- feat: sync skip deletes until changes
+- feat: sync skip deletes until changes 
+- fix: Enable persistence of the Initialization Vector for "defaultEncryptionPrivateKey" and "selfEncryptionKey" in
+  the APKAM flow.
 - build[deps]: Upgraded the following package:
   - at_commons to v5.1.0
   - at_persistence_secondary_server to v3.1.0
