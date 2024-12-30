@@ -574,7 +574,7 @@ jobs:
               sed -i "s/ATSIGN_2_HOST/$AT_SIGN_2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml  
               mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
               cat tests/at_end2end_test/config/config.yaml 
-              echo "Connection successfull"
+              echo "Connection successful"
               break
             else
               echo "Connection error on attempt ${try}"

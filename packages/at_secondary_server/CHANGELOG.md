@@ -1,3 +1,5 @@
+# 3.2.0
+- feat: Added WebSocket support for inbound connections
 # 3.1.1
 - fix: Store "publicKeyHash" value in the keystore
 - fix: add limit param in SyncProgressiveVerbHandler
