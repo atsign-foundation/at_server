@@ -31,7 +31,7 @@ jobs:
       if: ${{ github.actor == 'dependabot[bot]' }}
       uses: abatilo/actions-poetry@3765cf608f2d4a72178a9fc5b918668e542b89b1 # v4.0.0
       with:
-        poetry-version: '1.8.2'
+        poetry-version: '1.8.5'
     
     - name: Bump Python dependencies
       if: ${{ github.actor == 'dependabot[bot]' }}
