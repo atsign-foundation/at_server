@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "at-server-tools"
-version = "0.1.0"
-description = ""
+version = "0.2.0"
+description = "Package declaring dependencies for ACME certs script"
 authors = ["Chris Swan <@cpswan>"]
 readme = "README.md"
 packages = [{include = "at_server_tools"}]
@@ -10,7 +10,6 @@ packages = [{include = "at_server_tools"}]
 python = "^3.8"
 requests = "2.32.3"
 dnspython = "2.6.1"
-
 
 [build-system]
 requires = ["poetry-core"]
