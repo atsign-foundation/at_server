@@ -157,7 +157,7 @@ jobs:
         run: sha256sum * > checksums.txt
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Upload SBOMs
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: SBOMs
           path: sboms/**
@@ -283,7 +283,7 @@ jobs:
       # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' && matrix.dart-channel == 'stable' }}
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: secondary-server
           path: packages/at_secondary_server/secondary
