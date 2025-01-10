@@ -1,3 +1,7 @@
+## 2.1.3
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.2
+  - yaml to v3.1.3
 ## 2.1.2
 - build[deps]: Upgraded the following package:
   - args to v2.6.0

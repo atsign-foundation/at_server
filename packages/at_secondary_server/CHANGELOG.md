@@ -1,3 +1,7 @@
+# 3.2.1
+- build[deps]: Upgraded the following package:
+  - collection to v1.19.1
+  - yaml to 3.1.3
 # 3.2.0
 - feat: Added WebSocket support for inbound connections
 # 3.1.1
