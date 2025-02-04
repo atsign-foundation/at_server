@@ -81,8 +81,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<ApkamVerificationResult> handleApkamVerification(String enrollmentId,
-      String atSign) async {
+  Future<ApkamVerificationResult> handleApkamVerification(
+      String enrollmentId, String atSign) async {
     late final EnrollDataStoreValue enrollDataStoreValue;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
     EnrollmentStatus? enrollStatus;
