@@ -70,6 +70,33 @@ void main() {
       expect(enrollmentId_1 == enrollmentId_2, false);
     });
 
+    test('Should not reject CRAM-authenticated initial enrollment as duplicate',
+        () async {
+      HashMap<String, String?> verbParams = getVerbParam(
+          VerbSyntax.enroll,
+          'enroll:request:{"appName":"firstApp","deviceName":"firstDevice"'
+          ',"namespaces":{"*":"rw"}'
+          ',"apkamPublicKey":"lorem_apkam"'
+          ',"encryptedAPKAMSymmetricKey":"ipsum_apkam"}');
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(secondaryKeyStore);
+
+      Response response;
+      response = Response();
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      String firstEnrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      response = Response();
+      await enrollVerbHandler.processVerb(
+          response, verbParams, inboundConnection);
+      String secondEnrollmentId = jsonDecode(response.data!)['enrollmentId'];
+
+      expect(secondEnrollmentId == firstEnrollmentId, false);
+    });
     test(
         'A test to verify enrollment of CRAM auth connection have __manage and * namespaces added to enrollment value',
         () async {
@@ -1357,8 +1384,8 @@ void main() {
         ..namespaces = {'wavi': 'rw'};
 
       expect(
-          () async =>
-              await enrollVerbHandler.validateEnrollmentRequest(enrollParams),
+          () async => await enrollVerbHandler
+              .preventDuplicateEnrollRequest(enrollParams),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==
@@ -1386,8 +1413,8 @@ void main() {
         ..namespaces = {'wavi': 'rw'};
 
       expect(
-          () async =>
-              await enrollVerbHandler.validateEnrollmentRequest(enrollParams),
+          () async => await enrollVerbHandler
+              .preventDuplicateEnrollRequest(enrollParams),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==

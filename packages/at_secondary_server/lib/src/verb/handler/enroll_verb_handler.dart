@@ -205,7 +205,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    await validateEnrollmentRequest(enrollParams);
+    if (atConnection.metaData.authType != AuthType.cram) {
+      // If this is not a CRAM-authenticated connection, then we need to ensure
+      // that there is not an existing enrollment with the same info.
+      await preventDuplicateEnrollRequest(enrollParams);
+    } else {
+      // However, if it is a CRAM-authenticated connection, then we should
+      // allow a 'duplicate' enrollment request. See #2208
+      logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
+          ' will replace the existing initial enrollment, if any');
+    }
 
     // When threshold is met, set "_lastInvalidOtpReceivedInMills" and "delayForInvalidOTPSeries"
     // to default values.
@@ -256,6 +265,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           skipCommit: true);
       enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
     } else {
+      // send a notification to be received by an approver app
       enrollmentValue.encryptedAPKAMSymmetricKey =
           enrollParams.encryptedAPKAMSymmetricKey;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
@@ -577,7 +587,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// If a matching enrollment is found, [AtEnrollmentException] exception is thrown.
   /// Otherwise, the enrollment request is accepted.
   @visibleForTesting
-  Future<void> validateEnrollmentRequest(EnrollParams enrollParams) async {
+  Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
     // Fetches all the enrollment keys from the keystore.
     List<dynamic> enrollmentKeys = keyStore.getKeys(regex: 'enrollments');
 
