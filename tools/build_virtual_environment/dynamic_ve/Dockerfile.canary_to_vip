@@ -6,5 +6,6 @@ FROM atsigncompany/dynamicvirtualenv:canary
 COPY --chown=1024:1024 ./packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 USER root
 EXPOSE 64 6379 9001
-# Run supervisor configuration file on container startup
-CMD ["supervisord", "-n"]
+
+# Run startup entrypoint
+ENTRYPOINT ["/tmp/startup.sh"]

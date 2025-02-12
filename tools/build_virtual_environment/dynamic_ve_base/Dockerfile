@@ -22,7 +22,7 @@ FROM debian:stable-20250113-slim@sha256:b5ace515e78743215a1b101a6f17e59ed74b1713
 # was debian:stable-20221114-slim
 USER root
 
-COPY ./tools/build_virtual_environment/ve_base/contents /
+COPY ./tools/build_virtual_environment/dynamic_ve_base/contents /
 
 RUN chmod 777 /tmp && \
   mkdir -p /atsign/logs && \
@@ -31,12 +31,13 @@ RUN chmod 777 /tmp && \
   apt-get install -y -o Dpkg::Options::=--force-confdef git supervisor \
   apt-transport-https unzip wget gnupg2 redis-server && \
   groupadd --system atsign && \
-  useradd --system --gid atsign --shell /bin/bash --home /apps atsign && \
-  /tmp/setup/create_demo_accounts.sh
+  useradd --system --gid atsign --shell /bin/bash --home /apps atsign;
+
 
 COPY --from=buildimage --chown=atsign:atsign \
   /app/packages/at_root_server/root /atsign/root/
-COPY --from=buildimage --chown=atsign:atsign \
-  /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
-  /usr/local/bin/
+# Disabled for dynamic_ve_base
+# COPY --from=buildimage --chown=atsign:atsign \
+#   /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
+#   /usr/local/bin/
 

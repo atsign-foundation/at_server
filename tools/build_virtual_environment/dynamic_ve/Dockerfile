@@ -8,5 +8,5 @@ COPY ./contents /
 
 EXPOSE 64 6379 9001
 
-# Run supervisor configuration file on container startup
-CMD ["supervisord", "-n"]
+# Run startup entrypoint
+ENTRYPOINT ["/tmp/startup.sh"]
