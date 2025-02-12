@@ -1,0 +1,108 @@
+name: dynamic_vip_rebuild
+# Creates a new image for atsigncompany/virtualenv:vip whenever updated
+# certificates are merged to trunk
+on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - "tools/build_virtual_environment/dynamic_ve_base/contents/atsign/root/certs/cert.pem"
+  workflow_dispatch:
+
+permissions: # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  dynamic_ve_base:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trunk
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push new VE base
+        id: docker_build_base
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        with:
+          file: tools/build_virtual_environment/dynamic_ve_base/Dockerfile
+          push: true
+          tags: |
+            atsigncompany/dynamicvebase:latest
+            atsigncompany/dynamicvebase:dynamic_vip_rebuild-gha${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest VE base
+        run: echo ${{ steps.docker_build_base.outputs.digest }}
+
+      - name: Google Chat Notification VE base
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: New Docker base image for dynamicvebase:latest
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
+
+  push_prod_dynamicvirtualenv_image:
+    needs: [dynamic_ve_base]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get latest production tag
+        id: prod_tag
+        run: |
+          REPO="https://api.github.com/repos/atsign-foundation/at_server/releases/latest"
+          PROD_TAG=$(curl -s ${REPO} | jq -r .tag_name)
+          echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Checkout latest production tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.prod_tag.outputs.prod_tag}}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+
+      - name: Login to DockerHub
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push vip
+        id: docker_build_vip
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        with:
+          file: tools/build_virtual_environment/dynamic_ve/Dockerfile.vip
+          context: .
+          push: true
+          provenance: false
+          tags: |
+            atsigncompany/dynamicvirtualenv:vip
+            atsigncompany/dynamicvirtualenv:vip_rebuild-gha${{ github.run_number }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+
+      - name: Image digest vip
+        run: echo ${{ steps.docker_build_vip.outputs.digest }}
+
+      - name: Google Chat Notification vip
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: New Docker image for atsigncompany/dynamicvirtualenv:vip
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}

@@ -1,4 +1,3 @@
-import 'package:at_demo_data/at_demo_data.dart' as at_demo_data;
 import 'package:at_lookup/at_lookup.dart';
 
 void main(List<String> arguments) async {

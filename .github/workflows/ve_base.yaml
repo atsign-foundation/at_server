@@ -2,14 +2,21 @@ name: VE_base
 on:
   workflow_dispatch:
   schedule:
-    - cron: '42 6 * * 1' # At 0642 each Monday
+    - cron: "42 6 * * 1" # At 0642 each Monday
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
   ve_base:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dir: "ve_base"
+            name: "vebase"
+          - dir: "dynamic_ve_base"
+            name: "dynamicvebase"
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
@@ -27,11 +34,11 @@ jobs:
         id: docker_build
         uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         with:
-          file: tools/build_virtual_environment/ve_base/Dockerfile
+          file: tools/build_virtual_environment/${{matrix.dir}}/Dockerfile
           push: true
           tags: |
-            atsigncompany/vebase:latest
-            atsigncompany/vebase:ve_base-gha${{ github.run_number }}
+            atsigncompany/${{matrix.name}}:latest
+            atsigncompany/${{matrix.name}}:${{matrix.dir}}-gha${{ github.run_number }}
           platforms: |
             linux/amd64
             linux/arm64/v8
@@ -42,6 +49,6 @@ jobs:
       - name: Google Chat Notification
         uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
         with:
-          name: New Docker base image for vebase:latest
+          name: New Docker base image for ${{matrix.name}}:latest
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           status: ${{ job.status }}

@@ -2,9 +2,9 @@ name: Refreshcerts
 on:
   workflow_dispatch:
   schedule:
-    - cron: '39 7 15 * *' # At 0739 on the 15th day of every month
+    - cron: "39 7 15 * *" # At 0739 on the 15th day of every month
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
@@ -48,11 +48,19 @@ jobs:
           poetry export --format requirements.txt --output requirements.txt
           uv pip install --require-hashes -r requirements.txt
           cd ../secondaries-scripts/sec_ops && ./create_cert_workflow.sh vip.ve.atsign.zone
+          # ve
           cp cert.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
           cp privkey.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
           cp fullchain.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
           cp ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          # dynamic ve
+          cp cert.pem ../../tools/build_virtual_environment/dynamic_ve_base/contents/atsign/root/certs/cert.pem
+          cp privkey.pem ../../tools/build_virtual_environment/dynamic_ve_base/contents/atsign/root/certs/privkey.pem
+          cp fullchain.pem ../../tools/build_virtual_environment/dynamic_ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ../../tools/build_virtual_environment/dynamic_ve_base/contents/atsign/root/certs/*.pem \
+            ../../tools/build_virtual_environment/dynamic_ve_base/contents/atsign/secondary/base/certs/
+
           cd ../.. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
@@ -63,14 +71,14 @@ jobs:
         uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
-          commit-message: 'chore: New certificates for at_server'
+          commit-message: "chore: New certificates for at_server"
           committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: false
           add-paths: ./tools/build_virtual_environment
           branch: bot-new-certs
           delete-branch: true
-          title: 'chore: New certificates generated'
+          title: "chore: New certificates generated"
           body: |
             Fresh certificates generated.
           labels: |
