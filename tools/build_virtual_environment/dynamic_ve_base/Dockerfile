@@ -4,14 +4,15 @@ ENV GROUP_ID=1024
 WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
-## sudo docker build -t atsigncompany/vebase \
-## -f tools/build_virtual_environment/ve_base/Dockerfile .
+## sudo docker build -t atsigncompany/dynamicvebase \
+## -f tools/build_virtual_environment/dynamic_ve_base/Dockerfile .
 COPY . .
 RUN \
   cd /app/packages/at_root_server ; \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o root ;
+# Disabled for dynamic_ve_base
 # cd /app/tools/build_virtual_environment/install_PKAM_Keys ; \
 # dart pub get ; \
 # dart pub update ; \
