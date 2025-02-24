@@ -8,6 +8,10 @@ publish_to: none
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
+dependency_overrides:
+  at_commons:
+    path: /Users/gary/dev/atsign/repos/at_libraries/packages/at_commons
+
 dependencies:
   args: 2.6.0
   uuid: 3.0.7

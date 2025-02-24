@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
@@ -19,13 +20,15 @@ class CacheUpdateResult {
 }
 
 class AtCacheManager {
+  /// This atServer's atSign
   final String atSign;
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final OutboundClientManager outboundClientManager;
 
   final logger = AtSignLogger('AtCacheManager');
 
-  AtCacheManager(this.atSign, this.keyStore, this.outboundClientManager);
+  AtCacheManager(String atSign, this.keyStore, this.outboundClientManager)
+      : atSign = atSign.toAtsign();
 
   /// Returns a List of keyNames of all cached records due to refresh
   Future<List<String>> getKeyNamesToRefresh() async {
@@ -328,41 +331,26 @@ class AtCacheManager {
     }
   }
 
-  /// If the value of a cached:public:publickey@atSign has changed, we are dealing with the aftermath of an
-  /// atServer reset where the owner has re-onboarded with a different encryption keypair.
+  /// For publickey@atSign, we need to do some more stuff.
   ///
-  /// When that happens, we need to do some stuff in this atServer's keyStore so that
-  /// some client for this atSign can know that it needs to cut a new shared encryption key
-  /// (or, if client library supports it, reuse the old shared encryption key)
-  /// and share it with the other atSign. (Context: sharing a shared encryption key involves
-  /// encrypting it with the other atSign's encryption public key)
+  /// We have two things to take care of
+  /// - a) If it's not currently in the cache, then just update the cache and return
+  /// - b) It is currently in the cache, but is unchanged - nothing to do
+  /// - c) It is currently in the cache, and has changed
   ///
-  /// In essence, this is the server providing the minimum crude signal to
-  /// clients that there has been a public key change, and they probably need
-  /// to do something.
-  /// As we extend the client libraries to understand these post-reset
-  /// scenarios better, they can be smarter but right now all client libraries
-  /// know that they first check if there is a shared key, and if not then they
-  /// create one.
+  /// If the data (public encryption key of another atSign) has actually
+  /// changed, then we need to update the cache
+  /// - in fact we're going to remove the current key from the keystore,
+  ///   and create the new one, so that we get the correct 'createdAt'
+  ///   value
   @visibleForTesting
   Future<CacheUpdateResult> putCachedPublicKey(
     String cachedKeyName,
     AtData atData,
     AtData? existingAtData,
   ) async {
-    // For publickey@atSign, we need to do some more stuff
-    // We have two things to take care of
-    // a) If it's not currently in the cache, then just update the cache and return
-    // b) It is currently in the cache
-    //
-    // If the data (public encryption key of another atSign) has actually
-    // changed, then we need to update the cache
-    //   ==> in fact we're going to remove the current key from the keystore,
-    //       and create the new one, so that we get the correct 'createdAt'
-    //       value
-    // If the data has not changed, then we don't need to do anything
-    var otherAtSignWithoutTheAt =
-        cachedKeyName.replaceFirst('cached:public:publickey@', '');
+    var otherAtSign =
+        cachedKeyName.replaceFirst('cached:public:publickey@', '@').toAtsign();
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
       if (!keyStore.isKeyExists(cachedKeyName)) {
@@ -402,28 +390,12 @@ class AtCacheManager {
         );
       } else {
         // Key has actually changed - we have things to do
-        logger.warning('Public key $cachedKeyName has changed');
-
-        // Firstly - Find shared_key.otherAtSign@myAtSign and rename it to shared_key.other.until.now@myAtSign
-        // e.g. find shared_key.bob@alice and rename it to shared_key.bob.until.<epochMillis>@alice
-        var now = DateTime.now().toUtc().millisecondsSinceEpoch;
-        var nameOfMyCopyOfSharedKey =
-            'shared_key.$otherAtSignWithoutTheAt$atSign';
-        if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
-          AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
-
-          logger.warning('Removing $nameOfMyCopyOfSharedKey');
-          await keyStore.remove(nameOfMyCopyOfSharedKey);
-
-          var copyOfSharedKeyKeyName =
-              'shared_key.$otherAtSignWithoutTheAt.until.$now$atSign';
-          logger.warning('Creating $copyOfSharedKeyKeyName');
-          await keyStore.put(copyOfSharedKeyKeyName, data);
-        }
-
-        // Secondly, update the cache, and ensure that ttr is set to -1 (cache indefinitely)
-        await keyStore.remove(cachedKeyName);
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        await _handleOthersPublicKeyHasChanged(
+          otherAtSign,
+          cachedKeyName,
+          atData,
+          existingAtData!,
+        );
 
         return CacheUpdateResult(
           newEntry: false,
@@ -433,9 +405,94 @@ class AtCacheManager {
       }
     } catch (e, st) {
       logger.severe(
-          'Exception when handling public key changed event for @$otherAtSignWithoutTheAt : $e\n$st');
+          'Exception when handling public key changed event for $otherAtSign : $e\n$st');
       rethrow;
     }
+  }
+
+  /// If the value of a cached:public:publickey@atSign has changed, we are dealing with the aftermath of an
+  /// atServer reset where the owner has re-onboarded with a different encryption keypair.
+  /// <p/>
+  ///
+  /// When that happens, we need to do some stuff in this atServer's keyStore so that
+  /// some client for this atSign can know that it needs to cut a new shared encryption key
+  /// (or, if client library supports it, reuse the old shared encryption key)
+  /// and share it with the other atSign. (Context: sharing a shared encryption key involves
+  /// encrypting it with the other atSign's encryption public key)
+  /// <p/>
+  ///
+  /// In essence, this is the server providing the minimum crude signal to
+  /// clients that there has been a public key change, and they probably need
+  /// to do something.
+  /// As we extend the client libraries to understand these post-reset
+  /// scenarios better, they can be smarter but right now all client libraries
+  /// know that they first check if there is a shared key, and if not then they
+  /// create one.
+  Future<void> _handleOthersPublicKeyHasChanged(
+    String otherAtSign,
+    String cachedKeyName,
+    AtData atData,
+    AtData existingAtData,
+  ) async {
+    logger.warning('Public key $cachedKeyName has changed');
+
+    // First and most important - create a record that this has happened; this
+    // is so that clients have a standardized way to know that another atSign
+    // has changed its public key and take appropriate actions as it wishes.
+    final event = AtSignPKChangedEvent(otherAtSign);
+
+    // store the event for retrieval by clients
+    int nowMicros = DateTime.now().microsecondsSinceEpoch;
+    String keyName = '$nowMicros.events'
+        '.${AtConstants.atServerReservedNamespace}'
+        '@${atSign.withoutAt()}';
+    await keyStore.put(keyName, AtData()..data = jsonEncode(event.toJson()));
+
+    AtData? stored = await keyStore.get(keyName);
+    logger.warning('Created AtSignPKChangedEvent for $otherAtSign.'
+        ' Stored event keyName: $keyName value: ${stored?.data}');
+
+    // send a 'self' notification for clients which may be listening
+    // expire it after 5 minutes since interested clients will be fetching
+    // these events when they start up, as well as listening for notifications
+    final notif = (AtNotificationBuilder()
+          ..notification = keyName
+          ..fromAtSign = atSign
+          ..toAtSign = atSign
+          ..ttl = 5 * 60 * 1000 // 5 minutes expiration
+          ..type = NotificationType.self
+          ..opType = OperationType.update
+          ..atValue = jsonEncode(event.toJson()))
+        .build();
+    final notificationId = await NotificationUtil.storeNotification(notif);
+    logger.warning('Sent self notification re $otherAtSign AtSignPKChangedEvent.'
+        ' Notif ID: $notificationId'
+        ' Notification: ${notif.toJson()}');
+
+
+    // Housekeeping for older clients.
+    // Housekeeping (1): find shared_key.otherAtSign@myAtSign and rename it to
+    // shared_key.other.until.now@myAtSign e.g. find shared_key.bob@alice and
+    // rename it to shared_key.bob.until.<epochMillis>@alice
+    int now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    var nameOfMyCopyOfSharedKey =
+        'shared_key.${otherAtSign.withoutAt()}$atSign';
+    if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+      AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
+
+      logger.warning('Removing $nameOfMyCopyOfSharedKey');
+      await keyStore.remove(nameOfMyCopyOfSharedKey);
+
+      var copyOfSharedKeyKeyName =
+          'shared_key.${otherAtSign.withoutAt()}.until.$now$atSign';
+      logger.warning('Creating $copyOfSharedKeyKeyName');
+      await keyStore.put(copyOfSharedKeyKeyName, data);
+    }
+
+    // Housekeeping (1): update the cache
+    // and ensure that ttr is set to -1 (cache indefinitely)
+    await keyStore.remove(cachedKeyName);
+    await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives
