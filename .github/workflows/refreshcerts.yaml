@@ -35,7 +35,7 @@ jobs:
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
       # Install Python Libraries and run Python ACME script
       - name: Install uv
-        uses: astral-sh/setup-uv@4db96194c378173c656ce18a155ffc14a9fc4355 # v5.2.2
+        uses: astral-sh/setup-uv@1edb52594c857e2b5b13128931090f0640537287 # v5.3.0
         with:
           version: "0.5.26"
       - name: Install Python Libraries, run create_cert script then copy certs to right place
@@ -60,7 +60,7 @@ jobs:
       # create PR with renewed certificates
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
+        uses: peter-evans/create-pull-request@dd2324fc52d5d43c699a5636bcf19fceaa70c284 # v7.0.7
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           commit-message: 'chore: New certificates for at_server'

@@ -121,7 +121,7 @@ jobs:
         run: mkdir sboms        
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atDirectory SBOM
-        uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
+        uses: sbomify/github-action@e6cdc68ce11d640b652364c25f806db4a8bfa16c # v0.3.2
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: '3hQHrn8mwK'
@@ -133,7 +133,7 @@ jobs:
           UPLOAD: true
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atServer SBOM
-        uses: sbomify/github-action@a04e82ca42a0d9e6bdb57a2cb1a8978e96b4f45c # v0.3.0
+        uses: sbomify/github-action@e6cdc68ce11d640b652364c25f806db4a8bfa16c # v0.3.2
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'wF66pn8rHZ'
@@ -157,7 +157,7 @@ jobs:
         run: sha256sum * > checksums.txt
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Upload SBOMs
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: SBOMs
           path: sboms/**
@@ -201,7 +201,7 @@ jobs:
       actions: read # Needed for detection of GitHub Actions environment.
       id-token: write # Needed for provenance signing and ID
       contents: write # Needed for release uploads
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0 # 5a775b367a56d5bd118a224a811bba288150a563
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0 # 5a775b367a56d5bd118a224a811bba288150a563
     with:
       base64-subjects: "${{ needs.unit_tests.outputs.hashes }}"
       upload-assets: true
@@ -283,7 +283,7 @@ jobs:
       # On push event, upload secondary server binary
       - name: upload secondary server
         if: ${{ github.event_name == 'push' && matrix.dart-channel == 'stable' }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: secondary-server
           path: packages/at_secondary_server/secondary
@@ -869,7 +869,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
       packages: write # for uploading attestations.
     if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: "atsigncompany/secondary"
       digest: ${{ needs.push_canary_secondary_image.outputs.digest }}
@@ -935,7 +935,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
       packages: write # for uploading attestations.
     if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: "atsigncompany/virtualenv"
       digest: ${{ needs.push_canary_virtualenv_image.outputs.digest }}
@@ -1000,7 +1000,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
       packages: write # for uploading attestations.
     if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: "atsigncompany/secondary"
       digest: ${{ needs.push_prod_secondary_image.outputs.digest }}
@@ -1062,7 +1062,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
       packages: write # for uploading attestations.
     if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: "atsigncompany/virtualenv"
       digest: ${{ needs.push_prod_virtualenv_image.outputs.digest }}
