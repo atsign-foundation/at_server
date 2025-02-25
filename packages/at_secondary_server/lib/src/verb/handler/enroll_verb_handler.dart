@@ -408,10 +408,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Stores the encrypted default encryption private key in <enrollmentId>.default_enc_private_key.__manage@<atsign>
-  /// and the encrypted self encryption key in <enrollmentId>.default_self_enc_key.__manage@<atsign>
-  /// These keys will be stored only on server and will not be synced to the client
-  /// Encrypted keys will be used later on by the approving app to send the keys to a new enrolling app
+  /// Stores the encrypted default encryption private key 
+  /// in `<enrollmentId>.default_enc_private_key.__manage@<atsign>`
+  /// and the encrypted self encryption key 
+  /// in `<enrollmentId>.default_self_enc_key.__manage@<atsign>`
+  /// These keys will be stored only on server and will not be synced to the
+  /// client. Encrypted keys will be used later on by the approving app to
+  /// send the keys to a new enrolling app
   Future<void> _storeEncryptionKeys(
       String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
     var privateKeyJson = {};
@@ -523,8 +526,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace);
   }
 
-  /// Pending enrollments have to be notified to clients with __manage namespace - rw access
-  /// So store a self notification with key  <enrollmentId>.new.enrollments.__manage and value containing encrypted APKAM symmetric key
+  /// Pending enrollments have to be notified to clients which have rw access
+  /// to the __manage namespace, so store a self notification with key
+  /// `<enrollmentId>.new.enrollments.__manage` and value containing the
+  /// encrypted APKAM symmetric key
   Future<void> _storeNotification(
       String key, EnrollParams enrollParams, String atSign) async {
     try {

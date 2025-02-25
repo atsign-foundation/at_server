@@ -91,8 +91,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   }
 
   /// Returns received notifications of the current atsign
-  /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atsign.
+  /// @param responseList : List to which to add the notifications
+  /// Returns [responseList] with any matching notifications added.
   // #TODO do not pass responseList as param. return a list with received notifications
   Future<List> _getReceivedNotification(List responseList) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
@@ -115,10 +115,10 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   }
 
   /// when pol verb is performed, returns sent notifications of the another atsign.
-  /// @param responseList : List to add notifications.
+  /// @param responseList : List to which to add the notifications
   /// @param fromAtSign : atsign who look up to the current atsign server
   /// @param atConnection : The inbound connection.
-  /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
+  /// Returns [responseList] with any matching notifications added.
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
     var outBoundClient =
