@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
@@ -104,8 +107,7 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), true);
     });
 
-    test('bob public encryption key changed, no current shared_key.bob@alice',
-        () async {
+    doPKChangeAndAssertions() async {
       // Given
       //   * a cached:public:publickey@bob in the cache
       // When
@@ -113,89 +115,6 @@ void main() {
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
-      await secondaryKeyStore.put(
-          cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
-
-      AtData originalCachedBobPublicKeyData =
-          (await secondaryKeyStore.get(cachedBobsPublicKeyName))!;
-
-      inboundConnection.metadata.isAuthenticated = true;
-
-      var existsKeyName = 'some.key.some_app@bob';
-      AtData bobData = createRandomAtData(bob);
-      bobData.metaData!.ttr = 10;
-      bobData.metaData!.ttb = null;
-      bobData.metaData!.ttl = null;
-      String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
-          'all', bobData,
-          key: '$alice:$existsKeyName')!;
-      when(() => mockOutboundConnection.write('lookup:all:$existsKeyName\n'))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
-      });
-
-      await Future.delayed(Duration(milliseconds: 100));
-
-      var bobNewPublicKeypair = RSAKeypair.fromRandom();
-      late AtData bobNewPublicKeyAtData;
-      late String bobNewPublicKeyAsJson;
-      DateTime now = DateTime.now().toUtcMillisecondsPrecision();
-      bobNewPublicKeyAtData = AtData();
-      bobNewPublicKeyAtData.data = bobNewPublicKeypair.publicKey.toString();
-      bobNewPublicKeyAtData.metaData = AtMetaData()
-        ..ttr = -1
-        ..createdAt = now
-        ..updatedAt = now;
-      bobNewPublicKeyAsJson = SecondaryUtil.prepareResponseData(
-          'all', bobNewPublicKeyAtData,
-          key: 'public:publickey$bob')!;
-      bobNewPublicKeyAtData =
-          AtData().fromJson(jsonDecode(bobNewPublicKeyAsJson));
-      when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
-          .thenAnswer((Invocation invocation) async {
-        socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
-      });
-
-      print(
-          'orig ${bobOriginalPublicKeyAtData.metaData!.createdAt} new ${bobNewPublicKeyAtData.metaData!.createdAt}');
-
-      await lookupVerbHandler.process(
-          'lookup:all:$existsKeyName', inboundConnection);
-      AtData newCachedBobPublicKeyData = (await cacheManager
-          .get(cachedBobsPublicKeyName, applyMetadataRules: true))!;
-      expect(
-          originalCachedBobPublicKeyData.data ==
-              bobOriginalPublicKeyAtData.data,
-          true);
-      expect(newCachedBobPublicKeyData.data != bobOriginalPublicKeyAtData.data,
-          true);
-      expect(
-          newCachedBobPublicKeyData.data == bobNewPublicKeyAtData.data, true);
-      expect(
-          originalCachedBobPublicKeyData
-                  .metaData!.createdAt!.millisecondsSinceEpoch <
-              bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
-          true);
-      expect(
-          newCachedBobPublicKeyData
-                  .metaData!.createdAt!.millisecondsSinceEpoch >
-              bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
-          true);
-    });
-
-    test(
-        'bob public encryption key changed, shared_key.bob@alice removed but preserved',
-        () async {
-      // Given
-      //   * a cached:public:publickey@bob in the cache
-      //   * a shared_key.bob@alice in the keystore
-      // When
-      //   * @alice client to this @alice server does a remote lookup to @bob server
-      // Then
-      //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
-      //   * cached:public:publickey@bob has been changed
-      //   * shared_key.bob@alice no longer exists
-      //   * but there is a copy of it called shared_key.bob.until.<millis>@alice
       await secondaryKeyStore.put(
           cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
       await secondaryKeyStore.put(
@@ -267,6 +186,28 @@ void main() {
                   .metaData!.createdAt!.millisecondsSinceEpoch >
               bobNewPublicKeyAtData.metaData!.createdAt!.millisecondsSinceEpoch,
           true);
+    }
+
+    test('bob public encryption key changed, no current shared_key.bob@alice',
+        () async {
+      await doPKChangeAndAssertions();
+    });
+
+    test(
+        'bob public encryption key changed, shared_key.bob@alice removed but preserved',
+        () async {
+      // Given
+      //   * a cached:public:publickey@bob in the cache
+      //   * a shared_key.bob@alice in the keystore
+      // When
+      //   * @alice client to this @alice server does a remote lookup to @bob server
+      // Then
+      //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
+      //   * cached:public:publickey@bob has been changed
+      //   * shared_key.bob@alice no longer exists
+      //   * but there is a copy of it called shared_key.bob.until.<millis>@alice
+
+      await doPKChangeAndAssertions();
 
       expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), false);
 
@@ -282,6 +223,60 @@ void main() {
         }
       }
       expect(found, true);
+    });
+
+    test('PKChangedEvent created when public key changed', () async {
+      await doPKChangeAndAssertions();
+
+      List<String> eventKeys = secondaryKeyStore.getKeys(
+          regex: '\\d*'
+              '\\.events'
+              '\\.${AtConstants.atServerReservedNamespace}'
+              '@alice');
+      expect(eventKeys.length, 1);
+      AtData? atData = await secondaryKeyStore.get(eventKeys.first);
+
+      print('Event found: ${atData!.toJson()}');
+
+      AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
+      AtSignPKChangedEvent actualEvent =
+          AtSignPKChangedEvent.fromJson(jsonDecode(atData.data!));
+      expect(actualEvent.atSign, expectedEvent.atSign);
+      expect(actualEvent.toJson(), expectedEvent.toJson());
+    });
+
+    test('Self notification for PKChangedEvent', () async {
+      var mvp = VerbUtil.getVerbParam(
+        VerbSyntax.monitor,
+        'monitor:selfNotifications',
+      )!;
+
+      // Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
+      //    and issue monitor command with selfNotifications flag set
+      DummyInboundConnection pkamMC = DummyInboundConnection();
+      pkamMC.metaData.authType = AuthType.pkamLegacy;
+      pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
+      await MonitorVerbHandler(secondaryKeyStore)
+          .processVerb(Response(), mvp, pkamMC);
+
+      // Make a public key change
+      await doPKChangeAndAssertions();
+
+      // Verify that the monitor connection receives the
+      //    enrollment request notification
+      var notificationJson = jsonDecode(
+          pkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      expect(notificationJson['value'], isNotNull);
+      final valueJson = jsonDecode(notificationJson['value']);
+
+      print('self notification received: $notificationJson');
+      print('Notification value: $valueJson');
+      AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
+      AtSignPKChangedEvent actualEvent =
+          AtSignPKChangedEvent.fromJson(valueJson);
+      expect(actualEvent.atSign, expectedEvent.atSign);
+      expect(actualEvent.toJson(), expectedEvent.toJson());
     });
   });
 }
