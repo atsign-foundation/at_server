@@ -7,6 +7,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 import 'inbound_connection_pool.dart';
 
+// ignore: implementation_imports, unnecessary_import
+import 'package:at_server_spec/src/at_rate_limiter/at_rate_limiter.dart';
+
 class InboundRateLimiter implements AtRateLimiter {
   /// The maximum number of requests allowed within the specified time frame.
   @override
