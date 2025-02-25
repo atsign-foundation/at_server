@@ -10,7 +10,10 @@ environment:
 
 dependency_overrides:
   at_commons:
-    path: /Users/gary/dev/atsign/repos/at_libraries/packages/at_commons
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      path: packages/at_commons
+      ref: enable-better-reset-handling
 
 dependencies:
   args: 2.6.0
