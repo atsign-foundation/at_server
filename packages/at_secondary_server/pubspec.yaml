@@ -1,19 +1,12 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.2.0
+version: 3.3.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
-
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      path: packages/at_commons
-      ref: enable-better-reset-handling
 
 dependencies:
   args: 2.6.0
@@ -26,7 +19,7 @@ dependencies:
   basic_utils: 5.7.0
   ecdsa: 0.1.0
   encrypt: 5.0.3
-  at_commons: 5.1.2
+  at_commons: 5.2.0
   at_utils: 3.0.19
   at_chops: 2.2.0
   at_lookup: 3.0.49

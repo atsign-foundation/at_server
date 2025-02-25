@@ -1,3 +1,15 @@
+# 3.3.0
+- feat: Add support for "atServer events" - starting with the 
+  `AtSignPKChangedEvent`. atServer events are stored in a newly reserved 
+  namespace called `__atserver` to which all clients will have read access 
+  but not write access - creating new atServer events is solely an atServer 
+  responsibility. Clients will typically fetch events when they initially 
+  connect, and will then handle appropriately (for example: store the event 
+  information locally; handle it; mark as processed locally.) 
+  Clients should keep a marker for the latest event they have 
+  fetched so that when they restart they do not re-process past events. 
+  Newly-created clients should set their initial marker to
+  microsecondsSinceEpoch so that they do not process past events unnecessarily.
 # 3.2.0
 - feat: Added WebSocket support for inbound connections
 # 3.1.1
