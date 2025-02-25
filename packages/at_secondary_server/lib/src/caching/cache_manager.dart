@@ -489,7 +489,7 @@ class AtCacheManager {
       await keyStore.put(copyOfSharedKeyKeyName, data);
     }
 
-    // Housekeeping (1): update the cache
+    // Housekeeping (2): update the cache
     // and ensure that ttr is set to -1 (cache indefinitely)
     await keyStore.remove(cachedKeyName);
     await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
