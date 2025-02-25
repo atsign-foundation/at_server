@@ -230,10 +230,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // should be available for read by all clients. The initial driver for
     // creating this reserved namespace was that we needed a place to
     // store information about "another atSign's public key changed" events.
-    if (!enrollDataStoreValue.namespaces.containsKey(AtConstants.atServerReservedNamespace)) {
-      enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] = 'r';
+    if (!enrollDataStoreValue.namespaces
+        .containsKey(AtConstants.atServerReservedNamespace)) {
+      enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] =
+          'r';
     }
-
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the

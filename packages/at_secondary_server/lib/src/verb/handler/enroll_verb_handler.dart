@@ -408,9 +408,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Stores the encrypted default encryption private key 
+  /// Stores the encrypted default encryption private key
   /// in `<enrollmentId>.default_enc_private_key.__manage@<atsign>`
-  /// and the encrypted self encryption key 
+  /// and the encrypted self encryption key
   /// in `<enrollmentId>.default_self_enc_key.__manage@<atsign>`
   /// These keys will be stored only on server and will not be synced to the
   /// client. Encrypted keys will be used later on by the approving app to

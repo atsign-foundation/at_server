@@ -465,10 +465,10 @@ class AtCacheManager {
           ..atValue = jsonEncode(event.toJson()))
         .build();
     final notificationId = await NotificationUtil.storeNotification(notif);
-    logger.warning('Sent self notification re $otherAtSign AtSignPKChangedEvent.'
-        ' Notif ID: $notificationId'
-        ' Notification: ${notif.toJson()}');
-
+    logger
+        .warning('Sent self notification re $otherAtSign AtSignPKChangedEvent.'
+            ' Notif ID: $notificationId'
+            ' Notification: ${notif.toJson()}');
 
     // Housekeeping for older clients.
     // Housekeeping (1): find shared_key.otherAtSign@myAtSign and rename it to
