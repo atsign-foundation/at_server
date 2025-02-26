@@ -106,7 +106,7 @@ class GlobalExceptionHandler {
   /// Method to write response to client
   /// Params: AtException, AtConnection
   /// We'll get error code based on the exception
-  /// and write error:&lt;error_code&gt; to the client socket
+  /// and write `error:<error_code>` to the client socket
   Future<void> _sendResponseForException(
       Exception exception, AtConnection? atConnection) async {
     if (atConnection != null) {
