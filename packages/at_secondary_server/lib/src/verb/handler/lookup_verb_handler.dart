@@ -271,7 +271,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.
   /// else null is returned.
   /// @param - value : The reference value to be resolved.
-  /// @param - keyPrefix : The prefix for the key: <atsign> or public.
+  /// @param - keyPrefix : The prefix for the key: `<atsign>` or `public`.
   Future<String?> resolveValueReference(String value, String keyPrefix) async {
     var resolutionCount = 1;
 

@@ -522,6 +522,8 @@ void main() {
             ..data = jsonEncode(enrollDataStoreValue.toJson())
             ..metaData = (AtMetaData()..ttl = 1));
 
+      // wait for the enrollment to expire
+      await Future.delayed(Duration(milliseconds: 1));
       String deleteCommand = 'delete:@alice:phone.wavi@alice';
 
       DeleteVerbHandler deleteVerbHandler =

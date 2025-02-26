@@ -210,10 +210,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
 
-    bool isValid = _applyEnrollmentValidations(
+    bool isValidEnrollment = _applyEnrollmentValidations(
         enrollDataStoreValue, operation, atKey, namespace);
-    if (!isValid) {
-      return isValid;
+    if (!isValidEnrollment) {
+      return isValidEnrollment;
     }
 
     // If namespace is null or empty, fetch namespace from AtKey.
@@ -222,6 +222,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
       AtKey atKeyObj = AtKey.fromString(atKey);
       namespace = atKeyObj.namespace;
       keyWithNamespace = '${atKeyObj.key}.$namespace';
+    }
+
+    // All enrollments should have access to read from the __atserver
+    // namespace but not to write to it.
+    // This namespace is reserved for the atServer to store data which
+    // should be available for read by all clients. The initial driver for
+    // creating this reserved namespace was that we needed a place to
+    // store information about "another atSign's public key changed" events.
+    if (!enrollDataStoreValue.namespaces
+        .containsKey(AtConstants.atServerReservedNamespace)) {
+      enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] =
+          'r';
     }
 
     // Checks for namespace authorisation

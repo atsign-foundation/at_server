@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/notification/priority_queue_impl.dart';
 
 ///Class implements [NotificationStrategy].
-/// Latest Notifications contains Map <String, AtNotificationPriorityQueue> where String is notifier
+/// Latest Notifications contains `Map <String, AtNotificationPriorityQueue>` where String is notifier
 /// AtNotificationPriorityQueue contains AtNotifications on priority basis.
 class LatestNotifications implements NotificationStrategy {
   final _latestNotificationsMap = <String?, AtNotificationPriorityQueue>{};

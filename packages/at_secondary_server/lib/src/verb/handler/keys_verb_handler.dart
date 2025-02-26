@@ -187,9 +187,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
   }
 
   /// Key structure varies based on visibility. Construct and return the key name based on [keyVisibility]
-  /// Key name for public visibility - 'public:<keyname>.__public_keys.<namespace>@<atsign>'
-  /// Key name for private visibility - 'private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>'
-  /// Key name for self visibility  - '<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>'
+  /// Key name for public visibility - `'public:<keyname>.__public_keys.<namespace>@<atsign>'`
+  /// Key name for private visibility - `'private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>'`
+  /// Key name for self visibility  - `'<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>'`
   /// returns null, if [keyVisibility] is not public|private|self
   String? _getKeyName(HashMap<String, String?> verbParams, String atSign,
       String? keyVisibility) {

@@ -150,9 +150,6 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Returns received notifications of the current atSign
-  /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atSign.
   Future<List<Notification>> _getNotificationsAfterEpoch(
       int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
     // Get all notifications

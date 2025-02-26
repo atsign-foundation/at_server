@@ -96,7 +96,7 @@ late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
 // ignore: unused_local_variable
-late Function(Exception e) socketOnErrorFn;
+late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
 SecondaryPersistenceStore? secondaryPersistenceStore;
@@ -186,9 +186,11 @@ verbTestsSetUp() async {
       .thenAnswer((_) => mockSecureSocket);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 
-  when(() => mockSecureSocket.listen(any(),
-      onError: any(named: "onError"),
-      onDone: any(named: "onDone"))).thenAnswer((Invocation invocation) {
+  when(() => mockSecureSocket.listen(
+        any(),
+        onDone: any(named: "onDone"),
+        onError: any(named: "onError"),
+      )).thenAnswer((Invocation invocation) {
     socketOnDataFn = invocation.positionalArguments[0];
     socketOnDoneFn = invocation.namedArguments[#onDone];
     socketOnErrorFn = invocation.namedArguments[#onError];
