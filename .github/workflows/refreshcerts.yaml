@@ -36,8 +36,6 @@ jobs:
       # Install Python Libraries and run Python ACME script
       - name: Install uv
         uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
-        with:
-          version: "0.5.26"
       - name: Install Python Libraries, run create_cert script then copy certs to right place
         run: |-
           chmod -R 777 secondaries-scripts
