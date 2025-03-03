@@ -80,6 +80,9 @@ class AtMetaData extends HiveObject {
   @HiveField(24)
   PublicKeyHash? pubKeyHash;
 
+  @HiveField(25)
+  bool? immutable;
+
   @override
   String toString() {
     return toJson().toString();
@@ -104,7 +107,8 @@ class AtMetaData extends HiveObject {
       ..ivNonce = ivNonce
       ..skeEncKeyName = skeEncKeyName
       ..skeEncAlgo = skeEncAlgo
-      ..pubKeyHash = pubKeyHash;
+      ..pubKeyHash = pubKeyHash
+      ..immutable = immutable ?? false;
   }
 
   factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
@@ -125,7 +129,8 @@ class AtMetaData extends HiveObject {
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo
-      ..pubKeyHash = metadata.pubKeyHash;
+      ..pubKeyHash = metadata.pubKeyHash
+      ..immutable = metadata.immutable;
     return AtMetadataBuilder(newAtMetaData: atMetadata).build();
   }
 
@@ -157,6 +162,7 @@ class AtMetaData extends HiveObject {
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
     map[AtConstants.sharedWithPublicKeyHash] = pubKeyHash?.toJson();
+    map[AtConstants.immutable] = immutable;
     return map;
   }
 
@@ -213,6 +219,7 @@ class AtMetaData extends HiveObject {
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
     pubKeyHash =
         PublicKeyHash.fromJson(json[AtConstants.sharedWithPublicKeyHash]);
+    immutable = json[AtConstants.immutable];
 
     return this;
   }
@@ -245,7 +252,9 @@ class AtMetaData extends HiveObject {
           encAlgo == other.encAlgo &&
           ivNonce == other.ivNonce &&
           skeEncKeyName == other.skeEncKeyName &&
-          skeEncAlgo == other.skeEncAlgo;
+          skeEncAlgo == other.skeEncAlgo &&
+          pubKeyHash == other.pubKeyHash &&
+          immutable == other.immutable;
 
   @override
   int get hashCode =>
@@ -272,7 +281,9 @@ class AtMetaData extends HiveObject {
       encAlgo.hashCode ^
       ivNonce.hashCode ^
       skeEncKeyName.hashCode ^
-      skeEncAlgo.hashCode;
+      skeEncAlgo.hashCode ^
+      pubKeyHash.hashCode ^
+      immutable.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
@@ -310,7 +321,8 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
       ..skeEncAlgo = fields[23]
-      ..pubKeyHash = fields[24];
+      ..pubKeyHash = fields[24]
+      ..immutable = fields[25];
   }
 
   @override

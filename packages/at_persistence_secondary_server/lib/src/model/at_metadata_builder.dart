@@ -38,7 +38,9 @@ class AtMetadataBuilder {
       String? ivNonce,
       String? skeEncKeyName,
       String? skeEncAlgo,
-      PublicKeyHash? publicKeyHash}) {
+      PublicKeyHash? publicKeyHash,
+      bool ? immutable,
+      }) {
     newAtMetaData ??= AtMetaData();
     atMetaData = newAtMetaData;
     // createdAt indicates the date and time of the key created.
@@ -87,6 +89,7 @@ class AtMetadataBuilder {
     skeEncKeyName ??= newAtMetaData.skeEncKeyName;
     skeEncAlgo ??= newAtMetaData.skeEncAlgo;
     publicKeyHash ??= newAtMetaData.pubKeyHash;
+    immutable ??= newAtMetaData.immutable;
 
     if (ttl != null && ttl >= 0) {
       setTTL(ttl, ttb: ttb);
@@ -113,6 +116,7 @@ class AtMetadataBuilder {
     atMetaData.skeEncKeyName = skeEncKeyName;
     atMetaData.skeEncAlgo = skeEncAlgo;
     atMetaData.pubKeyHash = publicKeyHash;
+    atMetaData.immutable = immutable;
   }
 
   void setTTL(int? ttl, {int? ttb}) {
