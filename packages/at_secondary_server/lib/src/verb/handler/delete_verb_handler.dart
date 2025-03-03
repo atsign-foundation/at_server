@@ -103,13 +103,15 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ' is not authorized to delete key: $deleteKey');
     }
     try {
-      AtData atData = await keyStore.get(deleteKey)!;
-      if (atData.metaData?.immutable == true) {
-        // immutable records need the force flag in order to be deleted
-        bool force = verbParams[AtConstants.force] == AtConstants.force;
-        if (!force) {
-          throw IllegalStateException(
-              'Immutable records may not be deleted without the force flag');
+      if (keyStore.isKeyExists(deleteKey)) {
+        AtData atData = await keyStore.get(deleteKey)!;
+        if (atData.metaData?.immutable == true) {
+          // immutable records need the force flag in order to be deleted
+          bool force = verbParams[AtConstants.force] == AtConstants.force;
+          if (!force) {
+            throw IllegalStateException(
+                'Immutable records may not be deleted without the force flag');
+          }
         }
       }
       var result = await keyStore.remove(deleteKey);
