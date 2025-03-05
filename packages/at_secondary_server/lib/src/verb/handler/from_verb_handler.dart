@@ -86,9 +86,9 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     //store key with private/public prefix, sessionId and fromAtSign
+    atData.metaData = AtMetaData()..ttl = 60 * 1000;
     await keyStore.put(
-        '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+        '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign', atData); //expire in 1 min
     response.data =
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
 

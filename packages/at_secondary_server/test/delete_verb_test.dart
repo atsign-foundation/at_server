@@ -9,6 +9,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -179,6 +180,57 @@ void main() {
       expect(int.parse(response.data!).runtimeType, int);
       expect(response.isError, false);
     });
+
+    test('verify other atSigns may not delete data', () async {
+      inboundConnection.metadata.isPolAuthenticated = true;
+      var command = 'delete:phone.wavi@alice';
+      await expectLater(
+          handler.process('delete:phone.wavi@alice', inboundConnection),
+          throwsA(isA<UnAuthenticatedException>()));
+    });
+  });
+
+  group('Tests of immutable data', () {
+    late DeleteVerbHandler deleteHandler;
+    late UpdateVerbHandler updateHandler;
+    late int randomHashValue;
+    setUp(() async {
+      await verbTestsSetUp();
+      randomHashValue = Uuid().v4().hashCode;
+      inboundConnection.metaData.isAuthenticated = true;
+      deleteHandler = DeleteVerbHandler(
+          secondaryKeyStore, StatsNotificationService.getInstance());
+      updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, StatsNotificationService.getInstance(), notificationManager);
+    });
+    test('Create mutable record and verify correctness', () async {
+      await updateHandler.process(
+          'update:immutable:false:mutable1.wavi@alice some data',
+          inboundConnection);
+      AtData d = (await secondaryKeyStore.get('mutable1.wavi@alice'))!;
+      expect(d.metaData?.immutable, false);
+
+      await updateHandler.process(
+          'update:mutable2.wavi@alice some data',
+          inboundConnection);
+      d = (await secondaryKeyStore.get('mutable2.wavi@alice'))!;
+      expect(d.metaData?.immutable, false);
+    });
+
+    test('Create immutable record and verify correctness', () async {
+      await updateHandler.process(
+          'update:pubKeyHash:hashedValue-$randomHashValue:hashingAlgo:sha512:immutable:true:immutable1.wavi@alice some data',
+          inboundConnection);
+      AtData d = (await secondaryKeyStore.get('immutable1.wavi@alice'))!;
+      expect(d.metaData?.immutable, true);
+    });
+
+    test('Create immutable cached record and verify correctness', () async {});
+    test('Try to delete immutable record without forced flag', () async {});
+    test('Try to delete immutable cached record without forced flag',
+        () async {});
+    test('Try to delete immutable record with forced flag', () async {});
+    test('Try to delete immutable cached record with forced flag', () async {});
   });
 
   group(

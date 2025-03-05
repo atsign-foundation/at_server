@@ -25,23 +25,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param skipCommit - if set to true, will skip adding entry to commit log for this update. Set to false by default.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> put(K key, V value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false});
+  Future<dynamic> put(K key, V value, {bool skipCommit = false});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
@@ -52,23 +36,7 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @param skipCommit - if set to true, will skip adding entry to commit log for this create operation. Set to false by default.
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> create(K key, V value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false});
+  Future<dynamic> create(K key, V value, {bool skipCommit = false});
 
   /// Removes the mapping for a key from this key store if it is present
   ///

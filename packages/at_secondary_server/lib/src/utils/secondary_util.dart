@@ -21,8 +21,8 @@ class SecondaryUtil {
     var keystoreManager =
         secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
-    await keyStore.put('public:$key', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+    atData.metaData = AtMetaData()..ttl = 60 * 1000;
+    await keyStore.put('public:$key', atData); //expire in 1 min
   }
 
   static List<String> getSecondaryInfo(String url) {

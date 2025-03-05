@@ -160,7 +160,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         atMetadata = await keyStore.getMeta(cachedNotificationKey);
       }
       var metadata = AtMetadataBuilder(
-              newAtMetaData: atNotificationBuilder.atMetaData,
+              newAtMetaData: atNotificationBuilder.atMetaData!,
               existingMetaData: atMetadata)
           .build();
       cachedKeyCommitId = await _storeCachedKeys(

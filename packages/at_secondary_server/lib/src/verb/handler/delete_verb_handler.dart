@@ -103,14 +103,21 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ' is not authorized to delete key: $deleteKey');
     }
     try {
-      if (keyStore.isKeyExists(deleteKey)) {
-        AtData atData = await keyStore.get(deleteKey)!;
-        if (atData.metaData?.immutable == true) {
-          // immutable records need the force flag in order to be deleted
-          bool force = verbParams[AtConstants.force] == AtConstants.force;
-          if (!force) {
-            throw IllegalStateException(
-                'Immutable records may not be deleted without the force flag');
+      // if this is not cached (because we should always be allowed to delete
+      // cached data from other atSigns)
+      // and the data exists
+      // then check if the data is immutable
+      // and if so, prevent deletion unless the "force" flag was set
+      if (verbParams['isCached'] != 'true') {
+        if (keyStore.isKeyExists(deleteKey)) {
+          AtData atData = await keyStore.get(deleteKey)!;
+          if (atData.metaData?.immutable == true) {
+            // immutable records need the force flag in order to be deleted
+            bool force = verbParams[AtConstants.force] == AtConstants.force;
+            if (!force) {
+              throw IllegalStateException(
+                  'Immutable records may not be deleted without the force flag');
+            }
           }
         }
       }

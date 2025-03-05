@@ -124,7 +124,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
-    atData.metaData =
+    AtMetaData notifyMetaData =
         _unsetOrRetainMetadata(atData.metaData!, existingAtMetaData);
 
     notify(
@@ -197,6 +197,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       metadata.pubKeyHash = PublicKeyHash(
           verbParams[AtConstants.sharedWithPublicKeyHash]!,
           verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]!);
+    }
+    if (verbParams[AtConstants.immutable] != null) {
+      metadata.immutable =
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.immutable]);
     }
 
     updateParams.metadata = metadata;
