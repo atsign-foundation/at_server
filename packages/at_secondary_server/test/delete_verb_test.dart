@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -193,44 +194,70 @@ void main() {
   group('Tests of immutable data', () {
     late DeleteVerbHandler deleteHandler;
     late UpdateVerbHandler updateHandler;
-    late int randomHashValue;
+
     setUp(() async {
       await verbTestsSetUp();
-      randomHashValue = Uuid().v4().hashCode;
+
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
           secondaryKeyStore, StatsNotificationService.getInstance());
-      updateHandler = UpdateVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance(), notificationManager);
-    });
-    test('Create mutable record and verify correctness', () async {
-      await updateHandler.process(
-          'update:immutable:false:mutable1.wavi@alice some data',
-          inboundConnection);
-      AtData d = (await secondaryKeyStore.get('mutable1.wavi@alice'))!;
-      expect(d.metaData?.immutable, false);
-
-      await updateHandler.process(
-          'update:mutable2.wavi@alice some data',
-          inboundConnection);
-      d = (await secondaryKeyStore.get('mutable2.wavi@alice'))!;
-      expect(d.metaData?.immutable, false);
+      updateHandler = UpdateVerbHandler(secondaryKeyStore,
+          StatsNotificationService.getInstance(), notificationManager);
     });
 
-    test('Create immutable record and verify correctness', () async {
+    test('delete immutable record without force flag', () async {
+      String key = 'immutable1.wavi@alice';
+      await secondaryKeyStore.remove(key);
       await updateHandler.process(
-          'update:pubKeyHash:hashedValue-$randomHashValue:hashingAlgo:sha512:immutable:true:immutable1.wavi@alice some data',
-          inboundConnection);
-      AtData d = (await secondaryKeyStore.get('immutable1.wavi@alice'))!;
-      expect(d.metaData?.immutable, true);
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await expectLater(
+        deleteHandler.process('delete:$key', inboundConnection),
+        throwsA(isA<IllegalStateException>()),
+      );
     });
-
-    test('Create immutable cached record and verify correctness', () async {});
-    test('Try to delete immutable record without forced flag', () async {});
-    test('Try to delete immutable cached record without forced flag',
-        () async {});
-    test('Try to delete immutable record with forced flag', () async {});
-    test('Try to delete immutable cached record with forced flag', () async {});
+    test('delete immutable record with force flag', () async {
+      String key = 'immutable2.wavi@alice';
+      await secondaryKeyStore.remove(key);
+      await updateHandler.process(
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record without force flag', () async {
+      String key = 'cached:@alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record with force flag', () async {
+      String key = 'cached:@alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
   });
 
   group(

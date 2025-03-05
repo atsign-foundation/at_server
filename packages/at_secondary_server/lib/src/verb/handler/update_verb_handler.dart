@@ -40,9 +40,6 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
     var updatePreProcessResult =
         await super.preProcessAndNotify(response, verbParams, atConnection);
 
-    logger.shout(
-        'calling keyStore.put(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData}');
-
     try {
       // update the key in data store
       var result = await keyStore.put(

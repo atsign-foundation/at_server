@@ -207,6 +207,9 @@ class ResourceManager {
     }
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      if (atNotification.atMetadata!.immutable == true) {
+        commandBody='${AtConstants.immutable}:true:$commandBody';
+      }
       if (atNotification.atMetadata!.skeEncAlgo != null) {
         commandBody =
             '${AtConstants.sharedKeyEncryptedEncryptingAlgo}:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';

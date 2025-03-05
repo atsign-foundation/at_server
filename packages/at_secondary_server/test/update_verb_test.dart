@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -768,7 +770,7 @@ void main() {
     });
 
     test('test max key length check', () async {
-      var inBoundSessionId = 'testsessionid';
+      var inBoundSessionId = 'test_session_id';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var updateVerbHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
@@ -791,6 +793,7 @@ void main() {
 
   group('update verb tests with metadata', () {
     doit() async {
+      var pubKeyHash = PublicKeyHash('hash', 'algo');
       var pubKeyCS =
           'the_checksum_of_the_public_key_used_to_encrypted_the_AES_key';
       var ske =
@@ -812,7 +815,8 @@ void main() {
             ..encAlgo = 'some_algo'
             ..ivNonce = 'some_iv'
             ..skeEncKeyName = skeEncKeyName
-            ..skeEncAlgo = skeEncAlgo));
+            ..skeEncAlgo = skeEncAlgo
+            ..pubKeyHash = pubKeyHash));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
@@ -820,6 +824,7 @@ void main() {
           ':isEncrypted:false'
           ':sharedKeyEnc:$ske'
           ':pubKeyCS:$pubKeyCS'
+          ':pubKeyHash:${pubKeyHash.hash}:hashingAlgo:${pubKeyHash.hashingAlgo}'
           ':encKeyName:some_key'
           ':encAlgo:some_algo'
           ':ivNonce:some_iv'
@@ -913,6 +918,76 @@ void main() {
         await doit();
       }
     });
+
+    test('Create mutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      await updateHandler.process(
+          'update:$atKey original data',
+          inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'original data');
+
+      await updateHandler.process(
+          'update:$atKey changed data', inboundConnection);
+      d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'changed data');
+    });
+
+    test('Create immutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      await updateHandler.process(
+          'update:immutable:true:$atKey original data',
+          inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, true);
+      expect(d.data, 'original data');
+
+      await expectLater(
+          updateHandler.process(
+              'update:$atKey changed data', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+
+      UpdateMetaVerbHandler updateMetaHandler = UpdateMetaVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      await expectLater(
+          updateMetaHandler.process(
+              'update:meta:$atKey:ttl:54321', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+    });
+
+    test('Create records with random metadata and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+      for (int i = 1; i <= 100; i++) {
+        var randomMd = createRandomCommonsMetadata();
+        randomMd.ccd = AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
+        AtKey atKey = AtKey.fromString('update_verb_test.$i.random_keys.wavi@alice')
+          ..metadata = randomMd;
+        var uvb = UpdateVerbBuilder()
+          ..atKey = atKey
+          ..value = 'some data';
+
+        await updateHandler.process(uvb.buildCommand().trim(), inboundConnection);
+        AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+        if (randomMd.ttr == 0) {
+          randomMd.ttr = null;
+        }
+        expect(d.metaData?.toCommonsMetadata(), randomMd);
+      }
+    }, timeout: Timeout(Duration(minutes: 5)));
+
 
     test('A test to verify existing metadata is retained after an update',
         () async {

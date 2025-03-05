@@ -312,6 +312,8 @@ Metadata createRandomCommonsMetadata({bool noNullsPlease = false}) {
   md.ivNonce = createRandomString(5);
   md.skeEncKeyName = createRandomString(6);
   md.skeEncAlgo = createRandomString(3);
+  md.pubKeyHash = PublicKeyHash(createRandomString(6), createRandomString(5));
+  md.immutable = createRandomBoolean();
 
   return md;
 }

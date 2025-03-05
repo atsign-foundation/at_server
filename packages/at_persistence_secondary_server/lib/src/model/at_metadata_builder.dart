@@ -1,4 +1,3 @@
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -14,35 +13,14 @@ class AtMetadataBuilder {
 
   static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
-  /// AtMetadata Object : Optional parameter, If atMetadata object is null a new AtMetadata object is created.
-  /// ttl : Time to live of the key. If ttl is null, atMetadata's ttl is assigned to ttl.
-  /// ttb : Time to birth of the key. If ttb is null, atMetadata's ttb is assigned to ttb.
-  /// ttr : Time to refresh of the key. If ttr is null, atMetadata's ttr is assigned to ttr.
-  /// ccd : Cascade delete. If ccd is null, atMetadata's ccd is assigned to ccd.
+  /// Requires an AtMetaData
   AtMetadataBuilder(
-      {String? atSign,
-      AtMetaData? newAtMetaData,
+      {
+      String? atSign,
+      required AtMetaData? newAtMetaData,
       AtMetaData? existingMetaData,
-      int? ttl,
-      int? ttb,
-      int? ttr,
-      bool? ccd,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      PublicKeyHash? publicKeyHash,
-      bool ? immutable,
       }) {
-    newAtMetaData ??= AtMetaData();
-    atMetaData = newAtMetaData;
+    atMetaData = newAtMetaData ?? AtMetaData();
     // createdAt indicates the date and time of the key created.
     // For a new key, the currentDateTime is set and remains unchanged
     // on an update event.
@@ -63,60 +41,35 @@ class AtMetadataBuilder {
         ? atMetaData.version = 0
         : atMetaData.version = (existingMetaData!.version! + 1);
 
-    //If new metadata is available, consider new metadata, else if existing metadata is available consider it.
-    ttl ??= newAtMetaData.ttl;
-    if (ttl == null && existingMetaData != null) ttl = existingMetaData.ttl;
+    // Checks on existing important metadata
+    if (existingMetaData != null) {
+      atMetaData.ttl ??= existingMetaData.ttl;
 
-    ttb ??= newAtMetaData.ttb;
-    if (ttb == null && existingMetaData != null) ttb = existingMetaData.ttb;
+      atMetaData.ttb ??= existingMetaData.ttb;
 
-    ttr ??= newAtMetaData.ttr;
-    if (ttr == null && existingMetaData != null) ttr = existingMetaData.ttr;
+      atMetaData.ttr ??= existingMetaData.ttr;
 
-    ccd ??= newAtMetaData.isCascade;
-    if (ccd == null && existingMetaData != null) {
-      ccd = existingMetaData.isCascade;
+      atMetaData.isCascade ??= existingMetaData.isCascade;
+
+      // special handling for immutable
+      if (existingMetaData.immutable == true) {
+        atMetaData.immutable = true;
+      }
     }
-    isBinary ??= newAtMetaData.isBinary;
-    isEncrypted ??= newAtMetaData.isEncrypted;
-    dataSignature ??= newAtMetaData.dataSignature;
-    sharedKeyEncrypted ??= newAtMetaData.sharedKeyEnc;
-    publicKeyChecksum ??= newAtMetaData.pubKeyCS;
-    encoding ??= newAtMetaData.encoding;
-    encKeyName ??= newAtMetaData.encKeyName;
-    encAlgo ??= newAtMetaData.encAlgo;
-    ivNonce ??= newAtMetaData.ivNonce;
-    skeEncKeyName ??= newAtMetaData.skeEncKeyName;
-    skeEncAlgo ??= newAtMetaData.skeEncAlgo;
-    publicKeyHash ??= newAtMetaData.pubKeyHash;
-    immutable ??= newAtMetaData.immutable;
 
-    if (ttl != null && ttl >= 0) {
-      setTTL(ttl, ttb: ttb);
+    if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
+      setTTL(atMetaData.ttl, ttb: atMetaData.ttb);
     }
-    if (ttb != null && ttb >= 0) {
-      setTTB(ttb);
+    if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
+      setTTB(atMetaData.ttb);
     }
     // If TTR is -1, cache the key forever.
-    if (ttr != null && ttr > 0 || ttr == -1) {
-      setTTR(ttr);
+    if (atMetaData.ttr != null && atMetaData.ttr! > 0 || atMetaData.ttr == -1) {
+      setTTR(atMetaData.ttr);
     }
-    if (ccd != null) {
-      setCCD(ccd);
+    if (atMetaData.isCascade != null) {
+      setCCD(atMetaData.isCascade!);
     }
-    atMetaData.isBinary = isBinary;
-    atMetaData.isEncrypted = isEncrypted;
-    atMetaData.dataSignature = dataSignature;
-    atMetaData.sharedKeyEnc = sharedKeyEncrypted;
-    atMetaData.pubKeyCS = publicKeyChecksum;
-    atMetaData.encoding = encoding;
-    atMetaData.encKeyName = encKeyName;
-    atMetaData.encAlgo = encAlgo;
-    atMetaData.ivNonce = ivNonce;
-    atMetaData.skeEncKeyName = skeEncKeyName;
-    atMetaData.skeEncAlgo = skeEncAlgo;
-    atMetaData.pubKeyHash = publicKeyHash;
-    atMetaData.immutable = immutable;
   }
 
   void setTTL(int? ttl, {int? ttb}) {

@@ -163,8 +163,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
               newAtMetaData: atNotificationBuilder.atMetaData!,
               existingMetaData: atMetadata)
           .build();
-      cachedKeyCommitId = await _storeCachedKeys(
-          cachedNotificationKey, metadata,
+      cachedKeyCommitId = await _storeCachedKey(cachedNotificationKey, metadata,
           atValue: atNotificationBuilder.atValue);
       //write the latest commit id to the StatsNotificationService
       _writeStats(cachedKeyCommitId, operationType.name);
@@ -236,7 +235,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<int> _storeCachedKeys(String? cachedKey, AtMetaData? atMetaData,
+  Future<int> _storeCachedKey(String? cachedKey, AtMetaData? atMetaData,
       {String? atValue}) async {
     var atData = AtData();
     atData.data = atValue;
@@ -381,6 +380,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo] != null) {
       atMetadata.skeEncAlgo =
           verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    }
+    if (verbParams[AtConstants.immutable] != null) {
+      atMetadata.immutable =
+          SecondaryUtil.getBoolFromString(verbParams[AtConstants.immutable]);
     }
     atMetadata.isEncrypted = getIsEncrypted(
         getMessageType(verbParams[AtConstants.messageType]),

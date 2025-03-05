@@ -141,30 +141,31 @@ void main() async {
           'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
     });
 
-    test(
-        'Test to verify prepare an update notification command with a value and all the metadata',
-        () {
+    testNotificationMetaData ({required bool immutable}) {
       var ttln = 24 * 60 * 60 * 1000;
       var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = '@alice'
-            ..toAtSign = '@bob'
-            ..id = '1234'
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..atValue = 'Hi Bob, Alice here'
-            ..notification = '@bob:test.test@alice'
-            ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
-            ..ttl = ttln
-            ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
-              ..ttr = 1
-              ..ccd = true
-              ..pubKeyCS = '123'
-              ..sharedKeyEnc = 'abc'
-              ..encKeyName = 'ekn'
-              ..encAlgo = 'ea'
-              ..ivNonce = 'ivn'
-              ..skeEncKeyName = 'ske_ekn'
-              ..skeEncAlgo = 'ske_ea'))
+        ..fromAtSign = '@alice'
+        ..toAtSign = '@bob'
+        ..id = '1234'
+        ..opType = OperationType.update
+        ..messageType = MessageType.key
+        ..atValue = 'Hi Bob, Alice here'
+        ..notification = '@bob:test.test@alice'
+        ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
+        ..ttl = ttln
+        ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
+          ..ttr = 1
+          ..ccd = true
+          ..pubKeyCS = '123'
+          ..sharedKeyEnc = 'abc'
+          ..encKeyName = 'ekn'
+          ..encAlgo = 'ea'
+          ..ivNonce = 'ivn'
+          ..skeEncKeyName = 'ske_ekn'
+          ..skeEncAlgo = 'ske_ea'
+          ..pubKeyHash = PublicKeyHash('someHash', 'someAlgo')
+          ..immutable = immutable
+        ))
           .build();
 
       var notifyCommand = ResourceManager.getInstance()
@@ -176,15 +177,23 @@ void main() async {
       expect(
           notifyCommand,
           'id:1234:update:messageType:key:notifier:system'
-          ':ttln:$ttln'
-          ':ttr:1:ccd:true'
-          ':isEncrypted:false'
-          ':sharedKeyEnc:abc:pubKeyCS:123'
-          ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
-          ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
-          ':@bob:test.test@alice'
-          ':Hi Bob, Alice here');
-    });
+              ':ttln:$ttln'
+              ':ttr:1:ccd:true'
+              ':isEncrypted:false'
+              ':sharedKeyEnc:abc:pubKeyCS:123'
+              ':pubKeyHash:someHash:hashingAlgo:someAlgo'
+              ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
+              ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
+              '${immutable ? ':immutable:true' : ''}'
+              ':@bob:test.test@alice'
+              ':Hi Bob, Alice here');
+    }
+    test(
+        'Test to verify prepare an update notification command with a value and all the metadata',
+        () {
+          testNotificationMetaData(immutable: false);
+          testNotificationMetaData(immutable: true);
+        });
   });
 }
 

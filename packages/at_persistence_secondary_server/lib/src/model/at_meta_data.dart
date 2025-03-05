@@ -328,7 +328,7 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(25)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -378,14 +378,16 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(23)
       ..write(obj.skeEncAlgo)
       ..writeByte(24)
-      ..write(obj.pubKeyHash);
+      ..write(obj.pubKeyHash)
+      ..writeByte(25)
+      ..write(obj.immutable);
   }
 }
 
 @HiveType(typeId: 11)
-class PublicKeyHashAdapater extends TypeAdapter<PublicKeyHash> {
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
   @override
-  final int typeId = typeAdapterMap['PublicKeyHashAdapater'];
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
 
   @override
   PublicKeyHash read(BinaryReader reader) {

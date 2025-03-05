@@ -743,11 +743,17 @@ void main() {
         ///    "atKey": "public:phone.wavi@alice",
         ///    "commitId": 0,
         ///    "operation": "*"
+
+        PublicKeyHash somePubKeyHash = PublicKeyHash(
+          'someHash',
+          'someAlgo',
+        );
         AtMetaData atMetadata = AtMetaData()
           ..ttl = 1000
           ..ttb = 2000
           ..ttr = 3000
           ..isCascade = true
+          ..isEncrypted = true
           ..dataSignature = 'dummy_data_signature'
           ..sharedKeyEnc = 'dummy_shared_key'
           ..pubKeyCS = 'dummy_checksum'
@@ -758,7 +764,9 @@ void main() {
           ..skeEncKeyName =
               'an_encrypting_key_name_for_the_inlined_encrypted_shared_key'
           ..skeEncAlgo =
-              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key';
+              'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key'
+          ..pubKeyHash = somePubKeyHash
+          ..immutable = true;
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
             'public:phone.wavi@alice',
             AtData()
@@ -777,29 +785,35 @@ void main() {
         List syncResponseList = jsonDecode(response.data!);
 
         // Assert the data and metadata
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
-        expect(syncResponseList[0]['commitId'], 0);
-        expect(syncResponseList[0]['operation'], '*');
-        expect(syncResponseList[0]['metadata']['version'], '0');
-        expect(syncResponseList[0]['metadata']['ttl'], '1000');
-        expect(syncResponseList[0]['metadata']['ttb'], '2000');
-        expect(syncResponseList[0]['metadata']['ttr'], '3000');
-        expect(syncResponseList[0]['metadata']['ccd'], 'true');
-        expect(syncResponseList[0]['metadata']['dataSignature'],
+        var firstResponse = syncResponseList[0];
+        expect(firstResponse['atKey'], 'public:phone.wavi@alice');
+        expect(firstResponse['commitId'], 0);
+        expect(firstResponse['operation'], '*');
+        var firstResponseMetadata = firstResponse['metadata'];
+        expect(firstResponseMetadata['version'], '0');
+        expect(firstResponseMetadata['ttl'], '1000');
+        expect(firstResponseMetadata['ttb'], '2000');
+        expect(firstResponseMetadata['ttr'], '3000');
+        expect(firstResponseMetadata['ccd'], 'true');
+        expect(firstResponseMetadata['dataSignature'],
             'dummy_data_signature');
-        expect(syncResponseList[0]['metadata']['sharedKeyEnc'],
+        expect(firstResponseMetadata['sharedKeyEnc'],
             'dummy_shared_key');
-        expect(syncResponseList[0]['metadata']['pubKeyCS'], 'dummy_checksum');
-        expect(syncResponseList[0]['metadata']['encoding'], 'base64');
-        expect(syncResponseList[0]['metadata']['encKeyName'],
+        expect(firstResponseMetadata['pubKeyCS'], 'dummy_checksum');
+        expect(firstResponseMetadata['encoding'], 'base64');
+        expect(firstResponseMetadata['encKeyName'],
             'an_encrypting_key_name');
-        expect(syncResponseList[0]['metadata']['encAlgo'],
+        expect(firstResponseMetadata['encAlgo'],
             'an_encrypting_algorithm_name');
-        expect(syncResponseList[0]['metadata']['ivNonce'], 'an_iv_or_nonce');
-        expect(syncResponseList[0]['metadata']['skeEncKeyName'],
+        expect(firstResponseMetadata['ivNonce'], 'an_iv_or_nonce');
+        expect(firstResponseMetadata['skeEncKeyName'],
             'an_encrypting_key_name_for_the_inlined_encrypted_shared_key');
-        expect(syncResponseList[0]['metadata']['skeEncAlgo'],
+        expect(firstResponseMetadata['skeEncAlgo'],
             'an_encrypting_algorithm_name_for_the_inlined_encrypted_shared_key');
+        expect(firstResponseMetadata['pubKeyHash'],
+            jsonEncode(somePubKeyHash.toJson()));
+        expect(firstResponseMetadata['immutable'], 'true');
+        expect(firstResponseMetadata['isEncrypted'], 'true');
       });
 
       test(

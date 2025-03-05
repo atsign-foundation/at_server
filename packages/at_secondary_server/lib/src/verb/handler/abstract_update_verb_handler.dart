@@ -34,6 +34,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
+  /// - Construct an AtKey and AtData and AtMetaData from the verb params
+  /// - Fetch existing record from data store
+  /// - If existing record,
+  ///   - Merge existing metadata into the new metadata where new metadata field
+  ///   has a null value
+  ///   - Iterate through the verb params again; if there is a metadata param
+  ///   supplied with a value of 'null' then set the AtMetaData field to null
   Future<UpdatePreProcessResult> preProcessAndNotify(
       Response response,
       HashMap<String, String?> verbParams,
@@ -66,8 +73,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final atData = AtData();
     atData.data = value;
 
-    bool isAuthorized = true; // for legacy clients allow access by default
-
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
@@ -82,7 +87,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
-    isAuthorized =
+    bool isAuthorized =
         await super.isAuthorized(inboundConnectionMetadata, atKey: atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
@@ -117,6 +122,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
+      throw IllegalStateException('This should be impossible');
       atKey = 'cached:$atKey';
     }
 
@@ -124,8 +130,14 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
 
-    AtMetaData notifyMetaData =
-        _unsetOrRetainMetadata(atData.metaData!, existingAtMetaData);
+    // Enforce the immutable feature
+    if (existingAtMetaData?.immutable == true) {
+      throw IllegalStateException('Immutable records may not be updated');
+    }
+    atData.metaData = _unsetOrRetainMetadata(
+      atData.metaData!,
+      existingAtMetaData,
+    );
 
     notify(
         sharedBy,
@@ -241,19 +253,16 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// existing metadata value is not null, set it the current AtMetaData obj.
   AtMetaData _unsetOrRetainMetadata(
       AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
-    if (existingAtMetadata == null) {
-      return newAtMetadata;
-    }
     var atMetaDataJson = newAtMetadata.toJson();
-    var existingAtMetaDataJson = existingAtMetadata.toJson();
+    var existingAtMetaDataJson = existingAtMetadata?.toJson();
     atMetaDataJson.forEach((key, value) {
       switch (value) {
         // If command does not contains the attributes of a metadata, then regex named
         // group, inserts null. For a key, if an attribute has a value in previously,
         // fetch the value and update it.
         case null:
-          if (existingAtMetaDataJson[key] != null) {
-            atMetaDataJson[key] = existingAtMetaDataJson[key];
+          if (existingAtMetaDataJson?[key] != null) {
+            atMetaDataJson[key] = existingAtMetaDataJson![key];
           }
           break;
         // In the command, if an attribute is explicitly set to null, then verbParams
