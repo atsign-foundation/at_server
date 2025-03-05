@@ -1,3 +1,6 @@
+## 4.0.0
+- refactor: Simplified keystore spec and implementations, simplified 
+  HiveKeyStore and removed some bug vectors
 ## 3.1.0
 - feat: commit log changes for sync skipDeletesUntil feature
 - build[deps]: Upgraded the following package:

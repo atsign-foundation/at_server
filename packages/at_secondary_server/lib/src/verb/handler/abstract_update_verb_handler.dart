@@ -122,7 +122,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
-      throw IllegalStateException('This should be impossible');
+      logger.severe('update verb but sharedBy is not current atSign');
       atKey = 'cached:$atKey';
     }
 

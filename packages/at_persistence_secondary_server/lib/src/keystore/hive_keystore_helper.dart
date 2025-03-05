@@ -21,10 +21,10 @@ class HiveKeyStoreHelper {
     var atData = AtData();
     atData.data = newAtData.data;
     atData.metaData = AtMetadataBuilder(
-            atSign: atSign,
-            newAtMetaData: newAtData.metaData,
-            existingMetaData: existingAtData?.metaData,)
-        .build();
+      atSign: atSign,
+      newAtMetaData: newAtData.metaData,
+      existingMetaData: existingAtData?.metaData,
+    ).build();
     return atData;
   }
 }

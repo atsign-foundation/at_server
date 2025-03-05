@@ -795,16 +795,13 @@ void main() {
         expect(firstResponseMetadata['ttb'], '2000');
         expect(firstResponseMetadata['ttr'], '3000');
         expect(firstResponseMetadata['ccd'], 'true');
-        expect(firstResponseMetadata['dataSignature'],
-            'dummy_data_signature');
-        expect(firstResponseMetadata['sharedKeyEnc'],
-            'dummy_shared_key');
+        expect(firstResponseMetadata['dataSignature'], 'dummy_data_signature');
+        expect(firstResponseMetadata['sharedKeyEnc'], 'dummy_shared_key');
         expect(firstResponseMetadata['pubKeyCS'], 'dummy_checksum');
         expect(firstResponseMetadata['encoding'], 'base64');
-        expect(firstResponseMetadata['encKeyName'],
-            'an_encrypting_key_name');
-        expect(firstResponseMetadata['encAlgo'],
-            'an_encrypting_algorithm_name');
+        expect(firstResponseMetadata['encKeyName'], 'an_encrypting_key_name');
+        expect(
+            firstResponseMetadata['encAlgo'], 'an_encrypting_algorithm_name');
         expect(firstResponseMetadata['ivNonce'], 'an_iv_or_nonce');
         expect(firstResponseMetadata['skeEncKeyName'],
             'an_encrypting_key_name_for_the_inlined_encrypted_shared_key');

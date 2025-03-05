@@ -214,7 +214,7 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      atData.metaData = AtMetaData()..ttl=6000;
+      atData.metaData = AtMetaData()..ttl = 6000;
       await keyStore.create('phone.wavi@test_user_1', atData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
@@ -228,7 +228,9 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      atData.metaData = AtMetaData()..sharedKeyEnc = 'abc'..pubKeyCS = 'xyz';
+      atData.metaData = AtMetaData()
+        ..sharedKeyEnc = 'abc'
+        ..pubKeyCS = 'xyz';
       await keyStore.create('phone.wavi@test_user_1', atData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
@@ -706,7 +708,10 @@ void main() async {
           ..ttl = 0
           ..ttr = -1
           ..ttb = null);
-      await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,);
+      await keystore?.put(
+        'dummykey.wavi@test_user_1',
+        updatedAtData,
+      );
       AtMetaData? atMetaData =
           await keystore?.getMeta('dummykey.wavi@test_user_1');
       expect(atMetaData?.ttr, -1);

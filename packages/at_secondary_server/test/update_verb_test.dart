@@ -926,8 +926,7 @@ void main() {
 
       final atKey = AtKey.fromString('mutable1.wavi@alice');
       await updateHandler.process(
-          'update:$atKey original data',
-          inboundConnection);
+          'update:$atKey original data', inboundConnection);
       AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
       expect(d.metaData?.immutable, false);
       expect(d.data, 'original data');
@@ -946,8 +945,7 @@ void main() {
 
       final atKey = AtKey.fromString('mutable1.wavi@alice');
       await updateHandler.process(
-          'update:immutable:true:$atKey original data',
-          inboundConnection);
+          'update:immutable:true:$atKey original data', inboundConnection);
       AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
       expect(d.metaData?.immutable, true);
       expect(d.data, 'original data');
@@ -966,20 +964,24 @@ void main() {
           throwsA(isA<IllegalStateException>()));
     });
 
-    test('Create records with random metadata and verify correctness', () async {
+    test('Create records with random metadata and verify correctness',
+        () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
       inboundConnection.metaData.isAuthenticated = true;
       for (int i = 1; i <= 100; i++) {
         var randomMd = createRandomCommonsMetadata();
-        randomMd.ccd = AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
-        AtKey atKey = AtKey.fromString('update_verb_test.$i.random_keys.wavi@alice')
-          ..metadata = randomMd;
+        randomMd.ccd =
+            AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
+        AtKey atKey =
+            AtKey.fromString('update_verb_test.$i.random_keys.wavi@alice')
+              ..metadata = randomMd;
         var uvb = UpdateVerbBuilder()
           ..atKey = atKey
           ..value = 'some data';
 
-        await updateHandler.process(uvb.buildCommand().trim(), inboundConnection);
+        await updateHandler.process(
+            uvb.buildCommand().trim(), inboundConnection);
         AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
         if (randomMd.ttr == 0) {
           randomMd.ttr = null;
@@ -987,7 +989,6 @@ void main() {
         expect(d.metaData?.toCommonsMetadata(), randomMd);
       }
     }, timeout: Timeout(Duration(minutes: 5)));
-
 
     test('A test to verify existing metadata is retained after an update',
         () async {

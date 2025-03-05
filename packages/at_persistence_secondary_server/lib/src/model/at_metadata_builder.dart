@@ -14,12 +14,11 @@ class AtMetadataBuilder {
   static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
   /// Requires an AtMetaData
-  AtMetadataBuilder(
-      {
-      String? atSign,
-      required AtMetaData? newAtMetaData,
-      AtMetaData? existingMetaData,
-      }) {
+  AtMetadataBuilder({
+    String? atSign,
+    required AtMetaData? newAtMetaData,
+    AtMetaData? existingMetaData,
+  }) {
     atMetaData = newAtMetaData ?? AtMetaData();
     // createdAt indicates the date and time of the key created.
     // For a new key, the currentDateTime is set and remains unchanged

@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -184,7 +183,6 @@ void main() {
 
     test('verify other atSigns may not delete data', () async {
       inboundConnection.metadata.isPolAuthenticated = true;
-      var command = 'delete:phone.wavi@alice';
       await expectLater(
           handler.process('delete:phone.wavi@alice', inboundConnection),
           throwsA(isA<UnAuthenticatedException>()));

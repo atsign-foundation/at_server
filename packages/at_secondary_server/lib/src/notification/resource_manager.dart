@@ -208,7 +208,7 @@ class ResourceManager {
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
       if (atNotification.atMetadata!.immutable == true) {
-        commandBody='${AtConstants.immutable}:true:$commandBody';
+        commandBody = '${AtConstants.immutable}:true:$commandBody';
       }
       if (atNotification.atMetadata!.skeEncAlgo != null) {
         commandBody =
