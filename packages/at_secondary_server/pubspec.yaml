@@ -9,6 +9,8 @@ environment:
   sdk: '>=3.0.0 <4.0.0'
 
 dependency_overrides:
+  at_server_spec:
+    path: '../at_server_spec'
   at_persistence_spec:
     path: '../at_persistence_spec'
   at_persistence_secondary_server:
