@@ -46,8 +46,9 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
 
     try {
       var mutexRecord = updateMutexes[dataStoreKey]!;
-      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 +1);
-      logger.finest('Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 +1} waiting (including me)');
+      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 + 1);
+      logger.finest(
+          'Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 + 1} waiting (including me)');
       await mutexRecord.$1.acquire();
 
       var updatePreProcessResult = await super.preProcessAndNotify(
@@ -67,12 +68,14 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       String logMsg = 'Releasing mutex on $dataStoreKey';
       var mutexRecord = updateMutexes[dataStoreKey]!;
       mutexRecord.$1.release();
-      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 -1);
+      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 - 1);
       if (updateMutexes[dataStoreKey]!.$2 == 0) {
-        logger.finest('$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
+        logger.finest(
+            '$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
         updateMutexes.remove(dataStoreKey);
       } else {
-        logger.finest('$logMsg : ${updateMutexes[dataStoreKey]!.$2} still waiting for mutex on $dataStoreKey');
+        logger.finest(
+            '$logMsg : ${updateMutexes[dataStoreKey]!.$2} still waiting for mutex on $dataStoreKey');
       }
     }
   }

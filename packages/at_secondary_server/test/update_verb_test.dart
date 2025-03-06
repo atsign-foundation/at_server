@@ -941,7 +941,7 @@ void main() {
       int failures = 0;
       for (int i = 0; i < concurrency; i++) {
         if (i > 0) {
-          expect (updateHandler.updateMutexes.length, 1);
+          expect(updateHandler.updateMutexes.length, 1);
         }
         await futures[i]
             .then((value) => successes++)
