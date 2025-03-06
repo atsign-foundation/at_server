@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -919,6 +921,42 @@ void main() {
       }
     });
 
+    test('Concurrent creation of the same mutable record', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+      int concurrency = 10;
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process(
+            'update:immutable:true:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect (updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+      expect(successes, 1);
+      expect(failures, concurrency - 1);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      expect(data.metaData!.version, 0);
+    });
+
     test('Create mutable record and verify correctness', () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
@@ -930,6 +968,7 @@ void main() {
       AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
       expect(d.metaData?.immutable, false);
       expect(d.data, 'original data');
+      expect(d.metaData!.version, 0);
 
       await updateHandler.process(
           'update:$atKey changed data', inboundConnection);

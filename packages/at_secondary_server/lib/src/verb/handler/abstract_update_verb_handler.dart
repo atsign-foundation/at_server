@@ -13,6 +13,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:mutex/mutex.dart';
 
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
@@ -34,47 +35,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  /// - Construct an AtKey and AtData and AtMetaData from the verb params
-  /// - Fetch existing record from data store
-  /// - If existing record,
-  ///   - Merge existing metadata into the new metadata where new metadata field
-  ///   has a null value
-  ///   - Iterate through the verb params again; if there is a metadata param
-  ///   supplied with a value of 'null' then set the AtMetaData field to null
-  Future<UpdatePreProcessResult> preProcessAndNotify(
-      Response response,
-      HashMap<String, String?> verbParams,
-      InboundConnection atConnection) async {
-    // Sets Response bean to the response bean in ChangeVerbHandler
-    await super.processVerb(response, verbParams, atConnection);
-
-    var updateParams = getUpdateParams(verbParams);
-    if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
-      throw InvalidSyntaxException('atKey.key not supplied');
-    }
-
-    if (updateParams.sharedBy != null &&
-        updateParams.sharedBy!.isNotEmpty &&
-        updateParams.sharedBy !=
-            AtSecondaryServerImpl.getInstance().currentAtSign) {
-      var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
-          ' should be same as current atsign'
-          ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
-      logger.warning(message);
-      throw InvalidAtKeyException(message);
-    }
-
-    // Get the key and update the value
+  String getDataStoreKey(UpdateParams updateParams) {
     final sharedWith = updateParams.sharedWith;
     final sharedBy = updateParams.sharedBy;
     var atKey = updateParams.atKey!;
     final value = updateParams.value;
     final atData = AtData();
     atData.data = value;
-
-    InboundConnectionMetadata inboundConnectionMetadata =
-        atConnection.metaData as InboundConnectionMetadata;
 
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
@@ -87,6 +54,39 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
+
+    return atKey;
+  }
+
+  Map<String, (Mutex, int)> updateMutexes = {};
+  /// - Construct an AtKey and AtData and AtMetaData from the verb params
+  /// - Fetch existing record from data store
+  /// - If existing record,
+  ///   - Merge existing metadata into the new metadata where new metadata field
+  ///   has a null value
+  ///   - Iterate through the verb params again; if there is a metadata param
+  ///   supplied with a value of 'null' then set the AtMetaData field to null
+  Future<UpdatePreProcessResult> preProcessAndNotify(
+      Response response,
+      HashMap<String, String?> verbParams,
+      UpdateParams updateParams,
+      InboundConnection atConnection) async {
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
+
+    // Get the key and update the value
+    final sharedWith = updateParams.sharedWith;
+    final sharedBy = updateParams.sharedBy;
+    final value = updateParams.value;
+    final atData = AtData();
+    atData.data = value;
+
+    // Get the key we're going to update in the data store
+    String atKey = getDataStoreKey(updateParams);
+
+    // check authorization
+    InboundConnectionMetadata inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
     bool isAuthorized =
         await super.isAuthorized(inboundConnectionMetadata, atKey: atKey);
     if (!isAuthorized) {
@@ -216,6 +216,23 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
 
     updateParams.metadata = metadata;
+
+    if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
+      throw InvalidSyntaxException('atKey.key not supplied');
+    }
+
+    if (updateParams.sharedBy != null &&
+        updateParams.sharedBy!.isNotEmpty &&
+        updateParams.sharedBy !=
+            AtSecondaryServerImpl.getInstance().currentAtSign) {
+      var message = 'Invalid update command - sharedBy atsign'
+          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
+          ' should be same as current atsign'
+          ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
+      logger.warning(message);
+      throw InvalidAtKeyException(message);
+    }
+
     return updateParams;
   }
 
