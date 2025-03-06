@@ -48,16 +48,16 @@ void main() async {
     // Try to update it again - should fail
     response = await firstAtSignConnection
         .sendRequestToServer('update:immutable:true:$atKey $value');
-    expect(response, contains('error:AT00032'));
+    expect(response, contains('error:{"errorCode":"AT0032",'));
 
     // Try to delete it without the "force" flag - should fail
     response = await firstAtSignConnection.sendRequestToServer('delete:$atKey');
-    expect(response, contains('error:AT00032'));
+    expect(response, contains('error:{"errorCode":"AT0032",'));
 
     // Try to delete it WITH the "force" flag - should succeed
     response =
         await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
-    expect(response, contains('error:AT00032'));
+    expect(response, contains('error:{"errorCode":"AT0032",'));
   }
 
   test('update llookup update delete and force delete with immutable public',
