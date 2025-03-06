@@ -607,7 +607,7 @@ void main() {
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
-    expect(decodedResponse['metaData']['pubKeyHash'], somePubKeyHash);
+    expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']), somePubKeyHash);
     expect(decodedResponse['metaData']['immutable'], true);
   });
 
