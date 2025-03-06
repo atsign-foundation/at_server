@@ -42,7 +42,7 @@ void main() async {
 
     // Look it up
     response = await firstAtSignConnection
-        .sendRequestToServer('llookup:public:location-$uniqueId$firstAtSign');
+        .sendRequestToServer('llookup:$atKey');
     expect(response, contains('data:$value'));
 
     // Try to update it again - should fail
@@ -62,19 +62,19 @@ void main() async {
 
   test('update llookup update delete and force delete with immutable public',
       () async {
-    String atKey = 'public:location-$uniqueId$firstAtSign';
+    String atKey = 'public:immutable-$uniqueId$firstAtSign';
     await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update llookup update delete and force delete with immutable self',
       () async {
-    String atKey = 'location-$uniqueId$firstAtSign';
+    String atKey = 'immutable-$uniqueId$firstAtSign';
     await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update llookup update delete and force delete with immutable shared',
       () async {
-    String atKey = '$secondAtSign:location-$uniqueId$firstAtSign';
+    String atKey = '$secondAtSign:immutable-$uniqueId$firstAtSign';
     await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
