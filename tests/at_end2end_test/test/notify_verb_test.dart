@@ -579,6 +579,8 @@ void main() {
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
         ':ttln:86400000:ttr:60000:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
+        ':pubKeyHash:hash:hashingAlgo:algo'
+        ':immutable:true'
         ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
@@ -602,6 +604,9 @@ void main() {
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
+    expect(decodedResponse['metaData']['pubKeyHash'], 'hash');
+    expect(decodedResponse['metaData']['hashingAlgo'], 'algo');
+    expect(decodedResponse['metaData']['immutable'], 'true');
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
