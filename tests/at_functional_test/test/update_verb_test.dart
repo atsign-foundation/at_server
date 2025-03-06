@@ -57,7 +57,7 @@ void main() async {
     // Try to delete it WITH the "force" flag - should succeed
     response =
         await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
-    expect(response, contains('error:{"errorCode":"AT0032",'));
+    expect(response, contains(RegExp(r'data:\d+')));
   }
 
   test('update llookup update delete and force delete with immutable public',
