@@ -581,9 +581,9 @@ void main() {
     PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
     var immutableFragment = '';
     bool? expectedImmutable;
-    if (atSign1ServerVersion >= Version(3, 3, 0) &&
-        atSign2ServerVersion >= Version(3, 3, 0)) {
-      print('Will assert on immutable flag as versions are >= 3.3.0');
+    if (atSign1ServerVersion >= Version(3, 4, 0) &&
+        atSign2ServerVersion >= Version(3, 4, 0)) {
+      print('Will assert on immutable flag as versions are >= 3.4.0');
       immutableFragment = ':immutable:true';
       expectedImmutable = true;
     }

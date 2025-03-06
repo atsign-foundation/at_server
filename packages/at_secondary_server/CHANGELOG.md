@@ -1,3 +1,11 @@
+# 3.4.0
+- feat: immutable records
+  - When `immutable` is set in metadata, then the record may not
+    subsequently be changed via the `update` verb.
+  - When `immutable` is set in metadata, then the record may not be deleted
+    via the `delete` verb unless the new `force` parameter is set
+    - However, data which has been cached by the recipient is always 
+      deletable by that recipient
 # 3.3.0
 - feat: Add support for "atServer events" - starting with the 
   `AtSignPKChangedEvent`. atServer events are stored in a newly reserved 
@@ -10,11 +18,6 @@
   fetched so that when they restart they do not re-process past events. 
   Newly-created clients should set their initial marker to
   microsecondsSinceEpoch so that they do not process past events unnecessarily.
-- feat: immutable records
-  - When `immutable` is set in metadata, then the record may not 
-    subsequently be changed via the `update` verb.
-  - When `immutable` is set in metadata, then the record may not be deleted 
-    via the `delete` verb unless the new `force` parameter is set
 # 3.2.0
 - feat: Added WebSocket support for inbound connections
 # 3.1.1
