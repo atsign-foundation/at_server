@@ -38,7 +38,7 @@ void main() async {
     var value = 'Immutable data $lastValue';
     var response = await firstAtSignConnection
         .sendRequestToServer('update:immutable:true:$atKey $value');
-    expect(response, contains(RegExp(r'data:d+')));
+    expect(response, contains(RegExp(r'data:\d+')));
 
     // Look it up
     response = await firstAtSignConnection
