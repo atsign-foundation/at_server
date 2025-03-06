@@ -36,7 +36,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      HashMap<String, String?> verbParams,
+      Hash
+  Map<String, String?> verbParams,
       InboundConnection atConnection) async {
     UpdateParams updateParams = getUpdateParams(verbParams);
 
@@ -47,7 +48,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
     try {
       var mutexRecord = updateMutexes[dataStoreKey]!;
       updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 +1);
-      logger.shout('Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 +1} waiting (including me)');
+      logger.finest('Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 +1} waiting (including me)');
       await mutexRecord.$1.acquire();
 
       var updatePreProcessResult = await super.preProcessAndNotify(
@@ -69,10 +70,10 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       mutexRecord.$1.release();
       updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 -1);
       if (updateMutexes[dataStoreKey]!.$2 == 0) {
-        logger.shout('$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
+        logger.finest('$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
         updateMutexes.remove(dataStoreKey);
       } else {
-        logger.shout('$logMsg : ${updateMutexes[dataStoreKey]!.$2} still waiting for mutex on $dataStoreKey');
+        logger.finest('$logMsg : ${updateMutexes[dataStoreKey]!.$2} still waiting for mutex on $dataStoreKey');
       }
     }
   }
