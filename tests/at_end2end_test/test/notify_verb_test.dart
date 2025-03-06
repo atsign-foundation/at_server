@@ -578,12 +578,19 @@ void main() {
       () async {
     /// NOTIFY VERB
     PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
+    var immutableFragment = '';
+    bool? expectedImmutable;
+    if (atSign1ServerVersion >= Version(3, 3, 0)) {
+      print('Will assert on immutable flag as version is >= 3.3.0');
+      immutableFragment = ':immutable:true';
+      expectedImmutable = true;
+    }
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
         ':ttln:86400000:ttr:60000:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
         ':pubKeyHash:${somePubKeyHash.hash}'
         ':hashingAlgo:${somePubKeyHash.hashingAlgo}'
-        ':immutable:true'
+        '$immutableFragment'
         ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
@@ -608,7 +615,7 @@ void main() {
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
     expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']), somePubKeyHash);
-    expect(decodedResponse['metaData']['immutable'], true);
+    expect(decodedResponse['metaData']['immutable'], expectedImmutable);
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
