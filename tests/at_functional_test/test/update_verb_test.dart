@@ -63,19 +63,19 @@ void main() async {
   test('update llookup update delete and force delete with immutable public',
       () async {
     String atKey = 'public:location-$uniqueId$firstAtSign';
-    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update llookup update delete and force delete with immutable self',
       () async {
     String atKey = 'location-$uniqueId$firstAtSign';
-    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update llookup update delete and force delete with immutable shared',
       () async {
     String atKey = '$secondAtSign:location-$uniqueId$firstAtSign';
-    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update-llookup verb with public key', () async {
