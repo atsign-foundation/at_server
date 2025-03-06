@@ -105,11 +105,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   Future<void> _handlePolAuthenticatedConnection(
       HashMap<String, String?> verbParams,
-      InboundConnectionMetadata atConnectionMetadata,
+      InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
     logger.info('Storing the notification ${verbParams[AtConstants.atKey]}');
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
-        fromAtSign: atConnectionMetadata.fromAtSign!);
+        fromAtSign: polConnectionMetadata.fromAtSign!);
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are
     // not applicable except "atMetadata.isEncrypted".
@@ -160,6 +160,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         atMetadata = await keyStore.getMeta(cachedNotificationKey);
       }
       var metadata = AtMetadataBuilder(
+              atSign: polConnectionMetadata.fromAtSign!,
               newAtMetaData: atNotificationBuilder.atMetaData!,
               existingMetaData: atMetadata)
           .build();

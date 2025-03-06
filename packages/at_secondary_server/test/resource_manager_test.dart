@@ -143,28 +143,32 @@ void main() async {
 
     testNotificationMetaData({required bool immutable}) {
       var ttln = 24 * 60 * 60 * 1000;
+      var fromAtsign = '@alice';
       var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = '@alice'
+            ..fromAtSign = fromAtsign
             ..toAtSign = '@bob'
             ..id = '1234'
             ..opType = OperationType.update
             ..messageType = MessageType.key
             ..atValue = 'Hi Bob, Alice here'
-            ..notification = '@bob:test.test@alice'
+            ..notification = '@bob:test.test$fromAtsign'
             ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
             ..ttl = ttln
-            ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
-              ..ttr = 1
-              ..ccd = true
-              ..pubKeyCS = '123'
-              ..sharedKeyEnc = 'abc'
-              ..encKeyName = 'ekn'
-              ..encAlgo = 'ea'
-              ..ivNonce = 'ivn'
-              ..skeEncKeyName = 'ske_ekn'
-              ..skeEncAlgo = 'ske_ea'
-              ..pubKeyHash = PublicKeyHash('someHash', 'someAlgo')
-              ..immutable = immutable))
+            ..atMetaData = AtMetaData.fromCommonsMetadata(
+              Metadata()
+                ..ttr = 1
+                ..ccd = true
+                ..pubKeyCS = '123'
+                ..sharedKeyEnc = 'abc'
+                ..encKeyName = 'ekn'
+                ..encAlgo = 'ea'
+                ..ivNonce = 'ivn'
+                ..skeEncKeyName = 'ske_ekn'
+                ..skeEncAlgo = 'ske_ea'
+                ..pubKeyHash = PublicKeyHash('someHash', 'someAlgo')
+                ..immutable = immutable,
+              fromAtsign,
+            ))
           .build();
 
       var notifyCommand = ResourceManager.getInstance()

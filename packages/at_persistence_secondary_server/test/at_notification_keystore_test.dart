@@ -6,9 +6,12 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
+var atSign = '@alice';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   setUp(() async => await setUpFunc(storageDir));
+  
   group('A group of notification keystore impl tests', () {
     test('test put and get', () async {
       var keyStore = AtNotificationKeystore.getInstance();
@@ -28,10 +31,10 @@ void main() async {
         ..ivNonce = 'someIvNonce'
         ..skeEncKeyName = 'someSkeEncKeyName'
         ..skeEncAlgo = 'someSkeEncAlgo';
-      var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
+      var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata, atSign);
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..id = '123'
             ..atMetaData = atMetaData)
           .build();
@@ -46,7 +49,7 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..id = '123')
           .build();
       await keyStore.put(atNotification.id, atNotification);
@@ -58,7 +61,7 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 100
             ..id = '123')
           .build();
@@ -72,7 +75,7 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 1000
             ..id = '123')
           .build();
@@ -87,19 +90,19 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification_1 = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 100
             ..id = '111')
           .build();
       var atNotification_2 = (AtNotificationBuilder()
             ..toAtSign = '@charlie'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 1000
             ..id = '222')
           .build();
       var atNotification_3 = (AtNotificationBuilder()
             ..toAtSign = '@dave'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 75
             ..id = '333')
           .build();
@@ -116,19 +119,19 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification_1 = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 3000
             ..id = '111')
           .build();
       var atNotification_2 = (AtNotificationBuilder()
             ..toAtSign = '@charlie'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 4000
             ..id = '222')
           .build();
       var atNotification_3 = (AtNotificationBuilder()
             ..toAtSign = '@dave'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..ttl = 5000
             ..id = '333')
           .build();
@@ -142,7 +145,7 @@ void main() async {
       var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
-            ..fromAtSign = '@alice'
+            ..fromAtSign = atSign
             ..id = '123')
           .build();
       var key = '${TestUtils.generateRandomString(245)}@alice';
@@ -163,7 +166,7 @@ void main() async {
 
 Future<AtNotificationKeystore> setUpFunc(storageDir) async {
   var notificationKeystoreInstance = AtNotificationKeystore.getInstance();
-  notificationKeystoreInstance.currentAtSign = '@alice';
+  notificationKeystoreInstance.currentAtSign = atSign;
   await notificationKeystoreInstance.init('$storageDir/${Uuid().v4()}');
   return notificationKeystoreInstance;
 }

@@ -353,7 +353,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       value!.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
-              atSign: persistenceManager?.atsign)
+              atSign: persistenceManager!.atsign!)
           .build();
       await persistenceManager!.getBox().put(hive_key, value);
       _updateMetadataCache(key, value.metaData);
@@ -381,7 +381,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
-              atSign: persistenceManager?.atsign)
+              atSign: persistenceManager!.atsign!)
           .build();
 
       await persistenceManager!.getBox().put(hive_key, newData);

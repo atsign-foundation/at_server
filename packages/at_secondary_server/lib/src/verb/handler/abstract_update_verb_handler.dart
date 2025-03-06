@@ -8,7 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -111,7 +111,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
 
     var existingAtMetaData = await keyStore.getMeta(atKey);
-    var cacheRefreshMetaMap = validateCacheMetadata(existingAtMetaData,
+    var cacheRefreshMetaMap = hu.validateCacheMetadata(existingAtMetaData,
         updateParams.metadata!.ttr, updateParams.metadata!.ccd);
     updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];
     updateParams.metadata!.ccd = cacheRefreshMetaMap[AtConstants.ccd];
@@ -122,13 +122,14 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
         sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
-      logger.severe('update verb but sharedBy is not current atSign');
-      atKey = 'cached:$atKey';
+      throw IllegalArgumentException(
+          'update verb but sharedBy is not current atSign');
     }
 
     _checkMaxLength(atKey);
 
-    atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
+    atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!,
+        AtSecondaryServerImpl.getInstance().currentAtSign);
 
     // Enforce the immutable feature
     if (existingAtMetaData?.immutable == true) {
@@ -176,8 +177,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
     }
     if (verbParams[AtConstants.ttr] != null) {
-      metadata.ttr =
-          AtMetadataUtil.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
+      metadata.ttr = hu.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
     }
     if (verbParams[AtConstants.ccd] != null) {
       metadata.ccd =

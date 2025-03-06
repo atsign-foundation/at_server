@@ -15,11 +15,11 @@ class AtMetadataBuilder {
 
   /// Requires an AtMetaData
   AtMetadataBuilder({
-    String? atSign,
+    required String atSign,
     required AtMetaData? newAtMetaData,
     AtMetaData? existingMetaData,
   }) {
-    atMetaData = newAtMetaData ?? AtMetaData();
+    atMetaData = newAtMetaData ?? existingMetaData ?? AtMetaData();
     // createdAt indicates the date and time of the key created.
     // For a new key, the currentDateTime is set and remains unchanged
     // on an update event.
@@ -40,34 +40,33 @@ class AtMetadataBuilder {
         ? atMetaData.version = 0
         : atMetaData.version = (existingMetaData!.version! + 1);
 
-    // Checks on existing important metadata
-    if (existingMetaData != null) {
-      atMetaData.ttl ??= existingMetaData.ttl;
-
-      atMetaData.ttb ??= existingMetaData.ttb;
-
-      atMetaData.ttr ??= existingMetaData.ttr;
-
-      atMetaData.isCascade ??= existingMetaData.isCascade;
-
-      // special handling for immutable
-      if (existingMetaData.immutable == true) {
-        atMetaData.immutable = true;
+    // Ensure that if there was existing metadata and it had immutable == true
+    // then that value is preserved regardless of what the new update is trying
+    // to do
+    // Note: this condition never occurs right now but we will leave it here
+    // for safety's sake
+    if (existingMetaData?.immutable == true) {
+      if (newAtMetaData?.immutable != true) {
+        logger.warning('Existing metadata.immutable is true,'
+            ' but new metadata.immutable is newAtMetaData?.immutable'
+            ' : will preserve immutable == true'
+            ' : logging stack trace for reference');
+        logger.warning(StackTrace.current);
       }
+      atMetaData.immutable = true;
     }
 
+    // set expiresAt based on the ttl
     if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
       setTTL(atMetaData.ttl, ttb: atMetaData.ttb);
     }
+    // set availableAt based on the ttb
     if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
       setTTB(atMetaData.ttb);
     }
-    // If TTR is -1, cache the key forever.
+    // Set refreshAt based on the TTR
     if (atMetaData.ttr != null && atMetaData.ttr! > 0 || atMetaData.ttr == -1) {
       setTTR(atMetaData.ttr);
-    }
-    if (atMetaData.isCascade != null) {
-      setCCD(atMetaData.isCascade!);
     }
   }
 
@@ -77,6 +76,8 @@ class AtMetadataBuilder {
       atMetaData.expiresAt = _getExpiresAt(
           currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttl,
           ttb: ttb);
+    } else {
+      atMetaData.expiresAt = null;
     }
   }
 
@@ -87,6 +88,8 @@ class AtMetadataBuilder {
           currentUtcTimeToMillisecondPrecision.millisecondsSinceEpoch, ttb);
       logger
           .finer('setTTB($ttb) - set availableAt to ${atMetaData.availableAt}');
+    } else {
+      atMetaData.availableAt = null;
     }
   }
 
@@ -95,11 +98,9 @@ class AtMetadataBuilder {
       atMetaData.ttr = ttr;
       atMetaData.refreshAt =
           _getRefreshAt(currentUtcTimeToMillisecondPrecision, ttr);
+    } else {
+      atMetaData.refreshAt = null;
     }
-  }
-
-  void setCCD(bool ccd) {
-    atMetaData.isCascade = ccd;
   }
 
   DateTime? _getAvailableAt(int epochNow, int ttb) {

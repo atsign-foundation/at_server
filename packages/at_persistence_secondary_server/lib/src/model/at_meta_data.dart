@@ -111,7 +111,7 @@ class AtMetaData extends HiveObject {
       ..immutable = immutable ?? false;
   }
 
-  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+  factory AtMetaData.fromCommonsMetadata(Metadata metadata, String atSign) {
     var atMetadata = AtMetaData();
     atMetadata
       ..ttl = metadata.ttl
@@ -131,7 +131,7 @@ class AtMetaData extends HiveObject {
       ..skeEncAlgo = metadata.skeEncAlgo
       ..pubKeyHash = metadata.pubKeyHash
       ..immutable = metadata.immutable;
-    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+    return AtMetadataBuilder(atSign: atSign, newAtMetaData: atMetadata).build();
   }
 
   Map toJson() {

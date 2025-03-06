@@ -515,7 +515,7 @@ void main() {
   });
 
   group('A group of negative tests around ttr and ccd', () {
-    test('ttr starting with -2', () {
+    test('ttr starting with -2', () async {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -531,12 +531,11 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
+      await expectLater(handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
-                  'Valid values for TTR are -1 and greater than or equal to 1')));
+                  'Valid values for TTR are -1 and greater than or equal to 0')));
     });
 
     test('ccd with invalid value', () {
@@ -983,12 +982,37 @@ void main() {
         await updateHandler.process(
             uvb.buildCommand().trim(), inboundConnection);
         AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
-        if (randomMd.ttr == 0) {
-          randomMd.ttr = null;
-        }
         expect(d.metaData?.toCommonsMetadata(), randomMd);
       }
     }, timeout: Timeout(Duration(minutes: 5)));
+
+    test('Test that a client can update ttl, ttb and ttr from non-zero to zero', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      var key = 'update-ttl-zero.tests@alice';
+
+      // first, create a record with ttl 12345
+      await updateHandler.process(
+        'update:ttl:12345:ttb:100:ttr:10:$key Value',
+        inboundConnection,
+      );
+      AtData ? data = await secondaryKeyStore.get(key);
+      expect (data?.metaData?.ttl, 12345);
+      expect (data?.metaData?.ttb, 100);
+      expect (data?.metaData?.ttr, 10);
+
+      // now, update the ttl via the update verb
+      await updateHandler.process(
+        'update:ttl:0:ttb:0:ttr:0:$key Value',
+        inboundConnection,
+      );
+      data = await secondaryKeyStore.get(key);
+      expect (data?.metaData?.ttl, 0);
+      expect (data?.metaData?.ttb, 0);
+      expect (data?.metaData?.ttr, 0);
+    });
 
     test('A test to verify existing metadata is retained after an update',
         () async {
@@ -1054,16 +1078,8 @@ void main() {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
@@ -1078,16 +1094,8 @@ void main() {
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);

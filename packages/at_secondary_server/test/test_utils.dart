@@ -322,8 +322,12 @@ AtMetaData createRandomAtMetaData(String owner,
     {Metadata? commonsMetadata, DateTime? refreshAt}) {
   late AtMetaData md;
 
+  if (!owner.startsWith('@')) {
+    throw IllegalArgumentException('Invalid owner atSign $owner');
+  }
+
   if (commonsMetadata != null) {
-    md = AtMetaData.fromCommonsMetadata(commonsMetadata);
+    md = AtMetaData.fromCommonsMetadata(commonsMetadata, owner);
   } else {
     md = AtMetaData();
     md.isEncrypted = createRandomNullableBoolean();
