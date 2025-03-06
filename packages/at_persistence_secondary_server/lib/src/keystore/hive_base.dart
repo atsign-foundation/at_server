@@ -35,7 +35,9 @@ mixin HiveBase<E> {
       }
     }
     if (getBox().isOpen) {
-      _logger.info('$boxName initialized successfully');
+      _logger.finer('$boxName initialized successfully');
+    } else {
+      _logger.shout('$boxName was apparently initialized, but is not open');
     }
   }
 
