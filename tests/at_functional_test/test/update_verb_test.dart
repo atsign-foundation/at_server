@@ -16,6 +16,9 @@ void main() async {
   int firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
+  String secondAtSign =
+      ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
+
   var lastValue = Random().nextInt(20);
 
   setUpAll(() async {
@@ -30,12 +33,11 @@ void main() async {
     uniqueId = Uuid().v4();
   });
 
-  test('update llookup update delete and force delete with immutable public record',
-      () async {
+  updateLookupUpdateDeleteForceDeleteImmutable(String atKey) async {
     // Create the data
     var value = 'Immutable data $lastValue';
-    var response = await firstAtSignConnection.sendRequestToServer(
-        'update:immutable:true:public:immutable-$uniqueId$firstAtSign $value');
+    var response = await firstAtSignConnection
+        .sendRequestToServer('update:immutable:true:$atKey $value');
     expect(response, contains(RegExp(r'data:d+$')));
 
     // Look it up
@@ -44,19 +46,36 @@ void main() async {
     expect(response, contains('data:$value'));
 
     // Try to update it again - should fail
-    response = await firstAtSignConnection.sendRequestToServer(
-        'update:immutable:true:public:immutable-$uniqueId$firstAtSign $value');
+    response = await firstAtSignConnection
+        .sendRequestToServer('update:immutable:true:$atKey $value');
     expect(response, contains('error:AT00032'));
 
     // Try to delete it without the "force" flag - should fail
-    response = await firstAtSignConnection
-        .sendRequestToServer('delete:public:immutable-$uniqueId$firstAtSign');
+    response = await firstAtSignConnection.sendRequestToServer('delete:$atKey');
     expect(response, contains('error:AT00032'));
 
     // Try to delete it WITH the "force" flag - should succeed
-    response = await firstAtSignConnection.sendRequestToServer(
-        'delete:force:public:immutable-$uniqueId$firstAtSign');
+    response =
+        await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
     expect(response, contains('error:AT00032'));
+  }
+
+  test('update llookup update delete and force delete with immutable public',
+      () async {
+    String atKey = 'public:location-$uniqueId$firstAtSign';
+    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+  });
+
+  test('update llookup update delete and force delete with immutable self',
+      () async {
+    String atKey = 'location-$uniqueId$firstAtSign';
+    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+  });
+
+  test('update llookup update delete and force delete with immutable shared',
+      () async {
+    String atKey = '$secondAtSign:location-$uniqueId$firstAtSign';
+    updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update-llookup verb with public key', () async {
