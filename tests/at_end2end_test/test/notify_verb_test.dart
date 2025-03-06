@@ -581,7 +581,8 @@ void main() {
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
         ':ttln:86400000:ttr:60000:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
-        ':pubKeyHash:hash:hashingAlgo:algo'
+        ':pubKeyHash:${somePubKeyHash.hash}'
+        ':hashingAlgo:${somePubKeyHash.hashingAlgo}'
         ':immutable:true'
         ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
     String response = await sh1.read();
