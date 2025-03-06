@@ -623,21 +623,19 @@ void main() {
         somePubKeyHash);
     expect(decodedResponse['metaData']['immutable'], expectedImmutable);
 
-    if (expectedImmutable == true) {
-      // Let's try to delete the cached record on the recipient side.
-      // Cached data should *always* be deletable regardless of immutable flag.
-      await sh2.writeCommand('delete:cached:$atKey');
-      response = await sh2.read();
-      expect(response, contains(RegExp(r'^data:\d+')));
+    // Let's try to delete the cached record on the recipient side.
+    // Cached data should *always* be deletable regardless of immutable flag.
+    await sh2.writeCommand('delete:cached:$atKey');
+    response = await sh2.read();
+    expect(response, contains(RegExp(r'^data:\d+')));
 
-      // And let's try to retrieve it again
-      await sh2.writeCommand('llookup:all:cached:$atKey');
-      response = await sh2.read();
-      response = response.replaceAll('error:', '');
-      decodedResponse = jsonDecode(response);
-      expect(decodedResponse['errorCode'], 'AT0015');
-      expect(decodedResponse['errorDescription'], contains('key not found'));
-    }
+    // And let's try to retrieve it again
+    await sh2.writeCommand('llookup:all:cached:$atKey');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    decodedResponse = jsonDecode(response);
+    expect(decodedResponse['errorCode'], 'AT0015');
+    expect(decodedResponse['errorDescription'], contains('key not found'));
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
