@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:test/test.dart';
 import 'package:version/version.dart';
 
@@ -576,6 +577,7 @@ void main() {
   test('notify verb for notifying a key update with shared key metadata',
       () async {
     /// NOTIFY VERB
+    PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
         ':ttln:86400000:ttr:60000:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
@@ -604,9 +606,8 @@ void main() {
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
-    expect(decodedResponse['metaData']['pubKeyHash'], 'hash');
-    expect(decodedResponse['metaData']['hashingAlgo'], 'algo');
-    expect(decodedResponse['metaData']['immutable'], 'true');
+    expect(decodedResponse['metaData']['pubKeyHash'], somePubKeyHash);
+    expect(decodedResponse['metaData']['immutable'], true);
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
