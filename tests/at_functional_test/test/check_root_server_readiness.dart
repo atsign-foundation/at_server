@@ -49,7 +49,8 @@ void main() {
         retryCount = retryCount + 1;
       }
     }
-    expect(isRootServerStarted, true, reason: 'Failed to start root server successfully');
+    expect(isRootServerStarted, true,
+        reason: 'Failed to start root server successfully');
   }, timeout: Timeout(Duration(minutes: 1)));
 }
 

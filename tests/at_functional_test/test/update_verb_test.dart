@@ -22,11 +22,41 @@ void main() async {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {
     uniqueId = Uuid().v4();
+  });
+
+  test('update llookup update delete and force delete with immutable public record',
+      () async {
+    // Create the data
+    var value = 'Immutable data $lastValue';
+    var response = await firstAtSignConnection.sendRequestToServer(
+        'update:immutable:true:public:immutable-$uniqueId$firstAtSign $value');
+    expect(response, contains(RegExp(r'data:d+$')));
+
+    // Look it up
+    response = await firstAtSignConnection
+        .sendRequestToServer('llookup:public:location-$uniqueId$firstAtSign');
+    expect(response, contains('data:$value'));
+
+    // Try to update it again - should fail
+    response = await firstAtSignConnection.sendRequestToServer(
+        'update:immutable:true:public:immutable-$uniqueId$firstAtSign $value');
+    expect(response, contains('error:AT00032'));
+
+    // Try to delete it without the "force" flag - should fail
+    response = await firstAtSignConnection
+        .sendRequestToServer('delete:public:immutable-$uniqueId$firstAtSign');
+    expect(response, contains('error:AT00032'));
+
+    // Try to delete it WITH the "force" flag - should succeed
+    response = await firstAtSignConnection.sendRequestToServer(
+        'delete:force:public:immutable-$uniqueId$firstAtSign');
+    expect(response, contains('error:AT00032'));
   });
 
   test('update-llookup verb with public key', () async {

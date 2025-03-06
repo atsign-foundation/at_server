@@ -6,7 +6,6 @@ import 'package:crypton/crypton.dart';
 import 'package:crypto/crypto.dart';
 
 class AuthenticationUtils {
-
   static String generatePKAMDigest(String privateKey, String challenge) {
     privateKey = privateKey.trim();
     var key = RSAPrivateKey.fromString(privateKey);

@@ -19,7 +19,8 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   test('config verb for adding a atsign to blocklist', () async {
@@ -27,6 +28,7 @@ void main() {
     String response = await firstAtSignConnection
         .sendRequestToServer('config:block:add:$secondAtSign');
     expect(response, contains('data:success'));
+
     ///CONFIG VERB -SHOW BLOCK LIST
     response =
         await firstAtSignConnection.sendRequestToServer('config:block:show');
@@ -38,10 +40,12 @@ void main() {
     String response = await firstAtSignConnection
         .sendRequestToServer('config:block:add:$secondAtSign');
     expect(response, contains('data:success'));
+
     /// CONFIG VERB - REMOVE FROM BLOCKLIST
     response = await firstAtSignConnection
         .sendRequestToServer('config:block:remove:$secondAtSign');
     expect(response, contains('data:success'));
+
     ///CONFIG VERB -SHOW BLOCK LIST
     response =
         await firstAtSignConnection.sendRequestToServer('config:block:show');

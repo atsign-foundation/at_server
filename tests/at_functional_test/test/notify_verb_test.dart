@@ -20,7 +20,8 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {
@@ -78,8 +79,8 @@ void main() {
     test('A test to verify notification shared to current atSign is fetched',
         () async {
       // Store notification
-      var notificationId = await firstAtSignConnection
-          .sendRequestToServer('notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
+      var notificationId = await firstAtSignConnection.sendRequestToServer(
+          'notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
       notificationId = notificationId.replaceFirst('data:', '');
       // Fetch notification using notification id
       String response = await firstAtSignConnection
@@ -161,14 +162,14 @@ void main() {
     test('A test to verify two notification to self has correct date time',
         () async {
       // Sending first notification
-      String response = await firstAtSignConnection
-          .sendRequestToServer('notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
       await (Future.delayed(Duration(milliseconds: 5)));
       var dateTimeAfterFirstNotification = DateTime.now();
       await (Future.delayed(Duration(milliseconds: 5)));
       // Sending second notification
-      String notificationId = await firstAtSignConnection
-          .sendRequestToServer('notify:$firstAtSign:about-$uniqueId.me$firstAtSign');
+      String notificationId = await firstAtSignConnection.sendRequestToServer(
+          'notify:$firstAtSign:about-$uniqueId.me$firstAtSign');
       notificationId = notificationId.replaceFirst('data:', '');
       response = await firstAtSignConnection
           .sendRequestToServer('notify:fetch:$notificationId');
