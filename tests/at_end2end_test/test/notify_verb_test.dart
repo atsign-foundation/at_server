@@ -54,7 +54,8 @@ void main() {
     try {
       var atServerVersion = Version.parse(await monitorSH.getVersion());
       if (atServerVersion < Version(3, 0, 43)) {
-        print ('\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
+        print(
+            '\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
         return;
       }
       List<String> sentNotificationIds = [];
@@ -580,8 +581,9 @@ void main() {
     PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
     var immutableFragment = '';
     bool? expectedImmutable;
-    if (atSign1ServerVersion >= Version(3, 3, 0)) {
-      print('Will assert on immutable flag as version is >= 3.3.0');
+    if (atSign1ServerVersion >= Version(3, 3, 0) &&
+        atSign2ServerVersion >= Version(3, 3, 0)) {
+      print('Will assert on immutable flag as versions are >= 3.3.0');
       immutableFragment = ':immutable:true';
       expectedImmutable = true;
     }
@@ -614,7 +616,8 @@ void main() {
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
     expect(decodedResponse['metaData']['ttr'], 60000);
-    expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']), somePubKeyHash);
+    expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']),
+        somePubKeyHash);
     expect(decodedResponse['metaData']['immutable'], expectedImmutable);
   });
 
@@ -874,7 +877,7 @@ Future<String> getNotifyStatus(
   int endTime = DateTime.now().millisecondsSinceEpoch + timeOutMillis;
   while (DateTime.now().millisecondsSinceEpoch < endTime) {
     if (!first) {
-    await Future.delayed(Duration(milliseconds: loopDelay));
+      await Future.delayed(Duration(milliseconds: loopDelay));
     }
     first = false;
 
@@ -901,11 +904,8 @@ Future<String> getNotifyStatus(
   return response;
 }
 
-Future<String> retryCommandUntilMatchOrTimeout(
-    e2e.SimpleOutboundConnection sh,
-    String command,
-    String shouldContain,
-    int timeoutMillis) async {
+Future<String> retryCommandUntilMatchOrTimeout(e2e.SimpleOutboundConnection sh,
+    String command, String shouldContain, int timeoutMillis) async {
   int loopDelay = 1000;
 
   String response = 'NO_RESPONSE';
