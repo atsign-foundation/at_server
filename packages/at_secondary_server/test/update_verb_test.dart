@@ -531,7 +531,8 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
-      await expectLater(handler.processVerb(response, verbParams, atConnection),
+      await expectLater(
+          handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
@@ -986,7 +987,8 @@ void main() {
       }
     }, timeout: Timeout(Duration(minutes: 5)));
 
-    test('Test that a client can update ttl, ttb and ttr from non-zero to zero', () async {
+    test('Test that a client can update ttl, ttb and ttr from non-zero to zero',
+        () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
       inboundConnection.metaData.isAuthenticated = true;
@@ -998,10 +1000,10 @@ void main() {
         'update:ttl:12345:ttb:100:ttr:10:$key Value',
         inboundConnection,
       );
-      AtData ? data = await secondaryKeyStore.get(key);
-      expect (data?.metaData?.ttl, 12345);
-      expect (data?.metaData?.ttb, 100);
-      expect (data?.metaData?.ttr, 10);
+      AtData? data = await secondaryKeyStore.get(key);
+      expect(data?.metaData?.ttl, 12345);
+      expect(data?.metaData?.ttb, 100);
+      expect(data?.metaData?.ttr, 10);
 
       // now, update the ttl via the update verb
       await updateHandler.process(
@@ -1009,9 +1011,9 @@ void main() {
         inboundConnection,
       );
       data = await secondaryKeyStore.get(key);
-      expect (data?.metaData?.ttl, 0);
-      expect (data?.metaData?.ttb, 0);
-      expect (data?.metaData?.ttr, 0);
+      expect(data?.metaData?.ttl, 0);
+      expect(data?.metaData?.ttb, 0);
+      expect(data?.metaData?.ttr, 0);
     });
 
     test('A test to verify existing metadata is retained after an update',

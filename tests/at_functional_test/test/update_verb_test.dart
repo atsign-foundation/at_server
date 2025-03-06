@@ -41,8 +41,8 @@ void main() async {
     expect(response, contains(RegExp(r'data:\d+')));
 
     // Look it up
-    response = await firstAtSignConnection
-        .sendRequestToServer('llookup:$atKey');
+    response =
+        await firstAtSignConnection.sendRequestToServer('llookup:$atKey');
     expect(response, contains('data:$value'));
 
     // Try to update it again - should fail
