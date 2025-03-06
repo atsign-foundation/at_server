@@ -36,8 +36,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   @override
   Future<void> processVerb(
       Response response,
-      Hash
-  Map<String, String?> verbParams,
+      HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     UpdateParams updateParams = getUpdateParams(verbParams);
 
