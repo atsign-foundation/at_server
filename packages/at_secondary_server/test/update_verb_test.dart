@@ -921,13 +921,15 @@ void main() {
       }
     });
 
-    test('Concurrent creation of the same mutable record', () async {
+    test('Concurrent updates to the same IMMUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
 
       final atKey =
           '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
-      int concurrency = 10;
       List<InboundConnection> connections = [];
       List<Future<void>> futures = [];
       for (int i = 0; i < concurrency; i++) {
@@ -947,6 +949,8 @@ void main() {
             .then((value) => successes++)
             .catchError((e, st) => failures++);
       }
+
+      // Because this is an immutable record we expect only 1 success
       expect(successes, 1);
       expect(failures, concurrency - 1);
       expect(updateHandler.updateMutexes.length, 0);
@@ -954,7 +958,50 @@ void main() {
       AtData? data = await secondaryKeyStore.get(atKey);
       expect(data, isNotNull);
       expect(data!.metaData, isNotNull);
+      // Because this is an immutable record we expect version to be `0`
       expect(data.metaData!.version, 0);
+    });
+
+    test('Concurrent updates to the same MUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process(
+            'update:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect(updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+
+      // Because this is a mutable record, every operation should succeed
+      expect(successes, concurrency);
+      expect(failures, 0);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      // Because this is a mutable record we expect version to be 9
+      // (because the version when first created is 0, not 1)
+      expect(data.metaData!.version, 9);
     });
 
     test('Create mutable record and verify correctness', () async {
