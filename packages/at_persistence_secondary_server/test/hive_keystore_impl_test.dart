@@ -86,7 +86,8 @@ void main() async {
           ..skeEncKeyName = 'someSkeEncKeyName'
           ..skeEncAlgo = 'someSkeEncAlgo'
           ..pubKeyHash = PublicKeyHash('someHashValue', 'sha512');
-        var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata, '@test_user_1');
+        var atMetaData =
+            AtMetaData.fromCommonsMetadata(commonsMetadata, '@test_user_1');
         atData.metaData = atMetaData;
         await keyStore.create(key, atData);
 

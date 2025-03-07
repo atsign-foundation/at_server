@@ -977,8 +977,7 @@ void main() {
         var c = DummyInboundConnection();
         c.metaData.isAuthenticated = true;
         connections.add(c);
-        futures.add(updateHandler.process(
-            'update:$atKey original data', c));
+        futures.add(updateHandler.process('update:$atKey original data', c));
       }
       int successes = 0;
       int failures = 0;

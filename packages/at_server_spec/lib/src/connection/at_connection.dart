@@ -29,8 +29,10 @@ abstract class AtConnectionMetaData {
   bool isListening = false;
 
   bool _isAuthenticated = false;
+
   /// Authenticated via CRAM, PKAM, APKAM
   bool get isAuthenticated => _isAuthenticated;
+
   /// Was authenticated via CRAM, PKAM, APKAM
   set isAuthenticated(bool b) {
     _isAuthenticated = b;
@@ -39,9 +41,12 @@ abstract class AtConnectionMetaData {
       _isPolAuthenticated = false;
     }
   }
+
   bool _isPolAuthenticated = false;
+
   /// Authenticated as another atSign
   bool get isPolAuthenticated => _isPolAuthenticated;
+
   /// Authenticated as another atSign
   set isPolAuthenticated(bool b) {
     _isPolAuthenticated = b;
@@ -50,6 +55,7 @@ abstract class AtConnectionMetaData {
       _isAuthenticated = false;
     }
   }
+
   bool isStream = false;
   String? streamId;
   //// if [isAuthenticated] is true, then authType is set to cram/legacy_pkam/apkam
