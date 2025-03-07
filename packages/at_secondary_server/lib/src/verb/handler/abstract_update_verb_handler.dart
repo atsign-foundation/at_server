@@ -21,6 +21,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static const int maxKeyLength = 255;
   static const int maxKeyLengthWithoutCached = 248;
 
+  /// Has to be static because both UpdateVerbHandler and UpdateMetaVerbHandler
+  /// need to use the same mutexes.
+  static final Map<String, (Mutex, int)> _updateMutexes = {};
+
+  Map<String, (Mutex, int)> get updateMutexes => _updateMutexes;
+
   AbstractUpdateVerbHandler(
     super.keyStore,
     super.statsNotificationService,
@@ -57,8 +63,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     return atKey;
   }
-
-  Map<String, (Mutex, int)> updateMutexes = {};
 
   /// - Construct an AtKey and AtData and AtMetaData from the verb params
   /// - Fetch existing record from data store
