@@ -18,8 +18,10 @@ void main() {
     setUpAll(() async {
       await firstAtSignConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
-      String authResponse = await firstAtSignConnection.authenticateConnection();
-      expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+      String authResponse =
+          await firstAtSignConnection.authenticateConnection();
+      expect(authResponse, 'data:success',
+          reason: 'Authentication failed when executing test');
     });
 
     setUp(() {
@@ -55,7 +57,8 @@ void main() {
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       //SCAN VERB
-      response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId.me');
+      response =
+          await firstAtSignConnection.sendRequestToServer('scan $uniqueId.me');
       expect(response, contains('"public:twitter-$uniqueId.me$firstAtSign"'));
     });
 

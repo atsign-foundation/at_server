@@ -242,8 +242,7 @@ void main() {
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam, enrollmentId: enrollmentId);
-      String atContactBuzzKey =
-          '$firstAtSign:123buzzkey.buzz$firstAtSign';
+      String atContactBuzzKey = '$firstAtSign:123buzzkey.buzz$firstAtSign';
       String updateResponse = await firstAtSignConnection
           .sendRequestToServer('update:$atContactBuzzKey buzzkey');
       assert((!updateResponse.contains('Invalid syntax')) &&

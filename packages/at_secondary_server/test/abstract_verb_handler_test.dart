@@ -113,6 +113,44 @@ void main() {
                   'AtKey namespace and passed namespace do not match')));
     });
   });
+
+  group('Test isAuthenticated and isPolAuthenticated mutually exclusive', () {
+    test('test initial state of authenticated flags', () {
+      var md = InboundConnectionMetadata();
+      expect(md.isAuthenticated, false);
+      expect(md.isPolAuthenticated, false);
+    });
+    test('test setting isAuthenticated', () {
+      var md = InboundConnectionMetadata();
+      md.isAuthenticated = true;
+      expect(md.isAuthenticated, true);
+      expect(md.isPolAuthenticated, false);
+      md.isAuthenticated = false;
+      expect(md.isAuthenticated, false);
+      expect(md.isPolAuthenticated, false);
+    });
+    test('test setting isPolAuthenticated', () {
+      var md = InboundConnectionMetadata();
+      md.isPolAuthenticated = true;
+      expect(md.isAuthenticated, false);
+      expect(md.isPolAuthenticated, true);
+      md.isPolAuthenticated = false;
+      expect(md.isAuthenticated, false);
+      expect(md.isPolAuthenticated, false);
+    });
+    test('test setting isPolAuthenticated and isAuthenticated', () {
+      var md = InboundConnectionMetadata();
+      md.isAuthenticated = true;
+      md.isPolAuthenticated = true;
+      expect(md.isAuthenticated, false);
+      expect(md.isPolAuthenticated, true);
+
+      md.isPolAuthenticated = true;
+      md.isAuthenticated = true;
+      expect(md.isAuthenticated, true);
+      expect(md.isPolAuthenticated, false);
+    });
+  });
 }
 
 class TestUpdateVerbHandler extends AbstractVerbHandler {

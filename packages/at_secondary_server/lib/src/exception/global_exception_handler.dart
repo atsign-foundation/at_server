@@ -76,7 +76,8 @@ class GlobalExceptionHandler {
         exception is AtConnectException ||
         exception is SocketException ||
         exception is AtTimeoutException ||
-        exception is AtThrottleLimitExceeded) {
+        exception is AtThrottleLimitExceeded ||
+        exception is IllegalStateException) {
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
     } else if (exception is InternalServerError) {

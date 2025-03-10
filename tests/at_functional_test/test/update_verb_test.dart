@@ -16,17 +16,66 @@ void main() async {
   int firstAtSignPort =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
+  String secondAtSign =
+      ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
+
   var lastValue = Random().nextInt(20);
 
   setUpAll(() async {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {
     uniqueId = Uuid().v4();
+  });
+
+  updateLookupUpdateDeleteForceDeleteImmutable(String atKey) async {
+    // Create the data
+    var value = 'Immutable data $lastValue';
+    var response = await firstAtSignConnection
+        .sendRequestToServer('update:immutable:true:$atKey $value');
+    expect(response, contains(RegExp(r'data:\d+')));
+
+    // Look it up
+    response =
+        await firstAtSignConnection.sendRequestToServer('llookup:$atKey');
+    expect(response, contains('data:$value'));
+
+    // Try to update it again - should fail
+    response = await firstAtSignConnection
+        .sendRequestToServer('update:immutable:true:$atKey $value');
+    expect(response, contains('error:{"errorCode":"AT0032",'));
+
+    // Try to delete it without the "force" flag - should fail
+    response = await firstAtSignConnection.sendRequestToServer('delete:$atKey');
+    expect(response, contains('error:{"errorCode":"AT0032",'));
+
+    // Try to delete it WITH the "force" flag - should succeed
+    response =
+        await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
+    expect(response, contains(RegExp(r'data:\d+')));
+  }
+
+  test('update llookup update delete and force delete with immutable public',
+      () async {
+    String atKey = 'public:immutable-$uniqueId$firstAtSign';
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+  });
+
+  test('update llookup update delete and force delete with immutable self',
+      () async {
+    String atKey = 'immutable-$uniqueId$firstAtSign';
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
+  });
+
+  test('update llookup update delete and force delete with immutable shared',
+      () async {
+    String atKey = '$secondAtSign:immutable-$uniqueId$firstAtSign';
+    await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
   test('update-llookup verb with public key', () async {

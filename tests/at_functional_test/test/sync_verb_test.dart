@@ -74,8 +74,10 @@ void main() {
     String namespace = '.func.test';
     String randomId = Uuid().v4();
 
-    var response = await firstAtSignConnection.sendRequestToServer(
-        'update:pubKeyHash:dummy_hash:hashingAlgo:sha512:$secondAtSign:twitter-$randomId$namespace$firstAtSign bob_tweet');
+    var response = await firstAtSignConnection.sendRequestToServer('update'
+        ':pubKeyHash:dummy_hash:hashingAlgo:sha512'
+        ':$secondAtSign:twitter-$randomId$namespace$firstAtSign'
+        ' bob_tweet');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String commitId = response.replaceAll('data:', '');

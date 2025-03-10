@@ -9,6 +9,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -178,6 +179,82 @@ void main() {
           await handler.processInternal(command, inboundConnection);
       expect(int.parse(response.data!).runtimeType, int);
       expect(response.isError, false);
+    });
+
+    test('verify other atSigns may not delete data', () async {
+      inboundConnection.metadata.isPolAuthenticated = true;
+      await expectLater(
+          handler.process('delete:phone.wavi@alice', inboundConnection),
+          throwsA(isA<UnAuthenticatedException>()));
+    });
+  });
+
+  group('Tests of immutable data', () {
+    late DeleteVerbHandler deleteHandler;
+    late UpdateVerbHandler updateHandler;
+
+    setUp(() async {
+      await verbTestsSetUp();
+
+      inboundConnection.metaData.isAuthenticated = true;
+      deleteHandler = DeleteVerbHandler(
+          secondaryKeyStore, StatsNotificationService.getInstance());
+      updateHandler = UpdateVerbHandler(secondaryKeyStore,
+          StatsNotificationService.getInstance(), notificationManager);
+    });
+
+    test('delete immutable record without force flag', () async {
+      String key = 'immutable1.wavi@alice';
+      await secondaryKeyStore.remove(key);
+      await updateHandler.process(
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await expectLater(
+        deleteHandler.process('delete:$key', inboundConnection),
+        throwsA(isA<IllegalStateException>()),
+      );
+    });
+    test('delete immutable record with force flag', () async {
+      String key = 'immutable2.wavi@alice';
+      await secondaryKeyStore.remove(key);
+      await updateHandler.process(
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record without force flag', () async {
+      String key = 'cached:@alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record with force flag', () async {
+      String key = 'cached:@alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
     });
   });
 

@@ -13,9 +13,11 @@ void main() async {
   int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
   setUp(() async {
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnectionWithListener(
+        atSign, host, port);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   test('test shouldReloadCertificates config', () async {
@@ -91,7 +93,8 @@ void main() async {
         ' paused and should be available again shortly"}');
 
     /// Immediately try to reconnect; should fail
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnectionWithListener(
+        atSign, host, port);
     command = 'info:brief';
     response = await firstAtSignConnection.sendRequestToServer(command,
         maxWaitMilliSeconds: 100);
@@ -108,7 +111,8 @@ void main() async {
     /// so let's wait for a few seconds longer, to allow for a slow VM here, and then
     /// we should be able to connect
     await Future.delayed(Duration(milliseconds: 5500));
-    await firstAtSignConnection.initiateConnectionWithListener(atSign, host, port);
+    await firstAtSignConnection.initiateConnectionWithListener(
+        atSign, host, port);
     command = 'info:brief';
     response = await firstAtSignConnection.sendRequestToServer(command,
         maxWaitMilliSeconds: 1000);

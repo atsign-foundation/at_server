@@ -1,3 +1,11 @@
+# 3.4.0
+- feat: immutable records
+  - When `immutable` is set in metadata, then the record may not
+    subsequently be changed via the `update` verb.
+  - When `immutable` is set in metadata, then the record may not be deleted
+    via the `delete` verb unless the new `force` parameter is set
+    - However, data which has been cached by the recipient is always 
+      deletable by that recipient
 # 3.3.0
 - feat: Add support for "atServer events" - starting with the 
   `AtSignPKChangedEvent`. atServer events are stored in a newly reserved 

@@ -27,7 +27,7 @@ void main() {
         _secureSocket.write('lookup:pkaminstalled$atsign\n');
         return;
       }
-      if(retryCount >= maxRetryCount){
+      if (retryCount >= maxRetryCount) {
         _secureSocket.close();
       }
       expect(response.startsWith('data:yes'), true);

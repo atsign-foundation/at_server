@@ -28,7 +28,8 @@ void main() async {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
     // Generates Unique Id for each test that will be appended to keys to prevent
     // same keys being reused.
     uniqueId = Uuid().v4().hashCode.toString();

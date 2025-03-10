@@ -20,7 +20,8 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {
@@ -39,7 +40,7 @@ void main() {
     ///SCAN VERB
     response = await firstAtSignConnection
         .sendRequestToServer('scan location-$uniqueId');
-        expect(response, contains('public:location-$uniqueId$firstAtSign'));
+    expect(response, contains('public:location-$uniqueId$firstAtSign'));
 
     ///DELETE VERB
     response = await firstAtSignConnection
@@ -92,16 +93,18 @@ void main() {
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
     // SCAN VERB in the first atsign
-    response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    response =
+        await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
     expect(response, contains('"$secondAtSign:hobby-$uniqueId$firstAtSign"'));
 
     // DELETE VERB
-    response = await firstAtSignConnection
-        .sendRequestToServer('delete:$secondAtSign:hobby-$uniqueId$firstAtSign');
+    response = await firstAtSignConnection.sendRequestToServer(
+        'delete:$secondAtSign:hobby-$uniqueId$firstAtSign');
     assert(!response.contains('data:null'));
 
     //SCAN VERB
-    response = await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
+    response =
+        await firstAtSignConnection.sendRequestToServer('scan $uniqueId');
     expect(response, isNot('"$secondAtSign:hobby-$uniqueId$firstAtSign"'));
   });
 

@@ -21,7 +21,8 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     String authResponse = await firstAtSignConnection.authenticateConnection();
-    expect(authResponse, 'data:success', reason: 'Authentication failed when executing test');
+    expect(authResponse, 'data:success',
+        reason: 'Authentication failed when executing test');
   });
 
   setUp(() {

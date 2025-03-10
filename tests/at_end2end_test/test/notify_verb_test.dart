@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:test/test.dart';
 import 'package:version/version.dart';
 
@@ -53,7 +54,8 @@ void main() {
     try {
       var atServerVersion = Version.parse(await monitorSH.getVersion());
       if (atServerVersion < Version(3, 0, 43)) {
-        print ('\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
+        print(
+            '\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
         return;
       }
       List<String> sentNotificationIds = [];
@@ -576,10 +578,25 @@ void main() {
   test('notify verb for notifying a key update with shared key metadata',
       () async {
     /// NOTIFY VERB
+    PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
+    var immutableFragment = '';
+    bool? expectedImmutable;
+    if (atSign1ServerVersion >= Version(3, 4, 0) &&
+        atSign2ServerVersion >= Version(3, 4, 0)) {
+      print('Will assert on immutable flag as versions are >= 3.4.0');
+      immutableFragment = ':immutable:true';
+      expectedImmutable = true;
+    }
+    var now = DateTime.now().millisecondsSinceEpoch;
+    String atKey = '$atSign_2:phone-$now.wavi$atSign_1';
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
-        ':ttln:86400000:ttr:60000:ccd:false'
+        ':ttln:86400000:ttl:60000:ttr:60:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
-        ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
+        ':pubKeyHash:${somePubKeyHash.hash}'
+        ':hashingAlgo:${somePubKeyHash.hashingAlgo}'
+        '$immutableFragment'
+        ':$atKey'
+        ':Some ciphertext');
     String response = await sh1.read();
     print('notify verb response : $response');
     assert(
@@ -592,16 +609,34 @@ void main() {
     print('notify status response : $response');
     expect(response, contains('data:delivered'));
 
-    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
+    await sh2.writeCommand('llookup:all:cached:$atKey');
     response = await sh2.read();
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
+    expect(decodedResponse['key'], 'cached:$atKey');
     expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], 'abc');
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
-    expect(decodedResponse['metaData']['ttr'], 60000);
+    expect(decodedResponse['metaData']['ttr'], 60);
+    expect(decodedResponse['metaData']['ttl'], 60000);
+    expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']),
+        somePubKeyHash);
+    expect(decodedResponse['metaData']['immutable'], expectedImmutable);
+
+    // Let's try to delete the cached record on the recipient side.
+    // Cached data should *always* be deletable regardless of immutable flag.
+    await sh2.writeCommand('delete:cached:$atKey');
+    response = await sh2.read();
+    expect(response, contains(RegExp(r'^data:\d+')));
+
+    // And let's try to retrieve it again
+    await sh2.writeCommand('llookup:all:cached:$atKey');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    decodedResponse = jsonDecode(response);
+    expect(decodedResponse['errorCode'], 'AT0015');
+    expect(decodedResponse['errorDescription'], contains('key not found'));
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
@@ -860,7 +895,7 @@ Future<String> getNotifyStatus(
   int endTime = DateTime.now().millisecondsSinceEpoch + timeOutMillis;
   while (DateTime.now().millisecondsSinceEpoch < endTime) {
     if (!first) {
-    await Future.delayed(Duration(milliseconds: loopDelay));
+      await Future.delayed(Duration(milliseconds: loopDelay));
     }
     first = false;
 
@@ -887,11 +922,8 @@ Future<String> getNotifyStatus(
   return response;
 }
 
-Future<String> retryCommandUntilMatchOrTimeout(
-    e2e.SimpleOutboundConnection sh,
-    String command,
-    String shouldContain,
-    int timeoutMillis) async {
+Future<String> retryCommandUntilMatchOrTimeout(e2e.SimpleOutboundConnection sh,
+    String command, String shouldContain, int timeoutMillis) async {
   int loopDelay = 1000;
 
   String response = 'NO_RESPONSE';

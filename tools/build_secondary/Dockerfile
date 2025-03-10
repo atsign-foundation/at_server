@@ -7,6 +7,8 @@ WORKDIR /app
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/secondary \
 ## -f tools/build_secondary/Dockerfile .
+COPY ./packages/at_server_spec/ ./at_server_spec
+COPY ./packages/at_persistence_spec/ ./at_persistence_spec
 COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
 COPY ./packages/at_secondary_server/ ./at_secondary_server
 RUN \

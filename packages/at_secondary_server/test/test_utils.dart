@@ -312,6 +312,8 @@ Metadata createRandomCommonsMetadata({bool noNullsPlease = false}) {
   md.ivNonce = createRandomString(5);
   md.skeEncKeyName = createRandomString(6);
   md.skeEncAlgo = createRandomString(3);
+  md.pubKeyHash = PublicKeyHash(createRandomString(6), createRandomString(5));
+  md.immutable = createRandomBoolean();
 
   return md;
 }
@@ -320,8 +322,12 @@ AtMetaData createRandomAtMetaData(String owner,
     {Metadata? commonsMetadata, DateTime? refreshAt}) {
   late AtMetaData md;
 
+  if (!owner.startsWith('@')) {
+    throw IllegalArgumentException('Invalid owner atSign $owner');
+  }
+
   if (commonsMetadata != null) {
-    md = AtMetaData.fromCommonsMetadata(commonsMetadata);
+    md = AtMetaData.fromCommonsMetadata(commonsMetadata, owner);
   } else {
     md = AtMetaData();
     md.isEncrypted = createRandomNullableBoolean();

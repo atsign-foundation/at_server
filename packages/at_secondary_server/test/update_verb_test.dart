@@ -4,6 +4,10 @@ import 'dart:io';
 
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -513,7 +517,7 @@ void main() {
   });
 
   group('A group of negative tests around ttr and ccd', () {
-    test('ttr starting with -2', () {
+    test('ttr starting with -2', () async {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
@@ -529,12 +533,12 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
+      await expectLater(
+          handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
-                  'Valid values for TTR are -1 and greater than or equal to 1')));
+                  'Valid values for TTR are -1 and greater than or equal to 0')));
     });
 
     test('ccd with invalid value', () {
@@ -768,7 +772,7 @@ void main() {
     });
 
     test('test max key length check', () async {
-      var inBoundSessionId = 'testsessionid';
+      var inBoundSessionId = 'test_session_id';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var updateVerbHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
@@ -791,6 +795,7 @@ void main() {
 
   group('update verb tests with metadata', () {
     doit() async {
+      var pubKeyHash = PublicKeyHash('hash', 'algo');
       var pubKeyCS =
           'the_checksum_of_the_public_key_used_to_encrypted_the_AES_key';
       var ske =
@@ -812,7 +817,8 @@ void main() {
             ..encAlgo = 'some_algo'
             ..ivNonce = 'some_iv'
             ..skeEncKeyName = skeEncKeyName
-            ..skeEncAlgo = skeEncAlgo));
+            ..skeEncAlgo = skeEncAlgo
+            ..pubKeyHash = pubKeyHash));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
@@ -820,6 +826,7 @@ void main() {
           ':isEncrypted:false'
           ':sharedKeyEnc:$ske'
           ':pubKeyCS:$pubKeyCS'
+          ':pubKeyHash:${pubKeyHash.hash}:hashingAlgo:${pubKeyHash.hashingAlgo}'
           ':encKeyName:some_key'
           ':encAlgo:some_algo'
           ':ivNonce:some_iv'
@@ -914,6 +921,186 @@ void main() {
       }
     });
 
+    test('Concurrent updates to the same IMMUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process(
+            'update:immutable:true:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect(updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+
+      // Because this is an immutable record we expect only 1 success
+      expect(successes, 1);
+      expect(failures, concurrency - 1);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      // Because this is an immutable record we expect version to be `0`
+      expect(data.metaData!.version, 0);
+    });
+
+    test('Concurrent updates to the same MUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process('update:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect(updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+
+      // Because this is a mutable record, every operation should succeed
+      expect(successes, concurrency);
+      expect(failures, 0);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      // Because this is a mutable record we expect version to be 9
+      // (because the version when first created is 0, not 1)
+      expect(data.metaData!.version, 9);
+    });
+
+    test('Create mutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      await updateHandler.process(
+          'update:$atKey original data', inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'original data');
+      expect(d.metaData!.version, 0);
+
+      await updateHandler.process(
+          'update:$atKey changed data', inboundConnection);
+      d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'changed data');
+    });
+
+    test('Create immutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      await updateHandler.process(
+          'update:immutable:true:$atKey original data', inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, true);
+      expect(d.data, 'original data');
+
+      await expectLater(
+          updateHandler.process(
+              'update:$atKey changed data', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+
+      UpdateMetaVerbHandler updateMetaHandler = UpdateMetaVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+
+      await expectLater(
+          updateMetaHandler.process(
+              'update:meta:$atKey:ttl:54321', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+    });
+
+    test('Create records with random metadata and verify correctness',
+        () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+      for (int i = 1; i <= 100; i++) {
+        var randomMd = createRandomCommonsMetadata();
+        randomMd.ccd =
+            AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
+        AtKey atKey =
+            AtKey.fromString('update_verb_test.$i.random_keys.wavi@alice')
+              ..metadata = randomMd;
+        var uvb = UpdateVerbBuilder()
+          ..atKey = atKey
+          ..value = 'some data';
+
+        await updateHandler.process(
+            uvb.buildCommand().trim(), inboundConnection);
+        AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+        expect(d.metaData?.toCommonsMetadata(), randomMd);
+      }
+    }, timeout: Timeout(Duration(minutes: 5)));
+
+    test('Test that a client can update ttl, ttb and ttr from non-zero to zero',
+        () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+
+      var key = 'update-ttl-zero.tests@alice';
+
+      // first, create a record with ttl 12345
+      await updateHandler.process(
+        'update:ttl:12345:ttb:100:ttr:10:$key Value',
+        inboundConnection,
+      );
+      AtData? data = await secondaryKeyStore.get(key);
+      expect(data?.metaData?.ttl, 12345);
+      expect(data?.metaData?.ttb, 100);
+      expect(data?.metaData?.ttr, 10);
+
+      // now, update the ttl via the update verb
+      await updateHandler.process(
+        'update:ttl:0:ttb:0:ttr:0:$key Value',
+        inboundConnection,
+      );
+      data = await secondaryKeyStore.get(key);
+      expect(data?.metaData?.ttl, 0);
+      expect(data?.metaData?.ttb, 0);
+      expect(data?.metaData?.ttr, 0);
+    });
+
     test('A test to verify existing metadata is retained after an update',
         () async {
       var atKey = 'email.wavi';
@@ -978,16 +1165,8 @@ void main() {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
@@ -1002,16 +1181,8 @@ void main() {
     test('sharedBy atsign same as current atsign', () async {
       var command = 'update:phone@alice +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+          secondaryKeyStore, statsNotificationService, notificationManager);
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);

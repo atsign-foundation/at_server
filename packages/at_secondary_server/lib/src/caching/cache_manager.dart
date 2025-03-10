@@ -301,9 +301,7 @@ class AtCacheManager {
     }
 
     if (!cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData,
-          time_to_refresh: atData.metaData!.ttr,
-          time_to_live: atData.metaData!.ttl);
+      await keyStore.put(cachedKeyName, atData);
       if (existingAtData == null) {
         return CacheUpdateResult(
           newEntry: true,
@@ -354,7 +352,8 @@ class AtCacheManager {
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
       if (!keyStore.isKeyExists(cachedKeyName)) {
-        await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+        atData.metaData!.ttr = -1;
+        await keyStore.put(cachedKeyName, atData);
         return CacheUpdateResult(
           newEntry: true,
           dataChanged: true,
@@ -492,7 +491,8 @@ class AtCacheManager {
     // Housekeeping (2): update the cache
     // and ensure that ttr is set to -1 (cache indefinitely)
     await keyStore.remove(cachedKeyName);
-    await keyStore.put(cachedKeyName, atData, time_to_refresh: -1);
+    atData.metaData!.ttr = -1;
+    await keyStore.put(cachedKeyName, atData);
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives
