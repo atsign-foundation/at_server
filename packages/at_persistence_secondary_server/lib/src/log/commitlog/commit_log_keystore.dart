@@ -536,7 +536,7 @@ class CommitLogCache {
     if (existingCommitId != null &&
         commitEntry.commitId != null &&
         existingCommitId > commitEntry.commitId!) {
-      _logger.shout(
+      _logger.info(
           'Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
       return;
     }

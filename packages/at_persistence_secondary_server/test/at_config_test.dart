@@ -9,6 +9,7 @@ import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
+late HivePersistenceManager persistenceManager;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
     setUp(() async => await setUpFunc(storageDir));
@@ -99,8 +100,9 @@ void main() async {
       ];
       var blockedConfig = Configuration(blockedAtsigns);
       AtData atData = AtData()..data = jsonEncode(blockedConfig);
-      atData = HiveKeyStoreHelper.getInstance()
-          .prepareDataForKeystoreOperation(atData);
+      atData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
+          atData,
+          atSign: persistenceManager.atsign!);
       await box.put(atConfig.oldConfigKey, atData);
       // fetch the data that has been put into the keystore using the new config key
       var blockList = await atConfig.getBlockList();
@@ -120,8 +122,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
+  persistenceManager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
   // commented this line for coverage test
   // persistenceManager.scheduleKeyExpireTask(1);
