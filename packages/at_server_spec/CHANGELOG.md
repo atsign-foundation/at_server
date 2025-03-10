@@ -1,5 +1,7 @@
+## 5.0.3
+- feat: defensive code: ensure `isAuthenticated` and `isPolAuthenticated` 
+  may not both be true at the same time
 ## 5.0.2
-
 - build[deps]: Upgraded the following package:
   - at_commons to v5.0.0
 ## 5.0.1
