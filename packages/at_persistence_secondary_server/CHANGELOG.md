@@ -1,6 +1,7 @@
 ## 4.0.0
-- refactor: Simplified keystore spec and implementations, simplified 
-  HiveKeyStore and removed some bug vectors
+- refactor: Take up new major version 3.0.0 of at_persistence_spec, update and 
+  simplify the HiveKeyStore implementation accordingly
+- feat: (non-breaking) Add persistence support for the new `immutable` flag
 ## 3.1.0
 - feat: commit log changes for sync skipDeletesUntil feature
 - build[deps]: Upgraded the following package:

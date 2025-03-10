@@ -22,7 +22,7 @@ dependencies:
   crypto: ^3.0.3
   uuid: ^3.0.6
   at_utf7: ^1.0.0
-  at_commons: ^5.1.0
+  at_commons: ^5.3.0
   at_utils: ^3.0.19
   at_persistence_spec: ^3.0.0
   meta: ^1.8.0
