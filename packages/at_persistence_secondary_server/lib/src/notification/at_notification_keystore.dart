@@ -42,8 +42,8 @@ class AtNotificationKeystore
       if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
       }
-      if (!Hive.isAdapterRegistered(PublicKeyHashAdapater().typeId)) {
-        Hive.registerAdapter(PublicKeyHashAdapater());
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapter());
       }
       _register = true;
     }
@@ -70,23 +70,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<dynamic> put(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+  Future<dynamic> put(key, value, {bool skipCommit = false}) async {
     if (key.length > maxKeyLengthWithoutCached) {
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
@@ -96,23 +80,7 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<dynamic> create(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+  Future<dynamic> create(key, value, {bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 

@@ -145,7 +145,7 @@ void main() async {
         ..pubKeyCS = 'xyz'
         ..sharedKeyEnc = 'abc'
         ..isBinary = false;
-      final atMetaData = AtMetaData.fromCommonsMetadata(metaData);
+      final atMetaData = AtMetaData.fromCommonsMetadata(metaData, atSign);
       expect(atMetaData.ttl, 1000);
       expect(atMetaData.isCascade, true);
       expect(atMetaData.pubKeyCS, 'xyz');
@@ -173,7 +173,7 @@ void main() async {
         ..skeEncKeyName = 'someSkeEncKeyName'
         ..skeEncAlgo = 'someSkeEncAlgo';
       final AtMetaData startAtMetaData =
-          AtMetaData.fromCommonsMetadata(startMetaData);
+          AtMetaData.fromCommonsMetadata(startMetaData, atSign);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);
@@ -201,7 +201,7 @@ void main() async {
         ..skeEncKeyName = null
         ..skeEncAlgo = null;
       final AtMetaData startAtMetaData =
-          AtMetaData.fromCommonsMetadata(startMetaData);
+          AtMetaData.fromCommonsMetadata(startMetaData, atSign);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);
@@ -229,7 +229,7 @@ void main() async {
         ..skeEncKeyName = null
         ..skeEncAlgo = null;
       final AtMetaData startAtMetaData =
-          AtMetaData.fromCommonsMetadata(startMetaData);
+          AtMetaData.fromCommonsMetadata(startMetaData, atSign);
       final Map startMap = startAtMetaData.toJson();
       final String startJson = jsonEncode(startMap);
       final Map endMap = jsonDecode(startJson);

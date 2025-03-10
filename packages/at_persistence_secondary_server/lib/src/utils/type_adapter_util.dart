@@ -11,5 +11,5 @@ final Map typeAdapterMap = {
   'OperationTypeAdapter': 8,
   'NotificationPriorityAdapter': 9,
   'MessageTypeAdapter': 10,
-  'PublicKeyHashAdapater': 11
+  'PublicKeyHashAdapter': 11
 };

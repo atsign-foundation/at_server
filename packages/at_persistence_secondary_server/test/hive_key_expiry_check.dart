@@ -26,7 +26,8 @@ void main() async {
     test('fetch expired key returns throws exception', () async {
       String key = '123.g1t1$atsign';
       var atData = AtData()..data = 'abc';
-      await keyStore?.put(key, atData, time_to_live: 5);
+      atData.metaData = AtMetaData()..ttl = 5;
+      await keyStore?.put(key, atData);
       var atDataResponse = await keyStore?.get(key);
       assert(atDataResponse!.data == 'abc');
       await keyStore!.deleteExpiredKeys(skipCommit: true);
@@ -40,7 +41,8 @@ void main() async {
         () async {
       String key = 'no_commit_log_test.g1t2$atsign';
       var atData = AtData()..data = 'randomDataString';
-      await keyStore?.put(key, atData, time_to_live: 2);
+      atData.metaData = AtMetaData()..ttl = 2;
+      await keyStore?.put(key, atData);
       expect((await keyStore?.get(key))?.data, atData.data);
 
       await keyStore?.deleteExpiredKeys(skipCommit: true);
@@ -62,7 +64,8 @@ void main() async {
       // insert key 1 that expires in 100ms
       String key1 = 'no_commit_1.g1t3$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      await keyStore?.put(key1, atData, time_to_live: 2);
+      atData.metaData = AtMetaData()..ttl = 2;
+      await keyStore?.put(key1, atData);
 
       // insert key2 and manually delete the key
       String key2 = 'no_commit_2.g1t3$atsign';
@@ -92,7 +95,8 @@ void main() async {
       // insert key 1 that expires in 10ms
       String key1 = 'expired_key1.g1t4$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      await keyStore!.put(key1, atData, time_to_live: 3);
+      atData.metaData = AtMetaData()..ttl = 3;
+      await keyStore!.put(key1, atData);
 
       // insert key2 and manually delete the key
       String key2 = 'delete_key1.g1t4$atsign';
@@ -146,11 +150,12 @@ void main() async {
     test('ensure expired keys deletion entry is added to commitLog', () async {
       String key = 'commit_test.g2t1$atsign';
       var atData = AtData()..data = 'randomDataString';
-      await keyStore!.put(key, atData, time_to_live: 2000);
+      atData.metaData = AtMetaData()..ttl = 500;
+      await keyStore!.put(key, atData);
       // ensure key is inserted
       expect((await keyStore!.get(key))!.data, atData.data);
 
-      await Future.delayed(Duration(seconds: 4));
+      await Future.delayed(Duration(seconds: 1));
       await keyStore!.deleteExpiredKeys();
       // ensure that the key is expired
       expect(
@@ -166,7 +171,8 @@ void main() async {
       // insert key 1 that expires in 100ms
       String key1 = 'no_commit_3.g2t2$atsign';
       var atData = AtData()..data = 'randomDataString1';
-      await keyStore!.put(key1, atData, time_to_live: 100);
+      atData.metaData = AtMetaData()..ttl = 100;
+      await keyStore!.put(key1, atData);
       await Future.delayed(Duration(seconds: 1));
       await keyStore!.deleteExpiredKeys();
       // ensure that the key is expired

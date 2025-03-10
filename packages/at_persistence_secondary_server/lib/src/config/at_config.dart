@@ -133,8 +133,11 @@ class AtConfig {
     var newData = AtData();
     newData.data = jsonEncode(config);
 
-    newData = HiveKeyStoreHelper.getInstance()
-        .prepareDataForKeystoreOperation(newData, existingAtData: existingData);
+    newData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
+      newData,
+      existingAtData: existingData,
+      atSign: persistenceManager.atsign!,
+    );
 
     logger.finest('Storing the config key:$configKey | Value: $newData');
     await persistenceManager.getBox().put(configKey, newData);
@@ -168,7 +171,8 @@ class AtConfig {
           AtData newAtData = AtData()..data = existingData.data;
           HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
               newAtData,
-              existingAtData: existingData);
+              existingAtData: existingData,
+              atSign: persistenceManager.atsign!);
           // store the existing data with the new key
           await persistenceManager.getBox().put(configKey, newAtData);
           logger.info('Successfully migrated configKey data to new key format');

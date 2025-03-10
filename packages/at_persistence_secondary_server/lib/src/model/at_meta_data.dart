@@ -80,6 +80,9 @@ class AtMetaData extends HiveObject {
   @HiveField(24)
   PublicKeyHash? pubKeyHash;
 
+  @HiveField(25)
+  bool? immutable;
+
   @override
   String toString() {
     return toJson().toString();
@@ -104,10 +107,11 @@ class AtMetaData extends HiveObject {
       ..ivNonce = ivNonce
       ..skeEncKeyName = skeEncKeyName
       ..skeEncAlgo = skeEncAlgo
-      ..pubKeyHash = pubKeyHash;
+      ..pubKeyHash = pubKeyHash
+      ..immutable = immutable ?? false;
   }
 
-  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+  factory AtMetaData.fromCommonsMetadata(Metadata metadata, String atSign) {
     var atMetadata = AtMetaData();
     atMetadata
       ..ttl = metadata.ttl
@@ -125,8 +129,9 @@ class AtMetaData extends HiveObject {
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo
-      ..pubKeyHash = metadata.pubKeyHash;
-    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+      ..pubKeyHash = metadata.pubKeyHash
+      ..immutable = metadata.immutable;
+    return AtMetadataBuilder(atSign: atSign, newAtMetaData: atMetadata).build();
   }
 
   Map toJson() {
@@ -157,6 +162,7 @@ class AtMetaData extends HiveObject {
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
     map[AtConstants.sharedWithPublicKeyHash] = pubKeyHash?.toJson();
+    map[AtConstants.immutable] = immutable;
     return map;
   }
 
@@ -213,6 +219,7 @@ class AtMetaData extends HiveObject {
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
     pubKeyHash =
         PublicKeyHash.fromJson(json[AtConstants.sharedWithPublicKeyHash]);
+    immutable = json[AtConstants.immutable];
 
     return this;
   }
@@ -245,7 +252,9 @@ class AtMetaData extends HiveObject {
           encAlgo == other.encAlgo &&
           ivNonce == other.ivNonce &&
           skeEncKeyName == other.skeEncKeyName &&
-          skeEncAlgo == other.skeEncAlgo;
+          skeEncAlgo == other.skeEncAlgo &&
+          pubKeyHash == other.pubKeyHash &&
+          immutable == other.immutable;
 
   @override
   int get hashCode =>
@@ -272,7 +281,9 @@ class AtMetaData extends HiveObject {
       encAlgo.hashCode ^
       ivNonce.hashCode ^
       skeEncKeyName.hashCode ^
-      skeEncAlgo.hashCode;
+      skeEncAlgo.hashCode ^
+      pubKeyHash.hashCode ^
+      immutable.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
@@ -310,13 +321,14 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
       ..skeEncAlgo = fields[23]
-      ..pubKeyHash = fields[24];
+      ..pubKeyHash = fields[24]
+      ..immutable = fields[25];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(25)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -366,14 +378,16 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(23)
       ..write(obj.skeEncAlgo)
       ..writeByte(24)
-      ..write(obj.pubKeyHash);
+      ..write(obj.pubKeyHash)
+      ..writeByte(25)
+      ..write(obj.immutable);
   }
 }
 
 @HiveType(typeId: 11)
-class PublicKeyHashAdapater extends TypeAdapter<PublicKeyHash> {
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
   @override
-  final int typeId = typeAdapterMap['PublicKeyHashAdapater'];
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
 
   @override
   PublicKeyHash read(BinaryReader reader) {
