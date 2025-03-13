@@ -1,3 +1,6 @@
+# 3.4.1
+- fix: potential bugs handling atSigns which end in `data`
+
 # 3.4.0
 - feat: immutable records
   - When `immutable` is set in metadata, then the record may not
