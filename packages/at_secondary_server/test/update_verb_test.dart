@@ -568,7 +568,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -615,7 +615,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -692,7 +692,7 @@ void main() {
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
