@@ -147,7 +147,7 @@ class OutboundClient {
     doing = 'checkRemotePublicKey removing "data:" from the response';
     try {
       if (remoteResponse.startsWith('data:')) {
-        remoteResponse = remoteResponse.replaceFirst('data:', '');
+        remoteResponse = remoteResponse.replaceFirst(RegExp('^data:'), '');
       }
       doing =
           'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';

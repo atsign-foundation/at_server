@@ -107,12 +107,12 @@ class PolVerbHandler extends AbstractVerbHandler {
       // fetch the challenge from the other secondary
       signedChallenge =
           await (_outboundClient?.lookUp(lookUpKey, handshake: false));
-      signedChallenge = signedChallenge?.replaceFirst('data:', '');
+      signedChallenge = signedChallenge?.replaceFirst(RegExp('^data:'), '');
 
       // look for the public key on the other secondary
       var plookupCommand = 'signing_publickey$fromAtSign';
       fromPublicKey = await (_outboundClient?.plookUp(plookupCommand));
-      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
+      fromPublicKey = fromPublicKey?.replaceFirst(RegExp('^data:'), '');
 
       // Getting stored secret from this secondary server
       var secret = await keyStore.get('public:$sessionID$fromAtSign');
