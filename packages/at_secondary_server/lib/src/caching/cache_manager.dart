@@ -153,7 +153,7 @@ class AtCacheManager {
 
     // OutboundMessageListener will throw exceptions upon any 'error:' responses, malformed response, or timeouts
     // So we only have to worry about 'data:' response here
-    remoteResponse = remoteResponse!.replaceAll('data:', '');
+    remoteResponse = remoteResponse!.replaceFirst(RegExp('^data:'), '');
     if (remoteResponse == 'null') {
       if (maintainCache) {
         logger.info(
