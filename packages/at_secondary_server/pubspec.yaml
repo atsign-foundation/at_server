@@ -9,7 +9,7 @@ environment:
   sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-  args: 2.6.0
+  args: 2.7.0
   uuid: 3.0.7
   convert: 3.1.2
   cron: 0.5.1
