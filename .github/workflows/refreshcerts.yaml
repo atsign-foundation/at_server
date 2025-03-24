@@ -35,7 +35,7 @@ jobs:
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
       # Install Python Libraries and run Python ACME script
       - name: Install uv
-        uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
+        uses: astral-sh/setup-uv@22695119d769bdb6f7032ad67b9bca0ef8c4a174 # v5.4.0
       - name: Install Python Libraries, run create_cert script then copy certs to right place
         run: |-
           chmod -R 777 secondaries-scripts
