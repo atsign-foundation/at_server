@@ -12,30 +12,50 @@ RUN \
   dart pub get ; \
   dart pub update ; \
   dart compile exe bin/main.dart -o root ; \
-  cd /app/tools/at_activate ; \
+  cd /app/packages/at_persistence_secondary_server ; \
   dart pub get ; \
   dart pub update ; \
-  dart compile exe bin/at_activate -o at_activate
+  cd /app/packages/at_secondary_server ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/main.dart -o secondary; \
+  cd /app/tools/build_ephemeral_environment/at_activate ; \
+  dart pub get ; \
+  dart pub update ; \
+  dart compile exe bin/at_activate.dart -o at_activate
 
 FROM debian:stable-20250317-slim@sha256:70b337e820bf51d399fa5bfa96a0066fbf22f3aa2c3307e2401b91e2207ac3c3
 # was debian:stable-20221114-slim
 USER root
 
-COPY ./tools/build_virtual_environment/ve_base/contents /
+COPY ./tools/build_ephemeral_environment/ve_base/contents /
 
 RUN chmod 777 /tmp && \
     mkdir -p /atsign/logs && \
     mkdir -p /apps/logs/ && \
     apt-get update && apt-get upgrade -y && \
-    apt-get install -y -o Dpkg::Options::=--force-confdef git supervisor \
+    apt-get install -y -o Dpkg::Options::=--force-confdef git supervisor xxd \
      apt-transport-https unzip wget gnupg2 redis-server && \
     groupadd --system atsign && \
-    useradd --system --gid atsign --shell /bin/bash --home /apps atsign && \
-    /tmp/setup/create_demo_accounts.sh
+    useradd --system --gid atsign --shell /bin/bash --home /apps atsign 
+    # && \
+    #/tmp/setup/create_demo_accounts.sh
 
 COPY --from=buildimage --chown=atsign:atsign \
   /app/packages/at_root_server/root /atsign/root/
 COPY --from=buildimage --chown=atsign:atsign \
-  /app/tools/build_virtual_environment/at_activate/at_activate \
+  /app/tools/build_ephemeral_environment/at_activate/at_activate \
   /usr/local/bin/
+
+
+  # Secondary binary and pubspec.yaml from first stage
+COPY --from=buildimage --chown=atsign:atsign \
+/app/packages/at_secondary_server/secondary /atsign/secondary/
+COPY --from=buildimage --chown=atsign:atsign \
+/app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
+
+EXPOSE 64 6379 9001
+
+# Run supervisor configuration file on container startup
+#CMD ["supervisord", "-n"]
   
