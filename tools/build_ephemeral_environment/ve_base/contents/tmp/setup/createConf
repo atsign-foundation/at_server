@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 #
 if [[ $# -eq 0 || $# -gt 3 ]] ; then
     echo 'Usage create <@sign> <port>'
