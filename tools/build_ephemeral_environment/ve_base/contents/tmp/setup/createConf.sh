@@ -1,11 +1,14 @@
 #!/bin/bash
 #
-if [[ $# -eq 0 || $# -gt 3 ]] ; then
-    echo 'Usage create <@sign> <port>'
+if [[ $# -eq 0 || $# -gt 1 ]] ; then
+    echo 'Usage create <Filename listing atSigns to create>'
     exit 0
 fi
-export env ATSIGN=$1
-export env PORT=$2
+
+export PORT="25000"
+for ATSIGN in $(cat $1)
+do
+
 export env CRAM=$(head -c 32 /dev/urandom | xxd -p -c 32)
 
 echo $ATSIGN
@@ -24,3 +27,5 @@ echo $CRAM > /atsign/secondary/${ATSIGN}/CRAM
 #
 #Add records to redis
 printf "set ${ATSIGN} vip.ve.atsign.zone:${PORT}\r\n" >> /tmp/records
+((PORT++))
+done
