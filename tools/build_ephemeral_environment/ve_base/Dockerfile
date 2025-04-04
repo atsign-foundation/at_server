@@ -57,5 +57,5 @@ COPY --from=buildimage --chown=atsign:atsign \
 EXPOSE 64 6379 9001
 
 # Run supervisor configuration file on container startup
-#CMD ["supervisord", "-n"]
+CMD ["/tmp/startup.sh"]
   
