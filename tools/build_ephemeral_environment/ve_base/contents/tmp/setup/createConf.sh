@@ -9,9 +9,11 @@ fi
 #Use incoming Enviroment variables if set
 if [ -n "${DNS_FQDN+1}" ]; then
   echo "\$DNS_FQDN is set to $DNS_FQDN"
+  sed -i 's/DNS_FQDN/'$DNS_FQDN'/g' /atsign/secondary/@base/config/config.yaml
 else
   echo "\$DNS_FQDN is not set, setting to default"
   DNS_FQDN="vip.ve.atsign.zone"
+  sed -i 's/DNS_FQN/'$DNS_FQDN'/g' /atsign/secondary/@base/config/config.yaml
   echo "\$DNS_FQDN is set to $DNS_FQDN"
 fi
 
@@ -34,9 +36,9 @@ printf "$ATSIGN		$CRAM\n" >> /tmp/CRAM_Keys
 
 cp  TEMPLATE.conf /etc/supervisor/conf.d/${FIRST_PORT}_${ATSIGN}.conf
 mkdir /atsign/secondary/${ATSIGN}
-ln -s /atsign/secondary/base/certs /atsign/secondary/${ATSIGN}/certs
-ln -s /atsign/secondary/base/config /atsign/secondary/${ATSIGN}/config
-# ln -s /atsign/secondary/pubspec.yaml /atsign/secondary/${ATSIGN}/pubspec.yaml
+ln -s /atsign/secondary/@base/certs /atsign/secondary/${ATSIGN}/certs
+ln -s /atsign/secondary/@base/config /atsign/secondary/${ATSIGN}/config
+
 sed -i 's/ATSIGN/'$ATSIGN'/g' /etc/supervisor/conf.d/${FIRST_PORT}_${ATSIGN}.conf
 sed -i 's/CRAM/'$CRAM'/g' /etc/supervisor/conf.d/${FIRST_PORT}_${ATSIGN}.conf
 sed -i 's/PORT/'$FIRST_PORT'/g' /etc/supervisor/conf.d/${FIRST_PORT}_${ATSIGN}.conf
