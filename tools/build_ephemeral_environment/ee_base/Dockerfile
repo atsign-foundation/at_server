@@ -28,7 +28,7 @@ FROM debian:stable-20250317-slim@sha256:70b337e820bf51d399fa5bfa96a0066fbf22f3aa
 # was debian:stable-20221114-slim
 USER root
 
-COPY ./tools/build_ephemeral_environment/ve_base/contents /
+COPY ./tools/build_ephemeral_environment/ee_base/contents /
 
 RUN chmod 777 /tmp && \
     mkdir -p /atsign/logs && \
@@ -54,7 +54,7 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
 /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
-EXPOSE 64 6379 9001
+# EXPOSE 64 6379 9001
 
 # Run supervisor configuration file on container startup
 CMD ["/tmp/startup.sh"]
