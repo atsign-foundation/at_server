@@ -5,7 +5,7 @@ WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/vebase \
-## -f tools/build_virtual_environment/ve_base/Dockerfile .
+## -f tools/build_virtual_environment/ee_base/Dockerfile .
 COPY . .
 RUN \
   cd /app/packages/at_root_server ; \
