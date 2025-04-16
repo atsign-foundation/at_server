@@ -35,8 +35,6 @@ import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
-import 'pseudo_server_socket.dart';
-
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
