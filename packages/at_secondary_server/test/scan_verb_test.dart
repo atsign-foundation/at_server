@@ -11,6 +11,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
+import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -120,10 +121,12 @@ void main() {
   group('A group of mock tests to verify scan verb on authenticated connection',
       () {
     late ScanVerbHandler scanVerbHandler;
+    late LocalLookupVerbHandler llookupVH;
     setUp(() async {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      llookupVH = LocalLookupVerbHandler(secondaryKeyStore);
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -206,6 +209,53 @@ void main() {
       List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponse.length, 0);
     });
+
+    /// Set up an enrollment with limited access
+    /// Create an __atserver event
+    /// Verify that scan on this enrollment will return the __atserver event
+    test('Test that __atserver events are returned by scan', () async {
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'my_app',
+        'deviceName': 'my_device',
+        'namespaces': {'my_app': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .put(enrollmentId, AtData()..data = jsonEncode(enrollJson));
+
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final event = AtSignPKChangedEvent(bob);
+      // store the event for retrieval by clients
+      int nowMicros = DateTime.now().microsecondsSinceEpoch;
+      String keyName = '$nowMicros.events'
+          '.${AtConstants.atServerReservedNamespace}'
+          '@${alice.withoutAt()}';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(event.toJson()));
+
+      await llookupVH.process('llookup:$keyName', inboundConnection);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
+          .split('\n')[0]
+          .replaceAll('data:', '');
+      final fetchedEvent = AtSignPKChangedEvent.fromJson(
+          jsonDecode(inboundConnection.lastWrittenData!));
+      expect(fetchedEvent.toJson(), event.toJson());
+
+      await scanVerbHandler.process('scan __atserver', inboundConnection);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
+          .split('\n')[0]
+          .replaceAll('data:', '');
+      List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(scanResponse.length, 1);
+    });
+
     tearDown(() async {
       await verbTestsTearDown();
     });

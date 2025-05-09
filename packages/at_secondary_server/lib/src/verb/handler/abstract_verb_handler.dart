@@ -366,7 +366,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is NotifyFetch ||
             verb is NotifyStatus ||
             verb is NotifyList ||
-            verb is Monitor) &&
+            verb is Monitor ||
+            verb is Scan) &&
         (access == 'r' || access == 'rw');
   }
 
