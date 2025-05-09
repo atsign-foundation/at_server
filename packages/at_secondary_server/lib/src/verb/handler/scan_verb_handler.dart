@@ -223,12 +223,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         localKeysList.remove(key);
         continue;
       }
-      // Extract namespace from the key.
-      String namespaceFromTheKey = key.toString().substring(
-          (key.toString().lastIndexOf('.') + 1),
-          key.toString().lastIndexOf('@'));
-      if (!enrollNamespaces.containsKey(namespaceFromTheKey) ||
-          namespaceFromTheKey == enrollManageNamespace) {
+
+      bool mayRead = await super.isAuthorized(atConnectionMetadata, atKey: key);
+      if (!mayRead) {
         localKeysList.remove(key);
         continue;
       }
