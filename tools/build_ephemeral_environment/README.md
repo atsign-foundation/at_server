@@ -57,5 +57,5 @@ This would create the five atSigns instead of the defaults, for example
 
  Logs of each process/atSign are visible and can be restarted if required.
 
-A copy of the CRAM values for each atSign can be found in `/tmp/CRAM_keys` if the docker logs are lost.
+A copy of the CRAM values for each atSign can be found inside the container in the file `/tmp/CRAM_keys` if the docker logs are lost.
 
