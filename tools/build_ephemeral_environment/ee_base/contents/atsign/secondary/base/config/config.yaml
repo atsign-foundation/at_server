@@ -5,7 +5,7 @@ root_server:
   # The port to connect to root server
   port: 64
   # The url to connect to root server
-  url: vip.ve.atsign.zone
+  url: DNS_FQDN
 
 # The @Protocol application log configurations
 log:
