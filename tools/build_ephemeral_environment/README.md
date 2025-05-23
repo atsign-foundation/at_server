@@ -16,7 +16,7 @@ This will start the container with default certificates that are provided in the
 Pulling this all togther an example command looks like this.
 
 ```
-docker run  -it -e DNS_FQDN="rainbow.crushware.com" -v /tmp/rainbow/certs:/atsign/root/certs -v /tmp/rainbow/certs:/atsign/secondary/base/certs  -e FIRST_PORT=2500 -p 64:64 -p 6379:6379 -p 127.0.0.1:9001:9001 -p 2500-2600:2500-2600 -d cconstab/emphemeral 
+docker run  -it -e DNS_FQDN="rainbow.crushware.com" -v /tmp/rainbow/certs:/atsign/root/certs -v /tmp/rainbow/certs:/atsign/secondary/base/certs  -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 -p 2500-2600:2500-2600 -d cconstab/emphemeral 
 ```
 
 The CRAM values will be printed out in the log file of the container and they can be used to create atKeys via at_activate for example.
@@ -25,7 +25,7 @@ The CRAM values will be printed out in the log file of the container and they ca
 at_activate onboard -a @bravo  -c 4df10914d207e8d70ec6d21801c4621b2e5f08bc783b8c6b182df34e3ba6c8ca   -r rainbow.crushware.com -v
 ```
 
-Once the atKeys have been created Atsign applications can be used as normal but with the additional arhument of the new root server for example.
+Once the atKeys have been created Atsign applications can be used as normal but with the additional argument of the new root server for example.
 
 ```
  sshnp --root-domain rainbow.crushware.com -f @alpha -t @bravo -d test -r @zulu
@@ -46,7 +46,7 @@ five
 This would create the five atSigns instead of the defaults, for example
 
 ```
- docker run  -it -e DNS_FQDN="rainbow.crushware.com" -v /tmp/rainbow/certs:/atsign/root/certs -v /tmp/rainbow/certs:/atsign/secondary/base/certs -v/tmp/atsigns:/tmp/setup/atsigns  -e FIRST_PORT=2500 -p 64:64 -p 6379:6379 -p 127.0.0.1:9001:9001 -p 2500-2600:2500-2600 -d cconstab/emphemeral 
+ docker run  -it -e DNS_FQDN="rainbow.crushware.com" -v /tmp/rainbow/certs:/atsign/root/certs -v /tmp/rainbow/certs:/atsign/secondary/base/certs -v/tmp/atsigns:/tmp/setup/atsigns  -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 -p 2500-2600:2500-2600 -d cconstab/emphemeral 
  ```
 
  # Monitoring and administration of the running container
