@@ -456,7 +456,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       otpAtData ??= await keyStore.get(otpKey);
     } on KeyNotFoundException {
-      logger.finer('OTP NOT found in KeyStore');
       return false;
     }
 

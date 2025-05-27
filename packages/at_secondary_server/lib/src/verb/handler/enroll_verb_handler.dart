@@ -283,9 +283,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await AtSecondaryServerImpl.getInstance()
         .enrollmentManager
         .put(newEnrollmentId, enrollData);
-    // Remove the OTP from keystore to prevent reuse.
-    await keyStore.remove(
-        'private:${enrollParams.otp?.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}');
+    // The OTP must be removed from the keystore to prevent reuse.
+    // This originally was done here but was then moved to the isPasscodeValid
+    // function. The OTP removal code here is thus obsolete and removed.
   }
 
   /// Handles enrollment approve, deny and revoke requests.
