@@ -18,6 +18,10 @@ import 'package:at_utils/at_logger.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
+const String activeEnrollmentsNamespace = 'a.__e';
+const String revokedEnrollmentsNamespace = 'r.__e';
+const String deletedEnrollmentsNamespace = 'd.__e';
+
 abstract class AbstractVerbHandler implements VerbHandler {
   final SecondaryKeyStore keyStore;
 
@@ -159,6 +163,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
+  static String enrollmentReservedNamespace(String enrollmentId) {
+    return '$enrollmentId.$activeEnrollmentsNamespace';
+  }
+
   /// Verifies whether the current connection has permission to
   /// modify, delete, or retrieve the data in a given namespace.
   ///
@@ -230,11 +238,21 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // should be available for read by all clients. The initial driver for
     // creating this reserved namespace was that we needed a place to
     // store information about "another atSign's public key changed" events.
+    //
+    // Unit tests to assert this are in scan_verb_test.dart
     if (!enrollDataStoreValue.namespaces
         .containsKey(AtConstants.atServerReservedNamespace)) {
       enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] =
           'r';
     }
+
+    // All enrollments should have rw access to a namespace which is unique
+    // to their enrollment. Other enrollments should not have access, except
+    // to public data, or if the enrollment has "*:rw"
+    //
+    // Unit tests to assert this are in update_verb_test.dart
+    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(
+        inboundConnectionMetadata.enrollmentId!)] = 'rw';
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
@@ -1305,6 +1306,130 @@ void main() {
     late String enrollmentId;
     setUp(() async {
       await verbTestsSetUp();
+    });
+
+    test('Test that an enrollment can update its reserved namespace', () async {
+      // Set up the enrollment
+      enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      // set up the connection
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      // Execute an update against the enrollmentReservedNamespace
+      String updateCommand =
+          'update:$alice:some_key.${AbstractVerbHandler.enrollmentReservedNamespace(enrollmentId)}$alice some value';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
+
+    test(
+        'Test that an enrollment may not update another enrollment reserved namespace',
+        () async {
+      // Set up the enrollment
+      enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      // set up the connection
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      String otherEnrollmentId = Uuid().v4();
+      if (otherEnrollmentId == enrollmentId) {
+        throw 'This should be ~impossible';
+      }
+
+      String key =
+          '$alice:some_key.${AbstractVerbHandler.enrollmentReservedNamespace(otherEnrollmentId)}$alice';
+      // Execute an update against the enrollmentReservedNamespace
+      String updateCommand = 'update:$key some value';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      final expectedExceptionMessage = 'Connection'
+          ' with enrollment ID $enrollmentId'
+          ' is not authorized to update key: $key';
+      await expectLater(
+          updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message == expectedExceptionMessage)));
+    });
+
+    test(
+        'Test that anyone may look up a public key in an enrollment reserved namespace',
+        () async {
+      // Set up the enrollment
+      enrollmentId = Uuid().v4();
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+
+      // set up the connection
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      // create the data
+      String key =
+          'something_public.${AbstractVerbHandler.enrollmentReservedNamespace(enrollmentId)}$alice';
+      // Execute an update against the enrollmentReservedNamespace
+      String updateCommand = 'update:public:$key some public value';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore, statsNotificationService, notificationManager);
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+
+      // now look it up via an unauthenticated connection
+      inboundConnection = DummyInboundConnection();
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
+          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      await lookupVerbHandler.processVerb(response,
+          getVerbParam(VerbSyntax.lookup, 'lookup:$key'), inboundConnection);
+      expect(response.data, 'some public value');
     });
 
     test('A test to verify update verb is allowed if key is a reserved key',
