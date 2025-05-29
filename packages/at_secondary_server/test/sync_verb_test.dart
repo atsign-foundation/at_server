@@ -150,8 +150,10 @@ void main() {
       verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
 
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_alpha@alice', AtData()..data='ALPHA');
-      await secondaryKeyStore.put('test_key2_beta@alice', AtData()..data='BETA');
+      await secondaryKeyStore.put(
+          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta@alice', AtData()..data = 'BETA');
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() > 0);
 
@@ -174,8 +176,10 @@ void main() {
       List<KeyStoreEntry> syncResponse = [];
 
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_alpha@alice', AtData()..data='ALPHA');
-      await secondaryKeyStore.put('test_key2_beta@alice', AtData()..data='BETA');
+      await secondaryKeyStore.put(
+          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta@alice', AtData()..data = 'BETA');
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -226,10 +230,13 @@ void main() {
       verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
 
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_alpha@alice', AtData()..data='ALPHA');
-      await secondaryKeyStore.put('test_key2_beta@alice', AtData()..data='BETA');
-      await secondaryKeyStore.put('abcd@alice', AtData()..data='ABCD');
-      await secondaryKeyStore.put('another_random_key@alice', AtData()..data='RANDOM');
+      await secondaryKeyStore.put(
+          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta@alice', AtData()..data = 'BETA');
+      await secondaryKeyStore.put('abcd@alice', AtData()..data = 'ABCD');
+      await secondaryKeyStore.put(
+          'another_random_key@alice', AtData()..data = 'RANDOM');
 
       // ensure commitLog is not empty
       var commitLogLength = atCommitLog.entriesCount();
@@ -267,8 +274,8 @@ void main() {
         () async {
       verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_1@alice', AtData()..data='ONE');
-      await secondaryKeyStore.put('test_key_2@alice', AtData()..data='TWO');
+      await secondaryKeyStore.put('test_key_1@alice', AtData()..data = 'ONE');
+      await secondaryKeyStore.put('test_key_2@alice', AtData()..data = 'TWO');
 
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() == 2);

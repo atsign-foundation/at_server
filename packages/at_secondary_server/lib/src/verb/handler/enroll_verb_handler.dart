@@ -333,7 +333,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
       // Therefore, when control comes here, enrollmentId will not be null.
-      enrollDataStoreValue = await enMgr.getEnrollment(enrollParams.enrollmentId!);
+      enrollDataStoreValue =
+          await enMgr.getEnrollment(enrollParams.enrollmentId!);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       enrollStatus = EnrollmentStatus.expired;

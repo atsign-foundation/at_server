@@ -158,8 +158,9 @@ class StatsVerbHandler extends AbstractVerbHandler {
           null) {
         enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
                 .enrollmentManager
-                .getEnrollment((atConnection.metaData as InboundConnectionMetadata)
-                    .enrollmentId!))
+                .getEnrollment(
+                    (atConnection.metaData as InboundConnectionMetadata)
+                        .enrollmentId!))
             .namespaces
             .keys
             .toList();

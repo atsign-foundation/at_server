@@ -110,7 +110,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         connectionMetadata,
         atKey: commitEntryIterator.current.key!,
       ))) {
-        logger.shout ('${connectionMetadata.enrollmentId} not authorized to fetch ${commitEntryIterator.current.key}');
         continue;
       }
       // String? keyNamespace = parsedAtKey.namespace;
@@ -130,14 +129,14 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue
         if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
-          logger.shout(
+          logger.finer(
               'prepareResponse | ${commitEntryIterator.current.key} does not exist in the keystore. Skipping.');
           continue;
         }
 
         AtData? atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
-          logger.shout('atData is null for ${commitEntryIterator.current.key}');
+          logger.info('atData is null for ${commitEntryIterator.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;
