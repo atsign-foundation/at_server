@@ -482,65 +482,46 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<String> _fetchEnrollmentRequests(
       EnrollmentManager enMgr, AtConnection atConnection, String currentAtSign,
       {EnrollParams? enrollVerbParams}) async {
-    Map<String, Map<String, dynamic>> enrollmentRequestsMap = {};
-    String? enrollApprovalId =
+    String? currentEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    List<String> enrollmentKeysList = keyStore.getKeys(
-        regex: EnrollmentConstants.enrollmentsRegex) as List<String>;
-    logger.shout('\n\t${enrollmentKeysList.join('\n\t')}');
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
-    if (enrollApprovalId == null || enrollApprovalId.isEmpty) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
-          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
+    if (currentEnrollmentId == null || currentEnrollmentId.isEmpty) {
+      final enrollmentRequestsMap = await enMgr.fetchEnrollments(
+        await enMgr.getAllEnrollmentKeys(),
+        enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
+      );
       return jsonEncode(enrollmentRequestsMap);
     }
+
     // If connection is authenticated via APKAM, then enrollApprovalId is populated,
     // check if the enrollment has access to __manage namespace.
     // If enrollApprovalId has access to __manage namespace, return all the enrollments,
     // Else return only the specific enrollment.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.get(enrollApprovalId);
+        await enMgr.get(currentEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      await _fetchAllEnrollments(enrollmentKeysList, enrollmentRequestsMap,
-          enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter);
+      final enrollmentRequestsMap = await enMgr.fetchEnrollments(
+        await enMgr.getAllEnrollmentKeys(),
+        enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
+      );
+      return jsonEncode(enrollmentRequestsMap);
     } else {
+      final enrollmentRequestsMap = {};
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
-        String enrollmentKey = enMgr.buildEnrollmentKey(enrollApprovalId);
+        String enrollmentKey = enMgr.buildEnrollmentKey(currentEnrollmentId);
         enrollmentRequestsMap[enrollmentKey] = {
           'appName': enrollDataStoreValue.appName,
           'deviceName': enrollDataStoreValue.deviceName,
           'namespace': enrollDataStoreValue.namespaces,
           'encryptedAPKAMSymmetricKey':
               enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-          'status': enrollDataStoreValue.approval?.state
+          'status': enrollDataStoreValue.approval?.state,
         };
       }
-    }
-    return jsonEncode(enrollmentRequestsMap);
-  }
-
-  Future<void> _fetchAllEnrollments(List<String> enrollmentKeysList,
-      Map<String, Map<String, dynamic>> enrollmentRequestsMap,
-      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
-    enrollmentStatusFilter ??= EnrollmentStatus.values;
-    for (var enrollmentKey in enrollmentKeysList) {
-      EnrollDataStoreValue enrollDataStoreValue =
-          await getEnrollDataStoreValue(enrollmentKey);
-      EnrollmentStatus enrollmentStatus =
-          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
-      if (enrollmentStatusFilter.contains(enrollmentStatus)) {
-        enrollmentRequestsMap[enrollmentKey] = {
-          'appName': enrollDataStoreValue.appName,
-          'deviceName': enrollDataStoreValue.deviceName,
-          'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-          'status': enrollDataStoreValue.approval?.state
-        };
-      }
+      return jsonEncode(enrollmentRequestsMap);
     }
   }
 

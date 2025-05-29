@@ -117,9 +117,9 @@ void main() {
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String enrollmentKey =
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       var enrollmentValue =
-          await enrollVerbHandler.getEnrollDataStoreValue(enrollmentKey);
+          await EnrollmentManager(secondaryKeyStore).getEnrollDataStoreValue(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
     });
@@ -269,7 +269,7 @@ void main() {
           response, verbParams, inboundConnection);
       Map<String, dynamic> enrollListResponse = jsonDecode(response.data!);
       var responseTest = enrollListResponse[
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice'];
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice'];
       print(responseTest);
       expect(responseTest['appName'], 'buzz');
       expect(responseTest['deviceName'], 'mydevice');
@@ -278,7 +278,7 @@ void main() {
           'default_apkam_symmetric_key');
       expect(
           enrollListResponse.containsKey(
-              '$enrollmentIdOne.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice'),
+              '$enrollmentIdOne.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice'),
           false);
     });
 
@@ -313,7 +313,7 @@ void main() {
       for (int i = 0; i < 10; i++) {
         String enrollmentId = Uuid().v4();
         String enrollmentKey =
-            '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+            '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
         enrollValue.approval = EnrollApproval(approvalStatuses[i]);
         enrollmentData[enrollmentKey] = enrollValue;
 
@@ -767,7 +767,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
       String enrollmentKey =
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       // Verify TTL is added to the enrollment
       AtData? enrollmentData = await secondaryKeyStore.get(enrollmentKey);
       expect(enrollmentData!.metaData!.expiresAt, isNotNull);
@@ -807,7 +807,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'approved');
       // Verify TTL is not set
       AtData? enrollmentData = await secondaryKeyStore.get(
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice');
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice');
       expect(enrollmentData!.metaData!.expiresAt, null);
       expect(enrollmentData.metaData!.ttl, null);
     });
@@ -832,7 +832,7 @@ void main() {
         ..namespaces = {'__manage': 'rw', 'wavi': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       await secondaryKeyStore.put(
-          '$enrollmentIdWithManageNamespace.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          '$enrollmentIdWithManageNamespace.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
           AtData()..data = jsonEncode(enrollDataStoreValue.toJson()));
       // Fetch OTP
       String totpCommand = 'otp:get';
@@ -1061,7 +1061,7 @@ void main() {
         ..namespaces = {'__manage': 'rw', 'wavi': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       await secondaryKeyStore.put(
-          '$enrollmentIdWithManageNamespace.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice',
+          '$enrollmentIdWithManageNamespace.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
           AtData()..data = jsonEncode(enrollDataStoreValue.toJson()));
       // Fetch OTP
       String totpCommand = 'otp:get';
@@ -1219,7 +1219,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'pending');
       // Assert the enrollment expiry is set to default value.
       AtData? enrollmentAtData = await secondaryKeyStore.get(
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice');
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice');
       expect(
           enrollmentAtData?.metaData?.ttl,
           Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours)
@@ -1237,7 +1237,7 @@ void main() {
       expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
 
       enrollmentAtData = await secondaryKeyStore.get(
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice');
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice');
       expect(enrollmentAtData?.metaData?.ttl, 1000);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -1740,7 +1740,7 @@ void main() {
         'A test to verify that the authorization check throws exception when the client is not authorized to __manage namespace',
         () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {'wavi': 'rw'}
@@ -1770,7 +1770,7 @@ void main() {
         'A test to verify that the authorization check returns true when the client is PKAM authentication and enrollment id is null',
         () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {EnrollmentConstants.allNamespaces: 'rw'};
@@ -1789,7 +1789,7 @@ void main() {
 
     test('A test to verify namespace hierarchies on enrolling side', () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
@@ -1822,7 +1822,7 @@ void main() {
 
     test('A test to verify namespace hierarchies on approving side', () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {'data.my_app': 'rw', '__manage': 'rw', 'buzz': 'rw'}
@@ -1869,7 +1869,7 @@ void main() {
     test('A test to verify update verb cannot update the enrollment key',
         () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
@@ -1885,7 +1885,7 @@ void main() {
 
       expect(
           () async => await updateVerbHandler.process(
-              'update:123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice 1234',
+              'update:123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice 1234',
               inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
@@ -1897,7 +1897,7 @@ void main() {
         'A test to verify delete verb cannot delete the enrollment key (using delete verb)',
         () async {
       String key =
-          '123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
         ..namespaces = {'my_app': 'rw', '__manage': 'rw', 'buzz': 'r'}
@@ -1913,7 +1913,7 @@ void main() {
 
       expect(
           () async => await deleteVerbHandler.process(
-              'delete:123.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice',
+              'delete:123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice',
               inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
@@ -1934,9 +1934,9 @@ void main() {
     test('Validate behaviour of deleting denied enrollment', () async {
       String dummyEnrollId = '2134567809009';
       String enrollmentKey =
-          '$dummyEnrollId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$dummyEnrollId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummy-key')
         ..namespaces = {'test_namespace': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.denied.name);
       AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
@@ -1960,9 +1960,9 @@ void main() {
     test('Validate behaviour of deleting revoked enrollment', () async {
       String dummyEnrollId = '34534253436';
       String enrollmentKey =
-          '$dummyEnrollId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$dummyEnrollId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'dummy-sId', 'dummy-app', 'dummy-device', 'dummmy-key')
+          'dummy-sId', 'dummy-app', 'dummy-device', 'dummy-key')
         ..namespaces = {'test_namespace': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
       AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
@@ -1988,9 +1988,9 @@ void main() {
         () async {
       String dummyEnrollId = '39458346583465';
       String enrollmentKey =
-          '$dummyEnrollId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$dummyEnrollId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'dummy-sId-1', 'dummy-app-1', 'dummy-device-1', 'dummmy-key-1')
+          'dummy-sId-1', 'dummy-app-1', 'dummy-device-1', 'dummy-key-1')
         ..namespaces = {'test_namespace': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.denied.name);
       AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
@@ -2018,9 +2018,9 @@ void main() {
         () async {
       String dummyEnrollId = '4750345034850983';
       String enrollmentKey =
-          '$dummyEnrollId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$dummyEnrollId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'dummy-sId-11', 'dummy-app-11', 'dummy-device-11', 'dummmy-key-11')
+          'dummy-sId-11', 'dummy-app-11', 'dummy-device-11', 'dummy-key-11')
         ..namespaces = {'test_namespace': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
       AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);
@@ -2047,9 +2047,9 @@ void main() {
         () async {
       String dummyEnrollId = '345345345141';
       String enrollmentKey =
-          '$dummyEnrollId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$dummyEnrollId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
-          'dummy-sId-2', 'dummy-app-2', 'dummy-device-2', 'dummmy-key-2')
+          'dummy-sId-2', 'dummy-app-2', 'dummy-device-2', 'dummy-key-2')
         ..namespaces = {'test_namespace-2': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       AtData enrollAtData = AtData()..data = jsonEncode(enrollDataStoreValue);

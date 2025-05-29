@@ -220,7 +220,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       String enrollmentKey =
-          '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}$alice';
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy_session_id', 'dummy-app', 'dummy-device', 'dummy-apkam-key')
         ..namespaces = {EnrollmentConstants.enrollManageNamespace: 'rw'}

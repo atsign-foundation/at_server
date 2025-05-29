@@ -144,25 +144,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  /// Fetch for an enrollment key in the keystore.
-  /// If key is available returns [EnrollDataStoreValue],
-  /// else throws [KeyNotFoundException]
-  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
-      String enrollmentKey) async {
-    try {
-      AtData enrollData = await keyStore.get(enrollmentKey);
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-      if (!SecondaryUtil.isActiveKey(enrollData)) {
-        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
-      }
-      return enrollDataStoreValue;
-    } on KeyNotFoundException {
-      logger.severe('$enrollmentKey does not exist in the keystore');
-      rethrow;
-    }
-  }
-
   static String enrollmentReservedNamespace(String enrollmentId) {
     return '$enrollmentId.$activeEnrollmentsNamespace';
   }

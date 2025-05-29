@@ -995,7 +995,7 @@ void main() {
             ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
         var enrollmentId = Uuid().v4();
         String enrollmentKey =
-            '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}@alice';
+            '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}@alice';
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
@@ -1038,7 +1038,7 @@ void main() {
             ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
         var enrollmentId = Uuid().v4();
         String enrollmentKey =
-            '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}@alice';
+            '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}@alice';
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',

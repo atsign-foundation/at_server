@@ -63,7 +63,7 @@ class EnrollmentManager {
   /// Returns:
   ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enrollmentId) {
-    return '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    return '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
   }
 
   /// Stores the enrollment data associated with the given [enrollmentId].
@@ -94,6 +94,55 @@ class EnrollmentManager {
     await _keyStore.remove(enrollmentKey, skipCommit: true);
   }
 
+  Future<List<String>> getAllEnrollmentKeys() async {
+    return _keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex)
+        as List<String>;
+  }
+
+  /// Fetch for an enrollment key in the keystore.
+  /// If key is available returns [EnrollDataStoreValue],
+  /// else throws [KeyNotFoundException]
+  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
+    String enrollmentKey,
+  ) async {
+    try {
+      AtData enrollData = await _keyStore.get(enrollmentKey);
+      EnrollDataStoreValue enrollDataStoreValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+      if (!SecondaryUtil.isActiveKey(enrollData)) {
+        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
+      }
+      return enrollDataStoreValue;
+    } on KeyNotFoundException {
+      logger.severe('$enrollmentKey does not exist in the keystore');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, Map<String, dynamic>>> fetchEnrollments(
+      List<String> enrollmentKeysList,
+      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+    Map<String, Map<String, dynamic>> enrollments = {};
+    enrollmentStatusFilter ??= EnrollmentStatus.values;
+    for (var enrollmentKey in enrollmentKeysList) {
+      EnrollDataStoreValue enrollDataStoreValue =
+          await getEnrollDataStoreValue(enrollmentKey);
+      EnrollmentStatus enrollmentStatus =
+          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
+      if (enrollmentStatusFilter.contains(enrollmentStatus)) {
+        enrollments[enrollmentKey] = {
+          'appName': enrollDataStoreValue.appName,
+          'deviceName': enrollDataStoreValue.deviceName,
+          'namespace': enrollDataStoreValue.namespaces,
+          'encryptedAPKAMSymmetricKey':
+              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
+          'status': enrollDataStoreValue.approval?.state
+        };
+      }
+    }
+    return enrollments;
+  }
+
   /// Delete expired enrollments to keep the datastore clean.
   /// Called upon server startup and periodically thereafter.
   Future<List<EnrollDataStoreValue>> deleteAllExpiredEnrollments() async {
@@ -107,9 +156,9 @@ class EnrollmentManager {
     return [];
   }
 
-  // TODO Move code here from EnrollVerbHandler re deleting an enrollment
-  // TODO When an enrollment is revoked, move stuff from .a to .r
-  // TODO Unrevoke: move stuff from .r to .a
-  // TODO Delete: move stuff from .a and/or .r to .d
-  // TODO Whenever an expired enrollment is encountered, delete it immediately
+// TODO Move code here from EnrollVerbHandler re deleting an enrollment
+// TODO When an enrollment is revoked, move stuff from .a to .r
+// TODO Unrevoke: move stuff from .r to .a
+// TODO Delete: move stuff from .a and/or .r to .d
+// TODO Whenever an expired enrollment is encountered, delete it immediately
 }
