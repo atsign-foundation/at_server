@@ -270,7 +270,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
     // Prevents update, delete or any other operations on the enrollment key
-    if (authorizedNamespace.$1 == enrollManageNamespace) {
+    if (authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
       return (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor)
           ? (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw')
           : false;
@@ -330,8 +330,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     // If enrolledDataStore value contains *, it means at is authorised for all namespaces
     if (authorisedNamespace.isEmpty &&
-        enrollDataStoreValue.namespaces.containsKey(allNamespaces)) {
-      authorisedNamespace = allNamespaces;
+        enrollDataStoreValue.namespaces
+            .containsKey(EnrollmentConstants.allNamespaces)) {
+      authorisedNamespace = EnrollmentConstants.allNamespaces;
     }
     access = enrollDataStoreValue.namespaces[authorisedNamespace];
     return (authorisedNamespace, access);
@@ -349,7 +350,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // an enrollment request. If enrollmentId does not have access to "__manage" access, then
     // cannot perform enrollment operations.
     if (operation.isNotEmpty &&
-        enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace) ==
+        enrollDataStoreValue.namespaces
+                .containsKey(EnrollmentConstants.enrollManageNamespace) ==
             false) {
       logger.warning(
           'Failed to $operation  the request. The enrollment does not have access to "__manage" namespace');

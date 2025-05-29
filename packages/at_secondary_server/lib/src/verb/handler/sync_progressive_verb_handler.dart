@@ -104,8 +104,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       String? keyNamespace = parsedAtKey.namespace;
       if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
           enrolledNamespaces.isNotEmpty &&
-          (!enrolledNamespaces.containsKey(allNamespaces) &&
-              !enrolledNamespaces.containsKey(enrollManageNamespace) &&
+          (!enrolledNamespaces.containsKey(EnrollmentConstants.allNamespaces) &&
+              !enrolledNamespaces
+                  .containsKey(EnrollmentConstants.enrollManageNamespace) &&
               !enrolledNamespaces.containsKey(keyNamespace))) {
         continue;
       }
@@ -122,7 +123,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           continue;
         }
 
-        var atData = await keyStore.get(commitEntryIterator.current.key);
+        AtData? atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
           logger.info('atData is null for ${commitEntryIterator.current.key}');
           continue;
@@ -158,9 +159,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Map _populateMetadata(value) {
+  Map _populateMetadata(AtData value) {
     var metaDataMap = <String, dynamic>{};
-    AtMetaData? metaData = value?.metaData;
+    AtMetaData? metaData = value.metaData;
     if (metaData == null) {
       return metaDataMap;
     }

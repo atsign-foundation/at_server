@@ -51,8 +51,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
         throw AtEnrollmentException(
             'Enrollment Id $enrollIdFromMetadata is not approved. current state: ${enrollDataStoreValue.approval?.state}');
       }
-      hasManageAccess =
-          enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
+      hasManageAccess = enrollDataStoreValue
+              .namespaces[EnrollmentConstants.enrollManageNamespace] ==
+          'rw';
     } on KeyNotFoundException {
       logger.severe(
           'Enrollment details not found for the enrollmentId: ${connectionMetadata.enrollmentId}');
@@ -144,9 +145,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
     final keyMap = {
       'private':
-          '$enrollIdFromMetadata.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
+          '$enrollIdFromMetadata.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
       'self':
-          '$enrollIdFromMetadata.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
+          '$enrollIdFromMetadata.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
     };
 
     final keyString = keyMap[keyVisibility];

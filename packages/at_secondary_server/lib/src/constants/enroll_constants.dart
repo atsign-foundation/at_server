@@ -1,5 +1,8 @@
-const String enrollManageNamespace = '__manage';
-const String newEnrollmentKeyPattern = 'new.enrollments';
-const String pkamNamespace = '__pkams';
-const String globalNamespace = '__global';
-const String allNamespaces = '*';
+class EnrollmentConstants {
+  static const String enrollManageNamespace = '__manage';
+  static const String enrollmentsRegex =
+      '\\.new\\.enrollments\\.${EnrollmentConstants.enrollManageNamespace}@';
+  static const String pkamNamespace = '__pkams';
+  static const String globalNamespace = '__global';
+  static const String allNamespaces = '*';
+}

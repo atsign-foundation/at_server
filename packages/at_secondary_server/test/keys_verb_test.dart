@@ -316,9 +316,9 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var enrollkeyName = '$enrollId.new.enrollments.__manage@alice';
+      var enrollKeyName = '$enrollId.new.enrollments.__manage@alice';
       await secondaryKeyStore.put(
-          enrollkeyName, AtData()..data = jsonEncode(enrollJson));
+          enrollKeyName, AtData()..data = jsonEncode(enrollJson));
 
       var keysCommand =
           'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId testPublicKeyValue';
@@ -326,7 +326,7 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(secondaryKeyStore.isKeyExists(enrollkeyName), true);
+      expect(secondaryKeyStore.isKeyExists(enrollKeyName), true);
       expect(
           secondaryKeyStore.isKeyExists(
               'public:encryption_$enrollId.__public_keys.__global@alice'),
@@ -673,7 +673,7 @@ void main() {
       var valueJson = {};
       valueJson['value'] = encryptedSelfEncryptionKey;
       await secondaryKeyStore.put(
-          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace@alice',
+          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}@alice',
           AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:self';
@@ -681,7 +681,7 @@ void main() {
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
       expect(keysList[0],
-          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace@alice');
+          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}@alice');
     });
 
     test('keys verb invalid syntax - invalid operation', () {
@@ -736,7 +736,7 @@ void main() {
       var valueJson = {};
       valueJson['value'] = encryptedDefaultEncryptionPrivateKey;
       await secondaryKeyStore.put(
-          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace@alice',
+          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}@alice',
           AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:private';
@@ -744,7 +744,7 @@ void main() {
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
       expect(keysList[0],
-          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace@alice');
+          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}@alice');
     });
 
     test('keys:put verb without auth', () {

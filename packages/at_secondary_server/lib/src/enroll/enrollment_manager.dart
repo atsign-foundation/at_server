@@ -63,7 +63,7 @@ class EnrollmentManager {
   /// Returns:
   ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enrollmentId) {
-    return '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    return '$enrollmentId.${EnrollmentConstants.enrollmentsRegex}.${EnrollmentConstants.enrollManageNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
   }
 
   /// Stores the enrollment data associated with the given [enrollmentId].
@@ -93,4 +93,23 @@ class EnrollmentManager {
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
     await _keyStore.remove(enrollmentKey, skipCommit: true);
   }
+
+  /// Delete expired enrollments to keep the datastore clean.
+  /// Called upon server startup and periodically thereafter.
+  Future<List<EnrollDataStoreValue>> deleteAllExpiredEnrollments() async {
+    // TODO move the list stuff to a list method in this class, and use it here
+    return [];
+  }
+
+  /// iterate all enrollments, remove key which leaks appName and deviceName
+  /// `public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$currentAtSign`
+  Future<List<String>> deleteLegacyApkamPublicKeys() async {
+    return [];
+  }
+
+  // TODO Move code here from EnrollVerbHandler re deleting an enrollment
+  // TODO When an enrollment is revoked, move stuff from .a to .r
+  // TODO Unrevoke: move stuff from .r to .a
+  // TODO Delete: move stuff from .a and/or .r to .d
+  // TODO Whenever an expired enrollment is encountered, delete it immediately
 }

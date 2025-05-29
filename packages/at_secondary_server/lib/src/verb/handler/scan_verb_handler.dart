@@ -197,7 +197,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       return [];
     }
     // If enrollment namespace contains ".*" return all keys.
-    if (enrollNamespaces.containsKey(allNamespaces)) {
+    if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       return localKeysList;
     }
     // Return only keys whose namespace is authorized.
