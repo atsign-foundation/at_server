@@ -99,7 +99,16 @@ class EnrollmentManager {
         as List<String>;
   }
 
-  /// Fetch for an enrollment key in the keystore.
+  /// Fetch an enrollment by enrollment ID
+  /// - Constructs key using [buildEnrollmentKey]
+  /// - Calls [getEnrollDataStoreValue]
+  Future<EnrollDataStoreValue> getEnrollDataStoreValueById(
+    String enrollmentId,
+  ) async {
+    return getEnrollDataStoreValue(buildEnrollmentKey(enrollmentId));
+  }
+
+  /// Fetch an enrollment key from the keystore.
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
   Future<EnrollDataStoreValue> getEnrollDataStoreValue(
@@ -120,8 +129,9 @@ class EnrollmentManager {
   }
 
   Future<Map<String, Map<String, dynamic>>> fetchEnrollments(
-      List<String> enrollmentKeysList,
-      {List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+      {List<String>? enrollmentKeysList,
+      List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+    enrollmentKeysList ??= await getAllEnrollmentKeys();
     Map<String, Map<String, dynamic>> enrollments = {};
     enrollmentStatusFilter ??= EnrollmentStatus.values;
     for (var enrollmentKey in enrollmentKeysList) {

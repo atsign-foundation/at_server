@@ -488,7 +488,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Return all the enrollments.
     if (currentEnrollmentId == null || currentEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.fetchEnrollments(
-        await enMgr.getAllEnrollmentKeys(),
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
@@ -503,7 +502,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       final enrollmentRequestsMap = await enMgr.fetchEnrollments(
-        await enMgr.getAllEnrollmentKeys(),
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);

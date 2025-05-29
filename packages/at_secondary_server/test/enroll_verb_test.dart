@@ -118,8 +118,8 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String enrollmentKey =
           '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
-      var enrollmentValue =
-          await EnrollmentManager(secondaryKeyStore).getEnrollDataStoreValue(enrollmentKey);
+      var enrollmentValue = await EnrollmentManager(secondaryKeyStore)
+          .getEnrollDataStoreValue(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
     });
