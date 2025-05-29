@@ -408,7 +408,7 @@ void main() {
     test('ttl starting with -1', () {
       var command = 'UpDaTe:ttl:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -425,7 +425,7 @@ void main() {
     test('ttb starting with -1', () {
       var command = 'UpDaTe:ttb:-1:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -521,7 +521,7 @@ void main() {
     test('ttr starting with -2', () async {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -562,7 +562,7 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
@@ -588,7 +588,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent('atSign', () => '@alice');
+      updateVerbParams.putIfAbsent('atSign', () => alice);
       updateVerbParams.putIfAbsent('atKey', () => 'location');
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       await updateVerbHandler.processVerb(
@@ -596,7 +596,7 @@ void main() {
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent('atSign', () => '@alice');
+      localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
@@ -609,7 +609,7 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
@@ -639,7 +639,7 @@ void main() {
       int ttl = 50; // in milliseconds
       int ttb = 50; // in milliseconds
 
-      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
       updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
       updateVerbParams.putIfAbsent(AtConstants.ttl, () => ttl.toString());
       updateVerbParams.putIfAbsent(AtConstants.ttb, () => ttb.toString());
@@ -652,7 +652,7 @@ void main() {
       var localLookUpResponseBeforeTtb = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseBeforeTtb, localLookVerbParam, atConnection);
@@ -662,7 +662,7 @@ void main() {
       //LLOOKUP Verb - After TTB
       await Future.delayed(Duration(milliseconds: ttb));
       var localLookUpResponseAfterTtb = Response();
-      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtb, localLookVerbParam, atConnection);
@@ -672,7 +672,7 @@ void main() {
       //LLOOKUP Verb - After TTL
       await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponseAfterTtl = Response();
-      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtl, localLookVerbParam, atConnection);
@@ -686,7 +686,7 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
@@ -712,7 +712,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
       updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
       updateVerbParams.putIfAbsent(AtConstants.ttb, () => '60000');
       updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
@@ -722,21 +722,21 @@ void main() {
       var localLookUpResponse = Response();
       var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, null);
       //Reset TTB
       updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
       updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
       updateVerbParams.putIfAbsent(AtConstants.ttb, () => '0');
       updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - After TTB
-      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => '@alice');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
@@ -780,7 +780,7 @@ void main() {
       atConnection.metaData.isAuthenticated = true;
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent('atSign', () => '@alice');
+      updateVerbParams.putIfAbsent('atSign', () => alice);
       var key = createRandomString(250);
       updateVerbParams.putIfAbsent('atKey', () => key);
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
@@ -790,7 +790,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'key length ${key.length + '@alice'.length} is greater than max allowed ${AbstractUpdateVerbHandler.maxKeyLengthWithoutCached} chars')));
+                  'key length ${key.length + alice.length} is greater than max allowed ${AbstractUpdateVerbHandler.maxKeyLengthWithoutCached} chars')));
     });
   });
 

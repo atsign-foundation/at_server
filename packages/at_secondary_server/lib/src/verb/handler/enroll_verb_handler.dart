@@ -783,22 +783,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
     }
 
-    await enMgr.remove(enrollParams.enrollmentId!);
-
-    // Delete the APKAM Public key
-    var apkamPublicKeyInKeyStore =
-        'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$atSign';
-    await keyStore.remove(apkamPublicKeyInKeyStore, skipCommit: true);
-
-    // Delete private encryption key
-    await keyStore.remove(
-        '${enrollParams.enrollmentId!}.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        skipCommit: true);
-
-    // Delete self encryption key
-    await keyStore.remove(
-        '${enrollParams.enrollmentId!}.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        skipCommit: true);
+    await enMgr.remove(
+      enrollmentId: enrollParams.enrollmentId!,
+      enrollValue: enrollValue,
+    );
 
     responseJson['enrollmentId'] = enrollParams.enrollmentId;
     responseJson['status'] = 'deleted';

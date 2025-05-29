@@ -107,7 +107,7 @@ void main() {
     test(
         'test to verify unauthorized exception is thrown when sharedBy atSign is not currentAtSign',
         () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('test notify verb - invalid ttl value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
@@ -186,7 +186,7 @@ void main() {
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
       notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
-      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
 
       expect(
           () => notifyVerb.processVerb(
@@ -195,7 +195,7 @@ void main() {
     });
 
     test('test notify verb - invalid ttb value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
@@ -204,7 +204,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
-      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
       notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
@@ -213,7 +213,7 @@ void main() {
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(mockKeyStore);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
@@ -222,7 +222,7 @@ void main() {
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
-      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
       notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
@@ -248,7 +248,7 @@ void main() {
         'A test to verify unauthenticated exception is thrown when connection is unauthenticated',
         () async {
       var verb = Notify();
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -437,7 +437,7 @@ void main() {
         'A test to verify notify verb params are populated when message type is text',
         () async {
       var verb = Notify();
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -456,13 +456,13 @@ void main() {
       AtNotification? atNotification =
           await AtNotificationKeystore.getInstance().get(notifyResponse.data);
       expect(atNotification?.toAtSign, '@bob');
-      expect(atNotification?.fromAtSign, '@alice');
+      expect(atNotification?.fromAtSign, alice);
       expect(atNotification?.notification, '@bob:hello');
       expect(atNotification?.type, NotificationType.sent);
     });
     test('test for max key length check for cached key', () async {
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(keyStore);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
@@ -470,7 +470,7 @@ void main() {
         ..fromAtSign = '@bob';
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => alice);
       var key = createRandomString(250);
       notifyVerbParams.putIfAbsent(AtConstants.atKey, () => key);
       notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@bob');
@@ -481,7 +481,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'notification key length ${'cached:'.length + '@bob:'.length + key.length + '@alice'.length} is greater than 255 chars')));
+                  'notification key length ${'cached:'.length + '@bob:'.length + key.length + alice.length} is greater than 255 chars')));
     });
     tearDown(() async => await tearDownFunc());
   });
@@ -495,7 +495,7 @@ void main() {
             ..id = 'abc'
             ..fromAtSign = '@test_user_1'
             ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-1'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -507,14 +507,14 @@ void main() {
           .build();
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue('@alice');
+      var response = queueManager.dequeue(alice);
       late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
       }
       expect(atNotification.id, 'abc');
       expect(atNotification.fromAtSign, '@test_user_1');
-      expect(atNotification.toAtSign, '@alice');
+      expect(atNotification.toAtSign, alice);
       expect(atNotification.priority, NotificationPriority.low);
       expect(atNotification.notification, 'key-1');
       expect(atNotification.retryCount, 1);
@@ -550,7 +550,7 @@ void main() {
             ..fromAtSign = '@test_user_1'
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 4))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -569,7 +569,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = AtNotificationMap.getInstance().getAtSignToNotify(1);
       while (atsignIterator.moveNext()) {
-        expect(atsignIterator.current, '@alice');
+        expect(atsignIterator.current, alice);
       }
       AtNotificationMap.getInstance().clear();
     });
@@ -601,7 +601,7 @@ void main() {
             ..fromAtSign = '@test_user_1'
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -913,7 +913,7 @@ void main() {
             ..id = 'abc'
             ..fromAtSign = '@test_user_1'
             ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-1'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -924,7 +924,7 @@ void main() {
           .build();
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue('@alice');
+      var response = queueManager.dequeue(alice);
       late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
@@ -936,7 +936,7 @@ void main() {
       );
       expect(
         atNotification.toAtSign,
-        '@alice',
+        alice,
       );
       expect(atNotification.notification, 'key-1');
       expect(atNotification.atMetadata, isNotNull);
@@ -1135,13 +1135,13 @@ void main() {
     late NotifyVerbHandler notifyVerbHandler;
     late NotifyAllVerbHandler notifyAllVerbHandler;
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      keyStoreManager = await setUpFunc(storageDir, atsign: alice);
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyAllVerbHandler = NotifyAllVerbHandler(keyStore);
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(keyStore);
+          EnrollmentManager(keyStore, alice);
       registerFallbackValue(inboundConnection);
     });
     test(
@@ -1391,7 +1391,7 @@ void main() {
     late NotifyVerbHandler notifyVerbHandler;
     late NotifyRemoveVerbHandler notifyRemoveVerbHandler;
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      keyStoreManager = await setUpFunc(storageDir, atsign: alice);
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyFetchVerbHandler = NotifyFetchVerbHandler(keyStore);
@@ -1749,14 +1749,14 @@ void main() {
     late NotifyVerbHandler notifyVerbHandler;
     late NotifyListVerbHandler notifyListVerbHandler;
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      keyStoreManager = await setUpFunc(storageDir, atsign: alice);
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyListVerbHandler =
           NotifyListVerbHandler(keyStore, mockOutboundClientManager);
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(keyStore);
+          EnrollmentManager(keyStore, alice);
       registerFallbackValue(inboundConnection);
     });
     test('A test to verify notify:list authorization', () async {
@@ -1857,7 +1857,7 @@ void main() {
     late NotifyVerbHandler notifyVerbHandler;
 
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir, atsign: '@alice');
+      keyStoreManager = await setUpFunc(storageDir, atsign: alice);
       SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       inboundConnection = DummyInboundConnection();
@@ -1937,7 +1937,7 @@ void main() {
       print(stored!.toJson());
       expect(stored.toAtSign, '@bob');
       expect(stored.notification, '@bob:metadata.notify.test@alice');
-      expect(stored.fromAtSign, '@alice');
+      expect(stored.fromAtSign, alice);
       expect(stored.opType, OperationType.update);
       expect(stored.messageType, MessageType.key);
       expect(stored.atMetadata, isNotNull);

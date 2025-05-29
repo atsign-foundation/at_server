@@ -52,7 +52,7 @@ void main() {
       // Dummy Inbound connection
       var atConnection = InboundConnectionImpl(mockSocket, '123')
         ..metaData = (InboundConnectionMetadata()
-          ..fromAtSign = '@alice'
+          ..fromAtSign = alice
           ..isAuthenticated = true);
       var response = Response();
       // Verify Notification is inserted into keystore

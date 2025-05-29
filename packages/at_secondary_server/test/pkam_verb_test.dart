@@ -75,7 +75,7 @@ void main() {
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(mockKeyStore);
+          EnrollmentManager(mockKeyStore, alice);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -86,7 +86,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
       expect(apkamResult.publicKey, 'dummy_public_key');
     });
 
@@ -97,7 +97,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
       expect(apkamResult.response.errorMessage,
@@ -111,7 +111,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
       expect(apkamResult.response.errorMessage,
@@ -125,7 +125,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
       expect(apkamResult.response.errorMessage,
@@ -138,7 +138,7 @@ void main() {
           .thenThrow(KeyNotFoundException('key not found'));
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,

@@ -30,7 +30,7 @@ import 'test_utils.dart';
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 AtCommitLog? atCommitLog;
-String atSign = '@alice';
+String atSign = alice;
 
 Future<void> setUpMethod() async {
   // Initialize secondary persistent store
@@ -47,7 +47,9 @@ Future<void> setUpMethod() async {
   // Set currentAtSign
   AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
   AtSecondaryServerImpl.getInstance().enrollmentManager = EnrollmentManager(
-      secondaryPersistenceStore?.getSecondaryKeyStore() as SecondaryKeyStore);
+    secondaryPersistenceStore?.getSecondaryKeyStore() as SecondaryKeyStore,
+    atSign,
+  );
 }
 
 void main() {
@@ -685,7 +687,7 @@ void main() {
             .getSecondaryKeyStore()
             ?.persistenceManager
             ?.getBox()
-            .put('@invalidkey**.buzz@alice', AtData()..data = '@alice');
+            .put('@invalidkey**.buzz@alice', AtData()..data = alice);
         AtCommitLog atCommitLog = (secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.commitLog) as AtCommitLog;

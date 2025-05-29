@@ -4,7 +4,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -14,14 +13,14 @@ import 'package:at_utils/at_logger.dart';
 /// associated with a given enrollment ID. It interacts with the
 /// SecondaryKeyStore to persist and retrieve enrollment information.
 class EnrollmentManager {
-  final SecondaryKeyStore _keyStore;
-
+  final SecondaryKeyStore keyStore;
+  final String atSign;
   final logger = AtSignLogger('AtSecondaryServer');
 
   /// Creates an instance of [EnrollmentManager].
   ///
   /// The [keyStore] is required to interact with the persistence layer.
-  EnrollmentManager(this._keyStore);
+  EnrollmentManager(this.keyStore, this.atSign);
 
   /// Retrieves the enrollment data for a given [enrollmentId].
   ///
@@ -38,21 +37,7 @@ class EnrollmentManager {
   /// Throws:
   ///   [KeyNotFoundException] if the enrollment key does not exist.
   Future<EnrollDataStoreValue> get(String enrollmentId) async {
-    String enrollmentKey = buildEnrollmentKey(enrollmentId);
-    try {
-      AtData enrollData = await _keyStore.get(enrollmentKey);
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-
-      if (!SecondaryUtil.isActiveKey(enrollData)) {
-        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
-      }
-
-      return enrollDataStoreValue;
-    } on KeyNotFoundException {
-      logger.severe('$enrollmentKey does not exist in the keystore');
-      rethrow;
-    }
+    return getEnrollDataStoreValue(buildEnrollmentKey(enrollmentId));
   }
 
   /// Constructs the enrollment key based on the provided [enrollmentId].
@@ -63,7 +48,7 @@ class EnrollmentManager {
   /// Returns:
   ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enrollmentId) {
-    return '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+    return '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$atSign';
   }
 
   /// Stores the enrollment data associated with the given [enrollmentId].
@@ -77,7 +62,7 @@ class EnrollmentManager {
   ///   - [atData]: The [AtData] object to be stored.
   Future<void> put(String enrollmentId, AtData atData) async {
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
-    await _keyStore.put(enrollmentKey, atData, skipCommit: true);
+    await keyStore.put(enrollmentKey, atData, skipCommit: true);
   }
 
   /// Deletes the enrollment key from the keystore.
@@ -89,23 +74,33 @@ class EnrollmentManager {
   ///
   /// Parameters:
   ///  - [enrollmentId]: The ID associated with the enrollment.
-  Future<void> remove(String enrollmentId) async {
+  Future<void> remove({
+    required String enrollmentId,
+    required EnrollDataStoreValue? enrollValue,
+  }) async {
+    // Delete private encryption key
+    await keyStore.remove(
+        '$enrollmentId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
+        skipCommit: true);
+
+    // Delete self encryption key
+    await keyStore.remove(
+        '$enrollmentId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
+        skipCommit: true);
+
+    enrollValue ??= await get(enrollmentId);
+    // Delete the APKAM Public key, legacy slightly info-leaky format
+    var apkamPublicKeyInKeyStore =
+        'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$atSign';
+    await keyStore.remove(apkamPublicKeyInKeyStore, skipCommit: true);
+
     String enrollmentKey = buildEnrollmentKey(enrollmentId);
-    await _keyStore.remove(enrollmentKey, skipCommit: true);
+    await keyStore.remove(enrollmentKey, skipCommit: true);
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
-    return _keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex)
+    return keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex)
         as List<String>;
-  }
-
-  /// Fetch an enrollment by enrollment ID
-  /// - Constructs key using [buildEnrollmentKey]
-  /// - Calls [getEnrollDataStoreValue]
-  Future<EnrollDataStoreValue> getEnrollDataStoreValueById(
-    String enrollmentId,
-  ) async {
-    return getEnrollDataStoreValue(buildEnrollmentKey(enrollmentId));
   }
 
   /// Fetch an enrollment key from the keystore.
@@ -115,7 +110,7 @@ class EnrollmentManager {
     String enrollmentKey,
   ) async {
     try {
-      AtData enrollData = await _keyStore.get(enrollmentKey);
+      AtData enrollData = await keyStore.get(enrollmentKey);
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
       if (!SecondaryUtil.isActiveKey(enrollData)) {
@@ -166,7 +161,6 @@ class EnrollmentManager {
     return [];
   }
 
-// TODO Move code here from EnrollVerbHandler re deleting an enrollment
 // TODO When an enrollment is revoked, move stuff from .a to .r
 // TODO Unrevoke: move stuff from .r to .a
 // TODO Delete: move stuff from .a and/or .r to .d

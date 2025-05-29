@@ -9,6 +9,7 @@ import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'test_utils.dart';
 
 class MockOutboundClient extends Mock implements OutboundClient {}
 
@@ -38,7 +39,7 @@ void main() async {
             ..atValue = 'bob@gmail.com'
             ..notification = 'email'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..strategy = 'all'
             ..opType = OperationType.update
             ..ttl = -1
@@ -48,7 +49,7 @@ void main() async {
             ..id = '122'
             ..atValue = '90192019021'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..strategy = 'all'
             ..opType = OperationType.update
             ..notification = 'phone'
@@ -57,7 +58,7 @@ void main() async {
       var atNotification3 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..atValue = 'USA'
             ..strategy = 'all'
             ..opType = OperationType.update
@@ -65,7 +66,7 @@ void main() async {
             ..retryCount = 1)
           .build();
 
-      var atsign = '@alice';
+      var atsign = alice;
       // Iterator containing all the notifications
       Iterator notificationIterator =
           [atNotification1, atNotification2, atNotification3].iterator;
@@ -143,7 +144,7 @@ void main() async {
 
     testNotificationMetaData({required bool immutable}) {
       var ttln = 24 * 60 * 60 * 1000;
-      var fromAtsign = '@alice';
+      var fromAtsign = alice;
       var atNotification = (AtNotificationBuilder()
             ..fromAtSign = fromAtsign
             ..toAtSign = '@bob'

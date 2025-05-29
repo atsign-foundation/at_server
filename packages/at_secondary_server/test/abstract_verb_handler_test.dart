@@ -50,7 +50,7 @@ void main() {
         () async {
       var handler = TestUpdateVerbHandler(secondaryKeyStore);
       var atKey = AtKey()
-        ..sharedBy = '@alice'
+        ..sharedBy = alice
         ..sharedWith = '@bob'
         ..namespace = 'wavi'
         ..key = 'phone';
@@ -66,7 +66,7 @@ void main() {
         () async {
       var handler = TestUpdateVerbHandler(secondaryKeyStore);
       var atKey = AtKey()
-        ..sharedBy = '@alice'
+        ..sharedBy = alice
         ..sharedWith = '@bob'
         ..namespace = 'at_contact.buzz'
         ..key = 'phone';
@@ -82,7 +82,7 @@ void main() {
         () async {
       var handler = TestUpdateVerbHandler(secondaryKeyStore);
       var atKey = AtKey()
-        ..sharedBy = '@alice'
+        ..sharedBy = alice
         ..sharedWith = '@bob'
         ..namespace = 'persona.buzz'
         ..key = 'phone';
@@ -98,7 +98,7 @@ void main() {
         () async {
       var handler = TestUpdateVerbHandler(secondaryKeyStore);
       var atKey = AtKey()
-        ..sharedBy = '@alice'
+        ..sharedBy = alice
         ..sharedWith = '@bob'
         ..namespace = 'wavi'
         ..key = 'phone';

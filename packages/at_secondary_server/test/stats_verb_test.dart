@@ -126,7 +126,7 @@ void main() {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
         '${Directory.current.path}/unit_test_storage',
-        atsign: '@alice'));
+        atsign: alice));
     // test for Notification Stats
     test('notification stats command accept test', () {
       var command = 'stats:11';
@@ -170,7 +170,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime =
                 DateTime.now().subtract(const Duration(days: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -188,7 +188,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime =
                 DateTime.now().subtract(const Duration(days: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.received
             ..opType = OperationType.delete
@@ -206,7 +206,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime =
                 DateTime.now().subtract(const Duration(days: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -224,7 +224,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime =
                 DateTime.now().subtract(const Duration(days: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..notification = 'key-2'
             ..type = NotificationType.received
             ..opType = OperationType.update
@@ -290,7 +290,7 @@ void main() {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
         '${Directory.current.path}/unit_test_storage',
-        atsign: '@alice'));
+        atsign: alice));
 
     test('commitLogCompactionStats command accept test', () {
       var command = 'stats:12';
@@ -315,7 +315,7 @@ void main() {
       atCompactionStats.postCompactionEntriesCount = 92;
       atCompactionStats.preCompactionEntriesCount = 96;
       atCompactionStats.atCompactionType =
-          (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
+          (await AtAccessLogManagerImpl.getInstance().getAccessLog(alice))!
               .toString();
       await keyStore?.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
@@ -343,7 +343,7 @@ void main() {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
         '${Directory.current.path}/unit_test_storage',
-        atsign: '@alice'));
+        atsign: alice));
 
     test('accessLogCompactionStats command acceptance test', () {
       var command = 'stats:13';
@@ -368,7 +368,7 @@ void main() {
       atCompactionStats.postCompactionEntriesCount = 902;
       atCompactionStats.preCompactionEntriesCount = 906;
       atCompactionStats.atCompactionType =
-          (await AtAccessLogManagerImpl.getInstance().getAccessLog('@alice'))!
+          (await AtAccessLogManagerImpl.getInstance().getAccessLog(alice))!
               .toString();
       await keyStore?.put(AtConstants.accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
@@ -389,7 +389,7 @@ void main() {
     SecondaryKeyStoreManager? keyStoreManager;
     setUp(() async => keyStoreManager = await setUpFunc(
         '${Directory.current.path}/unit_test_storage',
-        atsign: '@alice'));
+        atsign: alice));
 
     test('notificationCompactionStats command accept test', () {
       var command = 'stats:14';

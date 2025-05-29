@@ -53,7 +53,7 @@ void main() {
 
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -101,7 +101,7 @@ void main() {
 
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -226,7 +226,7 @@ void main() {
 
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -261,7 +261,7 @@ void main() {
       Map notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -284,7 +284,7 @@ void main() {
 
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -333,7 +333,7 @@ void main() {
       var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -381,7 +381,7 @@ void main() {
       var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -403,7 +403,7 @@ void main() {
       notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -491,7 +491,7 @@ void main() {
           notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
-          '@alice');
+          '$alice');
       print('Verified the legacy PKAM monitor connection'
           ' received the enrollment request notification');
     });
@@ -553,7 +553,7 @@ void main() {
           notificationJson['key'],
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
-          '@alice');
+          '$alice');
       print('Verified the APKAM monitor connection'
           ' received the enrollment request notification');
     });
@@ -599,7 +599,7 @@ void main() {
 
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], '@alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -757,7 +757,7 @@ void main() {
       var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
@@ -793,7 +793,7 @@ void main() {
       var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
-      expect(notificationMap['to'], '@alice');
+      expect(notificationMap['to'], alice);
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');

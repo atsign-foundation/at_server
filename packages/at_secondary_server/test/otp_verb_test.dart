@@ -200,7 +200,7 @@ void main() {
     });
 
     test('validate backwards compatability with legacy otp key', () async {
-      String atsign = '@alice';
+      String atsign = alice;
       String testOtp = 'ABCD12';
       String otpLegacyKey = 'private:${testOtp.toLowerCase()}$atsign';
       AtData value = AtData()
@@ -322,7 +322,7 @@ void main() {
     });
 
     test('validate backwards compatability with legacy ssp key', () async {
-      String atsign = '@alice';
+      String atsign = alice;
       String testOtp = 'ABC123';
       String otpLegacyKey = 'private:spp$atsign';
       AtData value = AtData()..data = testOtp;

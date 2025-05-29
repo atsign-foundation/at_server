@@ -43,7 +43,7 @@ void main() {
     /* test('keystore not initialized', () {
       var secondaryServerInstance = AtSecondaryServerImpl.getInstance();
       var context = AtSecondaryContext();
-      context.currentAtSign = '@alice';
+      context.currentAtSign = alice;
       secondaryServerInstance.setServerContext(context);
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
       context.securityContext = AtSecurityContextImpl();

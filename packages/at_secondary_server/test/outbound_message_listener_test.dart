@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_message_listener.d
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'test_utils.dart';
 
 class MockOutboundClient extends Mock implements OutboundClient {}
 
@@ -22,7 +23,7 @@ void main() async {
   AtConnectionMetaData mockAtConnectionMetaData = MockAtConnectionMetaData();
   setUp(() {
     reset(mockOutboundClient);
-    when(() => mockOutboundClient.toAtSign).thenReturn('@alice');
+    when(() => mockOutboundClient.toAtSign).thenReturn(alice);
     when(() => mockOutboundClient.toPort).thenReturn('25000');
     when(() => mockOutboundClient.toHost).thenReturn('localhost');
     when(() => mockOutboundClient.outboundConnection)

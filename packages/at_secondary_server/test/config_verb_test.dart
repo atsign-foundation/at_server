@@ -27,7 +27,7 @@ void main() {
       var command = 'config:block:remove:@alice';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AtConstants.atSign], '@alice');
+      expect(paramsMap[AtConstants.atSign], alice);
       expect(paramsMap[AtConstants.operation], 'remove');
     });
 

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
@@ -86,7 +87,7 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -98,28 +99,30 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollId.new.enrollments.__manage@alice🛠';
+
+      String enrollKey = EnrollmentManager(secondaryKeyStore, alice)
+          .buildEnrollmentKey(enrollId);
       await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+          enrollKey, AtData()..data = jsonEncode(enrollJson));
 
       var keysCommand =
           'keys:put:public:namespace:__global:keyType:rsa2048:keyName:encryption_$enrollId publicKeyTest';
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
-      expect(secondaryKeyStore.isKeyExists(keyName), true);
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
+      expect(secondaryKeyStore.isKeyExists(enrollKey), true);
       expect(
           secondaryKeyStore.isKeyExists(
-              'public:encryption_$enrollId.__public_keys.__global@alice🛠'),
+              'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:public';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData,
-          "data:[\"public:encryption_$enrollId.__public_keys.__global@alice🛠\"]\n$aliceEmoji@");
+          "data:[\"public:encryption_$enrollId.__public_keys.__global$alice\"]\n$alice@");
       // llookup of keys is not allowed
       var llookUpCommand =
-          'llookup:public:encryption_$enrollId.__public_keys.__global@alice🛠';
+          'llookup:public:encryption_$enrollId.__public_keys.__global$alice';
       await localLookupVerbHandler.process(llookUpCommand, inboundConnection);
       var llookupResultMap = decodeResponse(inboundConnection.lastWrittenData!);
       expect(llookupResultMap['value'], 'publicKeyTest');
@@ -174,7 +177,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -186,7 +188,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var keyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -195,20 +197,20 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(keyName), true);
       expect(
           secondaryKeyStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global@alice🛠'),
+              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
 
       var keysGetCommand = 'keys:get:self';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData,
-          "data:[\"wavi.pixel.mykey.__self_keys.__global@alice🛠\"]\n$aliceEmoji@");
+          "data:[\"wavi.pixel.mykey.__self_keys.__global$alice\"]\n$alice@");
 
       var llookUpCommand =
-          'llookup:wavi.pixel.mykey.__self_keys.__global@alice🛠';
+          'llookup:wavi.pixel.mykey.__self_keys.__global$alice';
       expect(
           () async => await localLookupVerbHandler.process(
               llookUpCommand, inboundConnection),
@@ -261,7 +263,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -273,7 +274,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var keyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -282,19 +283,19 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(keyName), true);
       expect(
           secondaryKeyStore.isKeyExists(
-              'private:wavi.pixel.secretKey.__private_keys.__global@alice🛠'),
+              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:private';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData,
-          "data:[\"private:wavi.pixel.secretkey.__private_keys.__global@alice🛠\"]\n$aliceEmoji@");
+          "data:[\"private:wavi.pixel.secretkey.__private_keys.__global$alice\"]\n$alice@");
 
       var llookUpCommand =
-          'llookup:private:wavi.pixel.secretkey.__private_keys.__global@alice🛠';
+          'llookup:private:wavi.pixel.secretkey.__private_keys.__global$alice';
       expect(
           () async => await localLookupVerbHandler.process(
               llookUpCommand, inboundConnection),
@@ -350,7 +351,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -362,7 +362,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var enrollkeyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var enrollkeyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           enrollkeyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -371,14 +371,14 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(enrollkeyName), true);
       expect(
           secondaryKeyStore.isKeyExists(
-              'public:encryption_$enrollId.__public_keys.__global@alice🛠'),
+              'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var publicKeyName =
-          'public:encryption_$enrollId.__public_keys.__global@alice🛠';
+          'public:encryption_$enrollId.__public_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$publicKeyName';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
@@ -387,7 +387,7 @@ void main() {
       expect(getKeysResponse['keyType'], 'rsa2048');
       var deleteKeyCommand = 'keys:delete:keyName:$publicKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(publicKeyName), false);
     });
 
@@ -439,7 +439,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -451,7 +450,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var enrollKeyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var enrollKeyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           enrollKeyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -460,13 +459,13 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(enrollKeyName), true);
       expect(
           secondaryKeyStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global@alice🛠'),
+              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
-      var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global@alice🛠';
+      var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$selfKeyName';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
@@ -475,7 +474,7 @@ void main() {
       expect(getKeysResponse['keyType'], 'aes256');
       var deleteKeyCommand = 'keys:delete:keyName:$selfKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(selfKeyName), false);
     });
 
@@ -528,7 +527,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -540,7 +538,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var keyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -549,14 +547,14 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(keyName), true);
       expect(
           secondaryKeyStore.isKeyExists(
-              'private:wavi.pixel.secretKey.__private_keys.__global@alice🛠'),
+              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var privateKeyName =
-          'private:wavi.pixel.secretKey.__private_keys.__global@alice🛠';
+          'private:wavi.pixel.secretKey.__private_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$privateKeyName';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
@@ -566,7 +564,7 @@ void main() {
       expect(getKeysResponse['encryptionKeyName'], 'mykey');
       var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(privateKeyName), false);
     });
 
@@ -575,7 +573,6 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice🛠';
       var enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
@@ -587,7 +584,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollId.new.enrollments.__manage@alice🛠';
+      var keyName = '$enrollId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -596,14 +593,14 @@ void main() {
 
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(keyName), true);
       expect(
           secondaryKeyStore.isKeyExists(
-              'private:wavi.pixel.secretKey.__private_keys.__global@alice🛠'),
+              'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var privateKeyName =
-          'private:wavi.pixel.secretKey.__private_keys.__global@alice🛠';
+          'private:wavi.pixel.secretKey.__private_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$privateKeyName';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var getKeysResponse = decodeResponse(inboundConnection.lastWrittenData!);
@@ -613,7 +610,7 @@ void main() {
       expect(getKeysResponse['encryptionKeyName'], 'mykey');
       var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
-      expect(inboundConnection.lastWrittenData, "data:-1\n$aliceEmoji@");
+      expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
       expect(secondaryKeyStore.isKeyExists(privateKeyName), false);
     });
 

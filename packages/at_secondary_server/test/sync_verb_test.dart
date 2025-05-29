@@ -103,11 +103,11 @@ void main() {
     test('A test to verify sync metadata is populated correctly', () async {
       // Add data to commit log
       var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
       //Add data to keystore
       var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
+          .getSecondaryPersistenceStore(alice);
       await secondaryKeyStore?.getSecondaryKeyStore()?.put(
           'phone.wavi@alice',
           AtData()
@@ -152,8 +152,8 @@ void main() {
 
     test('test to ensure at least one entry is synced always', () async {
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      AtCommitLog atCommitLog =
+          (await (AtCommitLogManagerImpl.getInstance().getCommitLog(alice)))!;
 
       // Creating dummy commit entries
       await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
@@ -172,8 +172,8 @@ void main() {
         'overflowing entry not added to syncResponse when syncResponse not empty',
         () async {
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      AtCommitLog atCommitLog =
+          (await (AtCommitLogManagerImpl.getInstance().getCommitLog(alice)))!;
 
       List<KeyStoreEntry> syncResponse = [];
 
@@ -213,8 +213,8 @@ void main() {
     test('test to ensure all entries are synced if buffer does not overflow',
         () async {
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      AtCommitLog atCommitLog =
+          (await (AtCommitLogManagerImpl.getInstance().getCommitLog(alice)))!;
 
       // Creating dummy commit entries
       await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
@@ -256,8 +256,8 @@ void main() {
         'ensure only one overflowing entry is added to syncResponse when commitLog has two large entries',
         () async {
       verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      AtCommitLog atCommitLog =
+          (await (AtCommitLogManagerImpl.getInstance().getCommitLog(alice)))!;
 
       // Creating dummy commit entries
       await atCommitLog.commit('test_key1@alice', CommitOp.UPDATE_ALL);
@@ -292,11 +292,11 @@ void main() {
         () async {
       // Add data to commit log
       var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
       //Add data to keystore
       var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
+          .getSecondaryPersistenceStore(alice);
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -333,11 +333,11 @@ void main() {
         () async {
       // Add data to commit log
       var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
       //Add data to keystore
       var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
+          .getSecondaryPersistenceStore(alice);
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -374,11 +374,11 @@ void main() {
         () async {
       // Add data to commit log
       var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
+          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
       await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
       //Add data to keystore
       var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
+          .getSecondaryPersistenceStore(alice);
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -420,7 +420,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   if (!isExists) {
     Directory(storageDir).createSync(recursive: true);
   }
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(
           AtSecondaryServerImpl.getInstance().currentAtSign)!;
@@ -428,7 +428,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
+      .getCommitLog(alice, commitLogPath: storageDir);
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
   var keyStoreManager =

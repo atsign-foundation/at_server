@@ -6,6 +6,7 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'test_utils.dart';
 
 class MockAtCommitLog extends Mock implements AtCommitLog {}
 
@@ -58,7 +59,7 @@ void main() {
     when(() => mockInboundConnection2.isMonitor).thenAnswer((_) => false);
 
     var statsNotificationJobTimeInterval = Duration(milliseconds: 50);
-    await statsNotificationService.schedule('@alice',
+    await statsNotificationService.schedule(alice,
         interval: statsNotificationJobTimeInterval);
     expect(statsNotificationService.state,
         StatsNotificationServiceState.scheduled);

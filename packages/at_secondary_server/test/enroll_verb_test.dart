@@ -118,7 +118,7 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String enrollmentKey =
           '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
-      var enrollmentValue = await EnrollmentManager(secondaryKeyStore)
+      var enrollmentValue = await EnrollmentManager(secondaryKeyStore, alice)
           .getEnrollDataStoreValue(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
@@ -2109,8 +2109,8 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
 
-      String enrollmentKey =
-          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+      String enrollmentKey = EnrollmentManager(secondaryKeyStore, alice)
+          .buildEnrollmentKey(enrollmentId);
 
       // Verify key is created in the secondary keystore.
       AtData? atData = await secondaryKeyStore.get(enrollmentKey);
@@ -2215,8 +2215,8 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
 
-      String enrollmentKey =
-          EnrollmentManager(secondaryKeyStore).buildEnrollmentKey(enrollmentId);
+      String enrollmentKey = EnrollmentManager(secondaryKeyStore, alice)
+          .buildEnrollmentKey(enrollmentId);
 
       // Verify key is created in the secondary keystore.
       AtData? atData = await secondaryKeyStore.get(enrollmentKey);

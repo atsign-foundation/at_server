@@ -67,8 +67,8 @@ class MockSocket extends Mock implements Socket {
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
+// String alice = '@alice🛠';
 String alice = '@alice';
-String aliceEmoji = '@alice🛠';
 String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -209,7 +209,7 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      EnrollmentManager(secondaryKeyStore);
+      EnrollmentManager(secondaryKeyStore, alice);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();

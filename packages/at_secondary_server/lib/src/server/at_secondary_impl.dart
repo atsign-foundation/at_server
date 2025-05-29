@@ -172,7 +172,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .getSecondaryPersistenceStore(currentAtSign)!;
 
     // Initialize enrollment manager
-    enrollmentManager = EnrollmentManager(secondaryKeyStore);
+    enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =

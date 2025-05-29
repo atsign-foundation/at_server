@@ -137,7 +137,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -224,7 +224,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '100';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -362,7 +362,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -432,7 +432,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -591,7 +591,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:122');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -618,7 +618,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;

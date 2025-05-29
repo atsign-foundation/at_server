@@ -11,7 +11,6 @@ import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
-
 import 'test_utils.dart';
 
 // the atSign for the server for these tests is @alice - see test_utils.dart
@@ -20,7 +19,7 @@ void main() {
   group('Handling resets of other atSigns', () {
     late LookupVerbHandler lookupVerbHandler;
 
-    var sharedEncryptionKeyName = 'shared_key.bob@alice';
+    var sharedEncryptionKeyName = 'shared_key.bob$alice';
     var sharedEncryptionKeyData = AtData()
       ..metaData = (AtMetaData()..ttr = -1)
       ..data = 'alice_shared_key_for_bob';
@@ -188,7 +187,7 @@ void main() {
           true);
     }
 
-    test('bob public encryption key changed, no current shared_key.bob@alice',
+    test('bob public encryption key changed, no current shared_key.bob$alice',
         () async {
       await doPKChangeAndAssertions();
     });
@@ -232,7 +231,7 @@ void main() {
           regex: '\\d*'
               '\\.events'
               '\\.${AtConstants.atServerReservedNamespace}'
-              '@alice');
+              '$alice');
       expect(eventKeys.length, 1);
       AtData? atData = await secondaryKeyStore.get(eventKeys.first);
 
