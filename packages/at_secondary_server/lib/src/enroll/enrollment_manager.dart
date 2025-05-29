@@ -36,7 +36,7 @@ class EnrollmentManager {
   ///
   /// Throws:
   ///   [KeyNotFoundException] if the enrollment key does not exist.
-  Future<EnrollDataStoreValue> get(String enrollmentId) async {
+  Future<EnrollDataStoreValue> getEnrollment(String enrollmentId) async {
     return getEnrollDataStoreValue(buildEnrollmentKey(enrollmentId));
   }
 
@@ -88,7 +88,7 @@ class EnrollmentManager {
         '$enrollmentId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
         skipCommit: true);
 
-    enrollValue ??= await get(enrollmentId);
+    enrollValue ??= await getEnrollment(enrollmentId);
     // Delete the APKAM Public key, legacy slightly info-leaky format
     var apkamPublicKeyInKeyStore =
         'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$atSign';

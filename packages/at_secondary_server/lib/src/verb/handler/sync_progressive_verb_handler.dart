@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -57,10 +56,16 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         limit: syncLimit);
 
     List<KeyStoreEntry> syncResponse = [];
+    InboundConnectionMetadata connectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
     await prepareResponse(
-        capacity, syncLimit, syncResponse, commitEntryIterator,
-        enrollmentId:
-            (atConnection.metaData as InboundConnectionMetadata).enrollmentId);
+      capacity,
+      syncLimit,
+      syncResponse,
+      commitEntryIterator,
+      connectionMetadata,
+      enrollmentId: connectionMetadata.enrollmentId,
+    );
 
     response.data = jsonEncode(syncResponse);
   }
@@ -74,16 +79,17 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       int syncPageLimit,
       List<KeyStoreEntry> syncResponse,
       Iterator<dynamic> commitEntryIterator,
+      InboundConnectionMetadata connectionMetadata,
       {String? enrollmentId}) async {
     int currentResponseLength = 0;
-    Map<String, String> enrolledNamespaces = {};
-
-    if (enrollmentId != null && enrollmentId.isNotEmpty) {
-      enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
-              .enrollmentManager
-              .get(enrollmentId))
-          .namespaces;
-    }
+    // Map<String, String> enrolledNamespaces = {};
+    //
+    // if (enrollmentId != null && enrollmentId.isNotEmpty) {
+    //   enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
+    //           .enrollmentManager
+    //           .getEnrollment(enrollmentId))
+    //       .namespaces;
+    // }
     while (
         commitEntryIterator.moveNext() && syncResponse.length < syncPageLimit) {
       var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
@@ -93,23 +99,29 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
             'prepareResponse | ${commitEntryIterator.current.key} is an invalid key. Skipping.');
         continue;
       }
-      late AtKey parsedAtKey;
       try {
-        parsedAtKey = AtKey.fromString(commitEntryIterator.current.key!);
+        AtKey.fromString(commitEntryIterator.current.key!);
       } on InvalidSyntaxException catch (_) {
         logger.warning(
             'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
         continue;
       }
-      String? keyNamespace = parsedAtKey.namespace;
-      if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
-          enrolledNamespaces.isNotEmpty &&
-          (!enrolledNamespaces.containsKey(EnrollmentConstants.allNamespaces) &&
-              !enrolledNamespaces
-                  .containsKey(EnrollmentConstants.enrollManageNamespace) &&
-              !enrolledNamespaces.containsKey(keyNamespace))) {
+      if (!(await isAuthorized(
+        connectionMetadata,
+        atKey: commitEntryIterator.current.key!,
+      ))) {
+        logger.shout ('${connectionMetadata.enrollmentId} not authorized to fetch ${commitEntryIterator.current.key}');
         continue;
       }
+      // String? keyNamespace = parsedAtKey.namespace;
+      // if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
+      //     enrolledNamespaces.isNotEmpty &&
+      //     (!enrolledNamespaces.containsKey(EnrollmentConstants.allNamespaces) &&
+      //         !enrolledNamespaces
+      //             .containsKey(EnrollmentConstants.enrollManageNamespace) &&
+      //         !enrolledNamespaces.containsKey(keyNamespace))) {
+      //   continue;
+      // }
       var keyStoreEntry = KeyStoreEntry();
       keyStoreEntry.key = commitEntryIterator.current.key;
       keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
@@ -118,14 +130,14 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         // If commitOperation is update (or) update_all (or) update_meta and key does not
         // exist in keystore, skip the key to sync and continue
         if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
-          logger.finer(
+          logger.shout(
               'prepareResponse | ${commitEntryIterator.current.key} does not exist in the keystore. Skipping.');
           continue;
         }
 
         AtData? atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
-          logger.info('atData is null for ${commitEntryIterator.current.key}');
+          logger.shout('atData is null for ${commitEntryIterator.current.key}');
           continue;
         }
         keyStoreEntry.value = atData.data;

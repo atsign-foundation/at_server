@@ -100,7 +100,7 @@ late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
 SecondaryPersistenceStore? secondaryPersistenceStore;
-AtCommitLog? atCommitLog;
+late AtCommitLog atCommitLog;
 
 verbTestsSetUpAll() async {
   await AtAccessLogManagerImpl.getInstance()
@@ -112,8 +112,8 @@ verbTestsSetUp() async {
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(alice);
   // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
+  atCommitLog = (await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
   await secondaryPersistenceStore!

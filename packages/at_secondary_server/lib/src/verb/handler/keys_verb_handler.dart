@@ -45,7 +45,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
-              .get(connectionMetadata.enrollmentId!);
+              .getEnrollment(connectionMetadata.enrollmentId!);
 
       if (enrollDataStoreValue.approval?.state != 'approved') {
         throw AtEnrollmentException(

@@ -187,7 +187,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // Therefore, added non-null assertation operator.
     var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
             .enrollmentManager
-            .get(atConnectionMetadata.enrollmentId!))
+            .getEnrollment(atConnectionMetadata.enrollmentId!))
         .namespaces;
 
     // No namespace to filter keys. So, return.
@@ -200,7 +200,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
     if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       return localKeysList;
     }
-    // Return only keys whose namespace is authorized.
+
+    // We've dealt with no access and with '*' access; now we have to check
+    // access on each key individually.
     int index = 0;
     // Iterates through the list of local keys.
     // Removes the key from the list if any of the below condition is met:

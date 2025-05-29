@@ -45,7 +45,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
           atConnectionMetadata.enrollmentId != null) {
         infoMap['apkam_metadata'] = await AtSecondaryServerImpl.getInstance()
             .enrollmentManager
-            .get(atConnectionMetadata.enrollmentId!);
+            .getEnrollment(atConnectionMetadata.enrollmentId!);
       }
     } else {
       infoMap['uptimeAsMillis'] = uptime.inMilliseconds;

@@ -102,7 +102,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
-              .get(atConnectionMetadata.enrollmentId!);
+              .getEnrollment(atConnectionMetadata.enrollmentId!);
       // If the enrollment status is expired, then the enrollment is not active. Return false.
       if (enrollDataStoreValue.approval?.state ==
           EnrollmentStatus.expired.name) {
@@ -191,7 +191,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .get(inboundConnectionMetadata.enrollmentId!);
+          .getEnrollment(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
       logger.shout(
           'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
@@ -354,6 +354,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return true;
   }
 
+  // TODO This function is overridden by EnrollVerbHandler which caused me some
+  // confusion. Future maintainers beware, if this hasn't been improved.
   bool checkEnrollmentNamespaceAccess(String authorisedNamespaceAccess,
       {String enrolledNamespaceAccess = ''}) {
     return _isReadAllowed(getVerb(), authorisedNamespaceAccess) ||
@@ -367,7 +369,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is NotifyStatus ||
             verb is NotifyList ||
             verb is Monitor ||
-            verb is Scan) &&
+            verb is Scan ||
+            verb is SyncFrom) &&
         (access == 'r' || access == 'rw');
   }
 
@@ -377,7 +380,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Notify ||
             verb is NotifyAll ||
             verb is NotifyRemove ||
-            verb is Monitor) &&
+            verb is Monitor ||
+            verb is SyncFrom) &&
         access == 'rw';
   }
 

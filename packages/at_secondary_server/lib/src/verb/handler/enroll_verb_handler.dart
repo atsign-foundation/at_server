@@ -175,7 +175,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ) async {
     // Note: The enrollmentId is verified for null check in _validateParams.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.get(enrollVerbParams!.enrollmentId!);
+        await enMgr.getEnrollment(enrollVerbParams!.enrollmentId!);
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
@@ -333,7 +333,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
       // Therefore, when control comes here, enrollmentId will not be null.
-      enrollDataStoreValue = await enMgr.get(enrollParams.enrollmentId!);
+      enrollDataStoreValue = await enMgr.getEnrollment(enrollParams.enrollmentId!);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       enrollStatus = EnrollmentStatus.expired;
@@ -498,7 +498,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If enrollApprovalId has access to __manage namespace, return all the enrollments,
     // Else return only the specific enrollment.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.get(currentEnrollmentId);
+        await enMgr.getEnrollment(currentEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       final enrollmentRequestsMap = await enMgr.fetchEnrollments(
@@ -764,7 +764,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Note: The enrollmentId is verified for the null check in the _validateParams methods.
     // Therefore, when control comes here, enrollmentId will not be null.
     EnrollDataStoreValue enrollValue =
-        await enMgr.get(enrollParams!.enrollmentId!);
+        await enMgr.getEnrollment(enrollParams!.enrollmentId!);
     EnrollmentStatus enrollmentStatus =
         getEnrollStatusFromString(enrollValue.approval!.state);
     if (EnrollmentStatus.expired == enrollmentStatus) {
