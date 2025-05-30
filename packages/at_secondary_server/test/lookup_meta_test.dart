@@ -46,7 +46,7 @@ void main() {
     });
 
     test('test lookup meta command accept test without operation', () {
-      var command = 'lookup:location@alice';
+      var command = 'lookup:location$alice';
       var handler = LookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -54,7 +54,7 @@ void main() {
     });
 
     test('test lookup meta command accept test for meta', () {
-      var command = 'lookup:meta:location@alice';
+      var command = 'lookup:meta:location$alice';
       var handler = LookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -62,7 +62,7 @@ void main() {
     });
 
     test('test lookup meta command accept test for all', () {
-      var command = 'lookup:all:location@alice';
+      var command = 'lookup:all:location$alice';
       var handler = LookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -111,7 +111,7 @@ void main() {
 
     test('test lookup key- invalid keyword', () {
       var verb = Lookup();
-      var command = 'lokup:location@alice';
+      var command = 'lokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

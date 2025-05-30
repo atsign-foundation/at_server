@@ -46,7 +46,7 @@ void main() {
     });
 
     test('test plookup meta command accept test without operation', () {
-      var command = 'plookup:location@alice';
+      var command = 'plookup:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -54,7 +54,7 @@ void main() {
     });
 
     test('test plookup meta command accept test for meta', () {
-      var command = 'plookup:meta:location@alice';
+      var command = 'plookup:meta:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -62,7 +62,7 @@ void main() {
     });
 
     test('test plookup meta command accept test for all', () {
-      var command = 'plookup:all:location@alice';
+      var command = 'plookup:all:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -111,7 +111,7 @@ void main() {
 
     test('test plookup key- invalid keyword', () {
       var verb = ProxyLookup();
-      var command = 'lokup:location@alice';
+      var command = 'lokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

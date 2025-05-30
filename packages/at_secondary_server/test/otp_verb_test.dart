@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -236,8 +235,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -252,8 +250,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -270,8 +267,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -289,8 +285,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       await Future.delayed(Duration(milliseconds: 2));
@@ -307,8 +302,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);

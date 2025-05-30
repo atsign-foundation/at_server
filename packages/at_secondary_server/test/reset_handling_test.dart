@@ -12,7 +12,6 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'test_utils.dart';
 
-// the atSign for the server for these tests is @alice - see test_utils.dart
 void main() {
   verbTestsSetUpLogging();
 
@@ -41,15 +40,15 @@ void main() {
     test('lookup some bob key, bob public encryption key unchanged', () async {
       // Given
       //   * a cached:public:publickey@bob in the cache
-      //   * a shared_key.bob@alice in the keystore
+      //   * a shared_key.bob$alice in the keystore
       // When
-      //   * @alice client to this @alice server does a remote lookup of a non-existent key from @bob server
+      //   * $alice client to this $alice server does a remote lookup of a non-existent key from @bob server
       //   * or does a remote lookup of a @bob key that exists
       // Then
       //   * a KeyNotFoundException is thrown, or not, as expected, and in both cases
       //   * publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob is unchanged (updatedAt should not have changed)
-      //   * shared_key.bob@alice is unchanged
+      //   * shared_key.bob$alice is unchanged
       await cacheManager.put(
           cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
       await secondaryKeyStore.put(
@@ -110,7 +109,7 @@ void main() {
       // Given
       //   * a cached:public:publickey@bob in the cache
       // When
-      //   * @alice client to this @alice server does a remote lookup to @bob server
+      //   * $alice client to this $alice server does a remote lookup to @bob server
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
@@ -193,18 +192,18 @@ void main() {
     });
 
     test(
-        'bob public encryption key changed, shared_key.bob@alice removed but preserved',
+        'bob public encryption key changed, shared_key.bob$alice removed but preserved',
         () async {
       // Given
       //   * a cached:public:publickey@bob in the cache
-      //   * a shared_key.bob@alice in the keystore
+      //   * a shared_key.bob$alice in the keystore
       // When
-      //   * @alice client to this @alice server does a remote lookup to @bob server
+      //   * $alice client to this $alice server does a remote lookup to @bob server
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
-      //   * shared_key.bob@alice no longer exists
-      //   * but there is a copy of it called shared_key.bob.until.<millis>@alice
+      //   * shared_key.bob$alice no longer exists
+      //   * but there is a copy of it called shared_key.bob.until.<millis>$alice
 
       await doPKChangeAndAssertions();
 

@@ -6,9 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
@@ -39,6 +37,18 @@ void main() async {
         .thenReturn(true);
   });
 
+  Future<String> putData(String key) async {
+    final data = Uuid().v4();
+    await secondaryKeyStore.put(key, AtData()..data = data);
+    return data;
+  }
+
+  Future<String> putMetaData(String key, AtMetaData md) async {
+    final data = Uuid().v4();
+    await secondaryKeyStore.putMeta(key, md);
+    return data;
+  }
+
   group(
       'A group of tests to validate how server process the updates from the client',
       () {
@@ -59,13 +69,11 @@ void main() async {
         /// 5. The entry in commitLog should be created with CommitOp.Update
         // Setup
         DateTime currentDateTime = DateTime.now();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone@alice', AtData()..data = '123');
+        await putData('$alice:phone$alice');
         // verify metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
-            .get('@alice:phone@alice');
+            .get('$alice:phone$alice');
         expect(
             atData!.metaData!.createdAt!
                     .difference(currentDateTime)
@@ -107,27 +115,25 @@ void main() async {
           /// 7. The "createdBy" is assigned to currentAtSign
           // Inserting a new key into keystore
           var keyCreationDateTime = DateTime.now().toUtc();
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('@alice:phone@alice', AtData()..data = '123');
+          await putData('$alice:phone$alice');
           // Assert commit entry before update
           // The "getChanges" method is specific to the client operations. Hence
           // replaced with "getEntries" method
           Iterator itr = atCommitLog.getEntries(-1);
           itr.moveNext();
-          expect(itr.current.value.atKey, '@alice:phone@alice');
+          expect(itr.current.value.atKey, '$alice:phone$alice');
           expect(itr.current.value.commitId, 0);
           // Update the same key again
           var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-              '@alice:phone@alice',
+              '$alice:phone$alice',
               AtData()
                 ..data = '345'
                 ..metaData = (AtMetaData()..ttl = 10000));
           // Assert the metadata
           AtData? atDataAfterUpdate = await secondaryPersistenceStore!
               .getSecondaryKeyStore()!
-              .get('@alice:phone@alice');
+              .get('$alice:phone$alice');
           expect(atDataAfterUpdate!.data, '345');
           expect(atDataAfterUpdate.metaData!.ttl, 10000);
           expect(atDataAfterUpdate.metaData!.version, 1);
@@ -167,18 +173,14 @@ void main() async {
         /// 7. update_meta commit entry is received where commit entry contains change in metadata fields
         // Inserting a new key into keystore
         var keyCreationDateTime = DateTime.now().toUtc();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone@alice', AtData()..data = '123');
+        await putData('$alice:phone$alice');
         // Updating the existing key
         var keyUpdateDateTime = DateTime.now().toUtc();
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.putMeta('@alice:phone@alice', AtMetaData()..ttl = 10000);
+        await putMetaData('$alice:phone$alice', AtMetaData()..ttl = 10000);
         // verify the metadata
         AtData? atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
-            .get('@alice:phone@alice');
+            .get('$alice:phone$alice');
         expect(
             atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
                 keyCreationDateTime.millisecondsSinceEpoch,
@@ -192,7 +194,7 @@ void main() async {
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
-            atCommitLog.getLatestCommitEntry('@alice:phone@alice');
+            atCommitLog.getLatestCommitEntry('$alice:phone$alice');
         expect(commitEntryList!.operation, CommitOp.UPDATE_META);
         expect(commitEntryList.commitId, 1);
       });
@@ -207,16 +209,14 @@ void main() async {
         /// Assertions:
         /// 1. The key should be deleted from the keystore
         /// 2. The commit log should be updated with a new commit entry where CommitOperation is delete
+        await putData('$alice:phone$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('@alice:phone@alice', AtData()..data = '123');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('@alice:phone@alice');
+            ?.remove('$alice:phone$alice');
         // Verify key does not exist in the keystore
         var isKeyExist = secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.isKeyExists('@alice:phone@alice');
+            ?.isKeyExists('$alice:phone$alice');
         expect(isKeyExist, false);
         // Verify commit entry
         Iterator itr = atCommitLog.getEntries(-1);
@@ -235,11 +235,11 @@ void main() async {
         /// A new entry associated with the key should be added to commit log with CommitOp.Delete
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('@alice:mobile@alice');
+            ?.remove('$alice:mobile$alice');
         // Verify key does not exist in the keystore
         var isKeyExist = secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.isKeyExists('@alice:mobile@alice');
+            ?.isKeyExists('$alice:mobile$alice');
         expect(isKeyExist, false);
         // Verify commit entry
         Iterator itr = atCommitLog.getEntries(-1);
@@ -270,12 +270,12 @@ void main() async {
             StatsNotificationService.getInstance(),
             NotificationManager.getInstance());
         var batchRequestCommand = jsonEncode([
-          BatchRequest(100, 'update:city@alice copenhagen'),
-          BatchRequest(456, 'delete:phone@alice'),
+          BatchRequest(100, 'update:city$alice copenhagen'),
+          BatchRequest(456, 'delete:phone$alice'),
           BatchRequest(341,
-              'update:dataSignature:dummy_data_signature:public:country@alice denmark'),
+              'update:dataSignature:dummy_data_signature:public:country$alice denmark'),
           BatchRequest(442,
-              'update:ttl:1000:ttb:2000:ttr:3000:ccd:true:mobile@alice 1234')
+              'update:ttl:1000:ttb:2000:ttr:3000:ccd:true:mobile$alice 1234')
         ]);
         // Process Batch request
         var batchVerbHandler = BatchVerbHandler(
@@ -301,12 +301,12 @@ void main() async {
         // Assert the data stored in the keystore
         var atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
-            .get('city@alice');
+            .get('city$alice');
         expect(atData!.data, 'copenhagen');
         // Assert the data and metadata stored in the keystore
         atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
-            .get('mobile@alice');
+            .get('mobile$alice');
         expect(atData!.data, '1234');
         expect(atData.metaData!.ttl, 1000);
         expect(atData.metaData!.ttb, 2000);
@@ -315,14 +315,14 @@ void main() async {
         // Assert the data and metadata of a public key
         atData = await secondaryPersistenceStore!
             .getSecondaryKeyStore()!
-            .get('public:country@alice');
+            .get('public:country$alice');
         expect(atData!.data, 'denmark');
         expect(atData.metaData!.dataSignature, 'dummy_data_signature');
         // Assert the key is removed on delete operation
         expect(
             secondaryPersistenceStore!
                 .getSecondaryKeyStore()!
-                .isKeyExists('phone@alice'),
+                .isKeyExists('phone$alice'),
             false);
       });
 
@@ -341,9 +341,9 @@ void main() async {
             StatsNotificationService.getInstance(),
             NotificationManager.getInstance());
         var batchRequestCommand = jsonEncode([
-          BatchRequest(1, 'delete:phone@alice'),
-          BatchRequest(2, 'update:city@alice'),
-          BatchRequest(3, 'update:public:country@alice denmark')
+          BatchRequest(1, 'delete:phone$alice'),
+          BatchRequest(2, 'update:city$alice'),
+          BatchRequest(3, 'update:public:country$alice denmark')
         ]);
         var batchVerbHandler = BatchVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!,
@@ -382,17 +382,10 @@ void main() async {
       setUp(() async {
         await verbTestsSetUp();
         // Setup data
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone.wavi@alice', AtData()..data = '8897896765');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:country.wavi@alice', AtData()..data = 'Denmark');
-        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            '@bob:file-transfer.mosphere@alice', AtData()..data = '8897896765');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('firstName.buzz@alice', AtData()..data = 'alice');
+        await putData('$alice:phone.wavi$alice');
+        await putData('public:country.wavi$alice');
+        await putData('@bob:file-transfer.mosphere$alice');
+        await putData('firstName.buzz$alice');
       });
       test(
           'test to verify initial sync request fetch the latest commit entry when there are multiple commits entries for a key',
@@ -407,15 +400,13 @@ void main() async {
         /// Assertions:
         /// 1. The sync response should contain latest commit entries of the keys
         /// Below are the expected keys inorder
-        ///    commitId:1 -  public:country.wavi@alice
-        ///    commitId:2 -  @bob:file-transfer.mosphere@alice
-        ///    commitId:3 -  firstName.buzz@alice
-        ///    commitId:4 -  @alice:phone.wavi@alice
+        ///    commitId:1 -  public:country.wavi$alice
+        ///    commitId:2 -  @bob:file-transfer.mosphere$alice
+        ///    commitId:3 -  firstName.buzz$alice
+        ///    commitId:4 -  $alice:phone.wavi$alice
         // Updating the key again to have two entries for the same key.
         // The entry with highest commit should be returned.
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('@alice:phone.wavi@alice', AtData()..data = '8897896766');
+        await putData('$alice:phone.wavi$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -428,22 +419,22 @@ void main() async {
             response, syncVerbParams, atConnection);
         List syncResponse = jsonDecode(response.data!);
 
-        expect(syncResponse[0]['atKey'], 'public:country.wavi@alice');
+        expect(syncResponse[0]['atKey'], 'public:country.wavi$alice');
         expect(syncResponse[0]['commitId'], 1);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
 
-        expect(syncResponse[1]['atKey'], '@bob:file-transfer.mosphere@alice');
+        expect(syncResponse[1]['atKey'], '@bob:file-transfer.mosphere$alice');
         expect(syncResponse[1]['commitId'], 2);
         expect(syncResponse[1]['operation'], '+');
         expect(syncResponse[1]['metadata']['version'], '0');
 
-        expect(syncResponse[2]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[2]['atKey'], 'firstname.buzz$alice');
         expect(syncResponse[2]['commitId'], 3);
         expect(syncResponse[2]['operation'], '+');
         expect(syncResponse[2]['metadata']['version'], '0');
 
-        expect(syncResponse[3]['atKey'], '@alice:phone.wavi@alice');
+        expect(syncResponse[3]['atKey'], '$alice:phone.wavi$alice');
         expect(syncResponse[3]['commitId'], 4);
         expect(syncResponse[3]['operation'], '*');
       });
@@ -451,24 +442,18 @@ void main() async {
       test(
           'test to verify last delete commit entry is sent when skipDeletesUntil flag is set',
           () async {
+        await putData('test_key_1$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_1@alice', AtData()..data = 'alice');
+            ?.remove('test_key_1$alice');
+        await putData('test_key_2$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('test_key_1@alice');
+            ?.remove('test_key_2$alice');
+        await putData('test_key_3$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_2@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_2@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_3@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_3@alice');
+            ?.remove('test_key_3$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -485,32 +470,24 @@ void main() async {
         for (var entry in syncResponse) {
           syncResponseList.add(entry['atKey']);
         }
-        expect(syncResponseList.contains('test_key_1@alice'), false);
-        expect(syncResponseList.contains('test_key_2@alice'), false);
-        expect(syncResponseList.contains('test_key_3@alice'), true);
+        expect(syncResponseList.contains('test_key_1$alice'), false);
+        expect(syncResponseList.contains('test_key_2$alice'), false);
+        expect(syncResponseList.contains('test_key_3$alice'), true);
       });
 
       test(
           'test to verify delete commit entries are not sent when skipDeletesUntil flag is set and only matching keys are sent when regex is set',
           () async {
+        await putData('test_key_1.wavi$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_1.wavi@alice', AtData()..data = 'alice');
+            ?.remove('test_key_1.wavi$alice');
+        await putData('test_key_2.buzz$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('test_key_1.wavi@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_2.buzz@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_2.buzz@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_3.buzz@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_4.wavi@alice', AtData()..data = 'alice');
+            ?.remove('test_key_2.buzz$alice');
+        await putData('test_key_3.buzz$alice');
+        await putData('test_key_4.wavi$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -528,39 +505,29 @@ void main() async {
         for (var entry in syncResponse) {
           syncResponseList.add(entry['atKey']);
         }
-        expect(syncResponseList.contains('test_key_1.wavi@alice'), false);
-        expect(syncResponseList.contains('test_key_2.buzz@alice'), false);
-        expect(syncResponseList.contains('test_key_3.buzz@alice'), true);
-        expect(syncResponseList.contains('test_key_4.wavi@alice'), false);
+        expect(syncResponseList.contains('test_key_1.wavi$alice'), false);
+        expect(syncResponseList.contains('test_key_2.buzz$alice'), false);
+        expect(syncResponseList.contains('test_key_3.buzz$alice'), true);
+        expect(syncResponseList.contains('test_key_4.wavi$alice'), false);
       });
 
       test(
           'test to verify last delete commit entry is NOT sent when skipDeletesUntil flag is set and key does not match regex',
           () async {
+        await putData('test_key_1.wavi$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_1.wavi@alice', AtData()..data = 'alice');
+            ?.remove('test_key_1.wavi$alice');
+        await putData('test_key_2.buzz$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('test_key_1.wavi@alice');
+            ?.remove('test_key_2.buzz$alice');
+        await putData('test_key_3.buzz$alice');
+        await putData('test_key_4.wavi$alice');
+        await putData('test_key_5.buzz$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_2.buzz@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_2.buzz@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_3.buzz@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_4.wavi@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_5.buzz@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_4.wavi@alice');
+            ?.remove('test_key_4.wavi$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -578,12 +545,12 @@ void main() async {
         for (var entry in syncResponse) {
           syncResponseList.add(entry['atKey']);
         }
-        expect(syncResponseList.contains('test_key_1.wavi@alice'), false);
-        expect(syncResponseList.contains('test_key_2.buzz@alice'), false);
-        expect(syncResponseList.contains('test_key_3.buzz@alice'), true);
-        expect(syncResponseList.contains('test_key_5.buzz@alice'), true);
+        expect(syncResponseList.contains('test_key_1.wavi$alice'), false);
+        expect(syncResponseList.contains('test_key_2.buzz$alice'), false);
+        expect(syncResponseList.contains('test_key_3.buzz$alice'), true);
+        expect(syncResponseList.contains('test_key_5.buzz$alice'), true);
         // last commit entry should not be included since regex doesn't match
-        expect(syncResponseList.contains('test_key_4.wavi@alice'), false);
+        expect(syncResponseList.contains('test_key_4.wavi$alice'), false);
       });
 
       test(
@@ -610,7 +577,7 @@ void main() async {
 
         expect(syncResponse.length, 1);
 
-        expect(syncResponse[0]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[0]['atKey'], 'firstname.buzz$alice');
         expect(syncResponse[0]['commitId'], 3);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
@@ -659,16 +626,16 @@ void main() async {
         // Inserting invalid key into the keystore. Since HiveKeyStore.put method as validation to
         // throw exception for invalid key, calling put method on the hive box.
         // and inserting the entry into the commit log
-        // The "**" in the key - @invalidkey**.buzz@alice is added to set key as invalid key
+        // The "**" in the key - @invalidkey**.buzz$alice is added to set key as invalid key
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.persistenceManager
             ?.getBox()
-            .put('@invalidkey**.buzz@alice', AtData()..data = alice);
+            .put('@invalidkey**.buzz$alice', AtData()..data = alice);
         AtCommitLog atCommitLog = (secondaryPersistenceStore!
             .getSecondaryKeyStore()
             ?.commitLog) as AtCommitLog;
-        await atCommitLog.commit('@invalidkey**.buzz@alice', CommitOp.UPDATE);
+        await atCommitLog.commit('@invalidkey**.buzz$alice', CommitOp.UPDATE);
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -684,22 +651,22 @@ void main() async {
         List syncResponse = jsonDecode(response.data!);
         expect(syncResponse.length, 4);
 
-        expect(syncResponse[0]['atKey'], "@alice:phone.wavi@alice");
+        expect(syncResponse[0]['atKey'], "$alice:phone.wavi$alice");
         expect(syncResponse[0]['commitId'], 0);
         expect(syncResponse[0]['operation'], '+');
         expect(syncResponse[0]['metadata']['version'], '0');
 
-        expect(syncResponse[1]['atKey'], 'public:country.wavi@alice');
+        expect(syncResponse[1]['atKey'], 'public:country.wavi$alice');
         expect(syncResponse[1]['commitId'], 1);
         expect(syncResponse[1]['operation'], '+');
         expect(syncResponse[1]['metadata']['version'], '0');
 
-        expect(syncResponse[2]['atKey'], '@bob:file-transfer.mosphere@alice');
+        expect(syncResponse[2]['atKey'], '@bob:file-transfer.mosphere$alice');
         expect(syncResponse[2]['commitId'], 2);
         expect(syncResponse[2]['operation'], '+');
         expect(syncResponse[2]['metadata']['version'], '0');
 
-        expect(syncResponse[3]['atKey'], 'firstname.buzz@alice');
+        expect(syncResponse[3]['atKey'], 'firstname.buzz$alice');
         expect(syncResponse[3]['commitId'], 3);
         expect(syncResponse[3]['operation'], '+');
       });
@@ -711,7 +678,7 @@ void main() async {
           () async {
         /// Preconditions:
         /// 1. ServerCommitId is at 2
-        /// 2. The entry to sync from server is "public:phone.wavi@alice" with commitOp.Update with metadata populated
+        /// 2. The entry to sync from server is "public:phone.wavi$alice" with commitOp.Update with metadata populated
         /// 3. sync command received: sync:from:1:limit:10
         ///
         /// Operations:
@@ -719,7 +686,7 @@ void main() async {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "public:phone.wavi@alice",
+        ///    "atKey": "public:phone.wavi$alice",
         ///    "commitId": 0,
         ///    "operation": "*"
 
@@ -747,7 +714,7 @@ void main() async {
           ..pubKeyHash = somePubKeyHash
           ..immutable = true;
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            'public:phone.wavi@alice',
+            'public:phone.wavi$alice',
             AtData()
               ..data = '8897896765'
               ..metaData = atMetadata);
@@ -765,7 +732,7 @@ void main() async {
 
         // Assert the data and metadata
         var firstResponse = syncResponseList[0];
-        expect(firstResponse['atKey'], 'public:phone.wavi@alice');
+        expect(firstResponse['atKey'], 'public:phone.wavi$alice');
         expect(firstResponse['commitId'], 0);
         expect(firstResponse['operation'], '*');
         var firstResponseMetadata = firstResponse['metadata'];
@@ -797,7 +764,7 @@ void main() async {
           () async {
         /// Preconditions:
         /// 1. ServerCommitId is at 2
-        /// 2. The entry to sync from server is "public:phone.wavi@alice" with commitOp.Update
+        /// 2. The entry to sync from server is "public:phone.wavi$alice" with commitOp.Update
         /// 3. sync command received: sync:from:1:limit:10
         ///
         /// Operations:
@@ -805,18 +772,15 @@ void main() async {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "public:phone.wavi@alice",
+        ///    "atKey": "public:phone.wavi$alice",
         ///    "metadata": <AtMetadata of the key>
         ///    "commitId": 2,
         ///    "operation": "#"
         ///    "version": 1
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
+        String value = await putData('public:phone.wavi$alice');
         // Update the metadata alone
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.putMeta('public:phone.wavi@alice', (AtMetaData()..ttl = 1000));
+        await putMetaData(
+            'public:phone.wavi$alice', (AtMetaData()..ttl = 1000));
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -828,8 +792,8 @@ void main() async {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
-        expect(syncResponseList[0]['value'], '8897896765');
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi$alice');
+        expect(syncResponseList[0]['value'], value);
         expect(syncResponseList[0]['operation'], '#');
         expect(syncResponseList[0]['metadata']['version'], '1');
         expect(syncResponseList[0]['metadata']['ttl'], '1000');
@@ -839,7 +803,7 @@ void main() async {
           () async {
         /// Preconditions:
         /// 1. ServerCommitId is at 2
-        /// 2. The entry to sync from server is "public:phone.wavi@alice" with commitOp.Update
+        /// 2. The entry to sync from server is "public:phone.wavi$alice" with commitOp.Update
         /// 3. sync command received: sync:from:1:limit:10
         ///
         /// Operations:
@@ -847,16 +811,14 @@ void main() async {
         ///
         /// Assertions:
         /// 1. The sync response for the key should contains following fields
-        ///    "atKey": "public:phone.wavi@alice",
+        ///    "atKey": "public:phone.wavi$alice",
         ///    "commitId": 2,
         ///    "operation": "-"
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
+        await putData('public:phone.wavi$alice');
         // Delete the key
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('public:phone.wavi@alice');
+            ?.remove('public:phone.wavi$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -868,7 +830,7 @@ void main() async {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi$alice');
         expect(syncResponseList[0]['operation'], '-');
       });
       tearDown(() async => await verbTestsTearDown());
@@ -888,7 +850,7 @@ void main() async {
         /// Assertions:
         /// 1. The sync response should contain the commit entry of commitOp.delete
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            'public:lastname.wavi@alice',
+            'public:lastname.wavi$alice',
             AtData()
               ..data = '8897896765'
               ..metaData = (AtMetaData()..ttl = 1));
@@ -907,7 +869,7 @@ void main() async {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
-        expect(syncResponseList[0]['atKey'], 'public:lastname.wavi@alice');
+        expect(syncResponseList[0]['atKey'], 'public:lastname.wavi$alice');
         expect(syncResponseList[0]['operation'], '-');
       });
 
@@ -938,7 +900,7 @@ void main() async {
         /// But when sync process, fetches the value, original value will be met even before the
         /// TTB is met.
         await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            'public:phone.wavi@alice',
+            'public:phone.wavi$alice',
             AtData()
               ..data = '8897896765'
               ..metaData =
@@ -954,7 +916,7 @@ void main() async {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi$alice');
         expect(syncResponseList[0]['value'], '8897896765');
         expect(syncResponseList[0]['operation'], '*');
       });
@@ -962,94 +924,130 @@ void main() async {
     });
 
     group('A group of tests on APKAM Enrollment', () {
-      setUp(() async => await verbTestsSetUp());
-      test(
-          'A test to verify keys whose namespace are enrolled are only returned',
-          () async {
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
-        var enrollmentId = Uuid().v4();
-        String enrollmentKey =
-            '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}@alice';
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'wavi': 'rw'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put(enrollmentKey, AtData()..data = jsonEncode(enrollJson));
+      late SyncProgressiveVerbHandler handler;
+      setUp(() async {
+        await verbTestsSetUp();
+        handler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      });
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!);
+      Future<List> executeSyncVerb(
+        String enrollmentId, {
+        String fromCommitId = '-1',
+        String? skipDeletesUntil,
+      }) async {
         var response = Response();
-        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
-        atConnection.metaData.isAuthenticated = true;
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
-            enrollmentId;
+        inboundConnection.metaData.isAuthenticated = true;
+        inboundConnection.metaData.enrollmentId = enrollmentId;
         var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
-        await syncProgressiveVerbHandler.processVerb(
-            response, syncVerbParams, atConnection);
-        List syncResponseList = jsonDecode(response.data!);
+        syncVerbParams[AtConstants.fromCommitSequence] = fromCommitId;
+        if (skipDeletesUntil != null) {
+          syncVerbParams[AtConstants.skipDeletesUntil] = skipDeletesUntil;
+        }
+        await handler.processVerb(response, syncVerbParams, inboundConnection);
+        return jsonDecode(response.data!);
+      }
+
+      test('Verify sync with sub-namespace permissions', () async {
+        // create data in wavi namespace and sub-namespaces
+        String fooDotData = 'public:foo.data.wavi$alice';
+        String fooDotKeys = 'public:foo.keys.wavi$alice';
+        final waviKeys = [
+          'public:phone.wavi$alice',
+          'public:data.wavi$alice',
+          fooDotData,
+          'public:keys.wavi$alice',
+          fooDotKeys,
+          'public:other.wavi$alice',
+          'public:foo.other.wavi$alice',
+        ];
+        for (final k in waviKeys) {
+          await putData(k);
+        }
+
+        // create data in buzz namespace
+        await putData('public:mobile.buzz$alice');
+
+        List syncResponseList;
+
+        // (1) namespace access: data.wavi:r
+        final dataEn = await newTestEnroll('wavi', 'pixel', {'data.wavi': 'r'});
+        // should only get stuff from ".data.wavi"
+        // and should not get "data.wavi"
+        // since that's in the wavi namespace, not the data.wavi namespace
+        syncResponseList = await executeSyncVerb(dataEn);
         expect(syncResponseList.length, 1);
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['atKey'], fooDotData);
+        expect(syncResponseList[0]['operation'], '+');
+
+        // (2) namespace access: keys.wavi:r
+        final keysEn = await newTestEnroll('wavi', 'pixel', {'keys.wavi': 'r'});
+        // should only get stuff from ".keys.wavi"
+        // and should not get "keys.wavi"
+        // since that's in the wavi namespace, not the keys.wavi namespace
+        syncResponseList = await executeSyncVerb(keysEn);
+        expect(syncResponseList.length, 1);
+        expect(syncResponseList[0]['atKey'], fooDotKeys);
+        expect(syncResponseList[0]['operation'], '+');
+
+        // (3) namespace access: wavi:rw
+        final allEn = await newTestEnroll('wavi', 'pixel', {'wavi': 'rw'});
+        // should get everything from ".wavi"
+        syncResponseList = await executeSyncVerb(allEn);
+        expect(syncResponseList.length, waviKeys.length);
+        for (int i = 0; i < waviKeys.length; i++) {
+          expect(syncResponseList[i]['atKey'], waviKeys[i]);
+          expect(syncResponseList[i]['operation'], '+');
+        }
+
+        // (4) namespace access: data.wavi:rw, keys.wavi:rw
+        final keysAndDataEn = await newTestEnroll(
+          'wavi',
+          'pixel',
+          {'data.wavi': 'rw', 'keys.wavi': 'rw'},
+        );
+        // should get everything from "keys.wavi" and "data.wavi"
+        //   => but nothing else from ".wavi"
+        syncResponseList = await executeSyncVerb(keysAndDataEn);
+        expect(syncResponseList.length, 2);
+        expect(syncResponseList[0]['atKey'], fooDotData);
+        expect(syncResponseList[0]['operation'], '+');
+        expect(syncResponseList[1]['atKey'], fooDotKeys);
+        expect(syncResponseList[1]['operation'], '+');
+      });
+
+      test('Verify sync with namespace permissions', () async {
+        // create enrollment with wavi:rw
+        final enrollmentId =
+            await newTestEnroll('wavi', 'pixel', {'wavi': 'rw'});
+
+        // create data in wavi namespace
+        await putData('public:phone.wavi$alice');
+        // create data in buzz namespace
+        await putData('public:mobile.buzz$alice');
+
+        // Verify that sync only returns data from the wavi namespace
+        List syncResponseList = await executeSyncVerb(enrollmentId);
+        expect(syncResponseList.length, 1);
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi$alice');
         expect(syncResponseList[0]['operation'], '+');
       });
 
       test(
           'A test to verify all keys are returned when enrollment contains *:rw',
           () async {
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:phone.wavi@alice', AtData()..data = '8897896765');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('public:mobile.buzz@alice', AtData()..data = '8897896765');
-        var enrollmentId = Uuid().v4();
-        String enrollmentKey =
-            '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}@alice';
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'wavi': 'rw', '*': 'rw'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
-            enrollmentKey, AtData()..data = jsonEncode(enrollJson),
-            skipCommit: true);
+        await putData('public:phone.wavi$alice');
+        await putData('public:mobile.buzz$alice');
+        var enrollmentId =
+            await newTestEnroll('wavi', 'pixel', {'wavi': 'rw', '*': 'rw'});
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!);
-        var response = Response();
-        var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-        var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
-        atConnection.metaData.isAuthenticated = true;
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId =
-            enrollmentId;
-        var syncVerbParams = HashMap<String, String>();
-        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
-        await syncProgressiveVerbHandler.processVerb(
-            response, syncVerbParams, atConnection);
-        List syncResponseList = jsonDecode(response.data!);
+        List syncResponseList = await executeSyncVerb(enrollmentId);
         expect(syncResponseList.length, 2);
-        expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
+        expect(syncResponseList[0]['atKey'], 'public:phone.wavi$alice');
         expect(syncResponseList[0]['operation'], '+');
-        expect(syncResponseList[1]['atKey'], 'public:mobile.buzz@alice');
+        expect(syncResponseList[1]['atKey'], 'public:mobile.buzz$alice');
         expect(syncResponseList[1]['operation'], '+');
       });
+
       tearDown(() async => await verbTestsTearDown());
     });
     group('A group of tests to verify skip deletes feature', () {
@@ -1057,21 +1055,15 @@ void main() async {
       test(
           'test to verify delete commit entries are not sent when skipDeletesUntil flag is set',
           () async {
+        await putData('test_key_1$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_1@alice', AtData()..data = 'alice');
+            ?.remove('test_key_1$alice');
+        await putData('test_key_2$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.remove('test_key_1@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_2@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_2@alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.put('test_key_3@alice', AtData()..data = 'alice');
+            ?.remove('test_key_2$alice');
+        await putData('test_key_3$alice');
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
         var response = Response();
@@ -1089,24 +1081,22 @@ void main() async {
           syncResponseList.add(entry['atKey']);
         }
         expect(
-            syncResponseList.contains('test_key_1@alice'), false); //deleted key
+            syncResponseList.contains('test_key_1$alice'), false); //deleted key
         expect(
-            syncResponseList.contains('test_key_2@alice'), false); //deleted key
-        expect(syncResponseList.contains('test_key_3@alice'), true);
+            syncResponseList.contains('test_key_2$alice'), false); //deleted key
+        expect(syncResponseList.contains('test_key_3$alice'), true);
       });
 
       test(
           'a test to verify sync response with skip deletes when first batch has all deletes',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 25; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -1136,19 +1126,15 @@ void main() async {
           'a test to verify sync response with skip deletes when commit log has only deletes in second batch',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 25; i < 50; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 25; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1192,14 +1178,12 @@ void main() async {
           'a test to verify sync response with skip deletes when last entry in first batch is delete',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 1; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1230,14 +1214,12 @@ void main() async {
           'a test to verify sync response - deletes after skipDeletesUntil should be sent',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 10; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1274,16 +1256,12 @@ void main() async {
           'a test to verify sync response with skip deletes when first entry in second batch is delete',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
+        await putData('test_key_25$alice');
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
-            ?.put('test_key_25@alice', AtData()..data = 'alice');
-        await secondaryPersistenceStore!
-            .getSecondaryKeyStore()
-            ?.remove('test_key_25@alice');
+            ?.remove('test_key_25$alice');
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -1326,14 +1304,12 @@ void main() async {
           'a test to verify sync response skipDeletesUntil is (last commit ID in batch - 1)',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 10; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1368,14 +1344,12 @@ void main() async {
           'a test to verify sync response skipDeletesUntil is (last commit ID in batch)',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 10; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1410,19 +1384,15 @@ void main() async {
           'a test to verify sync response skipDeletesUntil is (last commit ID in batch + 1)',
           () async {
         for (int i = 0; i < 25; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 10; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         for (int i = 25; i < 30; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
@@ -1460,15 +1430,13 @@ void main() async {
           () async {
         //1. creates commitId from 0-29
         for (int i = 0; i < 30; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         //2. 10-29 commit id will be updates. 30-39 will be deletes since only one key entry will be maintained for update followed by delete.
         for (int i = 0; i < 10; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -1501,13 +1469,13 @@ void main() async {
         // assert last delete is present
         expect(commitIdList.contains(39), true);
 
-        expect(syncResponseList[0]['atKey'], 'test_key_10@alice');
+        expect(syncResponseList[0]['atKey'], 'test_key_10$alice');
         expect(syncResponseList[0]['operation'], '+');
         expect(syncResponseList[0]['commitId'], 10);
-        expect(syncResponseList[19]['atKey'], 'test_key_29@alice');
+        expect(syncResponseList[19]['atKey'], 'test_key_29$alice');
         expect(syncResponseList[19]['operation'], '+');
         expect(syncResponseList[19]['commitId'], 29);
-        expect(syncResponseList[20]['atKey'], 'test_key_9@alice');
+        expect(syncResponseList[20]['atKey'], 'test_key_9$alice');
         expect(syncResponseList[20]['operation'], '-');
         expect(syncResponseList[20]['commitId'], 39);
       });
@@ -1515,14 +1483,12 @@ void main() async {
           'a test to verify sync response with skip deletes when commit log has less entries than default entry buffer count(25)',
           () async {
         for (int i = 0; i < 10; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 5; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
             secondaryPersistenceStore!.getSecondaryKeyStore()!);
@@ -1559,29 +1525,23 @@ void main() async {
           'a test to verify sync response with skip deletes when commit log has greater entries than default entry buffer count(25)',
           () async {
         for (int i = 0; i < 10; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 0; i < 5; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         for (int i = 10; i < 20; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
         for (int i = 10; i < 15; i++) {
           await secondaryPersistenceStore!
               .getSecondaryKeyStore()
-              ?.remove('test_key_$i@alice');
+              ?.remove('test_key_$i$alice');
         }
         for (int i = 20; i < 50; i++) {
-          await secondaryPersistenceStore!
-              .getSecondaryKeyStore()
-              ?.put('test_key_$i@alice', AtData()..data = 'alice');
+          await putData('test_key_$i$alice');
         }
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(

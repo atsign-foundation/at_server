@@ -130,7 +130,7 @@ void main() {
   group('A group of notify verb regex - invalid syntax', () {
     test('test notify without whom to notify', () {
       var verb = Notify();
-      var command = 'notify:location@alice ';
+      var command = 'notify:location$alice ';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -159,7 +159,7 @@ void main() {
 
     test('test notify key- invalid keyword', () {
       var verb = Notify();
-      var command = 'notification:@colin:location@alice';
+      var command = 'notification:@colin:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -169,7 +169,7 @@ void main() {
 
     test('test notify verb - no key', () {
       var verb = Notify();
-      var command = 'notify:@colin:@alice';
+      var command = 'notify:@colin:$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -233,14 +233,14 @@ void main() {
     });
 
     test('test notify key- invalid command', () {
-      var command = 'notify:location@alice';
+      var command = 'notify:location$alice';
       AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
-      var command = 'notify:update:ttr:1000:ccd:test:location@alice';
+      var command = 'notify:update:ttr:1000:ccd:test:location$alice';
       AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
@@ -274,7 +274,7 @@ void main() {
   group('A group of notify verb handler test', () {
     test('notify verb with upper case', () {
       var verb = Notify();
-      var command = 'NOTIFY:notifier:persona:@bob:location@alice';
+      var command = 'NOTIFY:notifier:persona:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -285,7 +285,7 @@ void main() {
 
     test('notify verb and value with mixed case', () {
       var verb = Notify();
-      var command = 'NoTiFy:notifier:persona:@bob:location@alice';
+      var command = 'NoTiFy:notifier:persona:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -297,7 +297,7 @@ void main() {
     test('notify verb with cascade delete is true', () {
       var verb = Notify();
       var command =
-          'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location@alice';
+          'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -312,7 +312,7 @@ void main() {
     test('notify verb with cascade delete is false', () {
       var verb = Notify();
       var command =
-          'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location@alice';
+          'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -1178,7 +1178,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1205,7 +1205,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1219,7 +1219,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.buzz$alice')));
     });
 
     test(
@@ -1239,7 +1239,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1268,7 +1268,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1281,7 +1281,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:somekey@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:somekey$alice')));
     });
     test(
         'A test to verify notify all is allowed on a key with apkam enrollment with write access',
@@ -1302,7 +1302,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1333,7 +1333,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1346,7 +1346,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
     });
     test(
         'A test to verify notify all is denied on a key with apkam enrollment with no namespace access',
@@ -1367,7 +1367,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1380,7 +1380,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
     });
     tearDown(() async => await tearDownFunc());
   });
@@ -1452,7 +1452,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1500,7 +1500,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1544,7 +1544,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var newEnrollmentKeyName =
-          '$newEnrollmentId.new.enrollments.__manage@alice';
+          '$newEnrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager.getKeyStore().put(
           newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
 
@@ -1570,7 +1570,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz$alice')));
 
       //3. fetching  notification key with no namespace should throw exception
       notifyFetchCommand = 'notify:fetch:$notificationIdKeyNoNamespace';
@@ -1583,7 +1583,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location$alice')));
 
       //1. notify status on wavi notification key should pass
       String notifyStatusCommand = 'notify:status:$notificationIdWaviKey';
@@ -1608,7 +1608,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz$alice')));
 
       //2. notify status on notification key with no namespace should throw exception
       notifyStatusCommand = 'notify:status:$notificationIdKeyNoNamespace';
@@ -1623,7 +1623,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location$alice')));
     });
     test('A test to verify notify remove on a different notification keys',
         () async {
@@ -1642,7 +1642,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1686,7 +1686,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var newEnrollmentKeyName =
-          '$newEnrollmentId.new.enrollments.__manage@alice';
+          '$newEnrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager.getKeyStore().put(
           newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
 
@@ -1713,7 +1713,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:email.buzz@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:email.buzz$alice')));
 
       //3. removing  notification key with no namespace should throw exception
       notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
@@ -1728,7 +1728,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:location@alice')));
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:location$alice')));
 
       //4. removing  notification key with no namespace with enrollment with * namespace access should pass
       notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
@@ -1774,7 +1774,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager
           .getKeyStore()
           .put(keyName, AtData()..data = jsonEncode(enrollJson));
@@ -1825,7 +1825,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var newEnrollmentKeyName =
-          '$newEnrollmentId.new.enrollments.__manage@alice';
+          '$newEnrollmentId.new.enrollments.__manage$alice';
       await keyStoreManager.getKeyStore().put(
           newEnrollmentKeyName, AtData()..data = jsonEncode(newEnrollJson));
 
@@ -1840,9 +1840,9 @@ void main() {
       expect(notifyListJson.length, 2);
       for (var notification in notifyListJson) {
         if (notification['id'] == notificationIdWaviKey) {
-          expect(notification['key'], '@alice:phone.wavi@alice');
+          expect(notification['key'], '$alice:phone.wavi$alice');
         } else if (notification['id'] == notificationIdReservedKey) {
-          expect(notification['key'], '@alice:shared_key@alice');
+          expect(notification['key'], '$alice:shared_key$alice');
         } else {
           throw AssertionError(
               'Notify list should return wavi namespace key and reserved key');
@@ -1880,15 +1880,15 @@ void main() {
       // TODO Could be quite useful in some scenarios.
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar@alice', null),
+              MessageType.key, 'public:foo.bar$alice', null),
           false);
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar@alice', 'false'),
+              MessageType.key, 'public:foo.bar$alice', 'false'),
           false);
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar@alice', 'true'),
+              MessageType.key, 'public:foo.bar$alice', 'true'),
           false);
     });
 
@@ -1900,25 +1900,25 @@ void main() {
       // on notifications when they ought to be doing so.
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar@alice', null),
+              MessageType.key, '@bob:foo.bar$alice', null),
           true);
 
       // This used to return 'true' as well, which is definitively wrong.
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar@alice', 'false'),
+              MessageType.key, '@bob:foo.bar$alice', 'false'),
           false);
 
       expect(
           notifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar@alice', 'true'),
+              MessageType.key, '@bob:foo.bar$alice', 'true'),
           true);
     });
 
     test('test notify:isEncrypted:false is respected', () async {
       Response response = Response();
       String notifyCommand =
-          'notify:update:isEncrypted:false:@bob:metadata.notify.test@alice:hello';
+          'notify:update:isEncrypted:false:@bob:metadata.notify.test$alice:hello';
       HashMap<String, String?> notifyVerbParams =
           getVerbParam(VerbSyntax.notify, notifyCommand);
 
@@ -1934,7 +1934,7 @@ void main() {
       var stored = await AtNotificationKeystore.getInstance().get(notifId);
       expect(stored, isNotNull);
       expect(stored!.toAtSign, '@bob');
-      expect(stored.notification, '@bob:metadata.notify.test@alice');
+      expect(stored.notification, '@bob:metadata.notify.test$alice');
       expect(stored.fromAtSign, alice);
       expect(stored.opType, OperationType.update);
       expect(stored.messageType, MessageType.key);

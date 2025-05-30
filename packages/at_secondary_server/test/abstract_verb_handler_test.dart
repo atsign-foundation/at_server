@@ -41,7 +41,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
     });
@@ -54,10 +54,8 @@ void main() {
         ..sharedWith = '@bob'
         ..namespace = 'wavi'
         ..key = 'phone';
-      var isAuthorized = await handler.isAuthorized(
-          inboundConnection.metaData as InboundConnectionMetadata,
-          atKey: atKey.toString(),
-          namespace: 'wavi');
+      var isAuthorized = await handler.isAuthorized(inboundConnection.metaData,
+          atKey: atKey.toString(), namespace: 'wavi');
       expect(isAuthorized, true);
     });
 
@@ -70,10 +68,8 @@ void main() {
         ..sharedWith = '@bob'
         ..namespace = 'at_contact.buzz'
         ..key = 'phone';
-      var isAuthorized = await handler.isAuthorized(
-          inboundConnection.metaData as InboundConnectionMetadata,
-          atKey: atKey.toString(),
-          namespace: 'buzz');
+      var isAuthorized = await handler.isAuthorized(inboundConnection.metaData,
+          atKey: atKey.toString(), namespace: 'buzz');
       expect(isAuthorized, true);
     });
 
@@ -86,10 +82,8 @@ void main() {
         ..sharedWith = '@bob'
         ..namespace = 'persona.buzz'
         ..key = 'phone';
-      var isAuthorized = await handler.isAuthorized(
-          inboundConnection.metaData as InboundConnectionMetadata,
-          atKey: atKey.toString(),
-          namespace: 'buzz');
+      var isAuthorized = await handler.isAuthorized(inboundConnection.metaData,
+          atKey: atKey.toString(), namespace: 'buzz');
       expect(isAuthorized, true);
     });
 
@@ -103,10 +97,8 @@ void main() {
         ..namespace = 'wavi'
         ..key = 'phone';
       expect(
-          () async => await handler.isAuthorized(
-              inboundConnection.metaData as InboundConnectionMetadata,
-              atKey: atKey.toString(),
-              namespace: 'buzz'),
+          () async => await handler.isAuthorized(inboundConnection.metaData,
+              atKey: atKey.toString(), namespace: 'buzz'),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==

@@ -53,7 +53,7 @@ void main() {
 
   group('A group of update accept tests', () {
     test('test update command accept test', () {
-      var command = 'update:public:location@alice new york';
+      var command = 'update:public:location$alice new york';
       var handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
       var result = handler.accept(command);
@@ -61,7 +61,7 @@ void main() {
     });
 
     test('test update command accept negative test', () {
-      var command = 'updated:public:location@alice new york';
+      var command = 'updated:public:location$alice new york';
       var handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
       var result = handler.accept(command);
@@ -71,7 +71,7 @@ void main() {
   group('A group of update verb regex test', () {
     test('test update key-value', () {
       var verb = Update();
-      var command = 'update:location@alice california';
+      var command = 'update:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AtConstants.atKey], 'location');
@@ -82,7 +82,7 @@ void main() {
 
     test('test update local key-value with self atsign', () {
       var verb = Update();
-      var command = 'update:@alice:location@alice california';
+      var command = 'update:$alice:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AtConstants.atKey], 'location');
@@ -93,7 +93,7 @@ void main() {
 
     test('test update key-value with another user atsign', () {
       var verb = Update();
-      var command = 'update:@bob:location@alice california';
+      var command = 'update:@bob:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AtConstants.atKey], 'location');
@@ -104,7 +104,7 @@ void main() {
 
     test('test update local key-value with public', () {
       var verb = Update();
-      var command = 'update:public:location@alice new york';
+      var command = 'update:public:location$alice new york';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AtConstants.atKey], 'location');
@@ -147,7 +147,7 @@ void main() {
 
     test('test update with multiple : in key - should fail', () {
       var verb = Update();
-      var command = 'update:ttl:1:public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttl:1:public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -176,7 +176,7 @@ void main() {
 
   group('A group of update verb handler test', () {
     test('test update verb handler- update', () {
-      var command = 'update:location@alice us';
+      var command = 'update:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
       var verbParameters = handler.parse(command);
@@ -190,7 +190,7 @@ void main() {
     });
 
     test('test update verb handler- public update', () {
-      var command = 'update:public:location@alice us';
+      var command = 'update:public:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
       var verb = handler.getVerb();
@@ -207,7 +207,7 @@ void main() {
 
     test('update verb with upper case', () {
       var verb = Update();
-      var command = 'UPDATE:@bob:location@alice US';
+      var command = 'UPDATE:@bob:location$alice US';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -219,7 +219,7 @@ void main() {
 
     test('update verb and value with mixed case', () {
       var verb = Update();
-      var command = 'UpDaTe:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -233,7 +233,7 @@ void main() {
   group('A group of update verb regex - invalid syntax', () {
     test('test update with ttl with no value', () {
       var verb = Update();
-      var command = 'update:ttl::public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttl::public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -243,7 +243,7 @@ void main() {
 
     test('test update with ttb with no value', () {
       var verb = Update();
-      var command = 'update:ttb::public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttb::public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -253,7 +253,7 @@ void main() {
 
     test('test update with two colons beside - invalid syntax', () {
       var verb = Update();
-      var command = 'update::location:city@alice Hyderabad:TG';
+      var command = 'update::location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -263,7 +263,7 @@ void main() {
 
     test('test update with @ suffixed in atsign - invalid syntax', () {
       var verb = Update();
-      var command = 'update:location:city@alice@ Hyderabad:TG';
+      var command = 'update:location:city$alice@ Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -273,7 +273,7 @@ void main() {
 
     test('test update key- no value', () {
       var verb = Update();
-      var command = 'update:location@alice ';
+      var command = 'update:location$alice ';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -283,7 +283,7 @@ void main() {
 
     test('test update key- invalid keyword', () {
       var verb = Update();
-      var command = 'updatee:location@alice us';
+      var command = 'updatee:location$alice us';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -312,7 +312,7 @@ void main() {
     });
 
     test('test update key no value - invalid command', () {
-      var command = 'update:location@alice';
+      var command = 'update:location$alice';
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
       expect(
@@ -327,7 +327,7 @@ void main() {
     test('test update with ttl and ttb with values', () {
       var verb = Update();
       var command =
-          'update:ttl:20000:ttb:20000:public:location.city@alice Hyderabad:TG';
+          'update:ttl:20000:ttb:20000:public:location.city$alice Hyderabad:TG';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap[AtConstants.atKey], 'location.city');
@@ -339,7 +339,7 @@ void main() {
 
     test('adding ttl to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:100:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:100:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -352,7 +352,7 @@ void main() {
 
     test('adding ttb to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttb:150:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb:150:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -365,7 +365,7 @@ void main() {
 
     test('adding ttl and ttb to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:300:ttb:150:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:300:ttb:150:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -379,7 +379,7 @@ void main() {
 
     test('adding ttl and ttb to the update verb with public key', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:300:ttb:150:public:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:300:ttb:150:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -392,7 +392,7 @@ void main() {
 
     test('adding 0 ttl and ttb to the update verb with public key', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:0:ttb:0:public:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:0:ttb:0:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -406,7 +406,7 @@ void main() {
 
   group('group of negative tests around ttl and ttb', () {
     test('ttl starting with -1', () {
-      var command = 'UpDaTe:ttl:-1:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
@@ -423,7 +423,7 @@ void main() {
     });
 
     test('ttb starting with -1', () {
-      var command = 'UpDaTe:ttb:-1:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
@@ -441,7 +441,7 @@ void main() {
 
     test('ttl and ttb starting with negative value -1', () {
       var command =
-          'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
+          'update:ttl:-1:ttb:-1:@bob:location.test$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
@@ -451,7 +451,7 @@ void main() {
     });
 
     test('ttl with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttl::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
@@ -463,7 +463,7 @@ void main() {
     });
 
     test('ttb with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttb::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
@@ -475,7 +475,7 @@ void main() {
     });
 
     test('ttl and ttb with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttl::ttb::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl::ttb::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
@@ -491,7 +491,7 @@ void main() {
     test('adding ttr and ccd true to the update verb with public key', () {
       var verb = Update();
       var command =
-          'UpDaTe:ttr:1000:ccd:true:public:location@alice Hyderabad,TG';
+          'UpDaTe:ttr:1000:ccd:true:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -505,7 +505,7 @@ void main() {
     test('adding ttr and ccd false to the update verb with public key', () {
       var verb = Update();
       var command =
-          'UpDaTe:ttr:1000:ccd:false:public:location@alice Hyderabad,TG';
+          'UpDaTe:ttr:1000:ccd:false:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
@@ -519,7 +519,7 @@ void main() {
 
   group('A group of negative tests around ttr and ccd', () {
     test('ttr starting with -2', () async {
-      var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
@@ -543,7 +543,7 @@ void main() {
     });
 
     test('ccd with invalid value', () {
-      var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           mockKeyStore, statsNotificationService, notificationManager);
@@ -930,7 +930,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
 
       final atKey =
-          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests$alice';
       List<InboundConnection> connections = [];
       List<Future<void>> futures = [];
       for (int i = 0; i < concurrency; i++) {
@@ -971,7 +971,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
 
       final atKey =
-          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests@alice';
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests$alice';
       List<InboundConnection> connections = [];
       List<Future<void>> futures = [];
       for (int i = 0; i < concurrency; i++) {
@@ -1009,7 +1009,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       inboundConnection.metaData.isAuthenticated = true;
 
-      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      final atKey = AtKey.fromString('mutable1.wavi$alice');
       await updateHandler.process(
           'update:$atKey original data', inboundConnection);
       AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
@@ -1029,7 +1029,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       inboundConnection.metaData.isAuthenticated = true;
 
-      final atKey = AtKey.fromString('mutable1.wavi@alice');
+      final atKey = AtKey.fromString('mutable1.wavi$alice');
       await updateHandler.process(
           'update:immutable:true:$atKey original data', inboundConnection);
       AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
@@ -1060,7 +1060,7 @@ void main() {
         randomMd.ccd =
             AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
         AtKey atKey =
-            AtKey.fromString('update_verb_test.$i.random_keys.wavi@alice')
+            AtKey.fromString('update_verb_test.$i.random_keys.wavi$alice')
               ..metadata = randomMd;
         var uvb = UpdateVerbBuilder()
           ..atKey = atKey
@@ -1079,7 +1079,7 @@ void main() {
           secondaryKeyStore, statsNotificationService, notificationManager);
       inboundConnection.metaData.isAuthenticated = true;
 
-      var key = 'update-ttl-zero.tests@alice';
+      var key = 'update-ttl-zero.tests$alice';
 
       // first, create a record with ttl 12345
       await updateHandler.process(
@@ -1177,10 +1177,10 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'Invalid update command - sharedBy atsign @bob should be same as current atsign @alice')));
+                  'Invalid update command - sharedBy atsign @bob should be same as current atsign $alice')));
     });
     test('sharedBy atsign same as current atsign', () async {
-      var command = 'update:phone@alice +12345';
+      var command = 'update:phone$alice +12345';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);
@@ -1211,7 +1211,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
     });
@@ -1230,7 +1230,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
     });
 
     test(
@@ -1251,7 +1251,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1280,7 +1280,7 @@ void main() {
           'requestType': 'newEnrollment',
           'approval': {'state': operation}
         };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+        var keyName = '$enrollmentId.new.enrollments.__manage$alice';
         await secondaryKeyStore.put(
             keyName, AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
@@ -1296,7 +1296,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
       });
     }
     tearDown(() async => await verbTestsTearDown());
@@ -1320,7 +1320,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -1355,7 +1355,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -1401,7 +1401,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -1462,7 +1462,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with wavi namespace
@@ -1500,7 +1500,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
@@ -1515,7 +1515,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:phone.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:phone.buzz$alice')));
     });
     test(
         'A test to verify write access is allowed to a reserved key for an enrollment with a specific namespace access',
@@ -1533,7 +1533,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$bob:shared_key$alice 123';
@@ -1562,7 +1562,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$alice:secretdata$alice 123';
@@ -1591,7 +1591,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$alice:secretdata$alice 123';
@@ -1605,7 +1605,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to update key: @alice:secretdata@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:secretdata$alice')));
     });
 
     test(
@@ -1624,7 +1624,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand =
@@ -1655,7 +1655,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand =
@@ -1686,7 +1686,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:atconnections.bob.alice.buzz$alice bob';
@@ -1728,7 +1728,7 @@ void main() {
           EnrollApproval(EnrollmentStatus.approved.name);
       enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
 
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName,
           AtData()
@@ -1736,7 +1736,7 @@ void main() {
             ..metaData = (AtMetaData()..ttl = 1));
       await Future.delayed(Duration(milliseconds: 2));
 
-      String updateCommand = 'update:@alice:phone.wavi@alice 123';
+      String updateCommand = 'update:$alice:phone.wavi$alice 123';
 
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
           secondaryKeyStore, statsNotificationService, notificationManager);

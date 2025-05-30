@@ -32,7 +32,7 @@ void main() async {
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
       var verb = From();
-      var command = 'from:@alice';
+      var command = 'from:$alice';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
       expect(paramsMap['atSign'], alice);
@@ -75,17 +75,17 @@ void main() async {
 
   group('A group of from verb accept test', () {
     test('test from accept', () {
-      var command = 'from:@alice';
+      var command = 'from:$alice';
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
-      var command = 'to:@alice';
+      var command = 'to:$alice';
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
-      var command = 'FROM:@ALICE';
+      var command = 'FROM:$alice';
       command = SecondaryUtil.convertCommand(command);
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
@@ -94,7 +94,7 @@ void main() async {
   group('A group of from verb regex -invalid syntax', () {
     test('test from invalid keyword', () {
       var verb = From();
-      var command = 'to:@alice';
+      var command = 'to:$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -119,7 +119,7 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => alice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
@@ -134,7 +134,7 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -174,7 +174,7 @@ void main() async {
       verbParams.putIfAbsent('atSign', () => alice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;

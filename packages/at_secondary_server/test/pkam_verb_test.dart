@@ -170,7 +170,7 @@ void main() async {
           EnrollApproval(EnrollmentStatus.approved.name);
       enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
 
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName,
           AtData()

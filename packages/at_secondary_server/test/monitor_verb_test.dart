@@ -5,7 +5,6 @@ import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
@@ -188,7 +187,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+      inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
 
       MonitorVerbHandler monitorVerbHandler =
@@ -200,7 +199,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.buzz@bob'
+            ..notification = '$alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -213,7 +212,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -227,7 +226,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.wavi@bob');
+      expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -237,7 +236,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+      inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
 
       MonitorVerbHandler monitorVerbHandler =
@@ -249,7 +248,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.buzz@bob'
+            ..notification = '$alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -262,7 +261,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.buzz@bob');
+      expect(notificationMap['key'], '$alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
 
@@ -271,7 +270,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -285,7 +284,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.wavi@bob');
+      expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -296,7 +295,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+      inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
 
       MonitorVerbHandler monitorVerbHandler =
@@ -308,7 +307,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.buzz@bob'
+            ..notification = '$alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -321,7 +320,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -334,7 +333,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.wavi@bob');
+      expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -355,7 +354,7 @@ void main() {
           EnrollVerbHandler(secondaryKeyStore);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+      inboundConnection.metaData.enrollmentId =
           jsonDecode(response.data!)['enrollmentId'];
       expect(jsonDecode(response.data!)['status'], 'approved');
 
@@ -369,7 +368,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -382,7 +381,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.wavi@bob');
+      expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Notification with buzz namespace
@@ -391,7 +390,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.buzz@bob'
+            ..notification = '$alice:phone.buzz@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -404,7 +403,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.buzz@bob');
+      expect(notificationMap['key'], '$alice:phone.buzz@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
     });
@@ -516,14 +515,12 @@ void main() {
       )!;
       // Make an inboundConnection with that enrollment ID and
       //    issue monitor command with selfNotifications flag set
-      DummyInboundConnection apkamMC = DummyInboundConnection();
-      (apkamMC.metaData as InboundConnectionMetadata).enrollmentId =
-          monitorsEnrollmentId;
-      apkamMC.metaData.authType = AuthType.apkam;
-      apkamMC.metaData.isAuthenticated = true;
-      apkamMC.metaData.sessionID = 'apkam_monitor_session';
+      inboundConnection.metaData.enrollmentId = monitorsEnrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'apkam_monitor_session';
       await MonitorVerbHandler(secondaryKeyStore)
-          .processVerb(Response(), mvp, apkamMC);
+          .processVerb(Response(), mvp, inboundConnection);
 
       // Make another enrollment request
       String nextEnrollmentId = await newEnrollment(
@@ -535,8 +532,9 @@ void main() {
 
       // Verify that the APKAM monitor connection receives the
       //    enrollment request notification
-      var notificationJson = jsonDecode(
-          apkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
+      var notificationJson = jsonDecode(inboundConnection.lastWrittenData!
+          .replaceAll('notification:', '')
+          .trim());
       expect(notificationJson['value'], isNotNull);
       final valueJson = jsonDecode(notificationJson['value']);
       //TODO remove encryptedApkamSymmetricKey in the future
@@ -569,7 +567,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -582,7 +580,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -596,7 +594,7 @@ void main() {
       expect(notificationMap['id'], 'abc');
       expect(notificationMap['from'], '@bob');
       expect(notificationMap['to'], alice);
-      expect(notificationMap['key'], '@alice:phone.wavi@bob');
+      expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
       // Set to empty string to remove the previous data
@@ -610,7 +608,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'revoked'}
       };
-      keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       atNotification = (AtNotificationBuilder()
@@ -618,7 +616,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)
@@ -687,7 +685,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = '[';
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
+      inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
@@ -698,7 +696,7 @@ void main() {
             ..fromAtSign = '@bob'
             ..notificationDateTime = DateTime.now()
             ..toAtSign = alice
-            ..notification = '@alice:phone.wavi@bob'
+            ..notification = '$alice:phone.wavi@bob'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key)

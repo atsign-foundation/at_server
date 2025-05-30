@@ -13,8 +13,7 @@ void main() async {
       expect(AtSecondaryConfig.rootServerPort > 0, true);
     });
 
-    test('Config: check AtSecondaryConfig.logLevel defaults to INFO',
-        () async {
+    test('Config: check AtSecondaryConfig.logLevel defaults to INFO', () async {
       expect(AtSecondaryConfig.logLevel.trim().toUpperCase(),
           equals(logging.Level.INFO.name.trim().toUpperCase()));
     });

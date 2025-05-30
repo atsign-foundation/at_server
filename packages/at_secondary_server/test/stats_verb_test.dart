@@ -247,10 +247,10 @@ void main() {
       await AtNotificationKeystore.getInstance().put('1033', testNotification3);
       await AtNotificationKeystore.getInstance().put('1034', testNotification4);
       var verb = Notify();
-      var command = 'notify:update:ttr:-1:@alice:city@bob:vijayawada';
-      var command2 = 'notify:delete:ttr:-1:@alice:city@bob:vijayawada';
-      var command3 = 'notify:update:ttr:-1:@alice:city@bob:vijayawada';
-      var command4 = 'notify:update:ttr:-1:@alice:city@bob:vijayawada';
+      var command = 'notify:update:ttr:-1:$alice:city@bob:vijayawada';
+      var command2 = 'notify:delete:ttr:-1:$alice:city@bob:vijayawada';
+      var command3 = 'notify:update:ttr:-1:$alice:city@bob:vijayawada';
+      var command4 = 'notify:update:ttr:-1:$alice:city@bob:vijayawada';
       command = SecondaryUtil.convertCommand(command);
       command2 = SecondaryUtil.convertCommand(command2);
       command3 = SecondaryUtil.convertCommand(command3);
@@ -444,34 +444,34 @@ void main() {
           await LastCommitIDMetricImpl.getInstance().getMetrics();
       var randomString = Uuid().v4();
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:phone-$randomString@alice', AtData()..data = '9848033443');
+          '$alice:phone-$randomString$alice', AtData()..data = '9848033443');
       // create a new key
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:location-$randomString@alice', AtData()..data = 'Hyderabad');
+          '$alice:location-$randomString$alice', AtData()..data = 'Hyderabad');
       // Update the first key again
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:phone-$randomString@alice', AtData()..data = '9848033444');
+          '$alice:phone-$randomString$alice', AtData()..data = '9848033444');
       // Insert and delete a key
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:deleteKey-$randomString@alice',
+          '$alice:deleteKey-$randomString$alice',
           AtData()..data = '9848033444');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .remove('@alice:deleteKey-$randomString@alice');
+          .remove('$alice:deleteKey-$randomString$alice');
       var latestCommitIdForEachKey =
           await LatestCommitEntryOfEachKey().getMetrics();
       var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
-      expect(latestCommitIdMap['@alice:location-$randomString@alice'][0],
+      expect(latestCommitIdMap['$alice:location-$randomString$alice'][0],
           (int.parse(lastCommitId) + 2));
-      expect(latestCommitIdMap['@alice:location-$randomString@alice'][1], '+');
+      expect(latestCommitIdMap['$alice:location-$randomString$alice'][1], '+');
 
-      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][0],
+      expect(latestCommitIdMap['$alice:phone-$randomString$alice'][0],
           (int.parse(lastCommitId) + 3));
-      expect(latestCommitIdMap['@alice:phone-$randomString@alice'][1], '*');
+      expect(latestCommitIdMap['$alice:phone-$randomString$alice'][1], '*');
 
-      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][0],
+      expect(latestCommitIdMap['$alice:deletekey-$randomString$alice'][0],
           (int.parse(lastCommitId) + 5));
-      expect(latestCommitIdMap['@alice:deletekey-$randomString@alice'][1], '-');
+      expect(latestCommitIdMap['$alice:deletekey-$randomString$alice'][1], '-');
     });
 
     test(
@@ -491,7 +491,7 @@ void main() {
       for (int i = 1; i <= randomNumber; i++) {
         phoneNumber = phoneNumber + i;
         await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-            '@alice:phone-${randomString}_$i@alice',
+            '$alice:phone-${randomString}_$i$alice',
             AtData()..data = phoneNumber.toString());
       }
       await LastCommitIDMetricImpl.getInstance().getMetrics();
@@ -502,7 +502,7 @@ void main() {
       for (int i = 1; i <= randomNumber; i++) {
         expect(
             latestCommitIdMap
-                .containsKey('@alice:phone-${randomString}_$i@alice'),
+                .containsKey('$alice:phone-${randomString}_$i$alice'),
             true);
       }
     });
@@ -512,13 +512,13 @@ void main() {
         () async {
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
 
       LastCommitIDMetricImpl.getInstance().atCommitLog =
           secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
@@ -532,15 +532,15 @@ void main() {
         () async {
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       LastCommitIDMetricImpl.getInstance().atCommitLog =
           secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
@@ -554,15 +554,15 @@ void main() {
         () async {
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       LastCommitIDMetricImpl.getInstance().atCommitLog =
           secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
@@ -576,15 +576,15 @@ void main() {
         () async {
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:phone.wavi@alice', AtData()..data = '9848033443');
+          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:location.wavi@alice', AtData()..data = 'Hyderabad');
+          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
       await secondaryPersistenceStore!
           .getSecondaryKeyStore()!
-          .put('@alice:mobile.buzz@alice', AtData()..data = '9848033444');
+          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryPersistenceStore!.getSecondaryKeyStore()!.put(
-          '@alice:contact.atmosphere@alice', AtData()..data = '9848033444');
+          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       LastCommitIDMetricImpl.getInstance().atCommitLog =
           secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;

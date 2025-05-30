@@ -21,6 +21,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
 class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
 
@@ -93,6 +94,8 @@ late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
 late MockNotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
+late EnrollmentManager enrollMgr;
+
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
@@ -103,8 +106,33 @@ String storageDir = '${Directory.current.path}/unit_test_storage';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 late AtCommitLog atCommitLog;
 
+/// Creates and persists a new approved enrollment
+Future<String> newTestEnroll(
+  String app,
+  String device,
+  Map<String, String> namespaces,
+) async {
+  final id = Uuid().v4();
+  final key = enrollMgr.buildEnrollmentKey(id);
+  final enrollJson = {
+    'sessionId': '123',
+    'appName': app,
+    'deviceName': device,
+    'namespaces': namespaces,
+    'apkamPublicKey': 'testPublicKeyValue',
+    'requestType': 'newEnrollment',
+    'approval': {'state': 'approved'}
+  };
+  await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+        key,
+        AtData()..data = jsonEncode(enrollJson),
+        skipCommit: true,
+      );
+  return id;
+}
+
 void verbTestsSetUpLogging() {
-  AtSignLogger.root_level='shout';
+  AtSignLogger.root_level = 'shout';
   AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
 }
 
@@ -217,7 +245,7 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      EnrollmentManager(secondaryKeyStore, alice);
+      enrollMgr = EnrollmentManager(secondaryKeyStore, alice);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();

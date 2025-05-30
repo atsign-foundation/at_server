@@ -416,7 +416,7 @@ void main() {
     });
 
     test('test proxy_lookup command accept test', () {
-      var command = 'plookup:location@alice';
+      var command = 'plookup:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -434,7 +434,7 @@ void main() {
 
     test('test proxy_lookup with invalid atsign', () {
       var verb = ProxyLookup();
-      var command = 'plookup:location@alice@@@';
+      var command = 'plookup:location$alice@@@';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -454,7 +454,7 @@ void main() {
 
     test('test proxy_lookup key invalid keyword', () {
       var verb = ProxyLookup();
-      var command = 'plokup:location@alice';
+      var command = 'plokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

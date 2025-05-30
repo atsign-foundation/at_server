@@ -106,10 +106,10 @@ void main() {
 
     test('A test to verify sync metadata is populated correctly', () async {
       // Add data to commit log
-      await atCommitLog.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
       await secondaryKeyStore.put(
-          'phone.wavi@alice',
+          'phone.wavi$alice',
           AtData()
             ..data = '+9189877783232'
             ..metaData = (AtMetaData()
@@ -132,7 +132,7 @@ void main() {
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       Map syncResponseMap = (jsonDecode(response.data!)).first;
-      expect(syncResponseMap['atKey'], 'phone.wavi@alice');
+      expect(syncResponseMap['atKey'], 'phone.wavi$alice');
       expect(syncResponseMap['value'], '+9189877783232');
       expect(syncResponseMap['commitId'], 1);
       expect(syncResponseMap['operation'], '*');
@@ -151,9 +151,9 @@ void main() {
 
       // generate some commit entries
       await secondaryKeyStore.put(
-          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
       await secondaryKeyStore.put(
-          'test_key2_beta@alice', AtData()..data = 'BETA');
+          'test_key2_beta$alice', AtData()..data = 'BETA');
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() > 0);
 
@@ -166,7 +166,7 @@ void main() {
         inboundConnection.metadata,
       );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha@alice');
+      expect(syncResponse[0].key, 'test_key_alpha$alice');
     });
 
     test(
@@ -177,9 +177,9 @@ void main() {
 
       // generate some commit entries
       await secondaryKeyStore.put(
-          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
       await secondaryKeyStore.put(
-          'test_key2_beta@alice', AtData()..data = 'BETA');
+          'test_key2_beta$alice', AtData()..data = 'BETA');
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -211,7 +211,7 @@ void main() {
         inboundConnection.metadata,
       );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha@alice');
+      expect(syncResponse[0].key, 'test_key_alpha$alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(
@@ -222,7 +222,7 @@ void main() {
         inboundConnection.metadata,
       );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key2_beta@alice');
+      expect(syncResponse[0].key, 'test_key2_beta$alice');
     });
 
     test('test to ensure all entries are synced if buffer does not overflow',
@@ -231,12 +231,12 @@ void main() {
 
       // generate some commit entries
       await secondaryKeyStore.put(
-          'test_key_alpha@alice', AtData()..data = 'ALPHA');
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
       await secondaryKeyStore.put(
-          'test_key2_beta@alice', AtData()..data = 'BETA');
-      await secondaryKeyStore.put('abcd@alice', AtData()..data = 'ABCD');
+          'test_key2_beta$alice', AtData()..data = 'BETA');
+      await secondaryKeyStore.put('abcd$alice', AtData()..data = 'ABCD');
       await secondaryKeyStore.put(
-          'another_random_key@alice', AtData()..data = 'RANDOM');
+          'another_random_key$alice', AtData()..data = 'RANDOM');
 
       // ensure commitLog is not empty
       var commitLogLength = atCommitLog.entriesCount();
@@ -263,10 +263,10 @@ void main() {
       // added to syncResponse
       expect(syncResponse.length, commitLogLength + 1);
       expect(syncResponse[0], entry);
-      expect(syncResponse[1].key, 'test_key_alpha@alice');
-      expect(syncResponse[2].key, 'test_key2_beta@alice');
-      expect(syncResponse[3].key, 'abcd@alice');
-      expect(syncResponse[4].key, 'another_random_key@alice');
+      expect(syncResponse[1].key, 'test_key_alpha$alice');
+      expect(syncResponse[2].key, 'test_key2_beta$alice');
+      expect(syncResponse[3].key, 'abcd$alice');
+      expect(syncResponse[4].key, 'another_random_key$alice');
     });
 
     test(
@@ -274,8 +274,8 @@ void main() {
         () async {
       verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_1@alice', AtData()..data = 'ONE');
-      await secondaryKeyStore.put('test_key_2@alice', AtData()..data = 'TWO');
+      await secondaryKeyStore.put('test_key_1$alice', AtData()..data = 'ONE');
+      await secondaryKeyStore.put('test_key_2$alice', AtData()..data = 'TWO');
 
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() == 2);
@@ -289,7 +289,7 @@ void main() {
         inboundConnection.metadata,
       );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_1@alice');
+      expect(syncResponse[0].key, 'test_key_1$alice');
 
       syncResponse.clear();
       await verbHandler.prepareResponse(
@@ -300,7 +300,7 @@ void main() {
         inboundConnection.metadata,
       );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_2@alice');
+      expect(syncResponse[0].key, 'test_key_2$alice');
 
       // test with empty iterator
       syncResponse.clear();
@@ -318,7 +318,7 @@ void main() {
         'A test to verify sync returns default number of entries when limit is not passed',
         () async {
       // Add data to commit log
-      await atCommitLog.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
       var metadata = (AtMetaData()
         ..ttl = 10000
@@ -330,7 +330,7 @@ void main() {
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
         await secondaryKeyStore.put(
-            'random_$i.wavi@alice',
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
@@ -347,7 +347,7 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 25);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
 
@@ -355,7 +355,7 @@ void main() {
         'A test to verify sync returns correct number of entries when limit (less than default size) is passed',
         () async {
       // Add data to commit log
-      await atCommitLog.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
       var metadata = (AtMetaData()
         ..ttl = 10000
@@ -367,7 +367,7 @@ void main() {
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
         await secondaryKeyStore.put(
-            'random_$i.wavi@alice',
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
@@ -385,14 +385,14 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 12);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
     test(
         'A test to verify sync returns correct number of entries when limit (greater than default size) is passed',
         () async {
       // Add data to commit log
-      await atCommitLog.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
       var metadata = (AtMetaData()
         ..ttl = 10000
@@ -404,7 +404,7 @@ void main() {
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
         await secondaryKeyStore.put(
-            'random_$i.wavi@alice',
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
@@ -422,7 +422,7 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 35);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
   });

@@ -92,7 +92,7 @@ void main() async {
     test('Test to verify prepare notification command', () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice')
+            ..notification = '@bob:phone$alice')
           .build();
 
       var notifyCommand = ResourceManager.getInstance()
@@ -100,7 +100,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
+          'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone$alice');
     });
 
     test('Test to verify prepare notification without passing any fields', () {
@@ -117,7 +117,7 @@ void main() async {
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..notification = '@bob:phone$alice'
             ..opType = OperationType.delete)
           .build();
       var notifyCommand = ResourceManager.getInstance()
@@ -125,14 +125,14 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:delete:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
+          'id:1234:delete:messageType:key:notifier:system:ttln:900000:@bob:phone$alice');
     });
 
     test('Test to verify prepare notification command for message type text',
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..notification = '@bob:phone$alice'
             ..notifier = 'wavi'
             ..messageType = MessageType.text)
           .build();
@@ -141,7 +141,7 @@ void main() async {
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
+          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone$alice');
     });
 
     testNotificationMetaData({required bool immutable}) {
@@ -189,7 +189,7 @@ void main() async {
           ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
           ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
           '${immutable ? ':immutable:true' : ''}'
-          ':@bob:test.test@alice'
+          ':@bob:test.test$alice'
           ':Hi Bob, Alice here');
     }
 

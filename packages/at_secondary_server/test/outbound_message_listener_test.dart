@@ -41,9 +41,9 @@ void main() async {
       OutboundMessageListener outboundMessageListener =
           OutboundMessageListener(mockOutboundClient);
       await outboundMessageListener
-          .messageHandler('data:phone@alice\n@alice@'.codeUnits);
+          .messageHandler('data:phone$alice\n$alice@'.codeUnits);
       var response = await outboundMessageListener.read();
-      expect(response, 'data:phone@alice');
+      expect(response, 'data:phone$alice');
     });
 
     test('A test to validate timeout exception when there is no data to read',
@@ -61,7 +61,7 @@ void main() async {
       OutboundMessageListener outboundMessageListener =
           OutboundMessageListener(mockOutboundClient);
       await outboundMessageListener.messageHandler(
-          'error:AT0015-Exception.key not found : phone@alice does not exist in keystore\n@alice@'
+          'error:AT0015-Exception.key not found : phone$alice does not exist in keystore\n$alice@'
               .codeUnits);
 
       expect(
@@ -69,14 +69,14 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is KeyNotFoundException &&
               e.message ==
-                  'Exception.key not found : phone@alice does not exist in keystore')));
+                  'Exception.key not found : phone$alice does not exist in keystore')));
     });
     test('A test to validate error response json throws KeyNotFoundException',
         () async {
       OutboundMessageListener outboundMessageListener =
           OutboundMessageListener(mockOutboundClient);
       await outboundMessageListener.messageHandler(
-          'error:{"errorCode":"AT0015","errorDescription":"key not found: public:no-key@alice does not exist in keystore"}\n@alice@'
+          'error:{"errorCode":"AT0015","errorDescription":"key not found: public:no-key$alice does not exist in keystore"}\n$alice@'
               .codeUnits);
 
       expect(
@@ -84,14 +84,14 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is KeyNotFoundException &&
               e.message ==
-                  'key not found: public:no-key@alice does not exist in keystore')));
+                  'key not found: public:no-key$alice does not exist in keystore')));
     });
 
     test('A test to invalid response throws AtConnectException', () async {
       OutboundMessageListener outboundMessageListener =
           OutboundMessageListener(mockOutboundClient);
       await outboundMessageListener
-          .messageHandler('test:invalid response\n@alice@'.codeUnits);
+          .messageHandler('test:invalid response\n$alice@'.codeUnits);
 
       expect(() async => await outboundMessageListener.read(),
           throwsA(predicate((dynamic e) => e is AtConnectException)));
@@ -102,14 +102,14 @@ void main() async {
       OutboundMessageListener outboundMessageListener =
           OutboundMessageListener(mockOutboundClient);
       await outboundMessageListener.messageHandler(
-          'error: key not found : phone@alice does not exist in keystore\n@alice@'
+          'error: key not found : phone$alice does not exist in keystore\n$alice@'
               .codeUnits);
       expect(
           () async => await outboundMessageListener.read(),
           throwsA(predicate((dynamic e) =>
               e is AtConnectException &&
               e.message ==
-                  'Request to remote secondary @alice at localhost:25000 received error response \' key not found : phone@alice does not exist in keystore\'')));
+                  'Request to remote secondary $alice at localhost:25000 received error response \' key not found : phone$alice does not exist in keystore\'')));
     });
   });
 }

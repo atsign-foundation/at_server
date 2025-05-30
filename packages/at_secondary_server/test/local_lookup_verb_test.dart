@@ -137,7 +137,7 @@ void main() {
 
     test('test local_lookup key- invalid keyword', () {
       var verb = LocalLookup();
-      var command = 'llokup:location@alice';
+      var command = 'llokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -279,7 +279,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with wavi namespace
@@ -329,7 +329,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
@@ -366,7 +366,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with at_contact.buzz namespace
@@ -403,7 +403,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
@@ -471,7 +471,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$bob:shared_key$alice 123';
@@ -507,7 +507,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$alice:secretdata$alice 123';
@@ -536,7 +536,7 @@ void main() {
       inboundConnection.metadata.enrollmentId = firstEnrollmentId;
       // create an enrollment(should have * access) and update key without namespace
       var firstEnrollmentKey =
-          '$firstEnrollmentId.new.enrollments.__manage@alice';
+          '$firstEnrollmentId.new.enrollments.__manage$alice';
       final firstEnrollJson = {
         'sessionId': '19867',
         'appName': 'wavi_123',
@@ -562,7 +562,7 @@ void main() {
       // create an enrollment with wavi namespace and llookup the key
       String secondEnrollmentId = Uuid().v4();
       String secondEnrollmentKey =
-          '$secondEnrollmentId.new.enrollments.__manage@alice';
+          '$secondEnrollmentId.new.enrollments.__manage$alice';
       inboundConnection.metadata.enrollmentId = secondEnrollmentId;
       final secondEnrollJson = {
         'sessionId': '18969',
@@ -617,7 +617,7 @@ void main() {
           'approval': {'state': operation}
         };
         await secondaryKeyStore.put(
-            '$enrollmentId.new.enrollments.__manage@alice',
+            '$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String llookupCommand = 'llookup:$alice:dummykey.wavi$alice';
@@ -631,7 +631,7 @@ void main() {
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Connection with enrollment ID $enrollmentId is not authorized to llookup key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to llookup key: $alice:dummykey.wavi$alice')));
       });
     }
   });

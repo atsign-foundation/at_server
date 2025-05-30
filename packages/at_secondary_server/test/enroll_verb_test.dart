@@ -20,7 +20,7 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 InboundConnectionMetadata castMetadata(InboundConnection ic) {
-  return inboundConnection.metaData as InboundConnectionMetadata;
+  return inboundConnection.metaData;
 }
 
 void main() {
@@ -183,15 +183,15 @@ void main() {
       var responseMap = jsonDecode(response.data!);
       expect(response.data?.contains(enrollmentId), true);
       expect(
-          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+          responseMap['$enrollmentId.new.enrollments.__manage$alice']
               ['appName'],
           'wavi');
       expect(
-          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+          responseMap['$enrollmentId.new.enrollments.__manage$alice']
               ['deviceName'],
           'mydevice');
       expect(
-          responseMap['$enrollmentId.new.enrollments.__manage@alice']
+          responseMap['$enrollmentId.new.enrollments.__manage$alice']
               ['namespace']['wavi'],
           'r');
     });
@@ -1888,7 +1888,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID 123 is not authorized to update key: 123.new.enrollments.__manage@alice')));
+                  'Connection with enrollment ID 123 is not authorized to update key: 123.new.enrollments.__manage$alice')));
     });
 
     test(
@@ -1916,7 +1916,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID 123 is not authorized to delete key: 123.new.enrollments.__manage@alice')));
+                  'Connection with enrollment ID 123 is not authorized to delete key: 123.new.enrollments.__manage$alice')));
     });
 
     tearDown(() async => await verbTestsTearDown());
