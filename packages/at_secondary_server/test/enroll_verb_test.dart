@@ -119,7 +119,7 @@ void main() {
       String enrollmentKey =
           '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       var enrollmentValue = await EnrollmentManager(secondaryKeyStore, alice)
-          .getEnrollDataStoreValue(enrollmentKey);
+          .getEnrollmentByFullKey(enrollmentKey);
       expect(enrollmentValue.namespaces.containsKey('__manage'), true);
       expect(enrollmentValue.namespaces.containsKey('*'), true);
     });
@@ -162,10 +162,17 @@ void main() {
     });
 
     test('A test to verify enrollment list with cram auth', () async {
-      String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_key"}';
-      HashMap<String, String?> verbParams =
-          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      String pk = 'dummy_apkam_public_key';
+      String sk = 'dummy_encrypted_apkam_key';
+      Map erPayload = {
+        'appName': 'wavi',
+        'deviceName': 'mydevice',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': pk,
+        'encryptedAPKAMSymmetricKey': sk,
+      };
+      String er = 'enroll:request:${jsonEncode(erPayload)}';
+      HashMap<String, String?> verbParams = getVerbParam(VerbSyntax.enroll, er);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
@@ -182,18 +189,12 @@ void main() {
           response, verbParams, inboundConnection);
       var responseMap = jsonDecode(response.data!);
       expect(response.data?.contains(enrollmentId), true);
-      expect(
-          responseMap['$enrollmentId.new.enrollments.__manage$alice']
-              ['appName'],
-          'wavi');
-      expect(
-          responseMap['$enrollmentId.new.enrollments.__manage$alice']
-              ['deviceName'],
-          'mydevice');
-      expect(
-          responseMap['$enrollmentId.new.enrollments.__manage$alice']
-              ['namespace']['wavi'],
-          'r');
+      final enrollmentKey = enrollMgr.buildEnrollmentKey(enrollmentId);
+      var e = responseMap[enrollmentKey];
+      expect(e['appName'], 'wavi');
+      expect(e['deviceName'], 'mydevice');
+      expect(e['namespace']['wavi'], 'r');
+      expect(e['status'], EnrollmentStatus.approved.name);
     });
 
     test('A test to verify enrollment list with enrollmentId is populated',
@@ -284,10 +285,10 @@ void main() {
       // test conditions set-up
       EnrollVerbHandler enrollVerb = EnrollVerbHandler(secondaryKeyStore);
       inboundConnection.metadata.isAuthenticated = true;
-      EnrollDataStoreValue enrollValue = EnrollDataStoreValue('abcd',
-          'unit_test_enroll', 'testDevice', 'apkaaaaaamPublicKeyyyyy././')
-        ..namespaces = {"unit_tst": "rw"}
-        ..encryptedAPKAMSymmetricKey = 'encSyMeTrIcKey././';
+      EnrollDataStoreValue enrollValue =
+          EnrollDataStoreValue('abcd', 'unit_test_enroll', 'testDevice', 'aPK')
+            ..namespaces = {"unit_tst": "rw"}
+            ..encryptedAPKAMSymmetricKey = 'anSK';
       // Distribution of enrollments below:
       // Approved = 1(key: 0); Pending = 2(keys: 1,2); Revoked = 3(keys: 3,4,5); Denied = 4(keys: 6,7,8,9);
       // (This distribution will be used for validation)
@@ -306,6 +307,7 @@ void main() {
 
       // will be used to store newly created enrollment keys
       List<String> enrollmentKeys = [];
+      Map<String, String> enrollmentStatuses = {};
       Map<String, EnrollDataStoreValue> enrollmentData = {};
       // create 10 random enrollments and store them into keystore
       for (int i = 0; i < 10; i++) {
@@ -316,6 +318,7 @@ void main() {
         enrollmentData[enrollmentKey] = enrollValue;
 
         enrollmentKeys.add(enrollmentKey);
+        enrollmentStatuses[enrollmentKey] = approvalStatuses[i];
         await secondaryKeyStore.put(
             enrollmentKey, AtData()..data = jsonEncode(enrollValue));
       }
@@ -365,6 +368,16 @@ void main() {
           await enrollVerb.processInternal(command, inboundConnection);
       fetchedEnrollments = jsonDecode(listAllResponse.data!);
       expect(fetchedEnrollments.length, 10);
+      for (final entry in fetchedEnrollments.entries) {
+        final k = entry.key;
+        final v = entry.value;
+        expect(v['appName'], 'unit_test_enroll');
+        expect(v['deviceName'], 'testDevice');
+        expect(v['namespace'], {'unit_tst': 'rw'});
+        expect(v['status'], enrollmentStatuses[k]);
+        expect(v['apkamPublicKey'], 'aPK');
+        expect(v['encryptedAPKAMSymmetricKey'], 'anSK');
+      }
     });
 
     test('enroll list with an invalid approvalStateFilter', () async {

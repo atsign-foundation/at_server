@@ -187,7 +187,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // Therefore, added non-null assertation operator.
     var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
             .enrollmentManager
-            .getEnrollment(atConnectionMetadata.enrollmentId!))
+            .getEnrollmentById(atConnectionMetadata.enrollmentId!))
         .namespaces;
 
     // No namespace to filter keys. So, return.

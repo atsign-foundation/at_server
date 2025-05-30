@@ -36,8 +36,8 @@ class EnrollmentManager {
   ///
   /// Throws:
   ///   [KeyNotFoundException] if the enrollment key does not exist.
-  Future<EnrollDataStoreValue> getEnrollment(String enrollmentId) async {
-    return getEnrollDataStoreValue(buildEnrollmentKey(enrollmentId));
+  Future<EnrollDataStoreValue> getEnrollmentById(String enrollmentId) async {
+    return getEnrollmentByFullKey(buildEnrollmentKey(enrollmentId));
   }
 
   /// Constructs the enrollment key based on the provided [enrollmentId].
@@ -76,7 +76,7 @@ class EnrollmentManager {
   ///  - [enrollmentId]: The ID associated with the enrollment.
   Future<void> remove({
     required String enrollmentId,
-    required EnrollDataStoreValue? enrollValue,
+    EnrollDataStoreValue? enrollValue,
   }) async {
     // Delete private encryption key
     await keyStore.remove(
@@ -88,7 +88,7 @@ class EnrollmentManager {
         '$enrollmentId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
         skipCommit: true);
 
-    enrollValue ??= await getEnrollment(enrollmentId);
+    enrollValue ??= await getEnrollmentById(enrollmentId);
     // Delete the APKAM Public key, legacy slightly info-leaky format
     var apkamPublicKeyInKeyStore =
         'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$atSign';
@@ -106,7 +106,7 @@ class EnrollmentManager {
   /// Fetch an enrollment key from the keystore.
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
-  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
+  Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String enrollmentKey,
   ) async {
     try {
@@ -114,6 +114,7 @@ class EnrollmentManager {
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
       if (!SecondaryUtil.isActiveKey(enrollData)) {
+        // TODO Whenever an expired enrollment is encountered, delete it immediately
         enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
       }
       return enrollDataStoreValue;
@@ -123,26 +124,21 @@ class EnrollmentManager {
     }
   }
 
-  Future<Map<String, Map<String, dynamic>>> fetchEnrollments(
+  Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
       {List<String>? enrollmentKeysList,
       List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+    // set default values for optional arguments - all enrollments, all statuses
     enrollmentKeysList ??= await getAllEnrollmentKeys();
-    Map<String, Map<String, dynamic>> enrollments = {};
     enrollmentStatusFilter ??= EnrollmentStatus.values;
+
+    Map<String, Map<String, dynamic>> enrollments = {};
     for (var enrollmentKey in enrollmentKeysList) {
       EnrollDataStoreValue enrollDataStoreValue =
-          await getEnrollDataStoreValue(enrollmentKey);
+          await getEnrollmentByFullKey(enrollmentKey);
       EnrollmentStatus enrollmentStatus =
           getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
       if (enrollmentStatusFilter.contains(enrollmentStatus)) {
-        enrollments[enrollmentKey] = {
-          'appName': enrollDataStoreValue.appName,
-          'deviceName': enrollDataStoreValue.deviceName,
-          'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-          'status': enrollDataStoreValue.approval?.state
-        };
+        enrollments[enrollmentKey] = enrollDataStoreValue.toJsonExtended();
       }
     }
     return enrollments;
@@ -150,19 +146,35 @@ class EnrollmentManager {
 
   /// Delete expired enrollments to keep the datastore clean.
   /// Called upon server startup and periodically thereafter.
-  Future<List<EnrollDataStoreValue>> deleteAllExpiredEnrollments() async {
-    // TODO move the list stuff to a list method in this class, and use it here
-    return [];
+  Future<List<EnrollDataStoreValue>> removeAllExpiredEnrollments() async {
+    final List<EnrollDataStoreValue> expiredSoDeleted = [];
+    final l = await getAllEnrollmentKeys();
+    for (final ek in l) {
+      final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
+      if (ev.approval?.state == EnrollmentStatus.expired.name) {
+        final eId = ek.substring(0, ek.indexOf('.'));
+        await remove(enrollmentId: eId, enrollValue: ev);
+        expiredSoDeleted.add(ev);
+      }
+    }
+    return expiredSoDeleted;
   }
 
   /// iterate all enrollments, remove key which leaks appName and deviceName
   /// `public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$currentAtSign`
-  Future<List<String>> deleteLegacyApkamPublicKeys() async {
-    return [];
+  Future<List<String>> removeLegacyApkamPublicKeys() async {
+    final List<String> deletedLegacyKeys = [];
+    final l = await getAllEnrollmentKeys();
+    for (final ek in l) {
+      final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
+      final lk = 'public:${ev.appName}.${ev.deviceName}'
+          '.pkam.${EnrollmentConstants.pkamNamespace}'
+          '.__public_keys$atSign';
+      if (keyStore.isKeyExists(lk)) {
+        await keyStore.remove(lk, skipCommit: true);
+        deletedLegacyKeys.add(ek);
+      }
+    }
+    return deletedLegacyKeys;
   }
-
-// TODO When an enrollment is revoked, move stuff from .a to .r
-// TODO Unrevoke: move stuff from .r to .a
-// TODO Delete: move stuff from .a and/or .r to .d
-// TODO Whenever an expired enrollment is encountered, delete it immediately
 }

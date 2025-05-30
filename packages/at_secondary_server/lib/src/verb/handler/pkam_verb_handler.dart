@@ -89,7 +89,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     try {
       enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .getEnrollment(enrollmentId);
+          .getEnrollmentById(enrollmentId);
       enrollStatus =
           getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
     } on KeyNotFoundException catch (e) {

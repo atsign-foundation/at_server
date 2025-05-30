@@ -102,7 +102,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
-              .getEnrollment(atConnectionMetadata.enrollmentId!);
+              .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       // If the enrollment status is expired, then the enrollment is not active. Return false.
       if (enrollDataStoreValue.approval?.state ==
           EnrollmentStatus.expired.name) {
@@ -191,7 +191,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .getEnrollment(inboundConnectionMetadata.enrollmentId!);
+          .getEnrollmentById(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
       logger.severe(
           'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');

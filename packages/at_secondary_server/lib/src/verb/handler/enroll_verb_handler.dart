@@ -85,7 +85,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!));
     }
+
     _validateParams(enrollVerbParams, operation!, atConnection);
+
     switch (operation) {
       case 'request':
         await _handleEnrollmentRequest(
@@ -100,6 +102,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       case 'approve':
       case 'deny':
       case 'unrevoke':
+        // TODO When enrollment is unrevoked, move stuff from .r to .a
         await _handleEnrollmentPermissions(
           enMgr,
           (atConnection.metaData as InboundConnectionMetadata),
@@ -111,6 +114,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         );
         break;
       case 'revoke':
+        // TODO When an enrollment is revoked, move stuff from .a to .r
         var forceFlag = verbParams['force'];
         final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
         var inboundConnectionMetaData =
@@ -153,6 +157,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         );
         return;
       case 'delete':
+        // TODO When an enrollment is deleted: move stuff from .a and/or .r to .d
         await _deleteEnrollment(
           enMgr,
           enrollVerbParams,
@@ -175,7 +180,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ) async {
     // Note: The enrollmentId is verified for null check in _validateParams.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.getEnrollment(enrollVerbParams!.enrollmentId!);
+        await enMgr.getEnrollmentById(enrollVerbParams!.enrollmentId!);
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
@@ -313,8 +318,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// Handles enrollment approve, deny and revoke requests.
   /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
-  /// If [operation] is approve, store the public key in public:appName.deviceName.pkam.__pkams.__public_keys
-  /// and also store default encryption private key and default self encryption key in encrypted format.
+  /// If [operation] is approve, store encrypted encryption keys
   Future<void> _handleEnrollmentPermissions(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
@@ -334,7 +338,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
       // Therefore, when control comes here, enrollmentId will not be null.
       enrollDataStoreValue =
-          await enMgr.getEnrollment(enrollParams.enrollmentId!);
+          await enMgr.getEnrollmentById(enrollParams.enrollmentId!);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       enrollStatus = EnrollmentStatus.expired;
@@ -390,11 +394,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     );
     // when enrollment is approved store the apkamPublicKey of the enrollment
     if (operation == 'approve') {
-      var apkamPublicKeyInKeyStore =
-          'public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$currentAtSign';
-      var valueJson = {'apkamPublicKey': enrollDataStoreValue.apkamPublicKey};
-      var atData = AtData()..data = jsonEncode(valueJson);
-      await keyStore.put(apkamPublicKeyInKeyStore, atData, skipCommit: true);
       await _storeEncryptionKeys(
           enrollmentIdFromParams!, enrollParams, currentAtSign);
     }
@@ -488,7 +487,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
     if (currentEnrollmentId == null || currentEnrollmentId.isEmpty) {
-      final enrollmentRequestsMap = await enMgr.fetchEnrollments(
+      final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
@@ -499,10 +498,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If enrollApprovalId has access to __manage namespace, return all the enrollments,
     // Else return only the specific enrollment.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.getEnrollment(currentEnrollmentId);
+        await enMgr.getEnrollmentById(currentEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      final enrollmentRequestsMap = await enMgr.fetchEnrollments(
+      final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
@@ -765,7 +764,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Note: The enrollmentId is verified for the null check in the _validateParams methods.
     // Therefore, when control comes here, enrollmentId will not be null.
     EnrollDataStoreValue enrollValue =
-        await enMgr.getEnrollment(enrollParams!.enrollmentId!);
+        await enMgr.getEnrollmentById(enrollParams!.enrollmentId!);
     EnrollmentStatus enrollmentStatus =
         getEnrollStatusFromString(enrollValue.approval!.state);
     if (EnrollmentStatus.expired == enrollmentStatus) {
