@@ -482,11 +482,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<String> _fetchEnrollmentRequests(
       EnrollmentManager enMgr, AtConnection atConnection, String currentAtSign,
       {EnrollParams? enrollVerbParams}) async {
-    String? currentEnrollmentId =
+    String? authenticatedEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
     // Return all the enrollments.
-    if (currentEnrollmentId == null || currentEnrollmentId.isEmpty) {
+    if (authenticatedEnrollmentId == null ||
+        authenticatedEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
@@ -498,28 +499,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If enrollApprovalId has access to __manage namespace, return all the enrollments,
     // Else return only the specific enrollment.
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.getEnrollmentById(currentEnrollmentId);
+        await enMgr.getEnrollmentById(authenticatedEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
-      final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
+      final jsonMap = await enMgr.getEnrollmentsAsJson(
         enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
       );
-      return jsonEncode(enrollmentRequestsMap);
+      return jsonEncode(jsonMap);
     } else {
-      final enrollmentRequestsMap = {};
+      final jsonMap = {};
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
-        String enrollmentKey = enMgr.buildEnrollmentKey(currentEnrollmentId);
-        enrollmentRequestsMap[enrollmentKey] = {
-          'appName': enrollDataStoreValue.appName,
-          'deviceName': enrollDataStoreValue.deviceName,
-          'namespace': enrollDataStoreValue.namespaces,
-          'encryptedAPKAMSymmetricKey':
-              enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-          'status': enrollDataStoreValue.approval?.state,
-        };
+        String ek = enMgr.buildEnrollmentKey(authenticatedEnrollmentId);
+        jsonMap[ek] = enrollDataStoreValue.toJsonExtended();
       }
-      return jsonEncode(enrollmentRequestsMap);
+      return jsonEncode(jsonMap);
     }
   }
 
