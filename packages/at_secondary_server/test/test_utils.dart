@@ -18,6 +18,7 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -102,12 +103,19 @@ String storageDir = '${Directory.current.path}/unit_test_storage';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 late AtCommitLog atCommitLog;
 
+void verbTestsSetUpLogging() {
+  AtSignLogger.root_level='shout';
+  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
+}
+
 verbTestsSetUpAll() async {
+  verbTestsSetUpLogging();
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {
+  verbTestsSetUpLogging();
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(alice);

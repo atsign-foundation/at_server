@@ -23,6 +23,8 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
+  verbTestsSetUpLogging();
+
   late SecondaryKeyStore mockKeyStore;
   late MockSocket mockSocket;
   setUp(() {
@@ -90,7 +92,6 @@ void main() {
       var command = 'llookup:@b0b:location@colin';
       var handler = LocalLookupVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 

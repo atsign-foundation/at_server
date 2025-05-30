@@ -16,6 +16,8 @@ class MockOutboundConnectionImpl extends Mock
 class MockAtConnectionMetaData extends Mock implements AtConnectionMetaData {}
 
 void main() async {
+  verbTestsSetUpLogging();
+
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
   OutboundSocketConnection mockOutboundConnection =

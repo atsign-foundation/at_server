@@ -14,6 +14,8 @@ void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   MockSocket mockSocket = MockSocket();
 
+  verbTestsSetUpLogging();
+
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
@@ -53,7 +55,6 @@ void main() {
       var command = 'llookup:location@alice';
       var handler = LocalLookupVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -61,7 +62,6 @@ void main() {
       var command = 'llookup:meta:location@alice';
       var handler = LocalLookupVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -69,7 +69,6 @@ void main() {
       var command = 'llookup:all:location@alice';
       var handler = LocalLookupVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 

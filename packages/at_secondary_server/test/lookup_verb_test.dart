@@ -20,6 +20,8 @@ import 'test_utils.dart';
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.
 void main() {
+  verbTestsSetUpLogging();
+
   group('lookup behaviour tests', () {
     /// Test the actual behaviour of the lookup verb handler.
     /// (Syntax tests are covered in the next test group, 'lookup syntax tests')
@@ -623,7 +625,6 @@ void main() {
       // Wavi key
       String waviKey = 'some_key.wavi$bob';
       AtData bobWaviData = createRandomAtData(bob);
-      print('Wavi key: ${bobWaviData.data}');
       bobWaviData.metaData!.ttr = 100;
       bobWaviData.metaData!.ttb = null;
       bobWaviData.metaData!.ttl = null;
@@ -634,7 +635,6 @@ void main() {
       // Buzz key
       String buzzKey = 'some_key.buzz$bob';
       AtData bobBuzzData = createRandomAtData(bob);
-      print('Buzz key: ${bobBuzzData.data}');
       bobBuzzData.metaData!.ttr = 100;
       bobBuzzData.metaData!.ttb = null;
       bobBuzzData.metaData!.ttl = null;

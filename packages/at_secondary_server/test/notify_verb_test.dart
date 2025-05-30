@@ -38,6 +38,8 @@ void main() {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   MockSocket mockSocket = MockSocket();
 
+  verbTestsSetUpLogging();
+
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
@@ -1184,7 +1186,6 @@ void main() {
           response, notifyVerbParams, inboundConnection);
       expect(response.isError, false);
       expect(response.data, isNotNull);
-      print(response);
     });
 
     test(
@@ -1422,7 +1423,6 @@ void main() {
           notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
       expect(notifyFetchResponse.data, isNotNull);
       var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
-      print(notifyFetchJson);
       expect(notifyFetchJson['id'], notificationId);
 
       String notifyStatusCommand = 'notify:status:$notificationId';
@@ -1471,7 +1471,6 @@ void main() {
           notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
       expect(notifyFetchResponse.data, isNotNull);
       var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
-      print(notifyFetchJson);
       expect(notifyFetchJson['id'], notificationId);
 
       String notifyStatusCommand = 'notify:status:$notificationId';
@@ -1934,8 +1933,7 @@ void main() {
       var notifId = response.data;
       var stored = await AtNotificationKeystore.getInstance().get(notifId);
       expect(stored, isNotNull);
-      print(stored!.toJson());
-      expect(stored.toAtSign, '@bob');
+      expect(stored!.toAtSign, '@bob');
       expect(stored.notification, '@bob:metadata.notify.test@alice');
       expect(stored.fromAtSign, alice);
       expect(stored.opType, OperationType.update);

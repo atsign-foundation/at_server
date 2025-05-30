@@ -193,7 +193,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
           .enrollmentManager
           .getEnrollment(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
-      logger.shout(
+      logger.severe(
           'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
       return false;
     }

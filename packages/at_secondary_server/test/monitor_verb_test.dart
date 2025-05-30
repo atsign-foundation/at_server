@@ -492,8 +492,6 @@ void main() {
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '$alice');
-      print('Verified the legacy PKAM monitor connection'
-          ' received the enrollment request notification');
     });
 
     test('Test delivery of enrollment request notification to APKAM', () async {
@@ -554,8 +552,6 @@ void main() {
           '$nextEnrollmentId'
           '.new.enrollments.__manage'
           '$alice');
-      print('Verified the APKAM monitor connection'
-          ' received the enrollment request notification');
     });
 
     test('A test to verify enrollment revoked does not receive notifications',

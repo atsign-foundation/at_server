@@ -112,7 +112,6 @@ void main() {
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 2);
       expect(result['valueUnchanged'], 0);
       expect(result['valueChanged'], 0);
@@ -158,7 +157,6 @@ void main() {
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 2);
       expect(result['valueUnchanged'], 0);
       expect(result['valueChanged'], 0);
@@ -233,7 +231,6 @@ void main() {
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 4);
       expect(result['valueUnchanged'], 1);
       expect(result['valueChanged'], 1);

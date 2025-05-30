@@ -17,10 +17,12 @@ import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   MockSocket mockSocket = MockSocket();
+
+  verbTestsSetUpLogging();
 
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
@@ -42,7 +44,6 @@ void main() {
       var handler =
           NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -370,7 +371,6 @@ void main() {
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
-      print(result);
       expect(result.length, 1);
       expect(result[0]['id'], '125');
       await AtNotificationKeystore.getInstance().remove('122');
@@ -440,7 +440,6 @@ void main() {
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
-      print(result);
       expect(result.length, 2);
       expect(result[0]['id'], '122');
       expect(result[1]['id'], '125');
@@ -626,7 +625,6 @@ void main() {
       await notifyFetchVerbHandler.processVerb(
           response, verbParams, atConnection);
       var atNotification = jsonDecode(response.data!);
-      print(atNotification);
       expect(atNotification['id'], '123');
       expect(atNotification['notificationStatus'],
           NotificationStatus.expired.toString());

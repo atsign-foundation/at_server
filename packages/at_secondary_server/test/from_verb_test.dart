@@ -14,9 +14,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   late SecondaryKeyStore mockKeyStore;
   late MockSocket mockSocket;
+
+  verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;

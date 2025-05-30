@@ -5,6 +5,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 
+import 'test_utils.dart';
+
 HashMap<String, String> dummyKeyStore = HashMap();
 
 class MockHiveKeyStore extends Mock implements HiveKeystore {
@@ -29,6 +31,8 @@ class MockSecondaryPersistenceStore extends Mock
 }
 
 void main() {
+  verbTestsSetUpLogging();
+
   group(
       'A group of test to verify remove the malformed keys on server start-up',
       () {

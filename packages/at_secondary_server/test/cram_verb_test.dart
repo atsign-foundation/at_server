@@ -21,6 +21,8 @@ void main() {
   late SecondaryKeyStore mockKeyStore;
   late MockSocket mockSocket;
 
+  verbTestsSetUpLogging();
+
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async {

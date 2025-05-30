@@ -18,11 +18,13 @@ import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   MockSocket mockSocket = MockSocket();
+
+  verbTestsSetUpLogging();
 
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
@@ -41,7 +43,6 @@ void main() {
     var handler = PolVerbHandler(
         mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
     var result = handler.accept(command);
-    print('result : $result');
     expect(result, true);
   });
 

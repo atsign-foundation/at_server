@@ -26,6 +26,8 @@ import 'package:mocktail/mocktail.dart';
 import 'test_utils.dart';
 
 void main() {
+  verbTestsSetUpLogging();
+
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
@@ -479,9 +481,7 @@ void main() {
           .getSecondaryPersistenceStore(alice);
       LastCommitIDMetricImpl.getInstance().atCommitLog =
           secondaryPersistenceStore!.getSecondaryKeyStore()!.commitLog;
-      var lastCommitId =
-          await LastCommitIDMetricImpl.getInstance().getMetrics();
-      print('lastCommitId before op: $lastCommitId');
+      await LastCommitIDMetricImpl.getInstance().getMetrics();
       var randomString = Uuid().v4();
       int phoneNumber = 1234;
       int min = 5;
@@ -494,7 +494,7 @@ void main() {
             '@alice:phone-${randomString}_$i@alice',
             AtData()..data = phoneNumber.toString());
       }
-      lastCommitId = await LastCommitIDMetricImpl.getInstance().getMetrics();
+      await LastCommitIDMetricImpl.getInstance().getMetrics();
       var latestCommitIdForEachKey =
           await LatestCommitEntryOfEachKey().getMetrics();
       Map<String, dynamic> latestCommitIdMap =

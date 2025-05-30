@@ -20,6 +20,8 @@ void main() {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   MockSocket mockSocket = MockSocket();
 
+  verbTestsSetUpLogging();
+
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);

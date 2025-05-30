@@ -52,10 +52,12 @@ Future<void> setUpMethod() async {
   );
 }
 
-void main() {
+void main() async {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   MockSocket mockSocket = MockSocket();
+
+  verbTestsSetUpLogging();
 
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))

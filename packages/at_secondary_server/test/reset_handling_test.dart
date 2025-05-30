@@ -7,7 +7,6 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -15,7 +14,8 @@ import 'test_utils.dart';
 
 // the atSign for the server for these tests is @alice - see test_utils.dart
 void main() {
-  AtSignLogger.root_level = 'WARNING';
+  verbTestsSetUpLogging();
+
   group('Handling resets of other atSigns', () {
     late LookupVerbHandler lookupVerbHandler;
 
@@ -215,10 +215,8 @@ void main() {
       expect(matches.contains(sharedEncryptionKeyName), false);
       bool found = false;
       for (String mkn in matches) {
-        print("regex matched $mkn");
         if (mkn.startsWith('shared_key.bob.until')) {
           found = true;
-          print("Found match - $mkn");
         }
       }
       expect(found, true);
@@ -235,11 +233,9 @@ void main() {
       expect(eventKeys.length, 1);
       AtData? atData = await secondaryKeyStore.get(eventKeys.first);
 
-      print('Event found: ${atData!.toJson()}');
-
       AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
       AtSignPKChangedEvent actualEvent =
-          AtSignPKChangedEvent.fromJson(jsonDecode(atData.data!));
+          AtSignPKChangedEvent.fromJson(jsonDecode(atData!.data!));
       expect(actualEvent.atSign, expectedEvent.atSign);
       expect(actualEvent.toJson(), expectedEvent.toJson());
     });
@@ -269,8 +265,6 @@ void main() {
       expect(notificationJson['value'], isNotNull);
       final valueJson = jsonDecode(notificationJson['value']);
 
-      print('self notification received: $notificationJson');
-      print('Notification value: $valueJson');
       AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
       AtSignPKChangedEvent actualEvent =
           AtSignPKChangedEvent.fromJson(valueJson);

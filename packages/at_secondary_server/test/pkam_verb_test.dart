@@ -16,8 +16,10 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+
+  verbTestsSetUpLogging();
 
   group('pkam tests', () {
     test('test for pkam correct syntax', () {
@@ -61,7 +63,6 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var handler = PkamVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
   });

@@ -24,6 +24,8 @@ class MockInboundConnectionPool extends Mock implements InboundConnectionPool {
 }
 
 void main() {
+  verbTestsSetUpLogging();
+
   AtCommitLog mockAtCommitLog = MockAtCommitLog();
   InboundConnectionPool mockInboundConnectionPool = MockInboundConnectionPool();
 

@@ -13,6 +13,8 @@ import 'test_utils.dart';
 void main() {
   late MockSocket mockSocket;
 
+  verbTestsSetUpLogging();
+
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.outboundIdleTimeMillis = 50;

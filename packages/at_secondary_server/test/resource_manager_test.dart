@@ -14,6 +14,8 @@ import 'test_utils.dart';
 class MockOutboundClient extends Mock implements OutboundClient {}
 
 void main() async {
+  verbTestsSetUpLogging();
+
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
   ResourceManager rm = ResourceManager.getInstance();
@@ -174,8 +176,6 @@ void main() async {
 
       var notifyCommand = ResourceManager.getInstance()
           .prepareNotifyCommandBody(atNotification);
-
-      print(notifyCommand);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(

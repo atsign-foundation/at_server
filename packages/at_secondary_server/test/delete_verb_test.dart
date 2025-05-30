@@ -44,7 +44,6 @@ void main() {
       var handler = DeleteVerbHandler(
           secondaryKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -54,7 +53,6 @@ void main() {
       var handler = DeleteVerbHandler(
           secondaryKeyStore, StatsNotificationService.getInstance());
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 

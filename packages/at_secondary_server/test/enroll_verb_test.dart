@@ -241,7 +241,6 @@ void main() {
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(
           response, otpVerbParams, inboundConnection);
-      print('OTP: ${response.data}');
       // Enroll request
       enrollmentRequest =
           'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey":"default_apkam_symmetric_key"}';
@@ -270,7 +269,6 @@ void main() {
       Map<String, dynamic> enrollListResponse = jsonDecode(response.data!);
       var responseTest = enrollListResponse[
           '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice'];
-      print(responseTest);
       expect(responseTest['appName'], 'buzz');
       expect(responseTest['deviceName'], 'mydevice');
       expect(responseTest['namespace']['wavi'], 'r');

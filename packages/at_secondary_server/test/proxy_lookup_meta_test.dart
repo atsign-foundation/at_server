@@ -50,7 +50,6 @@ void main() {
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -59,7 +58,6 @@ void main() {
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -68,7 +66,6 @@ void main() {
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
