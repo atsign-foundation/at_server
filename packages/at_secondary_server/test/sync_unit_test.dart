@@ -9,10 +9,8 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/constants/enroll_constants.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
@@ -27,30 +25,7 @@ import 'test_utils.dart';
 // are - i.e. can we reject? what happens when we reject? and more
 // How items are added to the commit log on the server such that they are available for sync to the clients
 // How the server processes that log (when sending updates to client) - e.g. again ordering, de-duping, etc
-String storageDir = '${Directory.current.path}/test/hive';
-SecondaryPersistenceStore? secondaryPersistenceStore;
-AtCommitLog? atCommitLog;
 String atSign = alice;
-
-Future<void> setUpMethod() async {
-  // Initialize secondary persistent store
-  secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(atSign);
-  // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atSign, commitLogPath: storageDir, enableCommitId: true);
-  secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
-  // Set currentAtSign
-  AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
-  AtSecondaryServerImpl.getInstance().enrollmentManager = EnrollmentManager(
-    secondaryPersistenceStore?.getSecondaryKeyStore() as SecondaryKeyStore,
-    atSign,
-  );
-}
 
 void main() async {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
@@ -59,7 +34,7 @@ void main() async {
 
   verbTestsSetUpLogging();
 
-  setUpAll(() {
+  setUpAll(() async {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
   });
@@ -69,7 +44,7 @@ void main() async {
       () {
     group('A group of tests for various commit entry operations', () {
       setUp(() async {
-        await setUpMethod();
+        await verbTestsSetUp();
       });
       test('verify the behaviour of server when client send an update',
           () async {
@@ -108,7 +83,7 @@ void main() async {
         // verify commit entry data
         // The "getEntry" method is specific to "client" operations. Hence
         // replaced with "getEntries"
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = atCommitLog.getEntries(-1);
         itr.moveNext();
         expect(itr.current.value.operation, CommitOp.UPDATE);
         expect(itr.current.value.commitId, 0);
@@ -138,7 +113,7 @@ void main() async {
           // Assert commit entry before update
           // The "getChanges" method is specific to the client operations. Hence
           // replaced with "getEntries" method
-          Iterator itr = atCommitLog!.getEntries(-1);
+          Iterator itr = atCommitLog.getEntries(-1);
           itr.moveNext();
           expect(itr.current.value.atKey, '@alice:phone@alice');
           expect(itr.current.value.commitId, 0);
@@ -165,7 +140,7 @@ void main() async {
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdateDateTime.millisecondsSinceEpoch,
               true);
-          itr = atCommitLog!.getEntries(-1);
+          itr = atCommitLog.getEntries(-1);
           while (itr.moveNext()) {
             expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
             expect(itr.current.value.commitId, 1);
@@ -217,7 +192,7 @@ void main() async {
         expect(atData.metaData!.ttl, 10000);
         // Verify commit entry
         CommitEntry? commitEntryList =
-            atCommitLog!.getLatestCommitEntry('@alice:phone@alice');
+            atCommitLog.getLatestCommitEntry('@alice:phone@alice');
         expect(commitEntryList!.operation, CommitOp.UPDATE_META);
         expect(commitEntryList.commitId, 1);
       });
@@ -244,7 +219,7 @@ void main() async {
             ?.isKeyExists('@alice:phone@alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = atCommitLog.getEntries(-1);
         while (itr.moveNext()) {
           expect(itr.current.value.operation, CommitOp.DELETE);
           expect(itr.current.value.commitId, 1);
@@ -267,16 +242,16 @@ void main() async {
             ?.isKeyExists('@alice:mobile@alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog!.getEntries(-1);
+        Iterator itr = atCommitLog.getEntries(-1);
         while (itr.moveNext()) {
           expect(itr.current.value.operation, CommitOp.DELETE);
           expect(itr.current.value.commitId, 0);
         }
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
     group('A group of tests related to batch processing', () {
-      setUp(() async => await setUpMethod());
+      setUp(() async => await verbTestsSetUp());
       test(
           'test to verify for the items in batch request respective commit ids are added to the batch response',
           () async {
@@ -398,14 +373,14 @@ void main() async {
         /// Assertions:
         /// Should we return an batch response with invalid format exception?
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
   });
 
   group('A group of tests to verify on server sending updates to client', () {
     group('A group of tests related to sending data to client', () {
       setUp(() async {
-        await setUpMethod();
+        await verbTestsSetUp();
         // Setup data
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()
@@ -728,10 +703,10 @@ void main() async {
         expect(syncResponse[3]['commitId'], 3);
         expect(syncResponse[3]['operation'], '+');
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
     group('A group of test to validate the commit entry data', () {
-      setUp(() async => await setUpMethod());
+      setUp(() async => await verbTestsSetUp());
       test('A test to verify commit entry data when commit operation is update',
           () async {
         /// Preconditions:
@@ -896,11 +871,11 @@ void main() async {
         expect(syncResponseList[0]['atKey'], 'public:phone.wavi@alice');
         expect(syncResponseList[0]['operation'], '-');
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
 
     group('A group of tests on TTL and TTB with respect to sync', () {
-      setUp(() async => await setUpMethod());
+      setUp(() async => await verbTestsSetUp());
       test(
           'test to verify when TTL of a key is expired and deleted then commit operation should have delete',
           () async {
@@ -983,11 +958,11 @@ void main() async {
         expect(syncResponseList[0]['value'], '8897896765');
         expect(syncResponseList[0]['operation'], '*');
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
 
     group('A group of tests on APKAM Enrollment', () {
-      setUp(() async => await setUpMethod());
+      setUp(() async => await verbTestsSetUp());
       test(
           'A test to verify keys whose namespace are enrolled are only returned',
           () async {
@@ -1075,10 +1050,10 @@ void main() async {
         expect(syncResponseList[1]['atKey'], 'public:mobile.buzz@alice');
         expect(syncResponseList[1]['operation'], '+');
       });
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
     group('A group of tests to verify skip deletes feature', () {
-      setUp(() async => await setUpMethod());
+      setUp(() async => await verbTestsSetUp());
       test(
           'test to verify delete commit entries are not sent when skipDeletesUntil flag is set',
           () async {
@@ -1666,16 +1641,7 @@ void main() async {
         }
       });
 
-      tearDown(() async => await tearDownMethod());
+      tearDown(() async => await verbTestsTearDown());
     });
   });
-}
-
-Future<void> tearDownMethod() async {
-  await SecondaryPersistenceStoreFactory.getInstance().close();
-  await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory(storageDir).exists();
-  if (isExists) {
-    Directory(storageDir).deleteSync(recursive: true);
-  }
 }
