@@ -333,10 +333,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
         enrollDataStoreValue.namespaces
                 .containsKey(EnrollmentConstants.enrollManageNamespace) ==
             false) {
-      logger.warning(
-          'Failed to $operation  the request. The enrollment does not have access to "__manage" namespace');
-      throw AtEnrollmentException(
-          'The approving enrollment does not have access to "__manage" namespace');
+      logger.warning('Failed to $operation the request.'
+          ' The enrollment does not have access to "__manage" namespace');
+      throw UnAuthorizedException(
+          'The approving enrollment does not have access'
+          ' to "__manage" namespace');
     }
 
     if (atKey != null && namespace != null) {
@@ -344,10 +345,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
       try {
         atKeyObj = AtKey.fromString(atKey);
       } catch (e) {
-        throw AtEnrollmentException('AtKey.fromString($atKey) failed: $e');
+        throw IllegalArgumentException('AtKey.fromString($atKey) failed: $e');
       }
       if (atKeyObj.namespace != namespace) {
-        throw AtEnrollmentException(
+        throw IllegalArgumentException(
             'AtKey namespace and passed namespace do not match');
       }
     }

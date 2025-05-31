@@ -67,9 +67,10 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
               .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
             filteredResponseList.add(notification);
           }
-        } on AtEnrollmentException catch (e) {
-          logger.finer(
-              'Failed to authorize the key with enrollment ID ${atConnectionMetadata.enrollmentId} caused by ${e.toString()}');
+        } catch (e) {
+          // This should never happen so we'll log it as severe
+          logger.shout(
+              'isAuthorized failed for $notificationKey: ${e.toString()}');
         }
       }
       responseList.clear();

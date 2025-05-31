@@ -100,7 +100,7 @@ void main() {
           () async => await handler.isAuthorized(inboundConnection.metaData,
               atKey: atKey.toString(), namespace: 'buzz'),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'AtKey namespace and passed namespace do not match')));
     });

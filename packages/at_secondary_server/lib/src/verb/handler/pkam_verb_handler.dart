@@ -92,7 +92,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     try {
       enVal = await enMgr.getEnrollmentById(enId);
       enrollStatus = EnrollmentStatus.values.byName(enVal.approval!.state);
-    } on KeyNotFoundException catch (e) {
+    } on KeyNotFoundException catch (_) {
       apkamResult.response.isError = true;
       apkamResult.response.errorCode = 'AT0028';
       apkamResult.response.errorMessage =

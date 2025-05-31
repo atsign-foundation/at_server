@@ -543,7 +543,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message == 'invalid otp. Cannot process enroll request')));
     });
     tearDown(() async => await verbTestsTearDown());
@@ -710,7 +710,7 @@ void main() {
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(Duration(milliseconds: 1));
       //Approve enrollment
       String approveEnrollmentCommand =
           'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
@@ -745,7 +745,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
       //Deny enrollment
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(Duration(milliseconds: 1));
       String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
@@ -893,7 +893,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Failed to approve enrollment id: $enrollmentId. Cannot approve a denied enrollment. Only pending enrollments can be approved')));
     });
@@ -1031,7 +1031,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, approveEnrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. Only pending enrollments can be approved')));
     });
@@ -1048,7 +1048,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
     });
@@ -1159,7 +1159,7 @@ void main() {
           () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Failed to unrevoke enrollment id: $enrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked')));
     });
@@ -1196,7 +1196,7 @@ void main() {
           () => enrollVerbHandler.processVerb(
               response, enrollVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message == 'enrollmentId is mandatory for enroll:unrevoke')));
     });
 
@@ -1280,90 +1280,81 @@ void main() {
     test(
         'A test to verify getDelayIntervalInSeconds is reset only after threshold is met',
         () async {
-      EnrollVerbHandler.initialDelayInMilliseconds = 100;
+      Future<void> swallow(Future Function() f) async {
+        try {
+          await f();
+        } on IllegalArgumentException catch (_) {}
+      }
+
+      String makeEnrollRequest(String otp) => 'enroll:request:'
+          '{"appName":"wavi","deviceName":"mydevice"'
+          ',"namespaces":{"wavi":"r"},"otp":"$otp"'
+          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+
       Response response = Response();
-      EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore);
-      enrollVerbHandler.delayForInvalidOTPSeries = [
+      EnrollVerbHandler evh = EnrollVerbHandler(secondaryKeyStore);
+      HashMap<String, String?> evp = HashMap<String, String?>();
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+
+      EnrollVerbHandler.initialDelayInMilliseconds = 1;
+      evh.delayForInvalidOTPSeries = [
         0,
         EnrollVerbHandler.initialDelayInMilliseconds
       ];
-      enrollVerbHandler.enrollmentResponseDelayIntervalInMillis = 500;
-      inboundConnection.metaData.isAuthenticated = false;
-      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      evh.maxDelayInMillis = EnrollVerbHandler.initialDelayInMilliseconds * 10;
+
       // First Invalid request
-      String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
-      HashMap<String, String?> enrollVerbParams =
-          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      try {
-        await enrollVerbHandler.processVerb(
-            response, enrollVerbParams, inboundConnection);
-        // Do nothing on exception
-      } on AtEnrollmentException catch (_) {}
-      expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 100);
-      // Second Invalid request and verify the delay response interval is incremented.
-      enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"123","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
-      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds);
 
-      try {
-        await enrollVerbHandler.processVerb(
-            response, enrollVerbParams, inboundConnection);
-      } on AtEnrollmentException catch (_) {}
-      expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 200);
-      // Third Invalid request and verify the delay response interval is incremented.
-      enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"another_device"'
-          ',"namespaces":{"wavi":"r"},"otp":"123"'
-          ',"apkamPublicKey":"lorem_apkam"'
-          ',"encryptedAPKAMSymmetricKey":"ipsum_apkam"}';
-      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      try {
-        await enrollVerbHandler.processVerb(
-            response, enrollVerbParams, inboundConnection);
-      } on AtEnrollmentException catch (_) {}
-      expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 300);
+      // Second Invalid request and verify the delay response interval
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds * 2);
 
-      // Get OTP and send a valid enrollment request. Verify the delay response is
-      // not reset because the threshold is not met.
+      // Third Invalid request and verify the delay response interval
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds * 3);
+
+      // Fourth Invalid request and verify the delay response interval
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds * 5);
+
+      // Fifth Invalid request and verify the delay response interval
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds * 8);
+
+      // Sixth Invalid request and verify the delay response interval has been
+      // incremented, but not past the maximum value
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
+      await swallow(() => evh.processVerb(response, evp, inboundConnection));
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
+          EnrollVerbHandler.initialDelayInMilliseconds * 10);
+
+      // Get OTP and send a valid enrollment request. Verify the delay response
+      // has been reset.
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       inboundConnection.metaData.isAuthenticated = true;
       await otpVerbHandler.processVerb(
           response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
 
       inboundConnection.metaData.isAuthenticated = false;
-      enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"third_device"'
-          ',"namespaces":{"wavi":"r"},"otp":"${response.data}"'
-          ',"apkamPublicKey":"lorem_apkam"'
-          ',"encryptedAPKAMSymmetricKey":"ipsum_apkam"}';
-      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      await enrollVerbHandler.processVerb(
-          response, enrollVerbParams, inboundConnection);
+      evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest(response.data!));
+      await evh.processVerb(response, evp, inboundConnection);
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
       expect(enrollmentResponse['status'], 'pending');
-      // When threshold limit is not met, assert the delay interval is not reset.
-      expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(), 300);
-      // Wait for 5 seconds to for threshold to met to reset the delay in response.
-      await Future.delayed(Duration(milliseconds: 500));
-      // Get OTP and send a valid Enrollment request
-      inboundConnection.metaData.isAuthenticated = true;
-      await otpVerbHandler.processVerb(
-          response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
-      inboundConnection.metaData.isAuthenticated = false;
-      enrollmentRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"second_device"'
-          ',"namespaces":{"wavi":"r"},"otp":"${response.data}"'
-          ',"apkamPublicKey":"lorem_apkam"'
-          ',"encryptedAPKAMSymmetricKey":"ipsum_apkam"}';
-      enrollVerbParams = getVerbParam(VerbSyntax.enroll, enrollmentRequest);
-      await enrollVerbHandler.processVerb(
-          response, enrollVerbParams, inboundConnection);
-      enrollmentResponse = jsonDecode(response.data!);
-      expect(enrollmentResponse['status'], 'pending');
-      // When threshold limit is met, assert the delay interval is reset.
-      expect(enrollVerbHandler.getEnrollmentResponseDelayInMilliseconds(),
+      expect(evh.getEnrollmentResponseDelayInMilliseconds(),
           EnrollVerbHandler.initialDelayInMilliseconds);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -1398,7 +1389,7 @@ void main() {
           () async => await enrollVerbHandler
               .preventDuplicateEnrollRequest(enrollParams),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in approved state')));
     });
@@ -1427,7 +1418,7 @@ void main() {
           () async => await enrollVerbHandler
               .preventDuplicateEnrollRequest(enrollParams),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is IllegalStateException &&
               e.message ==
                   'Another enrollment with id 123 exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in pending state')));
     });
@@ -1576,7 +1567,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message == 'appName is mandatory for enroll:request')));
     });
     test('A test to validate deviceName is mandatory for enroll:request',
@@ -1596,7 +1587,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message == 'deviceName is mandatory for enroll:request')));
     });
     test('A test to validate apkam public key is mandatory for enroll:request',
@@ -1616,7 +1607,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'apkam public key is mandatory for enroll:request')));
     });
@@ -1643,7 +1634,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'encrypted apkam symmetric key is mandatory for new client enroll:request')));
     });
@@ -1669,7 +1660,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'At least one namespace must be specified for new client enroll:request')));
     });
@@ -1690,7 +1681,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message == 'enrollmentId is mandatory for enroll:approve')));
     });
     test(
@@ -1711,7 +1702,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'encryptedDefaultEncryptionPrivateKey is mandatory for enroll:approve')));
     });
@@ -1733,7 +1724,7 @@ void main() {
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
           throwsA(predicate((e) =>
-              e is AtEnrollmentException &&
+              e is IllegalArgumentException &&
               e.message ==
                   'encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve')));
     });
@@ -1772,7 +1763,7 @@ void main() {
               enrolledNamespaceAccess: 'rw',
               operation: 'approve'),
           throwsA(predicate((dynamic e) =>
-              e is AtEnrollmentException &&
+              e is UnAuthorizedException &&
               e.message ==
                   'The approving enrollment does not have access to "__manage" namespace')));
     });

@@ -565,7 +565,7 @@ void main() {
           (await socketConnection2.sendRequestToServer(secondEnrollRequest))
               .replaceAll('error:', '');
       expect(secondEnrollResponse,
-          'AT0011-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName in approved state');
+          'AT0032-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName in approved state');
     });
   });
 
@@ -827,9 +827,9 @@ void main() {
       enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
               'enroll:revoke:{"enrollmentId":"$enrollmentId"}'))
           .replaceFirst('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0011');
+      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0032');
       expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
     });
 
     test(
@@ -868,7 +868,7 @@ void main() {
           .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a denied enrollment. '
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a denied enrollment. '
           'Only approved enrollments can be revoked');
     });
 
@@ -1392,7 +1392,7 @@ void main() {
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
   });
 
@@ -1646,10 +1646,10 @@ void main() {
       revokeEnrollmentResponse =
           revokeEnrollmentResponse.replaceFirst('error:', '');
       Map jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
-      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
       expect(
           jsonDecodedResponse['errorDescription'],
-          'Internal server exception : Failed to delete enrollment id: '
+          'Illegal state exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete approved enrollments. '
           'Only denied and revoked enrollments can be deleted');
     });
@@ -1692,10 +1692,10 @@ void main() {
       revokeEnrollmentResponse =
           revokeEnrollmentResponse.replaceFirst('error:', '');
       jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
-      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
       expect(
           jsonDecodedResponse['errorDescription'],
-          'Internal server exception : Failed to delete enrollment id: '
+          'Illegal state exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete pending enrollments. '
           'Only denied and revoked enrollments can be deleted');
     });

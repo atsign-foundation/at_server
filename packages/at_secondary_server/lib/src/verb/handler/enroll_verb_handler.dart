@@ -32,11 +32,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   List<int> delayForInvalidOTPSeries = <int>[0, initialDelayInMilliseconds];
 
-  /// The threshold value for the delay interval in milliseconds.
-  /// When the last delay in '_delayForInvalidOTPSeries' surpasses this threshold,
-  /// the series is reset to [0, initialDelayInMilliseconds] to prevent excessively long delay intervals.
+  /// The maximum value for the delay interval in milliseconds.
   @visibleForTesting
-  int enrollmentResponseDelayIntervalInMillis = Duration(
+  int maxDelayInMillis = Duration(
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
       .inMilliseconds;
 
@@ -51,8 +49,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   int enrollmentExpiryInMills =
       Duration(hours: AtSecondaryConfig.enrollmentExpiryInHours).inMilliseconds;
-
-  int _lastInvalidOtpReceivedInMills = 0;
 
   @override
   Future<void> processVerb(
@@ -209,7 +205,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The function returns a JSON-encoded string containing the enrollmentId
   /// and its corresponding state.
   ///
-  /// Throws "AtEnrollmentException", if the OTP provided is invalid.
+  /// Throws [IllegalArgumentException], if the OTP provided is invalid.
   /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
   /// a time window.
   Future<void> _handleEnrollmentRequest(
@@ -228,12 +224,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.metaData.isAuthenticated == false) {
       var isValid = await isPasscodeValid(enrollParams.otp);
       if (!isValid) {
-        _lastInvalidOtpReceivedInMills =
-            DateTime.now().toUtc().millisecondsSinceEpoch;
+        // Invalid passcode, delay before responding.
         await Future.delayed(
             Duration(milliseconds: getDelayIntervalInMilliseconds()));
-        throw AtEnrollmentException(
+        throw IllegalArgumentException(
             'invalid otp. Cannot process enroll request');
+      } else {
+        // Valid passcode - reset the delay
+        delayForInvalidOTPSeries.clear();
+        delayForInvalidOTPSeries.addAll([0, initialDelayInMilliseconds]);
       }
     }
 
@@ -246,16 +245,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // allow a 'duplicate' enrollment request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
-    }
-
-    // When threshold is met, set "_lastInvalidOtpReceivedInMills" and "delayForInvalidOTPSeries"
-    // to default values.
-    if (((DateTime.now().toUtc().millisecondsSinceEpoch) -
-            _lastInvalidOtpReceivedInMills) >=
-        enrollmentResponseDelayIntervalInMillis) {
-      _lastInvalidOtpReceivedInMills = 0;
-      delayForInvalidOTPSeries.clear();
-      delayForInvalidOTPSeries.addAll([0, initialDelayInMilliseconds]);
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
@@ -327,77 +316,56 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String operation,
       Map<dynamic, dynamic> responseJson,
       Response response) async {
-    final enrollmentIdFromParams = enrollParams.enrollmentId;
-    EnrollDataStoreValue? enrollDataStoreValue;
+    // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
+    // Therefore, when control comes here, enrollmentId will not be null.
+    final String enId = enrollParams.enrollmentId!;
+    EnrollDataStoreValue? enVal;
     EnrollmentStatus? status;
-    // Fetch and returns enrollment data from the keystore.
-    // Throw AtEnrollmentException, IF
-    //   1. Enrollment key is not present in keystore
-    //   2. Enrollment key is not active
     try {
-      // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
-      // Therefore, when control comes here, enrollmentId will not be null.
-      enrollDataStoreValue =
-          await enMgr.getEnrollmentById(enrollParams.enrollmentId!);
+      enVal = await enMgr.getEnrollmentById(enId);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
       status = EnrollmentStatus.expired;
     }
-    status ??=
-        EnrollmentStatus.values.byName(enrollDataStoreValue!.approval!.state);
+    status ??= EnrollmentStatus.values.byName(enVal!.approval!.state);
     // Validates if enrollment is not expired
     if (EnrollmentStatus.expired == status) {
       response.isError = true;
       response.errorCode = 'AT0028';
-      response.errorMessage =
-          'enrollment_id: $enrollmentIdFromParams is expired or invalid';
-    }
-    if (response.isError) {
+      response.errorMessage = 'enrollment_id: $enId is expired or invalid';
       return;
     }
+
     // Verifies whether the enrollment state matches the intended state
-    // Throws AtEnrollmentException, if the enrollment state is different from
+    // Throws IllegalStateException, if the enrollment state is different from
     // the intended state
     try {
       _verifyEnrollmentStateBeforeAction(operation, status);
-    } on AtEnrollmentException catch (e) {
-      throw AtEnrollmentException(
-          'Failed to $operation enrollment id: $enrollmentIdFromParams. ${e.message}');
+    } on IllegalStateException catch (e) {
+      throw IllegalStateException(
+          'Failed to $operation enrollment id: $enId. ${e.message}');
     }
 
-    for (MapEntry<String, String> entry
-        in enrollDataStoreValue!.namespaces.entries) {
-      bool isAuthorised = false;
-      try {
-        isAuthorised = await isAuthorized(inboundConnectionMetadata,
-            namespace: entry.key,
-            enrolledNamespaceAccess: entry.value,
-            operation: operation);
-      } on AtEnrollmentException catch (e) {
-        throw AtEnrollmentException(
-            'Failed to $operation enrollment id: $enrollmentIdFromParams. ${e.message}');
-      }
+    for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
+      bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
+          namespace: entry.key,
+          enrolledNamespaceAccess: entry.value,
+          operation: operation);
 
       if (isAuthorised == false) {
-        throw AtEnrollmentException(
-            'Failed to $operation enrollment id: $enrollmentIdFromParams. Client is not authorized for namespaces in the enrollment request');
+        throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
+            ' Client is not authorized for namespaces in the enrollment request');
       }
     }
-    enrollDataStoreValue.approval!.state = _getEnrollStatusEnum(operation).name;
+    enVal.approval!.state = _getEnrollStatusEnum(operation).name;
     responseJson['status'] = _getEnrollStatusEnum(operation).name;
     // Update the enrollment status against the enrollment key in keystore.
-    await _updateEnrollmentValueAndResetTTL(
-      enMgr,
-      enrollParams.enrollmentId!,
-      enrollDataStoreValue,
-      operation,
-    );
+    await _updateEnrollmentValueAndResetTTL(enMgr, enId, enVal, operation);
     // when enrollment is approved store the apkamPublicKey of the enrollment
     if (operation == 'approve') {
-      await _storeEncryptionKeys(
-          enrollmentIdFromParams!, enrollParams, currentAtSign);
+      await _storeEncryptionKeys(enId, enrollParams, currentAtSign);
     }
-    responseJson['enrollmentId'] = enrollmentIdFromParams;
+    responseJson['enrollmentId'] = enId;
   }
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
@@ -561,26 +529,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Verifies whether the enrollment state matches the intended state.
-  /// Throws AtEnrollmentException: If the enrollment state is different
+  /// Throws IllegalStateException: If the enrollment state is different
   /// from the intended state.
   void _verifyEnrollmentStateBeforeAction(
       String? operation, EnrollmentStatus enrollStatus) {
     if (operation == 'approve' && EnrollmentStatus.pending != enrollStatus) {
-      throw AtEnrollmentException(
+      throw IllegalStateException(
           'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved');
     }
     if (operation == 'revoke' && EnrollmentStatus.approved != enrollStatus) {
-      throw AtEnrollmentException(
+      throw IllegalStateException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');
     }
     if (operation == 'delete' &&
         !(EnrollmentStatus.denied == enrollStatus ||
             EnrollmentStatus.revoked == enrollStatus)) {
-      throw AtEnrollmentException(
+      throw IllegalStateException(
           'Cannot delete ${enrollStatus.name} enrollments. Only denied and revoked enrollments can be deleted');
     }
     if (operation == 'unrevoke' && EnrollmentStatus.revoked != enrollStatus) {
-      throw AtEnrollmentException(
+      throw IllegalStateException(
           'Cannot un-revoke a ${enrollStatus.name} enrollment. Only revoked enrollments can be un-revoked');
     }
   }
@@ -616,7 +584,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               enrollDataStoreValue.approval?.state ==
                   EnrollmentStatus.pending.name)) {
         String enrollmentId = key.substring(0, key.indexOf('.'));
-        throw AtEnrollmentException(
+        throw IllegalStateException(
             'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
       }
     }
@@ -644,34 +612,35 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await enMgr.put(enrollmentId, atData);
   }
 
+  /// Throws [IllegalArgumentException] if parameters are not valid.
   void _validateParams(EnrollParams? enrollParams, String operation,
       InboundConnection inboundConnection) {
     switch (operation) {
       case 'request':
         if (enrollParams!.appName.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'appName is mandatory for enroll:request');
         }
 
         if (enrollParams.deviceName.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'deviceName is mandatory for enroll:request');
         }
 
         if (enrollParams.apkamPublicKey.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'apkam public key is mandatory for enroll:request');
         }
 
         if (enrollParams.otp != null) {
           //encryptedAPKAMSymmetricKey is mandatory for new client enrollments
           if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty) {
-            throw AtEnrollmentException(
+            throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }
           if (enrollParams.namespaces == null ||
               enrollParams.namespaces!.isEmpty) {
-            throw AtEnrollmentException(
+            throw IllegalArgumentException(
                 'At least one namespace must be specified for new client enroll:request');
           }
         }
@@ -679,15 +648,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         break;
       case 'approve':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'enrollmentId is mandatory for enroll:approve');
         }
         if (enrollParams.encryptedDefaultEncryptionPrivateKey.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'encryptedDefaultEncryptionPrivateKey is mandatory for enroll:approve');
         }
         if (enrollParams.encryptedDefaultSelfEncryptionKey.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'encryptedDefaultSelfEncryptionKey is mandatory for enroll:approve');
         }
         break;
@@ -697,7 +666,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       case 'unrevoke':
       case 'fetch':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
-          throw AtEnrollmentException(
+          throw IllegalArgumentException(
               'enrollmentId is mandatory for enroll:$operation');
         }
         break;
@@ -719,12 +688,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // If the last digit in "delayForInvalidOTPSeries" list reaches the threshold
     // (enrollmentResponseDelayIntervalInMillis) then return the same without
     // further incrementing the delay.
-    if (delayForInvalidOTPSeries.last >=
-        enrollmentResponseDelayIntervalInMillis) {
+    if (delayForInvalidOTPSeries.last >= maxDelayInMillis) {
       return delayForInvalidOTPSeries.last;
     }
-    delayForInvalidOTPSeries.add(delayForInvalidOTPSeries.last +
-        delayForInvalidOTPSeries[delayForInvalidOTPSeries.length - 2]);
+    int nextDelay = delayForInvalidOTPSeries.last +
+        delayForInvalidOTPSeries[delayForInvalidOTPSeries.length - 2];
+    if (nextDelay > maxDelayInMillis) {
+      nextDelay = maxDelayInMillis;
+    }
+    delayForInvalidOTPSeries.add(nextDelay);
     delayForInvalidOTPSeries.remove(delayForInvalidOTPSeries.first);
 
     return delayForInvalidOTPSeries.last;
@@ -772,9 +744,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     try {
       _verifyEnrollmentStateBeforeAction(
           EnrollOperationEnum.delete.name, status);
-    } on AtEnrollmentException catch (e) {
-      throw AtEnrollmentException(
-          'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
+    } on IllegalStateException catch (e) {
+      throw IllegalStateException(
+          'Failed to delete enrollment id: ${enrollParams.enrollmentId}'
+          ' | Cause: ${e.message}');
     }
 
     await enMgr.remove(

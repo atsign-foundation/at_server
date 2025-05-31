@@ -250,8 +250,7 @@ void main() {
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
-        bobOriginalData.metaData!.ttr =
-            60; // 2 seconds, just to be different from original
+        bobOriginalData.metaData!.ttr = 2; // 2 seconds, just to be different
         String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
             'all', bobNewData,
             key: 'public:$keyName')!;
@@ -259,8 +258,8 @@ void main() {
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
 
-        await Future.delayed(Duration(
-            seconds: 1)); // Wait for a second so that it's time to refresh
+        // Wait for a second so that it's time to refresh
+        await Future.delayed(Duration(milliseconds: 1001));
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
           socketOnDataFn("data:$bobNewDataAsJsonWithKey\n@".codeUnits);
