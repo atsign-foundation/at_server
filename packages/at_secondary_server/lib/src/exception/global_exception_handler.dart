@@ -11,6 +11,7 @@ import 'package:version/version.dart';
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
 var logger = AtSignLogger('GlobalExceptionHandler');
 
+class GlobalExceptionHandler {
   static final GlobalExceptionHandler _singleton =
       GlobalExceptionHandler._internal();
 
