@@ -1277,7 +1277,7 @@ void main() {
           'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Illegal state exception : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
 
       // Authenticate the connection again with APKAM
       await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
@@ -1291,7 +1291,7 @@ void main() {
           'enroll:deny:{"enrollmentId":"$secondEnrollmentId"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Illegal state exception : Failed to deny enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to deny enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
 
     test(
@@ -1356,7 +1356,7 @@ void main() {
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
   });
 
