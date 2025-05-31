@@ -5,7 +5,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_utils/at_logger.dart';
 
 /// Manages enrollment data in the secondary server.
 ///
@@ -15,14 +14,13 @@ import 'package:at_utils/at_logger.dart';
 class EnrollmentManager {
   final SecondaryKeyStore keyStore;
   final String atSign;
-  final logger = AtSignLogger('AtSecondaryServer');
 
   /// Creates an instance of [EnrollmentManager].
   ///
   /// The [keyStore] is required to interact with the persistence layer.
   EnrollmentManager(this.keyStore, this.atSign);
 
-  /// Retrieves the enrollment data for a given [enrollmentId].
+  /// Retrieves the enrollment data for a given [enId].
   ///
   /// This method constructs an enrollment key, fetches the corresponding
   /// data from the key store, and returns it as an [EnrollDataStoreValue].
@@ -31,39 +29,64 @@ class EnrollmentManager {
   /// If the retrieved enrollment data is no longer active, the status
   /// will be set to `expired`.
   ///
+  /// If an enrollment has expired then, while the data is returned to the
+  /// caller, we also [remove] the enrollment.
   /// Returns:
   ///   An [EnrollDataStoreValue] containing the enrollment details.
   ///
   /// Throws:
-  ///   [KeyNotFoundException] if the enrollment key does not exist.
-  Future<EnrollDataStoreValue> getEnrollmentById(String enrollmentId) async {
-    return getEnrollmentByFullKey(buildEnrollmentKey(enrollmentId));
+  ///   [KeyNotFoundException] if the enrollment key does not exist or has expired.
+  Future<EnrollDataStoreValue> getEnrollmentById(String enId) async {
+    return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
 
-  /// Constructs the enrollment key based on the provided [enrollmentId].
+  /// Constructs the enrollment key based on the provided [enId].
   ///
-  /// The key format combines the [enrollmentId], a new enrollment key pattern,
+  /// The key format combines the [enId], a new enrollment key pattern,
   /// and the current AtSign.
   ///
   /// Returns:
   ///   A [String] representing the enrollment key.
-  String buildEnrollmentKey(String enrollmentId) {
-    return '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$atSign';
+  String buildEnrollmentKey(String enId) {
+    return '$enId'
+        '.${EnrollmentConstants.enrollmentKeyPattern}'
+        '.${EnrollmentConstants.enrollManageNamespace}'
+        '$atSign';
   }
 
-  /// Stores the enrollment data associated with the given [enrollmentId].
+  /// Stores the enrollment data associated with the given [enId].
   ///
   /// This method constructs an enrollment key and saves the provided [AtData]
   /// to the key store. The skipCommit is set to true, to prevent the enrollment
   /// data being synced to the client(s).
   ///
   /// Parameters:
-  ///   - [enrollmentId]: The ID associated with the enrollment.
+  ///   - [enId]: The ID associated with the enrollment.
   ///   - [atData]: The [AtData] object to be stored.
-  Future<void> put(String enrollmentId, AtData atData) async {
-    String enrollmentKey = buildEnrollmentKey(enrollmentId);
-    await keyStore.put(enrollmentKey, atData, skipCommit: true);
+  Future<void> put(String enId, AtData atData) async {
+    String ek = buildEnrollmentKey(enId);
+    await keyStore.put(ek, atData, skipCommit: true);
   }
+
+  String keyForPEK(String enId) => '$enId'
+      '.${AtConstants.defaultEncryptionPrivateKey}'
+      '.${EnrollmentConstants.enrollManageNamespace}'
+      '$atSign';
+
+  String keyForSEK(String enId) => '$enId'
+      '.${AtConstants.defaultSelfEncryptionKey}'
+      '.${EnrollmentConstants.enrollManageNamespace}'
+      '$atSign';
+
+  /// ```
+  /// public:${enVal.appName}.${enVal.deviceName}
+  ///   .pkam.${EnrollmentConstants.pkamNamespace}
+  ///   .__public_keys$currentAtSign
+  /// ```
+  String keyForLegacyPK(EnrollDataStoreValue enVal) => 'public:'
+      '${enVal.appName}.${enVal.deviceName}'
+      '.pkam.${EnrollmentConstants.pkamNamespace}'
+      '.__public_keys$atSign';
 
   /// Deletes the enrollment key from the keystore.
   ///
@@ -73,29 +96,24 @@ class EnrollmentManager {
   /// ensuring it is not synced to the clients.
   ///
   /// Parameters:
-  ///  - [enrollmentId]: The ID associated with the enrollment.
+  ///  - [enId]: The ID associated with the enrollment.
   Future<void> remove({
-    required String enrollmentId,
-    EnrollDataStoreValue? enrollValue,
+    required String enId,
+    EnrollDataStoreValue? enVal,
   }) async {
     // Delete private encryption key
-    await keyStore.remove(
-        '$enrollmentId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        skipCommit: true);
+    await keyStore.remove(keyForPEK(enId), skipCommit: true);
 
     // Delete self encryption key
-    await keyStore.remove(
-        '$enrollmentId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        skipCommit: true);
+    await keyStore.remove(keyForSEK(enId), skipCommit: true);
 
-    enrollValue ??= await getEnrollmentById(enrollmentId);
+    enVal ??= await getEnrollmentById(enId);
     // Delete the APKAM Public key, legacy slightly info-leaky format
-    var apkamPublicKeyInKeyStore =
-        'public:${enrollValue.appName}.${enrollValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$atSign';
-    await keyStore.remove(apkamPublicKeyInKeyStore, skipCommit: true);
+    var legacyPkKey = keyForLegacyPK(enVal);
+    await keyStore.remove(legacyPkKey, skipCommit: true);
 
-    String enrollmentKey = buildEnrollmentKey(enrollmentId);
-    await keyStore.remove(enrollmentKey, skipCommit: true);
+    String ek = buildEnrollmentKey(enId);
+    await keyStore.remove(ek, skipCommit: true);
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
@@ -107,41 +125,41 @@ class EnrollmentManager {
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
-    String enrollmentKey,
+    String ek,
   ) async {
-    try {
-      AtData enrollData = await keyStore.get(enrollmentKey);
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-      if (!SecondaryUtil.isActiveKey(enrollData)) {
-        // TODO Whenever an expired enrollment is encountered, delete it immediately
-        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
-      }
-      return enrollDataStoreValue;
-    } on KeyNotFoundException {
-      logger.severe('$enrollmentKey does not exist in the keystore');
-      rethrow;
+    AtData enrollData = await keyStore.get(ek);
+    EnrollDataStoreValue value =
+        EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+    if (!SecondaryUtil.isActiveKey(enrollData)) {
+      // When an expired enrollment is encountered, delete it immediately
+      value.approval?.state = EnrollmentStatus.expired.name;
+      await remove(enId: idFromKey(ek), enVal: value);
+      return value;
+    } else {
+      return value;
     }
   }
 
+  /// Fetch enrollments whose keys are in the [ekList], and filter them to
+  /// enrollments whose status is in the [statuses] list.
+  ///
+  /// When [ekList] is null, fetch and filter all enrollments.
+  /// When [statuses] is null, do not filter by status.
   Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
-      {List<String>? enrollmentKeysList,
-      List<EnrollmentStatus>? enrollmentStatusFilter}) async {
+      {List<String>? ekList, List<EnrollmentStatus>? statuses}) async {
     // set default values for optional arguments - all enrollments, all statuses
-    enrollmentKeysList ??= await getAllEnrollmentKeys();
-    enrollmentStatusFilter ??= EnrollmentStatus.values;
+    ekList ??= await getAllEnrollmentKeys();
 
-    Map<String, Map<String, dynamic>> enrollments = {};
-    for (var enrollmentKey in enrollmentKeysList) {
-      EnrollDataStoreValue enrollDataStoreValue =
-          await getEnrollmentByFullKey(enrollmentKey);
-      EnrollmentStatus enrollmentStatus =
-          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
-      if (enrollmentStatusFilter.contains(enrollmentStatus)) {
-        enrollments[enrollmentKey] = enrollDataStoreValue.toJsonExtended();
+    Map<String, Map<String, dynamic>> ejList = {};
+    for (var ek in ekList) {
+      EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      if (statuses == null ||
+          statuses.contains(
+              EnrollmentStatus.values.byName(enVal.approval!.state))) {
+        ejList[ek] = enVal.toJsonExtended();
       }
     }
-    return enrollments;
+    return ejList;
   }
 
   /// Delete expired enrollments to keep the datastore clean.
@@ -152,8 +170,8 @@ class EnrollmentManager {
     for (final ek in l) {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       if (ev.approval?.state == EnrollmentStatus.expired.name) {
-        final eId = ek.substring(0, ek.indexOf('.'));
-        await remove(enrollmentId: eId, enrollValue: ev);
+        final eId = idFromKey(ek);
+        await remove(enId: eId, enVal: ev);
         expiredSoDeleted.add(ev);
       }
     }
@@ -161,15 +179,12 @@ class EnrollmentManager {
   }
 
   /// iterate all enrollments, remove key which leaks appName and deviceName
-  /// `public:${enrollDataStoreValue.appName}.${enrollDataStoreValue.deviceName}.pkam.${EnrollmentConstants.pkamNamespace}.__public_keys$currentAtSign`
   Future<List<String>> removeLegacyApkamPublicKeys() async {
     final List<String> deletedLegacyKeys = [];
-    final l = await getAllEnrollmentKeys();
-    for (final ek in l) {
+    final eks = await getAllEnrollmentKeys();
+    for (final ek in eks) {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
-      final lk = 'public:${ev.appName}.${ev.deviceName}'
-          '.pkam.${EnrollmentConstants.pkamNamespace}'
-          '.__public_keys$atSign';
+      final lk = keyForLegacyPK(ev);
       if (keyStore.isKeyExists(lk)) {
         await keyStore.remove(lk, skipCommit: true);
         deletedLegacyKeys.add(ek);
@@ -177,4 +192,7 @@ class EnrollmentManager {
     }
     return deletedLegacyKeys;
   }
+
+  /// Get the enrollmentId from a full enrollmentKey
+  String idFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
 }

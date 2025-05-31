@@ -329,7 +329,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Response response) async {
     final enrollmentIdFromParams = enrollParams.enrollmentId;
     EnrollDataStoreValue? enrollDataStoreValue;
-    EnrollmentStatus? enrollStatus;
+    EnrollmentStatus? status;
     // Fetch and returns enrollment data from the keystore.
     // Throw AtEnrollmentException, IF
     //   1. Enrollment key is not present in keystore
@@ -341,12 +341,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           await enMgr.getEnrollmentById(enrollParams.enrollmentId!);
     } on KeyNotFoundException {
       // When an enrollment key is expired or invalid
-      enrollStatus = EnrollmentStatus.expired;
+      status = EnrollmentStatus.expired;
     }
-    enrollStatus ??=
-        getEnrollStatusFromString(enrollDataStoreValue!.approval!.state);
+    status ??=
+        EnrollmentStatus.values.byName(enrollDataStoreValue!.approval!.state);
     // Validates if enrollment is not expired
-    if (EnrollmentStatus.expired == enrollStatus) {
+    if (EnrollmentStatus.expired == status) {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage =
@@ -359,7 +359,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Throws AtEnrollmentException, if the enrollment state is different from
     // the intended state
     try {
-      _verifyEnrollmentStateBeforeAction(operation, enrollStatus);
+      _verifyEnrollmentStateBeforeAction(operation, status);
     } on AtEnrollmentException catch (e) {
       throw AtEnrollmentException(
           'Failed to $operation enrollment id: $enrollmentIdFromParams. ${e.message}');
@@ -489,7 +489,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (authenticatedEnrollmentId == null ||
         authenticatedEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
-        enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
+        statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
     }
@@ -503,7 +503,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
       final jsonMap = await enMgr.getEnrollmentsAsJson(
-        enrollmentStatusFilter: enrollVerbParams?.enrollmentStatusFilter,
+        statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(jsonMap);
     } else {
@@ -757,11 +757,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response) async {
     // Note: The enrollmentId is verified for the null check in the _validateParams methods.
     // Therefore, when control comes here, enrollmentId will not be null.
-    EnrollDataStoreValue enrollValue =
+    EnrollDataStoreValue enVal =
         await enMgr.getEnrollmentById(enrollParams!.enrollmentId!);
-    EnrollmentStatus enrollmentStatus =
-        getEnrollStatusFromString(enrollValue.approval!.state);
-    if (EnrollmentStatus.expired == enrollmentStatus) {
+    EnrollmentStatus status =
+        EnrollmentStatus.values.byName(enVal.approval!.state);
+    if (EnrollmentStatus.expired == status) {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage =
@@ -771,15 +771,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     try {
       _verifyEnrollmentStateBeforeAction(
-          EnrollOperationEnum.delete.name, enrollmentStatus);
+          EnrollOperationEnum.delete.name, status);
     } on AtEnrollmentException catch (e) {
       throw AtEnrollmentException(
           'Failed to delete enrollment id: ${enrollParams.enrollmentId} | Cause: ${e.message}');
     }
 
     await enMgr.remove(
-      enrollmentId: enrollParams.enrollmentId!,
-      enrollValue: enrollValue,
+      enId: enrollParams.enrollmentId!,
+      enVal: enVal,
     );
 
     responseJson['enrollmentId'] = enrollParams.enrollmentId;

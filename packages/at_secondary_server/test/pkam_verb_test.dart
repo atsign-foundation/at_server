@@ -76,7 +76,7 @@ void main() async {
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(mockKeyStore, alice);
+          enrollMgr = EnrollmentManager(mockKeyStore, alice);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -87,7 +87,7 @@ void main() async {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.publicKey, 'dummy_public_key');
     });
 
@@ -98,7 +98,7 @@ void main() async {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
       expect(apkamResult.response.errorMessage,
@@ -112,7 +112,7 @@ void main() async {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
       expect(apkamResult.response.errorMessage,
@@ -126,7 +126,7 @@ void main() async {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
       expect(apkamResult.response.errorMessage,
@@ -134,16 +134,39 @@ void main() async {
     });
 
     test('verify apkam behaviour - case: enrollment expired ', () async {
-      enrollData.approval = EnrollApproval('denied');
-      when(() => mockKeyStore.get(any()))
-          .thenThrow(KeyNotFoundException('key not found'));
+      EnrollDataStoreValue enValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key')
+        ..namespaces = {'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+
+      String enId = Uuid().v4();
+      String ek = enrollMgr.buildEnrollmentKey(enId);
+      when(() => mockKeyStore.remove(ek, skipCommit: true))
+          .thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(
+            enrollMgr.keyForPEK(enId),
+            skipCommit: true,
+          )).thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(
+            enrollMgr.keyForSEK(enId),
+            skipCommit: true,
+          )).thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(enrollMgr.keyForLegacyPK(enValue),
+          skipCommit: true)).thenAnswer((invocation) => Future.value(null));
+
+      when(() => mockKeyStore.get(ek)).thenAnswer((invocation) => Future.value(
+          AtData()
+            ..data = jsonEncode(enValue.toJson())
+            ..metaData = (AtMetaData()
+              ..expiresAt =
+                  DateTime.now().subtract(Duration(milliseconds: 1)))));
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', alice);
+          await pkamVerbHandler.verifyEnrollmentIsActive(enId, alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,
-          'enrollment_id: enrollId is expired or invalid');
+          'enrollment_id: $enId is expired or invalid');
     });
   });
 

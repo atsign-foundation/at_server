@@ -173,6 +173,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize enrollment manager
     enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
+    List<String> deletedLegacyKeys =
+        await enrollmentManager.removeLegacyApkamPublicKeys();
+    if (deletedLegacyKeys.isNotEmpty) {
+      logger.info('Removed legacy APKAM public keys: $deletedLegacyKeys');
+    }
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =
