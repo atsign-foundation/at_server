@@ -173,10 +173,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialize enrollment manager
     enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
-    List<String> deletedLegacyKeys =
+    List<String> deletedKeys =
         await enrollmentManager.removeLegacyApkamPublicKeys();
-    if (deletedLegacyKeys.isNotEmpty) {
-      logger.info('Removed legacy APKAM public keys: $deletedLegacyKeys');
+    if (deletedKeys.isNotEmpty) {
+      logger.info('Removed legacy APKAM public keys: $deletedKeys');
+    }
+    deletedKeys = await enrollmentManager.removeOrphanedApkamEncryptionKeys();
+    if (deletedKeys.isNotEmpty) {
+      logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
 
     //Commit Log Compaction
@@ -233,11 +237,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
       verbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
-          outboundClientManager,
-          cacheManager,
-          StatsNotificationService.getInstance(),
-          NotificationManager.getInstance());
+        secondaryKeyStore,
+        outboundClientManager,
+        cacheManager,
+        StatsNotificationService.getInstance(),
+        NotificationManager.getInstance(),
+        enrollmentManager,
+        currentAtSign,
+      );
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
       // We have to make sure that if we used a DefaultVerbHandlerManager then we
@@ -245,11 +252,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       // OutboundClientManager and AtCacheManager
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
-            secondaryKeyStore,
-            outboundClientManager,
-            cacheManager,
-            StatsNotificationService.getInstance(),
-            NotificationManager.getInstance());
+          secondaryKeyStore,
+          outboundClientManager,
+          cacheManager,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance(),
+          enrollmentManager,
+          currentAtSign,
+        );
       }
     }
 

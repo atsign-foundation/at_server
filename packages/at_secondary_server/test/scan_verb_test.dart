@@ -83,11 +83,14 @@ void main() {
       var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
-          mockOutboundClientManager,
-          cacheManager,
-          StatsNotificationService.getInstance(),
-          NotificationManager.getInstance());
+        secondaryKeyStore,
+        mockOutboundClientManager,
+        cacheManager,
+        StatsNotificationService.getInstance(),
+        NotificationManager.getInstance(),
+        enrollMgr,
+        alice,
+      );
 
       expect(
           () => defaultVerbExecutor.execute(
@@ -279,7 +282,7 @@ void main() {
       await secondaryKeyStore.put(
           '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@random:coutry.wavi$alice', AtData()..data = 'dummy-value');
+          '@random:country.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
           'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
@@ -304,7 +307,7 @@ void main() {
       await secondaryKeyStore.put(
           '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@random:coutry.wavi$alice', AtData()..data = 'dummy-value');
+          '@random:country.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
           'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(

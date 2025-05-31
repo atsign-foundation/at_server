@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -30,7 +29,7 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      keysVerbHandler = KeysVerbHandler(secondaryKeyStore);
+      keysVerbHandler = KeysVerbHandler(secondaryKeyStore, enrollMgr, alice);
       localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
     });
 
@@ -668,16 +667,14 @@ void main() {
           'N0bmvnW1k5oKL+/6X3HresMyG/z6yBmxzgtrn8CMEofWgxJo8RSBXIqvdNj9ZOHO';
       var valueJson = {};
       valueJson['value'] = encryptedSelfEncryptionKey;
-      await secondaryKeyStore.put(
-          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$alice',
+      await secondaryKeyStore.put(enrollMgr.keyForSEK(enrollId),
           AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:self';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
-      expect(keysList[0],
-          '$enrollId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$alice');
+      expect(keysList[0], enrollMgr.keyForSEK(enrollId));
     });
 
     test('keys verb invalid syntax - invalid operation', () {
@@ -731,16 +728,14 @@ void main() {
           .base64;
       var valueJson = {};
       valueJson['value'] = encryptedDefaultEncryptionPrivateKey;
-      await secondaryKeyStore.put(
-          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$alice',
+      await secondaryKeyStore.put(enrollMgr.keyForPEK(enrollId),
           AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:private';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
-      expect(keysList[0],
-          '$enrollId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$alice');
+      expect(keysList[0], enrollMgr.keyForPEK(enrollId));
     });
 
     test('keys:put verb without auth', () {

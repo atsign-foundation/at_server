@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// Manages enrollment data in the secondary server.
 ///
@@ -12,8 +13,9 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 /// associated with a given enrollment ID. It interacts with the
 /// SecondaryKeyStore to persist and retrieve enrollment information.
 class EnrollmentManager {
-  final SecondaryKeyStore keyStore;
+  final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final String atSign;
+  final AtSignLogger logger = AtSignLogger(' EnrollmentManager ');
 
   /// Creates an instance of [EnrollmentManager].
   ///
@@ -117,8 +119,7 @@ class EnrollmentManager {
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
-    return keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex)
-        as List<String>;
+    return keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
   }
 
   /// Fetch an enrollment key from the keystore.
@@ -127,13 +128,13 @@ class EnrollmentManager {
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {
-    AtData enrollData = await keyStore.get(ek);
+    AtData enrollData = (await keyStore.get(ek))!;
     EnrollDataStoreValue value =
         EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
     if (!SecondaryUtil.isActiveKey(enrollData)) {
       // When an expired enrollment is encountered, delete it immediately
       value.approval?.state = EnrollmentStatus.expired.name;
-      await remove(enId: idFromKey(ek), enVal: value);
+      await remove(enId: getIdFromKey(ek), enVal: value);
       return value;
     } else {
       return value;
@@ -162,22 +163,6 @@ class EnrollmentManager {
     return ejList;
   }
 
-  /// Delete expired enrollments to keep the datastore clean.
-  /// Called upon server startup and periodically thereafter.
-  Future<List<EnrollDataStoreValue>> removeAllExpiredEnrollments() async {
-    final List<EnrollDataStoreValue> expiredSoDeleted = [];
-    final l = await getAllEnrollmentKeys();
-    for (final ek in l) {
-      final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
-      if (ev.approval?.state == EnrollmentStatus.expired.name) {
-        final eId = idFromKey(ek);
-        await remove(enId: eId, enVal: ev);
-        expiredSoDeleted.add(ev);
-      }
-    }
-    return expiredSoDeleted;
-  }
-
   /// iterate all enrollments, remove key which leaks appName and deviceName
   Future<List<String>> removeLegacyApkamPublicKeys() async {
     final List<String> deletedLegacyKeys = [];
@@ -186,6 +171,7 @@ class EnrollmentManager {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       final lk = keyForLegacyPK(ev);
       if (keyStore.isKeyExists(lk)) {
+        logger.shout('removeLegacyApkamPublicKeys: DELETING $lk');
         await keyStore.remove(lk, skipCommit: true);
         deletedLegacyKeys.add(ek);
       }
@@ -193,6 +179,35 @@ class EnrollmentManager {
     return deletedLegacyKeys;
   }
 
-  /// Get the enrollmentId from a full enrollmentKey
-  String idFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
+  /// Called upon server startup. Removes encryption keys of enrollments which
+  /// no longer exist (expired or otherwise). Previously these encryption keys
+  /// were stored without a ttl even if there was a valid ttl, therefore they
+  /// would never be harvested.
+  /// TODO: Add unit test to verify that only orphaned keys are removed
+  Future<List<String>> removeOrphanedApkamEncryptionKeys() async {
+    final List<String> deletedOrphanedKeys = [];
+    final List<String> enIds = [];
+    for (final ek in await getAllEnrollmentKeys()) {
+      enIds.add(getIdFromKey(ek));
+    }
+    final List<String> candidates = [];
+    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForPEK));
+    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForSEK));
+    for (final candidateKey in candidates) {
+      String candidateId = getIdFromKey(candidateKey);
+      if (!enIds.contains(candidateId)) {
+        logger
+            .shout('removeOrphanedApkamEncryptionKeys: DELETING $candidateKey');
+        deletedOrphanedKeys.add(candidateKey);
+        await keyStore.remove(candidateKey, skipCommit: true);
+      } else {
+        logger.shout(
+            'removeOrphanedApkamEncryptionKeys: NOT deleting $candidateKey - not orphaned');
+      }
+    }
+    return deletedOrphanedKeys;
+  }
+
+  /// Get the enrollmentId from any key where enrollmentId is the first part
+  String getIdFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
 }

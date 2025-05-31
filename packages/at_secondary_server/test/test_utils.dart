@@ -23,7 +23,8 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockSecondaryKeyStore extends Mock
+    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {}
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
@@ -47,6 +48,8 @@ class MockOutboundConnectionFactory extends Mock
 class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
+
+class MockEnrollmentManager extends Mock implements EnrollmentManager {}
 
 class MockSocket extends Mock implements Socket {
   Completer completer = Completer();

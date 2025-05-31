@@ -264,11 +264,14 @@ void main() async {
         /// 2. The commit-id's should be incremented sequentially
         /// 3. Assert the data and metadata updated to keystore
         VerbHandlerManager verbHandlerManager = DefaultVerbHandlerManager(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!,
-            mockOutboundClientManager,
-            mockAtCacheManager,
-            StatsNotificationService.getInstance(),
-            NotificationManager.getInstance());
+          secondaryPersistenceStore!.getSecondaryKeyStore()!,
+          mockOutboundClientManager,
+          mockAtCacheManager,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance(),
+          enrollMgr,
+          alice,
+        );
         var batchRequestCommand = jsonEncode([
           BatchRequest(100, 'update:city$alice copenhagen'),
           BatchRequest(456, 'delete:phone$alice'),
@@ -335,11 +338,14 @@ void main() async {
         /// 1. The valid commands should be processed and commit-id should be added to batch response
         /// 2. For the invalid batch request command, the error code and error message should be updated in the batch response
         VerbHandlerManager verbHandlerManager = DefaultVerbHandlerManager(
-            secondaryPersistenceStore!.getSecondaryKeyStore()!,
-            mockOutboundClientManager,
-            mockAtCacheManager,
-            StatsNotificationService.getInstance(),
-            NotificationManager.getInstance());
+          secondaryPersistenceStore!.getSecondaryKeyStore()!,
+          mockOutboundClientManager,
+          mockAtCacheManager,
+          StatsNotificationService.getInstance(),
+          NotificationManager.getInstance(),
+          enrollMgr,
+          alice,
+        );
         var batchRequestCommand = jsonEncode([
           BatchRequest(1, 'delete:phone$alice'),
           BatchRequest(2, 'update:city$alice'),

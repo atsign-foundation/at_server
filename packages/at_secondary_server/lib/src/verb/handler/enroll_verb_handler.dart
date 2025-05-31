@@ -38,7 +38,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
       .inMilliseconds;
 
-  EnrollVerbHandler(super.keyStore);
+  final EnrollmentManager enMgr;
+
+  EnrollVerbHandler(super.keyStore, this.enMgr);
 
   @override
   bool accept(String command) => command.startsWith('enroll:');
@@ -57,8 +59,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     final responseJson = {};
 
-    final EnrollmentManager enMgr =
-        AtSecondaryServerImpl.getInstance().enrollmentManager;
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -363,7 +363,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await _updateEnrollmentValueAndResetTTL(enMgr, enId, enVal, operation);
     // when enrollment is approved store the apkamPublicKey of the enrollment
     if (operation == 'approve') {
-      await _storeEncryptionKeys(enId, enrollParams, currentAtSign);
+      await _storeEncryptionKeys(enId, enrollParams, enVal);
     }
     responseJson['enrollmentId'] = enId;
   }
@@ -410,24 +410,35 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// client. Encrypted keys will be used later on by the approving app to
   /// send the keys to a new enrolling app
   Future<void> _storeEncryptionKeys(
-      String newEnrollmentId, EnrollParams enrollParams, String atSign) async {
+    String newEnrollmentId,
+    EnrollParams enrollParams,
+    EnrollDataStoreValue enVal,
+  ) async {
+    AtMetaData atMetaData = AtMetaData();
+    atMetaData.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+
     var privateKeyJson = {};
     privateKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
     if (enrollParams.encPrivateKeyIV != null) {
       privateKeyJson['iv'] = enrollParams.encPrivateKeyIV;
     }
     await keyStore.put(
-        '$newEnrollmentId.${AtConstants.defaultEncryptionPrivateKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        AtData()..data = jsonEncode(privateKeyJson),
+        enMgr.keyForPEK(newEnrollmentId),
+        AtData()
+          ..data = jsonEncode(privateKeyJson)
+          ..metaData = atMetaData,
         skipCommit: true);
+
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
     if (enrollParams.selfEncKeyIV != null) {
       selfKeyJson['iv'] = enrollParams.selfEncKeyIV;
     }
     await keyStore.put(
-        '$newEnrollmentId.${AtConstants.defaultSelfEncryptionKey}.${EnrollmentConstants.enrollManageNamespace}$atSign',
-        AtData()..data = jsonEncode(selfKeyJson),
+        enMgr.keyForSEK(newEnrollmentId),
+        AtData()
+          ..data = jsonEncode(selfKeyJson)
+          ..metaData = atMetaData,
         skipCommit: true);
   }
 
@@ -590,23 +601,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _updateEnrollmentValueAndResetTTL(
-      EnrollmentManager enMgr,
-      String enrollmentId,
-      EnrollDataStoreValue enrollDataStoreValue,
-      String operation) async {
-    AtData atData = AtData()..data = jsonEncode(enrollDataStoreValue.toJson());
+  Future<void> _updateEnrollmentValueAndResetTTL(EnrollmentManager enMgr,
+      String enrollmentId, EnrollDataStoreValue enVal, String operation) async {
+    AtData atData = AtData()..data = jsonEncode(enVal.toJson());
     // If an enrollment is approved, we need the enrollment to be active
     // to subsequently revoke the enrollment. Hence reset TTL and
     // expiredAt on metadata.
     if (operation == 'approve') {
       // Fetch the existing data
       String enrollmentKey = enMgr.buildEnrollmentKey(enrollmentId);
-      AtMetaData? enrollMetaData = await keyStore.getMeta(enrollmentKey);
+      AtMetaData enrollMetaData =
+          await keyStore.getMeta(enrollmentKey) ?? AtMetaData();
       // Update key with new data
       // Update ttl value to support auto expiry of APKAM keys
-      enrollMetaData?.ttl =
-          enrollDataStoreValue.apkamKeysExpiryDuration.inMilliseconds;
+      enrollMetaData.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
       atData.metaData = enrollMetaData;
     }
     await enMgr.put(enrollmentId, atData);

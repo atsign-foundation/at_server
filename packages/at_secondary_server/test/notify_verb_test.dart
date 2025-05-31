@@ -1138,7 +1138,8 @@ void main() {
     late NotifyAllVerbHandler notifyAllVerbHandler;
     setUp(() async {
       keyStoreManager = await setUpFunc(storageDir, atsign: alice);
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore =
+          keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyAllVerbHandler = NotifyAllVerbHandler(keyStore);
       inboundConnection = DummyInboundConnection();
@@ -1749,7 +1750,8 @@ void main() {
     late NotifyListVerbHandler notifyListVerbHandler;
     setUp(() async {
       keyStoreManager = await setUpFunc(storageDir, atsign: alice);
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore =
+          keyStoreManager.getKeyStore();
       notifyVerbHandler = NotifyVerbHandler(keyStore);
       notifyListVerbHandler =
           NotifyListVerbHandler(keyStore, mockOutboundClientManager);

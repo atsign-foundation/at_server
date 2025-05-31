@@ -17,7 +17,8 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() async {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  SecondaryKeyStore<String, AtData?, AtMetaData?> mockKeyStore =
+      MockSecondaryKeyStore();
 
   verbTestsSetUpLogging();
 
