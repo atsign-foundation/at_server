@@ -976,7 +976,8 @@ void main() async {
         List syncResponseList;
 
         // (1) namespace access: data.wavi:r
-        final dataEn = await newTestEnroll('wavi', 'pixel', {'data.wavi': 'r'});
+        final dataEn = await createAndPersistAnEnrollment(
+            'wavi', 'pixel', {'data.wavi': 'r'});
         // should only get stuff from ".data.wavi"
         // and should not get "data.wavi"
         // since that's in the wavi namespace, not the data.wavi namespace
@@ -986,7 +987,8 @@ void main() async {
         expect(syncResponseList[0]['operation'], '+');
 
         // (2) namespace access: keys.wavi:r
-        final keysEn = await newTestEnroll('wavi', 'pixel', {'keys.wavi': 'r'});
+        final keysEn = await createAndPersistAnEnrollment(
+            'wavi', 'pixel', {'keys.wavi': 'r'});
         // should only get stuff from ".keys.wavi"
         // and should not get "keys.wavi"
         // since that's in the wavi namespace, not the keys.wavi namespace
@@ -996,7 +998,8 @@ void main() async {
         expect(syncResponseList[0]['operation'], '+');
 
         // (3) namespace access: wavi:rw
-        final allEn = await newTestEnroll('wavi', 'pixel', {'wavi': 'rw'});
+        final allEn =
+            await createAndPersistAnEnrollment('wavi', 'pixel', {'wavi': 'rw'});
         // should get everything from ".wavi"
         syncResponseList = await executeSyncVerb(allEn);
         expect(syncResponseList.length, waviKeys.length);
@@ -1006,7 +1009,7 @@ void main() async {
         }
 
         // (4) namespace access: data.wavi:rw, keys.wavi:rw
-        final keysAndDataEn = await newTestEnroll(
+        final keysAndDataEn = await createAndPersistAnEnrollment(
           'wavi',
           'pixel',
           {'data.wavi': 'rw', 'keys.wavi': 'rw'},
@@ -1024,7 +1027,7 @@ void main() async {
       test('Verify sync with namespace permissions', () async {
         // create enrollment with wavi:rw
         final enrollmentId =
-            await newTestEnroll('wavi', 'pixel', {'wavi': 'rw'});
+            await createAndPersistAnEnrollment('wavi', 'pixel', {'wavi': 'rw'});
 
         // create data in wavi namespace
         await putData('public:phone.wavi$alice');
@@ -1043,8 +1046,8 @@ void main() async {
           () async {
         await putData('public:phone.wavi$alice');
         await putData('public:mobile.buzz$alice');
-        var enrollmentId =
-            await newTestEnroll('wavi', 'pixel', {'wavi': 'rw', '*': 'rw'});
+        var enrollmentId = await createAndPersistAnEnrollment(
+            'wavi', 'pixel', {'wavi': 'rw', '*': 'rw'});
 
         List syncResponseList = await executeSyncVerb(enrollmentId);
         expect(syncResponseList.length, 2);

@@ -110,7 +110,9 @@ SecondaryPersistenceStore? secondaryPersistenceStore;
 late AtCommitLog atCommitLog;
 
 /// Creates and persists a new approved enrollment
-Future<String> newTestEnroll(
+/// NB: Does not go through enroll verb handler, so
+/// no other enrollment stuff is happening
+Future<String> createAndPersistAnEnrollment(
   String app,
   String device,
   Map<String, String> namespaces,

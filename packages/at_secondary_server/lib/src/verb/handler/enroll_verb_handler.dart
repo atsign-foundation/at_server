@@ -602,22 +602,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _updateEnrollmentValueAndResetTTL(EnrollmentManager enMgr,
-      String enrollmentId, EnrollDataStoreValue enVal, String operation) async {
+      String enId, EnrollDataStoreValue enVal, String operation) async {
     AtData atData = AtData()..data = jsonEncode(enVal.toJson());
     // If an enrollment is approved, we need the enrollment to be active
     // to subsequently revoke the enrollment. Hence reset TTL and
     // expiredAt on metadata.
     if (operation == 'approve') {
       // Fetch the existing data
-      String enrollmentKey = enMgr.buildEnrollmentKey(enrollmentId);
-      AtMetaData enrollMetaData =
-          await keyStore.getMeta(enrollmentKey) ?? AtMetaData();
+      String ek = enMgr.buildEnrollmentKey(enId);
+      AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
       // Update key with new data
       // Update ttl value to support auto expiry of APKAM keys
-      enrollMetaData.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
-      atData.metaData = enrollMetaData;
+      emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      atData.metaData = emd;
     }
-    await enMgr.put(enrollmentId, atData);
+    await enMgr.put(enId, atData);
   }
 
   /// Throws [IllegalArgumentException] if parameters are not valid.

@@ -17,6 +17,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+
 import 'test_utils.dart';
 
 InboundConnectionMetadata castMetadata(InboundConnection ic) {
@@ -24,6 +26,303 @@ InboundConnectionMetadata castMetadata(InboundConnection ic) {
 }
 
 void main() {
+  verbTestsSetUpLogging();
+  late EnrollVerbHandler evh;
+  late OtpVerbHandler ovh;
+
+  Future<String> getOtp() async {
+    inboundConnection.metaData.isAuthenticated = true;
+    final r = Response();
+    await ovh.processVerb(
+        r, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
+    expect(r.isError, false);
+    return r.data!;
+  }
+
+  Future<String> createPendingEnrollment(
+      {required String appName,
+      required String deviceName,
+      required Map<String, String> namespaces,
+      required Duration? apkamKeysExpiryDuration}) async {
+    final EnrollParams ep = EnrollParams()
+      ..appName = appName
+      ..deviceName = deviceName
+      ..apkamPublicKey = 'apkam public key $appName $deviceName'
+      ..encryptedAPKAMSymmetricKey =
+          'encrypted apkam aes key $appName $deviceName'
+      ..namespaces = namespaces
+      ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
+      ..otp = await getOtp();
+
+    final String enrollmentRequest = 'enroll:request:'
+        '${jsonEncode(ep.toJson())}';
+    final Response r = Response();
+    inboundConnection.metaData.isAuthenticated = false;
+    inboundConnection.metaData.authType = null;
+    inboundConnection.metaData.sessionID =
+        DateTime.now().millisecondsSinceEpoch.toString();
+    await evh.processVerb(
+      r,
+      getVerbParam(VerbSyntax.enroll, enrollmentRequest),
+      inboundConnection,
+    );
+    expect(r.isError, false);
+    final Map m = jsonDecode(r.data!);
+    expect(m['status'], EnrollmentStatus.pending.name);
+    return m['enrollmentId'];
+  }
+
+  Future<void> approveEnrollment(
+      String approverEnId, String enIdToApprove) async {
+    inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.enrollmentId = approverEnId;
+    EnrollParams p = EnrollParams()
+      ..enrollmentId = enIdToApprove
+      ..encryptedDefaultEncryptionPrivateKey =
+          'encrypted default encryption private key'
+      ..encryptedDefaultSelfEncryptionKey =
+          'encrypted default self encryption key';
+    final approveCommand = 'enroll:approve:${jsonEncode(p.toJson())}';
+    final r = Response();
+    await evh.processVerb(
+      r,
+      getVerbParam(VerbSyntax.enroll, approveCommand),
+      inboundConnection,
+    );
+    expect(r.isError, false);
+    final m = jsonDecode(r.data!);
+    expect(m['status'], EnrollmentStatus.approved.name);
+    expect(m['enrollmentId'], enIdToApprove);
+  }
+
+  Future<String> createPrimaryEnrollment() async {
+    EnrollParams ep = EnrollParams()
+      ..appName = 'primary'
+      ..deviceName = 'primary'
+      ..apkamPublicKey = 'apkam public key'
+      ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
+      ..namespaces = {'*': 'rw'};
+    String enrollmentRequest = 'enroll:request:'
+        '${jsonEncode(ep.toJson())}';
+    Response r = Response();
+    inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.authType = AuthType.cram;
+    inboundConnection.metaData.sessionID =
+        DateTime.now().millisecondsSinceEpoch.toString();
+    await evh.processVerb(
+      r,
+      getVerbParam(VerbSyntax.enroll, enrollmentRequest),
+      inboundConnection,
+    );
+    expect(r.isError, false);
+    Map m = jsonDecode(r.data!);
+    expect(m['status'], EnrollmentStatus.approved.name);
+    return m['enrollmentId'];
+  }
+
+  group('Verify datastore consistency', () {
+    late String primaryEnId;
+    setUp(() async {
+      await verbTestsSetUp();
+      evh = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      ovh = OtpVerbHandler(secondaryKeyStore);
+      primaryEnId = await createPrimaryEnrollment();
+    });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+    });
+
+    Future<void> verifyKeyStoreState(
+        List<String> allCreated, List<String> deletedOrExpired,
+        {required bool cleanedUp}) async {
+      // int i = 0;
+      for (final enId in allCreated) {
+        bool enDeleted = deletedOrExpired.contains(enId);
+        // enrollment should exist unless was deleted
+        bool enrollmentShouldExist = !enDeleted;
+        // ancillary keys should exist if not deleted, or if deleted but not cleanedUp
+        bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
+        // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
+        await expectLater(
+            secondaryKeyStore.isKeyExists(enrollMgr.buildEnrollmentKey(enId)),
+            enrollmentShouldExist);
+        await expectLater(
+            secondaryKeyStore.isKeyExists(enrollMgr.keyForPEK(enId)),
+            ancillaryKeysShouldExist);
+        await expectLater(
+            secondaryKeyStore.isKeyExists(enrollMgr.keyForSEK(enId)),
+            ancillaryKeysShouldExist);
+      }
+    }
+
+    Future<(List<String>, List<String>)> createAndApproveSomeEnrollments(
+        int numToCreate, int expiryModulus, int ttl) async {
+      List<String> allEnIds = [];
+      List<String> withTtlEnIds = [];
+      // Create and approve some enrollments
+      for (int i = 0; i < numToCreate; i++) {
+        final bool withTtl = (i + 1) % expiryModulus == 0;
+        final enId = await createPendingEnrollment(
+          appName: 'app_${i + 1}',
+          deviceName: 'test',
+          namespaces: {'app_${i + 1}': 'rw', 'test': 'r'},
+          apkamKeysExpiryDuration: withTtl ? Duration(milliseconds: ttl) : null,
+        );
+        allEnIds.add(enId);
+        if (withTtl) {
+          withTtlEnIds.add(enId);
+        }
+        await approveEnrollment(primaryEnId, enId);
+      }
+
+      expect(allEnIds.length, numToCreate);
+
+      return (allEnIds, withTtlEnIds);
+    }
+
+    test('Verify that only orphaned enrollment related keys are cleaned up',
+        () async {
+      // We'll set a TTL but it's not relevant here
+      final int ttl = 60000;
+      final List<String> allEnIds;
+      final List<String> withTtlEnIds;
+      final List<String> deletedEnIds = [];
+
+      // make some enrollments, some with ttl
+      (allEnIds, withTtlEnIds) =
+          await createAndApproveSomeEnrollments(20, 3, ttl);
+      expect(withTtlEnIds.length, 6);
+
+      // check datastore state before deleting or cleaning up
+      await verifyKeyStoreState(allEnIds, deletedEnIds, cleanedUp: false);
+
+      // Delete some of them via the key store but don't delete related keys
+      int i = 0;
+      for (final enId in allEnIds) {
+        if (++i % 3 == 0) {
+          await secondaryKeyStore.remove(enrollMgr.buildEnrollmentKey(enId));
+          deletedEnIds.add(enId);
+        }
+      }
+
+      // Verify that keystore state is correct (orphaned still there)
+      await verifyKeyStoreState(allEnIds, deletedEnIds, cleanedUp: false);
+
+      // Execute the orphaned keys cleanup
+      List<String> removedOrphans =
+          await enrollMgr.removeOrphanedApkamEncryptionKeys();
+      // Verify the return value against expected
+      expect(removedOrphans.length, deletedEnIds.length * 2);
+      for (final enId in deletedEnIds) {
+        expect(removedOrphans.contains(enrollMgr.keyForPEK(enId)), true);
+        expect(removedOrphans.contains(enrollMgr.keyForSEK(enId)), true);
+      }
+
+      // Verify that keystore state is correct (orphaned gone, others remain)
+      await verifyKeyStoreState(allEnIds, deletedEnIds, cleanedUp: true);
+    });
+
+    test(
+        'Verify that all related keys are cleaned up by the normal expired keys job when enrollments expire',
+        () async {
+      int ttl = 200;
+      List<String> allEnIds;
+      List<String> withTtlEnIds;
+      // Create and approve some enrollments - some with expirations, some without
+      (allEnIds, withTtlEnIds) =
+          await createAndApproveSomeEnrollments(20, 3, ttl);
+
+      expect(allEnIds.length, 20);
+      expect(withTtlEnIds.length, 6);
+
+      // Verify that the keystore state is as expected with all keys
+      await verifyKeyStoreState(allEnIds, [], cleanedUp: false);
+
+      // Allow the expiration time to pass
+      await Future.delayed(Duration(milliseconds: ttl + 1));
+
+      // Verify that the keystore state is still the same
+      await verifyKeyStoreState(allEnIds, [], cleanedUp: false);
+
+      // Run the expired keys cleanup job
+      await secondaryKeyStore.deleteExpiredKeys();
+
+      // Verify that the keystore state is correct (expired all gone, others remain)
+      await verifyKeyStoreState(allEnIds, withTtlEnIds, cleanedUp: true);
+    });
+
+    test(
+        'Verify that all related keys are cleaned up when expired enrollments are cleaned up while fetching enrollments',
+        () async {
+      int ttl = 250;
+      List<String> allEnIds;
+      List<String> withTtlEnIds;
+      // Create and approve some enrollments - some with expirations, some without
+      (allEnIds, withTtlEnIds) =
+          await createAndApproveSomeEnrollments(5, 2, ttl);
+      expect(allEnIds.length, 5);
+      expect(withTtlEnIds.length, 2);
+
+      // Verify that the keystore state is as expected with all keys
+      await verifyKeyStoreState(allEnIds, [], cleanedUp: false);
+
+      Map m1 = await enrollMgr.getEnrollmentsAsJson();
+      expect(m1.length, allEnIds.length + 1);
+      // remove the primary enrollment id from what we got
+      m1.remove(enrollMgr.buildEnrollmentKey(primaryEnId));
+      // and now the number returned should be the number we created
+      expect(m1.length, allEnIds.length);
+
+      // Allow the expiration time to pass
+      await Future.delayed(Duration(milliseconds: ttl + 1));
+
+      final expiryCache =
+          (secondaryKeyStore as HiveKeystore).getExpiryKeysCache();
+      for (final enId in withTtlEnIds) {
+        expect(
+            expiryCache.containsKey(enrollMgr.buildEnrollmentKey(enId)), true);
+      }
+      for (final enId in allEnIds) {
+        if (!withTtlEnIds.contains(enId)) {
+          expect(expiryCache.containsKey(enrollMgr.buildEnrollmentKey(enId)),
+              false);
+        }
+      }
+
+      // Verify that the keystore state is still the same
+      await verifyKeyStoreState(allEnIds, [], cleanedUp: false);
+
+      // fetch all enrollments
+      // this should return ALL of them (including expired)
+      // but should also delete the expired ones as it encounters them
+      //
+      // Note that we have to supply the list of enrollment ids
+      // because otherwise getEnrollmentsAsJson will do a getKeys
+      // on the HiveKeystore which in turn filters what it finds against
+      // the _expiryCache which HiveKeystore maintains.
+      Map m = await enrollMgr.getEnrollmentsAsJson(
+          ekList: allEnIds
+              .map((enId) => enrollMgr.buildEnrollmentKey(enId))
+              .toList());
+      expect(m.length, allEnIds.length);
+
+      int expiredEncountered = 0;
+      // check that we have the right number of expired enrollments
+      for (final entry in m.entries) {
+        if (entry.value['status'] == EnrollmentStatus.expired.name) {
+          expiredEncountered++;
+          // check that the expired enrollment is in the withTtl list
+          expect(withTtlEnIds, contains(enrollMgr.getIdFromKey(entry.key)));
+        }
+      }
+      expect(expiredEncountered, withTtlEnIds.length);
+
+      // Verify that the keystore state is correct (expired all gone, others remain)
+      await verifyKeyStoreState(allEnIds, withTtlEnIds, cleanedUp: true);
+    });
+  });
+
   group('A group of tests to verify enroll request operation', () {
     setUp(() async {
       await verbTestsSetUp();
@@ -156,6 +455,7 @@ void main() {
     });
     tearDown(() async => await verbTestsTearDown());
   });
+
   group('A group of tests to verify enroll list operation', () {
     setUp(() async {
       await verbTestsSetUp();

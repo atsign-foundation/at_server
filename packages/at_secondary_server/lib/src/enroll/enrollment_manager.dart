@@ -15,7 +15,9 @@ import 'package:at_utils/at_logger.dart';
 class EnrollmentManager {
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final String atSign;
-  final AtSignLogger logger = AtSignLogger(' EnrollmentManager ');
+
+  /// log messages here are important, so hard-coding level to 'info'
+  final AtSignLogger logger = AtSignLogger('EnrollmentManager')..level = 'info';
 
   /// Creates an instance of [EnrollmentManager].
   ///
@@ -133,12 +135,13 @@ class EnrollmentManager {
         EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
     if (!SecondaryUtil.isActiveKey(enrollData)) {
       // When an expired enrollment is encountered, delete it immediately
-      value.approval?.state = EnrollmentStatus.expired.name;
+      logger.warning('getEnrollmentByFullKey:'
+          ' Enrollment $ek has expired - removing it');
       await remove(enId: getIdFromKey(ek), enVal: value);
-      return value;
-    } else {
-      return value;
+
+      value.approval = EnrollApproval(EnrollmentStatus.expired.name);
     }
+    return value;
   }
 
   /// Fetch enrollments whose keys are in the [ekList], and filter them to
@@ -171,7 +174,7 @@ class EnrollmentManager {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       final lk = keyForLegacyPK(ev);
       if (keyStore.isKeyExists(lk)) {
-        logger.shout('removeLegacyApkamPublicKeys: DELETING $lk');
+        logger.warning('removeLegacyApkamPublicKeys: DELETING $lk');
         await keyStore.remove(lk, skipCommit: true);
         deletedLegacyKeys.add(ek);
       }
@@ -183,7 +186,6 @@ class EnrollmentManager {
   /// no longer exist (expired or otherwise). Previously these encryption keys
   /// were stored without a ttl even if there was a valid ttl, therefore they
   /// would never be harvested.
-  /// TODO: Add unit test to verify that only orphaned keys are removed
   Future<List<String>> removeOrphanedApkamEncryptionKeys() async {
     final List<String> deletedOrphanedKeys = [];
     final List<String> enIds = [];
@@ -196,13 +198,11 @@ class EnrollmentManager {
     for (final candidateKey in candidates) {
       String candidateId = getIdFromKey(candidateKey);
       if (!enIds.contains(candidateId)) {
-        logger
-            .shout('removeOrphanedApkamEncryptionKeys: DELETING $candidateKey');
+        logger.warning('DELETING orphaned key $candidateKey');
         deletedOrphanedKeys.add(candidateKey);
         await keyStore.remove(candidateKey, skipCommit: true);
       } else {
-        logger.shout(
-            'removeOrphanedApkamEncryptionKeys: NOT deleting $candidateKey - not orphaned');
+        logger.info('NOT deleting $candidateKey - not orphaned');
       }
     }
     return deletedOrphanedKeys;
