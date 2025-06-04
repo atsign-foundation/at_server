@@ -5,7 +5,7 @@ import 'package:at_persistence_root_server/at_persistence_root_server.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_commons/at_commons.dart';
 
-enum RootClientState {listening,closing,closed}
+enum RootClientState { listening, closing, closed }
 
 /// Represents Root Server client instance which contains socket on which a connection got established
 class RootClient {
@@ -44,10 +44,9 @@ class RootClient {
         return;
       } else {
         if (_buffer.isEnd()) {
-          var result = await _keyStoreManager
-              .getKeyStore()
-              .get(lookupPayload);
-          logger.info('${_address}:${_port} Looked up: $lookupPayload | Found: $result');
+          var result = await _keyStoreManager.getKeyStore().get(lookupPayload);
+          logger.info(
+              '${_address}:${_port} Looked up: $lookupPayload | Found: $result');
 
           if (result == null) {
             notFoundCount++;

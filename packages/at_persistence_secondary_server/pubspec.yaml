@@ -5,7 +5,7 @@ repository: https://github.com/atsign-foundation/at_server
 homepage: https://docs.atsign.com/
 
 environment:
-  sdk: '>=2.15.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   path: ^1.8.2
@@ -18,6 +18,10 @@ dependencies:
   at_utils: ^3.0.19
   at_persistence_spec: ^3.0.0
   meta: ^1.8.0
+
+dependency_overrides:
+  at_persistence_spec:
+    path: ../at_persistence_spec
 
 dev_dependencies:
   lints: ^5.0.0

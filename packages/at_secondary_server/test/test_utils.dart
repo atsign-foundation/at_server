@@ -24,7 +24,14 @@ import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
 class MockSecondaryKeyStore extends Mock
-    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {}
+    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
+}
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
@@ -97,7 +104,7 @@ late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
 late MockNotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
-late EnrollmentManager enrollMgr;
+late EnrollmentManager enMgr;
 
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
@@ -118,7 +125,7 @@ Future<String> createAndPersistAnEnrollment(
   Map<String, String> namespaces,
 ) async {
   final id = Uuid().v4();
-  final key = enrollMgr.buildEnrollmentKey(id);
+  final key = enMgr.buildEnrollmentKey(id);
   final enrollJson = {
     'sessionId': '123',
     'appName': app,
@@ -249,8 +256,10 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
+
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      enrollMgr = EnrollmentManager(secondaryKeyStore, alice);
+      enMgr = EnrollmentManager(secondaryKeyStore, alice);
+  secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
@@ -296,6 +305,8 @@ verbTestsSetUp() async {
 }
 
 Future<void> verbTestsTearDown() async {
+  secondaryKeyStore.preRemoveHooks.clear();
+  secondaryKeyStore.postRemoveHooks.clear();
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory(storageDir).exists();

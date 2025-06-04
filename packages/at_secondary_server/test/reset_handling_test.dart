@@ -30,7 +30,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
     });
 
     tearDown(() async {

@@ -29,7 +29,7 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      keysVerbHandler = KeysVerbHandler(secondaryKeyStore, enrollMgr, alice);
+      keysVerbHandler = KeysVerbHandler(secondaryKeyStore, enMgr, alice);
       localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
     });
 
@@ -667,14 +667,14 @@ void main() {
           'N0bmvnW1k5oKL+/6X3HresMyG/z6yBmxzgtrn8CMEofWgxJo8RSBXIqvdNj9ZOHO';
       var valueJson = {};
       valueJson['value'] = encryptedSelfEncryptionKey;
-      await secondaryKeyStore.put(enrollMgr.keyForSEK(enrollId),
-          AtData()..data = jsonEncode(valueJson));
+      await secondaryKeyStore.put(
+          enMgr.keyForSEK(enrollId), AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:self';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
-      expect(keysList[0], enrollMgr.keyForSEK(enrollId));
+      expect(keysList[0], enMgr.keyForSEK(enrollId));
     });
 
     test('keys verb invalid syntax - invalid operation', () {
@@ -728,14 +728,14 @@ void main() {
           .base64;
       var valueJson = {};
       valueJson['value'] = encryptedDefaultEncryptionPrivateKey;
-      await secondaryKeyStore.put(enrollMgr.keyForPEK(enrollId),
-          AtData()..data = jsonEncode(valueJson));
+      await secondaryKeyStore.put(
+          enMgr.keyForPEK(enrollId), AtData()..data = jsonEncode(valueJson));
 
       var keysGetCommand = 'keys:get:private';
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       var keysList = decodeResponseAsList(inboundConnection.lastWrittenData!);
       expect(keysList, isNotEmpty);
-      expect(keysList[0], enrollMgr.keyForPEK(enrollId));
+      expect(keysList[0], enMgr.keyForPEK(enrollId));
     });
 
     test('keys:put verb without auth', () {

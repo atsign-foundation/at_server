@@ -124,7 +124,7 @@ void main() {
     late String primaryEnId;
     setUp(() async {
       await verbTestsSetUp();
-      evh = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      evh = EnrollVerbHandler(secondaryKeyStore, enMgr);
       ovh = OtpVerbHandler(secondaryKeyStore);
       primaryEnId = await createPrimaryEnrollment();
     });
@@ -145,13 +145,11 @@ void main() {
         bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
         // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
         await expectLater(
-            secondaryKeyStore.isKeyExists(enrollMgr.buildEnrollmentKey(enId)),
+            secondaryKeyStore.isKeyExists(enMgr.buildEnrollmentKey(enId)),
             enrollmentShouldExist);
-        await expectLater(
-            secondaryKeyStore.isKeyExists(enrollMgr.keyForPEK(enId)),
+        await expectLater(secondaryKeyStore.isKeyExists(enMgr.keyForPEK(enId)),
             ancillaryKeysShouldExist);
-        await expectLater(
-            secondaryKeyStore.isKeyExists(enrollMgr.keyForSEK(enId)),
+        await expectLater(secondaryKeyStore.isKeyExists(enMgr.keyForSEK(enId)),
             ancillaryKeysShouldExist);
       }
     }
@@ -198,10 +196,12 @@ void main() {
       await verifyKeyStoreState(allEnIds, deletedEnIds, cleanedUp: false);
 
       // Delete some of them via the key store but don't delete related keys
+      // NB: Remove the preRemoveHook for enrollments to make this test possible
+      secondaryKeyStore.preRemoveHooks.remove(enMgr.preRemoveHook);
       int i = 0;
       for (final enId in allEnIds) {
         if (++i % 3 == 0) {
-          await secondaryKeyStore.remove(enrollMgr.buildEnrollmentKey(enId));
+          await secondaryKeyStore.remove(enMgr.buildEnrollmentKey(enId));
           deletedEnIds.add(enId);
         }
       }
@@ -211,12 +211,12 @@ void main() {
 
       // Execute the orphaned keys cleanup
       List<String> removedOrphans =
-          await enrollMgr.removeOrphanedApkamEncryptionKeys();
+          await enMgr.removeOrphanedApkamEncryptionKeys();
       // Verify the return value against expected
       expect(removedOrphans.length, deletedEnIds.length * 2);
       for (final enId in deletedEnIds) {
-        expect(removedOrphans.contains(enrollMgr.keyForPEK(enId)), true);
-        expect(removedOrphans.contains(enrollMgr.keyForSEK(enId)), true);
+        expect(removedOrphans.contains(enMgr.keyForPEK(enId)), true);
+        expect(removedOrphans.contains(enMgr.keyForSEK(enId)), true);
       }
 
       // Verify that keystore state is correct (orphaned gone, others remain)
@@ -267,10 +267,10 @@ void main() {
       // Verify that the keystore state is as expected with all keys
       await verifyKeyStoreState(allEnIds, [], cleanedUp: false);
 
-      Map m1 = await enrollMgr.getEnrollmentsAsJson();
+      Map m1 = await enMgr.getEnrollmentsAsJson();
       expect(m1.length, allEnIds.length + 1);
       // remove the primary enrollment id from what we got
-      m1.remove(enrollMgr.buildEnrollmentKey(primaryEnId));
+      m1.remove(enMgr.buildEnrollmentKey(primaryEnId));
       // and now the number returned should be the number we created
       expect(m1.length, allEnIds.length);
 
@@ -280,13 +280,12 @@ void main() {
       final expiryCache =
           (secondaryKeyStore as HiveKeystore).getExpiryKeysCache();
       for (final enId in withTtlEnIds) {
-        expect(
-            expiryCache.containsKey(enrollMgr.buildEnrollmentKey(enId)), true);
+        expect(expiryCache.containsKey(enMgr.buildEnrollmentKey(enId)), true);
       }
       for (final enId in allEnIds) {
         if (!withTtlEnIds.contains(enId)) {
-          expect(expiryCache.containsKey(enrollMgr.buildEnrollmentKey(enId)),
-              false);
+          expect(
+              expiryCache.containsKey(enMgr.buildEnrollmentKey(enId)), false);
         }
       }
 
@@ -301,10 +300,9 @@ void main() {
       // because otherwise getEnrollmentsAsJson will do a getKeys
       // on the HiveKeystore which in turn filters what it finds against
       // the _expiryCache which HiveKeystore maintains.
-      Map m = await enrollMgr.getEnrollmentsAsJson(
-          ekList: allEnIds
-              .map((enId) => enrollMgr.buildEnrollmentKey(enId))
-              .toList());
+      Map m = await enMgr.getEnrollmentsAsJson(
+          ekList:
+              allEnIds.map((enId) => enMgr.buildEnrollmentKey(enId)).toList());
       expect(m.length, allEnIds.length);
 
       int expiredEncountered = 0;
@@ -313,7 +311,7 @@ void main() {
         if (entry.value['status'] == EnrollmentStatus.expired.name) {
           expiredEncountered++;
           // check that the expired enrollment is in the withTtl list
-          expect(withTtlEnIds, contains(enrollMgr.getIdFromKey(entry.key)));
+          expect(withTtlEnIds, contains(enMgr.getIdFromKey(entry.key)));
         }
       }
       expect(expiredEncountered, withTtlEnIds.length);
@@ -340,7 +338,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_1 = jsonDecode(response.data!)['enrollmentId'];
@@ -359,7 +357,7 @@ void main() {
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_2 = jsonDecode(response.data!)['enrollmentId'];
@@ -381,7 +379,7 @@ void main() {
       inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
 
       Response response;
       response = Response();
@@ -411,7 +409,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -446,7 +444,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -478,7 +476,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -489,7 +487,7 @@ void main() {
           response, verbParams, inboundConnection);
       var responseMap = jsonDecode(response.data!);
       expect(response.data?.contains(enrollmentId), true);
-      final enrollmentKey = enrollMgr.buildEnrollmentKey(enrollmentId);
+      final enrollmentKey = enMgr.buildEnrollmentKey(enrollmentId);
       var e = responseMap[enrollmentKey];
       expect(e['appName'], 'wavi');
       expect(e['deviceName'], 'mydevice');
@@ -507,7 +505,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -532,7 +530,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentIdOne = jsonDecode(response.data!)['enrollmentId'];
@@ -548,7 +546,7 @@ void main() {
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -557,7 +555,7 @@ void main() {
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.metaData.isAuthenticated = true;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, approveEnrollmentVerbParams, inboundConnection);
       // Enroll list
@@ -584,7 +582,7 @@ void main() {
     test('fetch filtered enrollment requests using approval status', () async {
       // test conditions set-up
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metadata.isAuthenticated = true;
       EnrollDataStoreValue enrollValue =
           EnrollDataStoreValue('abcd', 'unit_test_enroll', 'testDevice', 'aPK')
@@ -683,7 +681,7 @@ void main() {
 
     test('enroll list with an invalid approvalStateFilter', () async {
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metadata.isAuthenticated = true;
 
       String approvalStatus = 'invalid_status';
@@ -747,7 +745,7 @@ void main() {
             getVerbParam(VerbSyntax.enroll, enrollmentRequest);
         inboundConnection.metaData.isAuthenticated = false;
         EnrollVerbHandler enrollVerbHandler =
-            EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+            EnrollVerbHandler(secondaryKeyStore, enMgr);
         await enrollVerbHandler.processVerb(
             response, enrollmentRequestVerbParams, inboundConnection);
         enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -757,7 +755,7 @@ void main() {
         HashMap<String, String?> approveEnrollmentVerbParams =
             getVerbParam(VerbSyntax.enroll, approveEnrollment);
         inboundConnection.metaData.isAuthenticated = true;
-        enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+        enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
         await enrollVerbHandler.processVerb(
             response, approveEnrollmentVerbParams, inboundConnection);
         expect(jsonDecode(response.data!)['status'], expectedStatus);
@@ -782,7 +780,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
@@ -802,7 +800,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
@@ -821,7 +819,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
@@ -840,7 +838,7 @@ void main() {
       inboundConnection.metaData.sessionID = 'dummy_session';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, verbParams, inboundConnection),
@@ -869,7 +867,7 @@ void main() {
           '456'; // a client cannot revoke its own enrollment. Set a different enrollmentId in inbound
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       expect(response.isError, true);
@@ -899,7 +897,7 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '123';
       Response responseObject = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           responseObject, verbParams, inboundConnection);
       Map<String, dynamic> enrollmentResponse =
@@ -925,7 +923,7 @@ void main() {
       castMetadata(inboundConnection).enrollmentId = '123';
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
@@ -955,7 +953,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = false;
       inboundConnection.metaData.sessionID = 'dummy_session';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentVerbParams, inboundConnection);
       Map<String, dynamic> enrollmentResponse = jsonDecode(response.data!);
@@ -999,7 +997,7 @@ void main() {
       Response response = Response();
       // Enroll a request on an unauthenticated connection which will expire in 1 millisecond
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key", "encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
@@ -1033,7 +1031,7 @@ void main() {
       Response response = Response();
       // Enroll a request on an unauthenticated connection which will expire in 1 millisecond
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       enrollVerbHandler.enrollmentExpiryInMills = 1;
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
@@ -1066,7 +1064,7 @@ void main() {
       Response response = Response();
       // Enroll a request on an unauthenticated connection which will expire in 1 minute
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       enrollVerbHandler.enrollmentExpiryInMills = 600000;
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
@@ -1105,7 +1103,7 @@ void main() {
         () async {
       Response response = Response();
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollVerbParams =
@@ -1157,7 +1155,7 @@ void main() {
           defaultResponse, totpVerbParams, inboundConnection);
       otp = defaultResponse.data;
       // Enroll a request on an unauthenticated connection which will expire in 1 minute
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
@@ -1386,7 +1384,7 @@ void main() {
           defaultResponse, totpVerbParams, inboundConnection);
       otp = defaultResponse.data;
       // Enroll a request on an unauthenticated connection which will expire in 1 minute
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       enrollVerbHandler.enrollmentExpiryInMills = 60000;
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"mydevice","namespaces":{"wavi":"r"},"otp":"$otp","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
@@ -1525,7 +1523,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -1543,7 +1541,7 @@ void main() {
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.metaData.isAuthenticated = true;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, approveEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'approved');
@@ -1564,7 +1562,7 @@ void main() {
         'A test to verify getDelayIntervalInSeconds return delay in increment order',
         () {
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
 
       expect(enrollVerbHandler.getDelayIntervalInMilliseconds(), 1000);
       expect(enrollVerbHandler.getDelayIntervalInMilliseconds(), 2000);
@@ -1595,7 +1593,7 @@ void main() {
           ',"encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
 
       Response response = Response();
-      EnrollVerbHandler evh = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      EnrollVerbHandler evh = EnrollVerbHandler(secondaryKeyStore, enMgr);
       HashMap<String, String?> evp = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = false;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
@@ -1671,7 +1669,7 @@ void main() {
         'A test to verify same app and same device name throws exception when enrollment is approved',
         () async {
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       String key = '123.new.enrollments.__manage$alice';
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue('123', 'wavi', 'iphone', 'dummy_public_key');
@@ -1700,7 +1698,7 @@ void main() {
         'A test to verify same app and same device name throws exception when enrollment is pending',
         () async {
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       String key = '123.new.enrollments.__manage$alice';
       EnrollDataStoreValue enrollDataStoreValue =
           EnrollDataStoreValue('123', 'wavi', 'iphone', 'dummy_public_key');
@@ -1738,7 +1736,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_1 = jsonDecode(response.data!)['enrollmentId'];
@@ -1754,7 +1752,7 @@ void main() {
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_2 = jsonDecode(response.data!)['enrollmentId'];
@@ -1777,7 +1775,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_1 = jsonDecode(response.data!)['enrollmentId'];
@@ -1793,7 +1791,7 @@ void main() {
       enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId_2 = jsonDecode(response.data!)['enrollmentId'];
@@ -1827,7 +1825,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
 
       String enrollmentRequest = 'enroll:fetch:{"enrollmentId":"123"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
@@ -1864,7 +1862,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1884,7 +1882,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1904,7 +1902,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1931,7 +1929,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1957,7 +1955,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1978,7 +1976,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -1999,7 +1997,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -2021,7 +2019,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = true;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       expect(
           () async => await enrollVerbHandler.processVerb(
               response, enrollmentRequestVerbParams, inboundConnection),
@@ -2054,7 +2052,7 @@ void main() {
       await secondaryKeyStore.put(key, atData);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metaData.isAuthenticated = true;
       castMetadata(inboundConnection).enrollmentId = '123';
 
@@ -2083,7 +2081,7 @@ void main() {
       await secondaryKeyStore.put(key, atData);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metaData.isAuthenticated = true;
 
       var res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -2103,7 +2101,7 @@ void main() {
       await secondaryKeyStore.put(key, atData);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metaData.isAuthenticated = true;
       castMetadata(inboundConnection).enrollmentId = '123';
 
@@ -2136,7 +2134,7 @@ void main() {
       await secondaryKeyStore.put(key, atData);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       inboundConnection.metaData.isAuthenticated = true;
       castMetadata(inboundConnection).enrollmentId = '123';
 
@@ -2253,7 +2251,7 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       await enrollVerb.processVerb(
@@ -2280,7 +2278,7 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       await enrollVerb.processVerb(
@@ -2309,7 +2307,7 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       expect(
@@ -2340,7 +2338,7 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerb =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       var enrollVerbParams = enrollVerb.parse(enrollDeleteCommand);
 
       expect(
@@ -2369,7 +2367,7 @@ void main() {
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       var enrollVerbParams = enrollVerbHandler.parse(enrollDeleteCommand);
       expect(
           () => enrollVerbHandler.processVerb(
@@ -2412,7 +2410,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -2441,7 +2439,7 @@ void main() {
       HashMap<String, String?> approveEnrollmentVerbParams =
           getVerbParam(VerbSyntax.enroll, approveEnrollment);
       inboundConnection.metaData.isAuthenticated = true;
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, approveEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'approved');
@@ -2459,7 +2457,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       response = Response();
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, revokeEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'revoked');
@@ -2477,7 +2475,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       response = Response();
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'deleted');
@@ -2518,7 +2516,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.isAuthenticated = false;
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -2548,7 +2546,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       response = Response();
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, denyEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'denied');
@@ -2566,7 +2564,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       response = Response();
-      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, verbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'deleted');

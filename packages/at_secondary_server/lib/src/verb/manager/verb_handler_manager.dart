@@ -82,18 +82,37 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(CramVerbHandler(keyStore));
     _verbHandlers.add(PkamVerbHandler(keyStore));
     _verbHandlers.add(UpdateVerbHandler(
-        keyStore, statsNotificationService, notificationManager));
+      keyStore,
+      statsNotificationService,
+      notificationManager,
+    ));
     _verbHandlers.add(UpdateMetaVerbHandler(
-        keyStore, statsNotificationService, notificationManager));
+      keyStore,
+      statsNotificationService,
+      notificationManager,
+    ));
     _verbHandlers.add(LocalLookupVerbHandler(keyStore));
-    _verbHandlers.add(
-        ProxyLookupVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers
-        .add(LookupVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers
-        .add(ScanVerbHandler(keyStore, outboundClientManager, cacheManager));
-    _verbHandlers
-        .add(PolVerbHandler(keyStore, outboundClientManager, cacheManager));
+    _verbHandlers.add(ProxyLookupVerbHandler(
+      keyStore,
+      outboundClientManager,
+      cacheManager,
+    ));
+    _verbHandlers.add(LookupVerbHandler(
+      keyStore,
+      outboundClientManager,
+      cacheManager,
+      enrollmentManager,
+    ));
+    _verbHandlers.add(ScanVerbHandler(
+      keyStore,
+      outboundClientManager,
+      cacheManager,
+    ));
+    _verbHandlers.add(PolVerbHandler(
+      keyStore,
+      outboundClientManager,
+      cacheManager,
+    ));
     _verbHandlers.add(DeleteVerbHandler(keyStore, statsNotificationService));
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));

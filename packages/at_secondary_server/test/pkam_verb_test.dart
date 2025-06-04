@@ -77,7 +77,8 @@ void main() async {
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          enrollMgr = EnrollmentManager(mockKeyStore, alice);
+          enMgr = EnrollmentManager(mockKeyStore, alice);
+      mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -141,18 +142,18 @@ void main() async {
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
 
       String enId = Uuid().v4();
-      String ek = enrollMgr.buildEnrollmentKey(enId);
+      String ek = enMgr.buildEnrollmentKey(enId);
       when(() => mockKeyStore.remove(ek, skipCommit: true))
           .thenAnswer((invocation) => Future.value(null));
       when(() => mockKeyStore.remove(
-            enrollMgr.keyForPEK(enId),
+            enMgr.keyForPEK(enId),
             skipCommit: true,
           )).thenAnswer((invocation) => Future.value(null));
       when(() => mockKeyStore.remove(
-            enrollMgr.keyForSEK(enId),
+            enMgr.keyForSEK(enId),
             skipCommit: true,
           )).thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(enrollMgr.keyForLegacyPK(enValue),
+      when(() => mockKeyStore.remove(enMgr.keyForLegacyPK(enValue),
           skipCommit: true)).thenAnswer((invocation) => Future.value(null));
 
       when(() => mockKeyStore.get(ek)).thenAnswer((invocation) => Future.value(

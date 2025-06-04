@@ -209,7 +209,7 @@ class AtCommitLog extends BaseAtCommitLog {
 
 @client
 class ClientAtCommitLog extends AtCommitLog {
-  ClientAtCommitLog(CommitLogKeyStore keyStore) : super(keyStore);
+  ClientAtCommitLog(super.keyStore);
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry

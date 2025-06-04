@@ -17,10 +17,6 @@ import 'package:at_utils/at_logger.dart';
 
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
-const String activeEnrollmentsNamespace = 'a.__e';
-const String revokedEnrollmentsNamespace = 'r.__e';
-const String deletedEnrollmentsNamespace = 'd.__e';
-
 abstract class AbstractVerbHandler implements VerbHandler {
   final SecondaryKeyStore keyStore;
 
@@ -144,7 +140,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
   static String enrollmentReservedNamespace(String enrollmentId) {
-    return '$enrollmentId.$activeEnrollmentsNamespace';
+    return '$enrollmentId.${EnrollmentConstants.perEnrollmentApproved}';
   }
 
   /// Verifies whether the current connection has permission to

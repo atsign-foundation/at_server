@@ -1426,7 +1426,7 @@ void main() {
       // now look it up via an unauthenticated connection
       inboundConnection = DummyInboundConnection();
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.processVerb(response,
           getVerbParam(VerbSyntax.lookup, 'lookup:$key'), inboundConnection);
       expect(response.data, 'some public value');

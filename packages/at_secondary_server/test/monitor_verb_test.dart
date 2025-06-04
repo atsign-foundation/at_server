@@ -351,7 +351,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       inboundConnection.metaData.enrollmentId =
@@ -416,7 +416,7 @@ void main() {
       await otpVH.savePasscode(otp, ttl: 5000, isSpp: false);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr);
       String enrollmentRequest = 'enroll:request:'
           '{"otp":"$otp"'
           ',"appName":"$appName"'
@@ -829,7 +829,7 @@ void main() {
 Future<String> setEnrollmentKey(String namespace) async {
   Response response = Response();
   EnrollVerbHandler enrollVerbHandler =
-      EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+      EnrollVerbHandler(secondaryKeyStore, enMgr);
   inboundConnection.metaData.isAuthenticated = true;
   inboundConnection.metaData.sessionID = 'dummy_session';
   // OTP Verb
@@ -843,7 +843,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
-  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
   await enrollVerbHandler.processVerb(
       response, enrollmentRequestVerbParams, inboundConnection);
   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -853,7 +853,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;
-  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enrollMgr);
+  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
   await enrollVerbHandler.processVerb(
       response, approveEnrollmentVerbParams, inboundConnection);
   return enrollmentId;

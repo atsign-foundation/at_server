@@ -98,8 +98,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       case 'approve':
       case 'deny':
       case 'unrevoke':
-        // TODO When enrollment is unrevoked, move stuff from .r to .a
-        await _handleEnrollmentPermissions(
+        await _handleApproveDenyRevokeUnrevoke(
           enMgr,
           (atConnection.metaData as InboundConnectionMetadata),
           enrollVerbParams!,
@@ -110,7 +109,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         );
         break;
       case 'revoke':
-        // TODO When an enrollment is revoked, move stuff from .a to .r
         var forceFlag = verbParams['force'];
         final enrollmentIdFromParams = enrollVerbParams!.enrollmentId;
         var inboundConnectionMetaData =
@@ -120,7 +118,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw AtEnrollmentRevokeException(
               'Current client cannot revoke its own enrollment');
         }
-        await _handleEnrollmentPermissions(
+        await _handleApproveDenyRevokeUnrevoke(
           enMgr,
           (atConnection.metaData as InboundConnectionMetadata),
           enrollVerbParams,
@@ -153,7 +151,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         );
         return;
       case 'delete':
-        // TODO When an enrollment is deleted: move stuff from .a and/or .r to .d
         await _deleteEnrollment(
           enMgr,
           enrollVerbParams,
@@ -266,10 +263,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.apkamKeysExpiryDuration!;
     }
 
-    AtData enrollData;
+    // We auto-approve enroll requests from a CRAM-authenticated connection.
     if (atConnection.metaData.authType != null &&
         atConnection.metaData.authType == AuthType.cram) {
-      // auto approve request from connection that is CRAM authenticated.
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -282,33 +278,35 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await keyStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = enrollParams.apkamPublicKey!,
           skipCommit: true);
-      enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
-    } else {
-      // send a notification to be received by an approver app
-      enrollmentValue.encryptedAPKAMSymmetricKey =
-          enrollParams.encryptedAPKAMSymmetricKey;
-      enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
-      await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
-      responseJson['status'] = 'pending';
-      enrollData = AtData()
-        ..data = jsonEncode(enrollmentValue.toJson())
-        // Set TTL to the pending enrollments.
-        // The enrollments will expire after configured
-        // expiry limit, beyond which any action (approve/deny/revoke) on an
-        // enrollment is forbidden
-        ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
+      AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
+
+      await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
+      return;
     }
-    logger.finer('enrollData: $enrollData');
-    await enMgr.put(newEnrollmentId, enrollData);
-    // The OTP must be removed from the keystore to prevent reuse.
-    // This originally was done here but was then moved to the isPasscodeValid
-    // function. The OTP removal code here is thus obsolete and removed.
+
+    // OK it's a standard enrollment request.
+    // - send a notification to be received by an approver app
+    // - store the enrollment in 'pending' state
+    enrollmentValue.encryptedAPKAMSymmetricKey =
+        enrollParams.encryptedAPKAMSymmetricKey;
+    enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
+    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
+    responseJson['status'] = 'pending';
+    AtData enrollData = AtData()
+      ..data = jsonEncode(enrollmentValue.toJson())
+      // Set TTL to the pending enrollments.
+      // The enrollments will expire after configured
+      // expiry limit, beyond which any action (approve/deny/revoke) on an
+      // enrollment is forbidden
+      ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
+
+    await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
   }
 
-  /// Handles enrollment approve, deny and revoke requests.
+  /// Handles enrollment approve, deny, revoke and unrevoke requests.
   /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
   /// If [operation] is approve, store encrypted encryption keys
-  Future<void> _handleEnrollmentPermissions(
+  Future<void> _handleApproveDenyRevokeUnrevoke(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
       EnrollParams enrollParams,
@@ -357,11 +355,28 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             ' Client is not authorized for namespaces in the enrollment request');
       }
     }
-    enVal.approval!.state = _getEnrollStatusEnum(operation).name;
-    responseJson['status'] = _getEnrollStatusEnum(operation).name;
+
+    EnrollmentStatus newEnrollmentStatus = _getEnrollStatusEnum(operation);
+    enVal.approval!.state = newEnrollmentStatus.name;
+    responseJson['status'] = newEnrollmentStatus.name;
+
     // Update the enrollment status against the enrollment key in keystore.
-    await _updateEnrollmentValueAndResetTTL(enMgr, enId, enVal, operation);
-    // when enrollment is approved store the apkamPublicKey of the enrollment
+    AtData atData = AtData()..data = jsonEncode(enVal.toJson());
+    // If an enrollment is approved, we need the enrollment to be active
+    // to subsequently revoke the enrollment. Hence reset TTL and
+    // expiredAt on metadata.
+    if (operation == 'approve') {
+      // Fetch the existing data
+      String ek = enMgr.buildEnrollmentKey(enId);
+      AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
+      // Update key with new data
+      // Update ttl value to support auto expiry of APKAM keys
+      emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      atData.metaData = emd;
+    }
+    await enMgr.put(enId, atData, newEnrollmentStatus);
+
+    // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
     }
@@ -601,24 +616,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _updateEnrollmentValueAndResetTTL(EnrollmentManager enMgr,
-      String enId, EnrollDataStoreValue enVal, String operation) async {
-    AtData atData = AtData()..data = jsonEncode(enVal.toJson());
-    // If an enrollment is approved, we need the enrollment to be active
-    // to subsequently revoke the enrollment. Hence reset TTL and
-    // expiredAt on metadata.
-    if (operation == 'approve') {
-      // Fetch the existing data
-      String ek = enMgr.buildEnrollmentKey(enId);
-      AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
-      // Update key with new data
-      // Update ttl value to support auto expiry of APKAM keys
-      emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
-      atData.metaData = emd;
-    }
-    await enMgr.put(enId, atData);
-  }
-
   /// Throws [IllegalArgumentException] if parameters are not valid.
   void _validateParams(EnrollParams? enrollParams, String operation,
       InboundConnection inboundConnection) {
@@ -759,7 +756,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     await enMgr.remove(
       enId: enrollParams.enrollmentId!,
-      enVal: enVal,
     );
 
     responseJson['enrollmentId'] = enrollParams.enrollmentId;

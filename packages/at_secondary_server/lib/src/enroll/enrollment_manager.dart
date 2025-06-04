@@ -6,6 +6,7 @@ import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// Manages enrollment data in the secondary server.
 ///
@@ -67,9 +68,63 @@ class EnrollmentManager {
   /// Parameters:
   ///   - [enId]: The ID associated with the enrollment.
   ///   - [atData]: The [AtData] object to be stored.
-  Future<void> put(String enId, AtData atData) async {
+  Future<void> put(
+      String enId, AtData atData, EnrollmentStatus newStatus) async {
     String ek = buildEnrollmentKey(enId);
+
+    switch (newStatus) {
+      case EnrollmentStatus.approved:
+        await movePerEnrollmentData(enId,
+            to: EnrollmentConstants.perEnrollmentApproved);
+        break;
+      case EnrollmentStatus.revoked:
+        await movePerEnrollmentData(enId,
+            to: EnrollmentConstants.perEnrollmentRevoked);
+        break;
+      default:
+        break;
+    }
+
     await keyStore.put(ek, atData, skipCommit: true);
+  }
+
+  RegExp reForPerEnrollmentNamespaces =
+      RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
+
+  /// Moves everything in `<enId>.[ard].__e` to the required place
+  /// Returns list of all the keys which were moved
+  @visibleForTesting
+  Future<List<String>> movePerEnrollmentData(
+    String enId, {
+    required String to,
+  }) async {
+    switch (to) {
+      case EnrollmentConstants.perEnrollmentRevoked:
+      case EnrollmentConstants.perEnrollmentDeleted:
+      case EnrollmentConstants.perEnrollmentApproved:
+        List<String> moved = [];
+        for (final String fromKey in keyStore.getKeys(
+            regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
+          final String toKey = fromKey
+              .replaceAll(
+                  '${EnrollmentConstants.perEnrollmentRevoked}@', '$to@')
+              .replaceAll(
+                  '${EnrollmentConstants.perEnrollmentDeleted}@', '$to@')
+              .replaceAll(
+                  '${EnrollmentConstants.perEnrollmentApproved}@', '$to@');
+          if (toKey == fromKey) {
+            continue;
+          }
+
+          AtData data = (await keyStore.get(fromKey))!;
+          await keyStore.put(toKey, data, skipCommit: false);
+          await keyStore.remove(fromKey);
+          moved.add(fromKey);
+        }
+        return moved;
+      default:
+        throw ArgumentError('movePerEnrollmentData: Invalid "to": "$to"');
+    }
   }
 
   String keyForPEK(String enId) => '$enId'
@@ -92,6 +147,51 @@ class EnrollmentManager {
       '.pkam.${EnrollmentConstants.pkamNamespace}'
       '.__public_keys$atSign';
 
+  final RegExp ekRegex = RegExp(EnrollmentConstants.regexForEnrollmentKey);
+
+  /// Called before *any* key in the keystore is removed.
+  /// Checks if what's being removed is an enrollment and, if so,
+  /// moves all per-enrollment data to [perEnrollmentDeleted]
+  Future preRemoveHook(String key, {required bool skipCommit}) async {
+    if (ekRegex.hasMatch(key)) {
+      await _preRemove(ek: key);
+    }
+  }
+
+  Future<void> _preRemove({
+    required String ek,
+  }) async {
+    if (!keyStore.isKeyExists(ek)) {
+      logger.shout('_preRemove: $ek no longer exists, nothing to do');
+      return;
+    }
+
+    logger.shout('_preRemove($ek)');
+
+    String enId = getIdFromKey(ek);
+
+    // Delete private encryption key if it's there
+    final pekKey = keyForPEK(enId);
+    if (keyStore.isKeyExists(pekKey)) {
+      logger.shout('_preRemove: Removing $pekKey');
+      await keyStore.remove(pekKey, skipCommit: true);
+    } else {
+      logger.shout('_preRemove: $pekKey has already been removed');
+    }
+
+    // Delete self encryption key if it's there
+    final sekKey = keyForSEK(enId);
+    if (keyStore.isKeyExists(sekKey)) {
+      logger.shout('_preRemove: Removing $sekKey');
+      await keyStore.remove(sekKey, skipCommit: true);
+    } else {
+      logger.shout('_preRemove: $sekKey has already been removed');
+    }
+
+    await movePerEnrollmentData(enId,
+        to: EnrollmentConstants.perEnrollmentDeleted);
+  }
+
   /// Deletes the enrollment key from the keystore.
   ///
   /// This method generates an enrollment key using the provided enrollmentId and
@@ -101,22 +201,13 @@ class EnrollmentManager {
   ///
   /// Parameters:
   ///  - [enId]: The ID associated with the enrollment.
-  Future<void> remove({
-    required String enId,
-    EnrollDataStoreValue? enVal,
-  }) async {
-    // Delete private encryption key
-    await keyStore.remove(keyForPEK(enId), skipCommit: true);
-
-    // Delete self encryption key
-    await keyStore.remove(keyForSEK(enId), skipCommit: true);
-
-    enVal ??= await getEnrollmentById(enId);
-    // Delete the APKAM Public key, legacy slightly info-leaky format
-    var legacyPkKey = keyForLegacyPK(enVal);
-    await keyStore.remove(legacyPkKey, skipCommit: true);
-
+  Future<void> remove({required String enId}) async {
+    if (!keyStore.preRemoveHooks.contains(preRemoveHook)) {
+      throw StateError('Managing datastore consistency for enrollments requires'
+          ' that the preRemoveHook be active');
+    }
     String ek = buildEnrollmentKey(enId);
+
     await keyStore.remove(ek, skipCommit: true);
   }
 
@@ -137,7 +228,7 @@ class EnrollmentManager {
       // When an expired enrollment is encountered, delete it immediately
       logger.warning('getEnrollmentByFullKey:'
           ' Enrollment $ek has expired - removing it');
-      await remove(enId: getIdFromKey(ek), enVal: value);
+      await remove(enId: getIdFromKey(ek));
 
       value.approval = EnrollApproval(EnrollmentStatus.expired.name);
     }

@@ -269,7 +269,7 @@ void main() async {
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
           NotificationManager.getInstance(),
-          enrollMgr,
+          enMgr,
           alice,
         );
         var batchRequestCommand = jsonEncode([
@@ -343,7 +343,7 @@ void main() async {
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
           NotificationManager.getInstance(),
-          enrollMgr,
+          enMgr,
           alice,
         );
         var batchRequestCommand = jsonEncode([

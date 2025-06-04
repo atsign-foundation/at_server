@@ -102,6 +102,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
+  late HivePersistenceManager hivePersistenceManager;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
   late ResourceManager notificationResourceManager;
   late var atCommitLogCompactionConfig;
@@ -182,6 +183,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (deletedKeys.isNotEmpty) {
       logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
+
+    // Set up removal of expired keys
+    // We add a hook here to handle deletion of enrollments.
+    secondaryKeyStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+
+    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    final expiryRunRandomMins =
+        (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
+    hivePersistenceManager.scheduleKeyExpireTask(3,
+        skipCommits: skipCommitsForExpiredKeys);
+
+    await secondaryKeyStore.deleteExpiredKeys();
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =
@@ -675,6 +689,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Stopping Notification Resource Manager");
       notificationResourceManager.stop();
 
+      secondaryKeyStore.preRemoveHooks.clear();
+      secondaryKeyStore.postRemoveHooks.clear();
+
       logger.info("Closing CommitLog");
       await AtCommitLogManagerImpl.getInstance().close();
       logger.info("Closing AccessLog");
@@ -729,13 +746,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
-    var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(storagePath!);
-    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
-    final expiryRunRandomMins =
-        (expiringRunFreqMins! - 2) + Random().nextInt(8);
-    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    manager.scheduleKeyExpireTask(3, skipCommits: skipCommitsForExpiredKeys);
+    hivePersistenceManager =
+        secondaryPersistenceStore.getHivePersistenceManager()!;
+    await hivePersistenceManager.init(storagePath!);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
@@ -751,30 +764,31 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Initialize the hive store
     await secondaryKeyStore.initialize();
     serverContext!.isKeyStoreInitialized = true;
-    var keyStore = keyStoreManager.getKeyStore();
-    if (!keyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
-      await keyStore.put(AtConstants.atCramSecret, atData);
+
+    // Ensure essential data is present in persistence
+    if (!secondaryKeyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
+      await secondaryKeyStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!keyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
+    if (!secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await keyStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',
+      await secondaryKeyStore.put(
+          '${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
-      await keyStore.put(
+      await secondaryKeyStore.put(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
           AtData()..data = rsaKeypair.privateKey.toString());
-      await keyStore.put(
+      await secondaryKeyStore.put(
           AtConstants.atSigningKeypairGenerated, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await keyStore.get(
+      var signingPrivateKey = await secondaryKeyStore.get(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${keyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
+          'signing key generated? ${secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
     }
-    await keyStore.deleteExpiredKeys();
   }
 
   Future<void> removeMalformedKeys() async {
