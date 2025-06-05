@@ -82,14 +82,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       InboundConnectionMetadata connectionMetadata,
       {String? enrollmentId}) async {
     int currentResponseLength = 0;
-    // Map<String, String> enrolledNamespaces = {};
-    //
-    // if (enrollmentId != null && enrollmentId.isNotEmpty) {
-    //   enrolledNamespaces = (await AtSecondaryServerImpl.getInstance()
-    //           .enrollmentManager
-    //           .getEnrollment(enrollmentId))
-    //       .namespaces;
-    // }
     while (
         commitEntryIterator.moveNext() && syncResponse.length < syncPageLimit) {
       var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
@@ -112,15 +104,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       ))) {
         continue;
       }
-      // String? keyNamespace = parsedAtKey.namespace;
-      // if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
-      //     enrolledNamespaces.isNotEmpty &&
-      //     (!enrolledNamespaces.containsKey(EnrollmentConstants.allNamespaces) &&
-      //         !enrolledNamespaces
-      //             .containsKey(EnrollmentConstants.enrollManageNamespace) &&
-      //         !enrolledNamespaces.containsKey(keyNamespace))) {
-      //   continue;
-      // }
       var keyStoreEntry = KeyStoreEntry();
       keyStoreEntry.key = commitEntryIterator.current.key;
       keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
