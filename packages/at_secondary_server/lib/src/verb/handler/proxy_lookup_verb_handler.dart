@@ -65,10 +65,8 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     final bool bypassCache;
 
     // - If it looks like *.<enrollmentId>.[ard].__e@thisAtsign
-    // - Then fetch the enrollment to check if it's active
-    //
-    // This ensures that expired enrollment keys are in the right place
-    //
+    // - Then set bypassCache to true, because we always want to go to the
+    // source atServer
     if (perEnrollmentRegex.hasMatch(keyAtAtSign)) {
       bypassCache = true;
     } else {
