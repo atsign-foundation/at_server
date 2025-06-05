@@ -162,30 +162,30 @@ class EnrollmentManager {
     required String ek,
   }) async {
     if (!keyStore.isKeyExists(ek)) {
-      logger.shout('_preRemove: $ek no longer exists, nothing to do');
+      logger.info('_preRemove: $ek no longer exists, nothing to do');
       return;
     }
 
-    logger.shout('_preRemove($ek)');
+    logger.info('_preRemove($ek)');
 
     String enId = getIdFromKey(ek);
 
     // Delete private encryption key if it's there
     final pekKey = keyForPEK(enId);
     if (keyStore.isKeyExists(pekKey)) {
-      logger.shout('_preRemove: Removing $pekKey');
+      logger.info('_preRemove: Removing $pekKey');
       await keyStore.remove(pekKey, skipCommit: true);
     } else {
-      logger.shout('_preRemove: $pekKey has already been removed');
+      logger.info('_preRemove: $pekKey has already been removed');
     }
 
     // Delete self encryption key if it's there
     final sekKey = keyForSEK(enId);
     if (keyStore.isKeyExists(sekKey)) {
-      logger.shout('_preRemove: Removing $sekKey');
+      logger.info('_preRemove: Removing $sekKey');
       await keyStore.remove(sekKey, skipCommit: true);
     } else {
-      logger.shout('_preRemove: $sekKey has already been removed');
+      logger.info('_preRemove: $sekKey has already been removed');
     }
 
     await movePerEnrollmentData(enId,

@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -34,9 +33,6 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   Verb getVerb() {
     return pLookup;
   }
-
-  RegExp perEnrollmentRegex =
-      RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
   // Method to process plookup verb
   // This will process given verb and write response to response object

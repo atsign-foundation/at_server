@@ -30,7 +30,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       keysVerbHandler = KeysVerbHandler(secondaryKeyStore, enMgr, alice);
-      localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
     });
 
     tearDown(() async {

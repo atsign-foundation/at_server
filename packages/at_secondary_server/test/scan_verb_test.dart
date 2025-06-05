@@ -128,7 +128,7 @@ void main() {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
-      llookupVH = LocalLookupVerbHandler(secondaryKeyStore);
+      llookupVH = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;

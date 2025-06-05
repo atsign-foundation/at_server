@@ -197,8 +197,12 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
           secondaryKeyStore, StatsNotificationService.getInstance());
-      updateHandler = UpdateVerbHandler(secondaryKeyStore,
-          StatsNotificationService.getInstance(), notificationManager);
+      updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+        alice,
+      );
     });
 
     test('delete immutable record without force flag', () async {

@@ -16,6 +16,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
     super.keyStore,
     super.statsNotificationService,
     super.notificationManager,
+    super.atSign,
   );
 
   // Method to verify whether command is accepted or not

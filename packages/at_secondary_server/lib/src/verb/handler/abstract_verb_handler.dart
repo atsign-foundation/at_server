@@ -24,6 +24,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ResponseHandlerManager responseManager =
       DefaultResponseHandlerManager.getInstance();
 
+  RegExp perEnrollmentRegex =
+      RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
+
   AbstractVerbHandler(this.keyStore) {
     logger = AtSignLogger(runtimeType.toString());
   }

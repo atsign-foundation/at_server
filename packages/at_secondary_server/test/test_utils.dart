@@ -259,6 +259,7 @@ verbTestsSetUp() async {
 
   AtSecondaryServerImpl.getInstance().enrollmentManager =
       enMgr = EnrollmentManager(secondaryKeyStore, alice);
+  enMgr.logger.level = 'shout';
   secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();

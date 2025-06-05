@@ -85,13 +85,15 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       keyStore,
       statsNotificationService,
       notificationManager,
+      atSign,
     ));
     _verbHandlers.add(UpdateMetaVerbHandler(
       keyStore,
       statsNotificationService,
       notificationManager,
+      atSign,
     ));
-    _verbHandlers.add(LocalLookupVerbHandler(keyStore));
+    _verbHandlers.add(LocalLookupVerbHandler(keyStore, enrollmentManager));
     _verbHandlers.add(ProxyLookupVerbHandler(
       keyStore,
       outboundClientManager,

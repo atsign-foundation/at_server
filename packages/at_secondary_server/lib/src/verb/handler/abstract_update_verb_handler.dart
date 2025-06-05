@@ -7,7 +7,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
@@ -27,10 +26,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   Map<String, (Mutex, int)> get updateMutexes => _updateMutexes;
 
+  final String atSign;
+
   AbstractUpdateVerbHandler(
     super.keyStore,
     super.statsNotificationService,
     this.notificationManager,
+    this.atSign,
   );
 
   //setter to set autoNotify value from dynamic server config "config:set".
@@ -64,6 +66,10 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return atKey;
   }
 
+  String apkamUnauthorizedMsg(String enId, String key) =>
+      'Connection with enrollment ID $enId'
+      ' is not authorized to update key: $key';
+
   /// - Construct an AtKey and AtData and AtMetaData from the verb params
   /// - Fetch existing record from data store
   /// - If existing record,
@@ -90,14 +96,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     String atKey = getDataStoreKey(updateParams);
 
     // check authorization
-    InboundConnectionMetadata inboundConnectionMetadata =
+    InboundConnectionMetadata md =
         atConnection.metaData as InboundConnectionMetadata;
-    bool isAuthorized =
-        await super.isAuthorized(inboundConnectionMetadata, atKey: atKey);
+    bool isAuthorized = await super.isAuthorized(md, atKey: atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-          ' is not authorized to update key: ${atKey.toString()}');
+          apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
@@ -126,15 +130,15 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (updateParams.metadata!.ttr != null &&
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
-        sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
+        sharedBy != atSign) {
       throw IllegalArgumentException(
-          'update verb but sharedBy is not current atSign');
+          'update verb but sharedBy ($sharedBy) is not current atSign ($atSign)');
     }
 
     _checkMaxLength(atKey);
 
-    atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!,
-        AtSecondaryServerImpl.getInstance().currentAtSign);
+    atData.metaData =
+        AtMetaData.fromCommonsMetadata(updateParams.metadata!, atSign);
 
     // Enforce the immutable feature
     if (existingAtMetaData?.immutable == true) {
@@ -228,12 +232,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     if (updateParams.sharedBy != null &&
         updateParams.sharedBy!.isNotEmpty &&
-        updateParams.sharedBy !=
-            AtSecondaryServerImpl.getInstance().currentAtSign) {
+        updateParams.sharedBy != atSign) {
       var message = 'Invalid update command - sharedBy atsign'
           ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
           ' should be same as current atsign'
-          ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
+          ' $atSign';
       logger.warning(message);
       throw InvalidAtKeyException(message);
     }

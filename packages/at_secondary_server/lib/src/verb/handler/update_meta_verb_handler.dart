@@ -12,6 +12,7 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
     super.keyStore,
     super.statsNotificationService,
     super.notificationManager,
+    super.atSign,
   );
 
   @override

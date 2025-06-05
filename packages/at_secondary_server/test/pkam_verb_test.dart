@@ -78,6 +78,7 @@ void main() async {
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
           enMgr = EnrollmentManager(mockKeyStore, alice);
+      enMgr.logger.level = 'shout';
       mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
