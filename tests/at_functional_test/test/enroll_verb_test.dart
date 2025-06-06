@@ -499,42 +499,6 @@ void main() {
           authType: AuthType.pkam);
     });
 
-    test('A test to verify pkam public key is stored in __pkams namespace',
-        () async {
-      String deviceName = 'pixel-${Uuid().v4().hashCode}';
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.cram);
-      // Get otp
-      String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
-          .replaceAll('data:', '')
-          .trim();
-      // send an enroll request
-      OutboundConnectionFactory socketConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
-      String enrollResponse =
-          (await socketConnection2.sendRequestToServer(enrollRequest))
-              .replaceFirst('data:', '');
-      var enrollJsonMap = jsonDecode(enrollResponse);
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-      expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'pending');
-      // Approve enrollment
-      String approveEnrollment =
-          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}';
-      String enrollmentResponse =
-          await firstAtSignConnection.sendRequestToServer(approveEnrollment);
-      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
-      expect(jsonDecode(enrollmentResponse)['status'], 'approved');
-      String llookupResponse = await firstAtSignConnection.sendRequestToServer(
-          'llookup:public:wavi.$deviceName.pkam.__pkams.__public_keys@alice🛠');
-      llookupResponse = llookupResponse.replaceAll('data:', '');
-      var apkamPublicKey = jsonDecode(llookupResponse)['apkamPublicKey'];
-      expect(apkamPublicKey, apkamPublicKeyMap[firstAtSign]!);
-    });
-
     test(
         'A test to verify exception is thrown when an enrollment request with existing appName and deviceName is submitted',
         () async {
@@ -565,7 +529,7 @@ void main() {
           (await socketConnection2.sendRequestToServer(secondEnrollRequest))
               .replaceAll('error:', '');
       expect(secondEnrollResponse,
-          'AT0011-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName in approved state');
+          'AT0032-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName in approved state');
     });
   });
 
@@ -792,7 +756,7 @@ void main() {
                   'enroll:unrevoke:{"enrollmentId":"$secondEnrollmentId"}'))
               .replaceAll('error:', '');
       expect(jsonDecode(unrevokeEnrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to unrevoke enrollment id: $secondEnrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked');
+          'Illegal state exception : Failed to unrevoke enrollment id: $secondEnrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked');
     });
   });
 
@@ -827,9 +791,9 @@ void main() {
       enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
               'enroll:revoke:{"enrollmentId":"$enrollmentId"}'))
           .replaceFirst('error:', '');
-      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0011');
+      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0032');
       expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
     });
 
     test(
@@ -848,7 +812,7 @@ void main() {
           .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a denied enrollment. '
+          'Illegal state exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a denied enrollment. '
           'Only pending enrollments can be approved');
     });
 
@@ -868,7 +832,7 @@ void main() {
           .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a denied enrollment. '
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a denied enrollment. '
           'Only approved enrollments can be revoked');
     });
 
@@ -892,7 +856,7 @@ void main() {
           .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. '
+          'Illegal state exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. '
           'Only pending enrollments can be approved');
     });
   });
@@ -1313,7 +1277,7 @@ void main() {
           'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Internal server exception : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
 
       // Authenticate the connection again with APKAM
       await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
@@ -1327,7 +1291,7 @@ void main() {
           'enroll:deny:{"enrollmentId":"$secondEnrollmentId"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Internal server exception : Failed to deny enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to deny enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
 
     test(
@@ -1392,7 +1356,7 @@ void main() {
           'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
       response = response.replaceAll('error:', '');
       expect(jsonDecode(response)['errorDescription'],
-          'Internal server exception : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
+          'UnAuthorized client in request : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
     });
   });
 
@@ -1646,10 +1610,10 @@ void main() {
       revokeEnrollmentResponse =
           revokeEnrollmentResponse.replaceFirst('error:', '');
       Map jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
-      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
       expect(
           jsonDecodedResponse['errorDescription'],
-          'Internal server exception : Failed to delete enrollment id: '
+          'Illegal state exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete approved enrollments. '
           'Only denied and revoked enrollments can be deleted');
     });
@@ -1692,10 +1656,10 @@ void main() {
       revokeEnrollmentResponse =
           revokeEnrollmentResponse.replaceFirst('error:', '');
       jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
-      expect(jsonDecodedResponse['errorCode'], 'AT0011');
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
       expect(
           jsonDecodedResponse['errorDescription'],
-          'Internal server exception : Failed to delete enrollment id: '
+          'Illegal state exception : Failed to delete enrollment id: '
           '$enrollmentId | Cause: Cannot delete pending enrollments. '
           'Only denied and revoked enrollments can be deleted');
     });

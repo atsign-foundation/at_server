@@ -14,9 +14,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   late SecondaryKeyStore mockKeyStore;
   late MockSocket mockSocket;
+
+  verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
@@ -30,10 +32,10 @@ void main() {
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
       var verb = From();
-      var command = 'from:@alice';
+      var command = 'from:$alice';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap['atSign'], '@alice');
+      expect(paramsMap['atSign'], alice);
     });
 
     test('test from correct syntax without @', () {
@@ -73,17 +75,17 @@ void main() {
 
   group('A group of from verb accept test', () {
     test('test from accept', () {
-      var command = 'from:@alice';
+      var command = 'from:$alice';
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
-      var command = 'to:@alice';
+      var command = 'to:$alice';
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
-      var command = 'FROM:@ALICE';
+      var command = 'FROM:$alice';
       command = SecondaryUtil.convertCommand(command);
       var handler = FromVerbHandler(mockKeyStore);
       expect(handler.accept(command), true);
@@ -92,7 +94,7 @@ void main() {
   group('A group of from verb regex -invalid syntax', () {
     test('test from invalid keyword', () {
       var verb = From();
-      var command = 'to:@alice';
+      var command = 'to:$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -110,14 +112,14 @@ void main() {
 
     test('test from verb handler from atsign contains @', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent('atSign', () => '@alice');
+      verbParams.putIfAbsent('atSign', () => alice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.self, true);
@@ -125,14 +127,14 @@ void main() {
 
     test('test from verb handler from atsign does not contain @', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -165,14 +167,14 @@ void main() {
       await AtConfig(commitLogInstance!,
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
-      verbParams.putIfAbsent('atSign', () => '@alice');
+      verbParams.putIfAbsent('atSign', () => alice);
       var response = Response();
       await verbHandler.processVerb(response, verbParams, atConnection);
-      expect(response.data!.startsWith('data:$inBoundSessionId@alice'), true);
+      expect(response.data!.startsWith('data:$inBoundSessionId$alice'), true);
       expect(response.data!.split(':')[2], isNotNull);
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -186,7 +188,7 @@ void main() {
                   AtSecondaryServerImpl.getInstance().currentAtSign),
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -201,7 +203,7 @@ void main() {
     /*test('test from verb handler to block fromAtSign first and then allow',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl().currentAtSign = '@alice';
+      AtSecondaryServerImpl().currentAtSign = alice;
       await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -225,7 +227,7 @@ void main() {
     test('test from verb handler to allow fromAtSign first and then block',
         () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl().currentAtSign = '@alice';
+      AtSecondaryServerImpl().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
       var verbParams = HashMap<String, String>();
@@ -255,9 +257,9 @@ void main() {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
+      .getSecondaryPersistenceStore(alice)!;
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
+      .getCommitLog(alice, commitLogPath: storageDir);
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
@@ -267,13 +269,13 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+  AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtConfig(
       await AtCommitLogManagerImpl.getInstance()
           .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
       AtSecondaryServerImpl.getInstance().currentAtSign);
   await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
+      .getAccessLog(alice, accessLogPath: storageDir);
   return keyStoreManager;
 }
 

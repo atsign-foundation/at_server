@@ -13,7 +13,9 @@ void main() {
   MockSocket mockSocket_1 = MockSocket();
   MockSocket mockSocket_2 = MockSocket();
 
-  setUpAll(() {
+  verbTestsSetUpLogging();
+
+  setUpAll(() async {
     when(() => mockSocket_1.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
     when(() => mockSocket_2.setOption(SocketOption.tcpNoDelay, true))

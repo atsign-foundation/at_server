@@ -6,6 +6,7 @@ import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -48,7 +49,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     if (enrollId != null && enrollId.isNotEmpty) {
       pkamAuthType = AuthType.apkam;
       ApkamVerificationResult apkamResult =
-          await handleApkamVerification(enrollId, atSign);
+          await verifyEnrollmentIsActive(enrollId, atSign);
       if (apkamResult.response.isError) {
         response.isError = apkamResult.response.isError;
         response.errorCode = apkamResult.response.errorCode;
@@ -81,26 +82,29 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  Future<ApkamVerificationResult> handleApkamVerification(
-      String enrollmentId, String atSign) async {
-    late final EnrollDataStoreValue enrollDataStoreValue;
+  Future<ApkamVerificationResult> verifyEnrollmentIsActive(
+      String enId, String atSign) async {
+    late final EnrollDataStoreValue enVal;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
     EnrollmentStatus? enrollStatus;
+    EnrollmentManager enMgr =
+        AtSecondaryServerImpl.getInstance().enrollmentManager;
     try {
-      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
-          .enrollmentManager
-          .get(enrollmentId);
-      enrollStatus =
-          getEnrollStatusFromString(enrollDataStoreValue.approval!.state);
-    } on KeyNotFoundException catch (e) {
-      logger.finer('Caught exception trying to fetch enrollment key: $e');
-      enrollStatus = EnrollmentStatus.expired;
+      enVal = await enMgr.getEnrollmentById(enId);
+      enrollStatus = EnrollmentStatus.values.byName(enVal.approval!.state);
+    } on KeyNotFoundException catch (_) {
+      apkamResult.response.isError = true;
+      apkamResult.response.errorCode = 'AT0028';
+      apkamResult.response.errorMessage =
+          'enrollment_id: $enId is expired or invalid';
+      return apkamResult;
     }
-    apkamResult.response = _getApprovalStatus(enrollStatus, enrollmentId);
+
+    apkamResult.response = _getApprovalStatus(enrollStatus, enId);
     if (apkamResult.response.isError) {
       return apkamResult;
     }
-    apkamResult.publicKey = enrollDataStoreValue.apkamPublicKey;
+    apkamResult.publicKey = enVal.apkamPublicKey;
     return apkamResult;
   }
 

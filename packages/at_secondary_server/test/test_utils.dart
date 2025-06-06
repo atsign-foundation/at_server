@@ -18,10 +18,20 @@ import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockSecondaryKeyStore extends Mock
+    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
+}
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
@@ -46,6 +56,8 @@ class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
 
+class MockEnrollmentManager extends Mock implements EnrollmentManager {}
+
 class MockSocket extends Mock implements Socket {
   Completer completer = Completer();
 
@@ -67,8 +79,8 @@ class MockSocket extends Mock implements Socket {
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
+// String alice = '@alice🛠';
 String alice = '@alice';
-String aliceEmoji = '@alice🛠';
 String bob = '@bob';
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -92,6 +104,8 @@ late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
 late MockNotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
+late EnrollmentManager enMgr;
+
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
@@ -100,20 +114,54 @@ late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
 SecondaryPersistenceStore? secondaryPersistenceStore;
-AtCommitLog? atCommitLog;
+late AtCommitLog atCommitLog;
+
+/// Creates and persists a new approved enrollment
+/// NB: Does not go through enroll verb handler, so
+/// no other enrollment stuff is happening
+Future<String> createAndPersistAnEnrollment(
+  String app,
+  String device,
+  Map<String, String> namespaces,
+) async {
+  final id = Uuid().v4();
+  final key = enMgr.buildEnrollmentKey(id);
+  final enrollJson = {
+    'sessionId': '123',
+    'appName': app,
+    'deviceName': device,
+    'namespaces': namespaces,
+    'apkamPublicKey': 'testPublicKeyValue',
+    'requestType': 'newEnrollment',
+    'approval': {'state': 'approved'}
+  };
+  await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+        key,
+        AtData()..data = jsonEncode(enrollJson),
+        skipCommit: true,
+      );
+  return id;
+}
+
+void verbTestsSetUpLogging() {
+  AtSignLogger.root_level = 'shout';
+  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
+}
 
 verbTestsSetUpAll() async {
+  verbTestsSetUpLogging();
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {
+  verbTestsSetUpLogging();
   // Initialize secondary persistent store
   secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore(alice);
   // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
+  atCommitLog = (await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
   await secondaryPersistenceStore!
@@ -208,8 +256,11 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
+
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      EnrollmentManager(secondaryKeyStore);
+      enMgr = EnrollmentManager(secondaryKeyStore, alice);
+  enMgr.logger.level = 'shout';
+  secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
@@ -255,6 +306,8 @@ verbTestsSetUp() async {
 }
 
 Future<void> verbTestsTearDown() async {
+  secondaryKeyStore.preRemoveHooks.clear();
+  secondaryKeyStore.postRemoveHooks.clear();
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
   var isExists = await Directory(storageDir).exists();

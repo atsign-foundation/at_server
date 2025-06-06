@@ -4,7 +4,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
-  var metadata = InboundConnectionMetadata();
+  InboundConnectionMetadata metadata = InboundConnectionMetadata();
 
   @override
   int maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
@@ -28,7 +28,7 @@ class DummyInboundConnection implements InboundConnection {
   }
 
   @override
-  AtConnectionMetaData get metaData => metadata;
+  InboundConnectionMetadata get metaData => metadata;
 
   @override
   dynamic get underlying {

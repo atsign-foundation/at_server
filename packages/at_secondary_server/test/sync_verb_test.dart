@@ -7,7 +7,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
@@ -18,13 +17,21 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-
   MockSocket mockSocket = MockSocket();
 
-  setUpAll(() {
+  setUpAll(() async {
+    await verbTestsSetUpAll();
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
+  });
+
+  setUp(() async {
+    await verbTestsSetUp();
+    inboundConnection.metaData.isAuthenticated = true;
+  });
+
+  tearDown(() async {
+    await verbTestsTearDown();
   });
 
   group('A group of sync verb regex test', () {
@@ -70,18 +77,18 @@ void main() {
   group('A group of sync verb accept test', () {
     test('test sync accept', () {
       var command = 'sync:from:5:limit:10';
-      var handler = SyncProgressiveVerbHandler(mockKeyStore);
+      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
       expect(handler.accept(command), true);
     });
     test('test sync accept invalid keyword', () {
       var command = 'syncing:1';
-      var handler = SyncProgressiveVerbHandler(mockKeyStore);
+      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
       expect(handler.accept(command), false);
     });
     test('test sync verb upper case', () {
       var command = 'SYNC:from:5:limit:10';
       command = SecondaryUtil.convertCommand(command);
-      var handler = SyncProgressiveVerbHandler(mockKeyStore);
+      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
       expect(handler.accept(command), true);
     });
     test('test sync verb with regex', () {
@@ -95,21 +102,14 @@ void main() {
   });
 
   group('storage based sync tests', () {
-    var storageDir = '${Directory.current.path}/test/hive';
-    late SecondaryKeyStoreManager keyStoreManager;
     SyncProgressiveVerbHandler verbHandler;
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
 
     test('A test to verify sync metadata is populated correctly', () async {
       // Add data to commit log
-      var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
-      await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
-      var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
-      await secondaryKeyStore?.getSecondaryKeyStore()?.put(
-          'phone.wavi@alice',
+      await secondaryKeyStore.put(
+          'phone.wavi$alice',
           AtData()
             ..data = '+9189877783232'
             ..metaData = (AtMetaData()
@@ -122,7 +122,7 @@ void main() {
                   PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
               ..pubKeyCS = 'dummy_pub_key_cs'));
 
-      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -132,7 +132,7 @@ void main() {
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       Map syncResponseMap = (jsonDecode(response.data!)).first;
-      expect(syncResponseMap['atKey'], 'phone.wavi@alice');
+      expect(syncResponseMap['atKey'], 'phone.wavi$alice');
       expect(syncResponseMap['value'], '+9189877783232');
       expect(syncResponseMap['commitId'], 1);
       expect(syncResponseMap['operation'], '*');
@@ -146,40 +146,40 @@ void main() {
           '{"hash":"dummy_hash","hashingAlgo":"sha512"}');
     });
 
-    when(() => mockKeyStore.isKeyExists(any())).thenReturn(true);
-    when(() => mockKeyStore.get(any()))
-        .thenAnswer((invocation) => Future(() => AtData()));
-
     test('test to ensure at least one entry is synced always', () async {
-      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
 
-      // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
+      // generate some commit entries
+      await secondaryKeyStore.put(
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta$alice', AtData()..data = 'BETA');
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() > 0);
 
       List<KeyStoreEntry> syncResponse = [];
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(0));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(0),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha@alice');
+      expect(syncResponse[0].key, 'test_key_alpha$alice');
     });
 
     test(
         'overflowing entry not added to syncResponse when syncResponse not empty',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
-
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       List<KeyStoreEntry> syncResponse = [];
 
-      // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
+      // generate some commit entries
+      await secondaryKeyStore.put(
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta$alice', AtData()..data = 'BETA');
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -193,35 +193,50 @@ void main() {
 
       // Since syncResponse already has an entry, and the 'capacity' is 0, then the next entry
       // should not be added to the syncResponse
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(0));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(0),
+        inboundConnection.metadata,
+      );
       expect(syncResponse, [entry]);
 
       syncResponse.clear();
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(0));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(0),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key_alpha@alice');
+      expect(syncResponse[0].key, 'test_key_alpha$alice');
 
       syncResponse.clear();
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(1));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(1),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key2_beta@alice');
+      expect(syncResponse[0].key, 'test_key2_beta$alice');
     });
 
     test('test to ensure all entries are synced if buffer does not overflow',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
 
-      // Creating dummy commit entries
-      await atCommitLog.commit('test_key_alpha@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2_beta@alice', CommitOp.UPDATE);
-      await atCommitLog.commit('abcd@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit(
-          'another_random_key@alice', CommitOp.UPDATE_META);
+      // generate some commit entries
+      await secondaryKeyStore.put(
+          'test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await secondaryKeyStore.put(
+          'test_key2_beta$alice', AtData()..data = 'BETA');
+      await secondaryKeyStore.put('abcd$alice', AtData()..data = 'ABCD');
+      await secondaryKeyStore.put(
+          'another_random_key$alice', AtData()..data = 'RANDOM');
 
       // ensure commitLog is not empty
       var commitLogLength = atCommitLog.entriesCount();
@@ -237,53 +252,65 @@ void main() {
       syncResponse.add(entry);
 
       await verbHandler.prepareResponse(
-          10 * 1024 * 1024,
-          AtSecondaryConfig.syncPageLimit,
-          syncResponse,
-          atCommitLog.getEntries(0));
+        10 * 1024 * 1024,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(0),
+        inboundConnection.metadata,
+      );
 
       // Expecting that all the entries in the commitLog have been
       // added to syncResponse
       expect(syncResponse.length, commitLogLength + 1);
       expect(syncResponse[0], entry);
-      expect(syncResponse[1].key, 'test_key_alpha@alice');
-      expect(syncResponse[2].key, 'test_key2_beta@alice');
-      expect(syncResponse[3].key, 'abcd@alice');
-      expect(syncResponse[4].key, 'another_random_key@alice');
+      expect(syncResponse[1].key, 'test_key_alpha$alice');
+      expect(syncResponse[2].key, 'test_key2_beta$alice');
+      expect(syncResponse[3].key, 'abcd$alice');
+      expect(syncResponse[4].key, 'another_random_key$alice');
     });
 
     test(
         'ensure only one overflowing entry is added to syncResponse when commitLog has two large entries',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(mockKeyStore);
-      AtCommitLog atCommitLog = (await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@alice')))!;
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      // generate some commit entries
+      await secondaryKeyStore.put('test_key_1$alice', AtData()..data = 'ONE');
+      await secondaryKeyStore.put('test_key_2$alice', AtData()..data = 'TWO');
 
-      // Creating dummy commit entries
-      await atCommitLog.commit('test_key1@alice', CommitOp.UPDATE_ALL);
-      await atCommitLog.commit('test_key2@alice', CommitOp.UPDATE);
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() == 2);
 
       List<KeyStoreEntry> syncResponse = [];
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(0));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(0),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key1@alice');
+      expect(syncResponse[0].key, 'test_key_1$alice');
 
       syncResponse.clear();
-      await verbHandler.prepareResponse(0, AtSecondaryConfig.syncPageLimit,
-          syncResponse, atCommitLog.getEntries(1));
+      await verbHandler.prepareResponse(
+        0,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(1),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 1);
-      expect(syncResponse[0].key, 'test_key2@alice');
+      expect(syncResponse[0].key, 'test_key_2$alice');
 
       // test with empty iterator
       syncResponse.clear();
       await verbHandler.prepareResponse(
-          10 * 1024 * 1024,
-          AtSecondaryConfig.syncPageLimit,
-          syncResponse,
-          atCommitLog.getEntries(2));
+        10 * 1024 * 1024,
+        AtSecondaryConfig.syncPageLimit,
+        syncResponse,
+        atCommitLog.getEntries(2),
+        inboundConnection.metadata,
+      );
       expect(syncResponse.length, 0);
     });
 
@@ -291,12 +318,8 @@ void main() {
         'A test to verify sync returns default number of entries when limit is not passed',
         () async {
       // Add data to commit log
-      var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
-      await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
-      var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -306,14 +329,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore?.getSecondaryKeyStore()?.put(
-            'random_$i.wavi@alice',
+        await secondaryKeyStore.put(
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -324,7 +347,7 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 25);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
 
@@ -332,12 +355,8 @@ void main() {
         'A test to verify sync returns correct number of entries when limit (less than default size) is passed',
         () async {
       // Add data to commit log
-      var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
-      await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
-      var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -347,14 +366,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore?.getSecondaryKeyStore()?.put(
-            'random_$i.wavi@alice',
+        await secondaryKeyStore.put(
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -366,19 +385,15 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 12);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
     test(
         'A test to verify sync returns correct number of entries when limit (greater than default size) is passed',
         () async {
       // Add data to commit log
-      var atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog('@alice');
-      await atCommitLog?.commit('phone.wavi@alice', CommitOp.UPDATE);
+      await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
-      var secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@alice');
       var metadata = (AtMetaData()
         ..ttl = 10000
         ..ttb = 1000
@@ -388,14 +403,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore?.getSecondaryKeyStore()?.put(
-            'random_$i.wavi@alice',
+        await secondaryKeyStore.put(
+            'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(keyStoreManager.getKeyStore());
+      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -407,40 +422,8 @@ void main() {
       var syncResponseList = jsonDecode(response.data!);
       expect(syncResponseList.length, 35);
       for (int i = 0; i < syncResponseList.length; i++) {
-        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi@alice');
+        expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
     });
-
-    tearDown(() async => await tearDownFunc());
   });
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var isExists = await Directory(storageDir).exists();
-  if (!isExists) {
-    Directory(storageDir).createSync(recursive: true);
-  }
-  AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }

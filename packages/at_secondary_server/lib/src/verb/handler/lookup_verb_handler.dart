@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -19,9 +20,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
   static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
+  final EnrollmentManager enMgr;
 
   LookupVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager);
+    super.keyStore,
+    this.outboundClientManager,
+    this.cacheManager,
+    this.enMgr,
+  );
 
   @override
   bool accept(String command) =>
@@ -32,11 +38,10 @@ class LookupVerbHandler extends AbstractVerbHandler {
     return lookup;
   }
 
-  @override
-
   /// Throws an [SecondaryNotFoundException] if unable to establish connection to another secondary
   /// Throws an [UnAuthorizedException] if lookup if invoked with handshake=true and without a successful handshake
   ///  Throws an [LookupException] if there is exception during lookup operation
+  @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
@@ -52,6 +57,21 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var keyAtAtSign = '$entity$keyOwnersAtSign';
     var operation = verbParams[AtConstants.operation];
     String? byPassCacheStr = verbParams[AtConstants.bypassCache];
+
+    // - If it looks like *.<enrollmentId>.[ard].__e@thisAtsign
+    // - Then fetch the enrollment which forces a check if it's active
+    //
+    // This ensures that expired enrollment keys are in the right place
+    //
+    RegExpMatch? rem = perEnrollmentRegex.firstMatch(keyAtAtSign);
+    if (rem != null) {
+      String enId = rem.namedGroup('EnId')!;
+      try {
+        await enMgr.getEnrollmentById(enId);
+      } on KeyNotFoundException {
+        // We don't need to do anything more
+      }
+    }
 
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
@@ -94,7 +114,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String? operation,
       AtAccessLog? atAccessLog,
       String? byPassCacheStr) async {
-    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    String lookupKey;
+    // Just a bit of convenience here for those of us who frequently
+    // use lookup instead of llookup
+    if (!keyAtAtSign.contains(':')) {
+      lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    } else {
+      lookupKey = keyAtAtSign;
+    }
     bool isAuthorized = await _isAuthorizedToViewData(atConnection, lookupKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
@@ -239,7 +266,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String? operation,
       AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
-    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    String lookupKey;
+    // Just a bit of convenience here for those of us who frequently
+    // use lookup instead of llookup
+    if (!keyAtAtSign.contains(':')) {
+      lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    } else {
+      lookupKey = keyAtAtSign;
+    }
     var lookupValue = await keyStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
     //Resolving value references to correct value

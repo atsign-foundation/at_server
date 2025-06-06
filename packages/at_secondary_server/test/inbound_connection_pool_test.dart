@@ -19,6 +19,8 @@ AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 void main() async {
   late MockSocket mockSocket;
 
+  verbTestsSetUpLogging();
+
   setUpAll(() {
     serverContext.unauthenticatedInboundIdleTimeMillis = 250;
     serverContext.authenticatedInboundIdleTimeMillis = 500;
@@ -102,12 +104,6 @@ void main() async {
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.2)
                   .floor()));
-      print('connection 1: ${connection1.metaData.created} '
-          '${connection1.metaData.lastAccessed} ${connection1.isInValid()}');
-      print('connection 2: ${connection2.metaData.created} '
-          '${connection2.metaData.lastAccessed} ${connection2.isInValid()}');
-      print('connection 3: ${connection3.metaData.created} '
-          '${connection3.metaData.lastAccessed} ${connection3.isInValid()}');
       poolInstance.clearInvalidConnections();
       expect(poolInstance.getCurrentSize(), 1);
     });

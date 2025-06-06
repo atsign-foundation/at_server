@@ -16,8 +16,11 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+void main() async {
+  SecondaryKeyStore<String, AtData?, AtMetaData?> mockKeyStore =
+      MockSecondaryKeyStore();
+
+  verbTestsSetUpLogging();
 
   group('pkam tests', () {
     test('test for pkam correct syntax', () {
@@ -61,7 +64,6 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var handler = PkamVerbHandler(mockKeyStore);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
   });
@@ -70,12 +72,14 @@ void main() {
     late EnrollDataStoreValue enrollData;
     late PkamVerbHandler pkamVerbHandler;
 
-    setUpAll(() {
+    setUp(() {
       // dummy enroll value
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(mockKeyStore);
+          enMgr = EnrollmentManager(mockKeyStore, alice);
+      enMgr.logger.level = 'shout';
+      mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -86,7 +90,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.publicKey, 'dummy_public_key');
     });
 
@@ -97,7 +101,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0027');
       expect(apkamResult.response.errorMessage,
@@ -111,7 +115,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0026');
       expect(apkamResult.response.errorMessage,
@@ -125,7 +129,7 @@ void main() {
           .thenAnswer((invocation) async => data);
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.verifyEnrollmentIsActive('enrollId', alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0025');
       expect(apkamResult.response.errorMessage,
@@ -133,16 +137,39 @@ void main() {
     });
 
     test('verify apkam behaviour - case: enrollment expired ', () async {
-      enrollData.approval = EnrollApproval('denied');
-      when(() => mockKeyStore.get(any()))
-          .thenThrow(KeyNotFoundException('key not found'));
+      EnrollDataStoreValue enValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key')
+        ..namespaces = {'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+
+      String enId = Uuid().v4();
+      String ek = enMgr.buildEnrollmentKey(enId);
+      when(() => mockKeyStore.remove(ek, skipCommit: true))
+          .thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(
+            enMgr.keyForPEK(enId),
+            skipCommit: true,
+          )).thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(
+            enMgr.keyForSEK(enId),
+            skipCommit: true,
+          )).thenAnswer((invocation) => Future.value(null));
+      when(() => mockKeyStore.remove(enMgr.keyForLegacyPK(enValue),
+          skipCommit: true)).thenAnswer((invocation) => Future.value(null));
+
+      when(() => mockKeyStore.get(ek)).thenAnswer((invocation) => Future.value(
+          AtData()
+            ..data = jsonEncode(enValue.toJson())
+            ..metaData = (AtMetaData()
+              ..expiresAt =
+                  DateTime.now().subtract(Duration(milliseconds: 1)))));
 
       var apkamResult =
-          await pkamVerbHandler.handleApkamVerification('enrollId', '@alice');
+          await pkamVerbHandler.verifyEnrollmentIsActive(enId, alice);
       expect(apkamResult.response.isError, true);
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,
-          'enrollment_id: enrollId is expired or invalid');
+          'enrollment_id: $enId is expired or invalid');
     });
   });
 
@@ -169,7 +196,7 @@ void main() {
           EnrollApproval(EnrollmentStatus.approved.name);
       enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
 
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName,
           AtData()

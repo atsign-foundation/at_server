@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -14,7 +14,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class KeysVerbHandler extends AbstractVerbHandler {
   static Keys keys = Keys();
 
-  KeysVerbHandler(super.keyStore);
+  final EnrollmentManager enMgr;
+  final Atsign atSign;
+  KeysVerbHandler(super.keyStore, this.enMgr, this.atSign);
 
   @override
   bool accept(String command) => command.startsWith('keys:');
@@ -45,14 +47,15 @@ class KeysVerbHandler extends AbstractVerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
-              .get(connectionMetadata.enrollmentId!);
+              .getEnrollmentById(connectionMetadata.enrollmentId!);
 
       if (enrollDataStoreValue.approval?.state != 'approved') {
         throw AtEnrollmentException(
             'Enrollment Id $enrollIdFromMetadata is not approved. current state: ${enrollDataStoreValue.approval?.state}');
       }
-      hasManageAccess =
-          enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
+      hasManageAccess = enrollDataStoreValue
+              .namespaces[EnrollmentConstants.enrollManageNamespace] ==
+          'rw';
     } on KeyNotFoundException {
       logger.severe(
           'Enrollment details not found for the enrollmentId: ${connectionMetadata.enrollmentId}');
@@ -106,7 +109,6 @@ class KeysVerbHandler extends AbstractVerbHandler {
     String enrollIdFromMetadata,
   ) async {
     final keyNameFromParams = verbParams[AtConstants.keyName];
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
         final value = await keyStore.get(keyNameFromParams);
@@ -118,15 +120,15 @@ class KeysVerbHandler extends AbstractVerbHandler {
       }
     }
     final filteredKeys = await _getFilteredKeys(
-        keyVisibility, hasManageAccess, enrollIdFromMetadata, atSign);
+        keyVisibility, hasManageAccess, enrollIdFromMetadata);
     response.data = jsonEncode(filteredKeys);
   }
 
   /// If current enrollment has __manage access then return both __global and __manage keys with visibility [keyVisibility]
   /// Otherwise return only __global keys with visibility [keyVisibility]
-  /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enrollIdFromMetadata]
-  Future<List<String>> _getFilteredKeys(String? keyVisibility,
-      bool hasManageAccess, String enrollIdFromMetadata, String atSign) async {
+  /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enId]
+  Future<List<String>> _getFilteredKeys(
+      String? keyVisibility, bool hasManageAccess, String enId) async {
     final result = keyVisibility != null && keyVisibility.isNotEmpty
         ? hasManageAccess
             ? keyStore.getKeys(
@@ -138,15 +140,12 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
     final filteredKeys = <String>[];
     for (final key in result) {
-      await _addKeyIfEnrollmentIdMatches(
-          filteredKeys, key, enrollIdFromMetadata);
+      await _addKeyIfEnrollmentIdMatches(filteredKeys, key, enId);
     }
 
     final keyMap = {
-      'private':
-          '$enrollIdFromMetadata.${AtConstants.defaultEncryptionPrivateKey}.$enrollManageNamespace$atSign',
-      'self':
-          '$enrollIdFromMetadata.${AtConstants.defaultSelfEncryptionKey}.$enrollManageNamespace$atSign',
+      'private': enMgr.keyForPEK(enId),
+      'self': enMgr.keyForSEK(enId),
     };
 
     final keyString = keyMap[keyVisibility];

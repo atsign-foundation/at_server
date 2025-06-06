@@ -1,5 +1,4 @@
 import 'package:at_persistence_root_server/at_persistence_root_server.dart';
-import 'package:at_persistence_root_server/src/redis_connection_manager.dart';
 
 //this can be part of test harness
 Future<void> main() async {
@@ -28,8 +27,9 @@ Future<void> main() async {
   assert(pooledSize == 2);
   print('***');
 
-  usedConnection.forEach(
-      (c) => RedisConnectionManager.getInstance().releaseConnection(c));
+  for (final c in usedConnection) {
+    RedisConnectionManager.getInstance().releaseConnection(c);
+  }
   usedSize = RedisConnectionManager.getInstance().pool!.getUsedSize();
   pooledSize = RedisConnectionManager.getInstance().pool!.getPooledSize();
   print('used connection $usedSize ');

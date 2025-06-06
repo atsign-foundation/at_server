@@ -4,8 +4,9 @@ import 'package:test/test.dart';
 void main() {
   group('group of command conversion test', () {
     test('convert command', () {
-      var result = SecondaryUtil.convertCommand('update:privateKey:abc HelLo');
-      print(result);
+      final i = 'update:privateKey:abc HelLo';
+      final o = SecondaryUtil.convertCommand(i);
+      expect(o, i);
     });
   });
 }

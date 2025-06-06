@@ -18,6 +18,8 @@ void main() async {
   final int outboundIdleTimeMillis = 200;
   MockSocket mockSocket = MockSocket();
 
+  verbTestsSetUpLogging();
+
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);

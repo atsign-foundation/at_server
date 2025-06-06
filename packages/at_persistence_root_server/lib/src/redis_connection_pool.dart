@@ -8,15 +8,15 @@ import 'package:at_utils/at_logger.dart';
 class RedisConnectionPool {
   final List<AtRedisConnection> _usedConnections = [];
   final List<AtRedisConnection> _pooledConnections = [];
-  final int _init_pool_size = 5;
-  final int _max_pool_size = 15;
+  final int _initialPoolSize = 5;
+  final int _maxPoolSize = 15;
   AtRedisConfig? _atRedisConfig;
   final logger = AtSignLogger('RedisConnectionPool');
 
   Future<bool> init(AtRedisConfig? atRedisConfig) async {
     _atRedisConfig = atRedisConfig;
     logger.info('initializing redis connection pool');
-    for (var i = 0; i < _init_pool_size; i++) {
+    for (var i = 0; i < _initialPoolSize; i++) {
       var conn = await create(atRedisConfig!);
       _pooledConnections.add(conn);
     }
@@ -26,7 +26,7 @@ class RedisConnectionPool {
 
   Future<AtRedisConnection> getConnection() async {
     if (_pooledConnections.isEmpty) {
-      if (_usedConnections.length < _max_pool_size) {
+      if (_usedConnections.length < _maxPoolSize) {
         _pooledConnections.add(await create(_atRedisConfig!));
       } else {
         throw Exception('Redis Max Pool Size reached');
@@ -73,9 +73,13 @@ class RedisConnectionPool {
 
   int getPooledSize() => _pooledConnections.length;
 
-  void releaseAllConnections() {
-    _usedConnections.forEach((c) async => await c.close());
-    _pooledConnections.forEach((c) async => await c.close());
+  void releaseAllConnections() async {
+    for (final c in _usedConnections) {
+      await c.close();
+    }
+    for (final c in _pooledConnections) {
+      await c.close();
+    }
     _usedConnections.clear();
     _pooledConnections.clear();
   }

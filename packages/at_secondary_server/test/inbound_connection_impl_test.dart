@@ -7,8 +7,10 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   late MockSocket mockSocket;
+
+  verbTestsSetUpLogging();
 
   setUp(() async {
     mockSocket = MockSocket();

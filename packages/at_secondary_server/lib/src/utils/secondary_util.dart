@@ -72,7 +72,7 @@ class SecondaryUtil {
       var birthTime = atData.metaData!.availableAt;
       var endOfLifeTime = atData.metaData!.expiresAt;
       logger.finest(
-          'isActiveKey found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
+          'isActiveKey ${atData.key} found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
       if (birthTime == null && endOfLifeTime == null) return true;
       if (birthTime != null) {
         var ttbMillis = birthTime.toUtc().millisecondsSinceEpoch;

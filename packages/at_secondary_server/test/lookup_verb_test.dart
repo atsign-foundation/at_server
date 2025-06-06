@@ -20,6 +20,8 @@ import 'test_utils.dart';
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.
 void main() {
+  verbTestsSetUpLogging();
+
   group('lookup behaviour tests', () {
     /// Test the actual behaviour of the lookup verb handler.
     /// (Syntax tests are covered in the next test group, 'lookup syntax tests')
@@ -36,7 +38,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
     });
 
     tearDown(() async {
@@ -44,11 +46,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       expect(secondaryKeyStore.isKeyExists(keyName), false);
@@ -84,7 +86,7 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
       expect(cachedAtData.key, cachedKeyName);
 
-      // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. @alice:foo.bar@bob
+      // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. $alice:foo.bar@bob
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(
@@ -97,11 +99,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify publickey was cached',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify publickey was cached',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       await secondaryKeyStore.remove(keyName);
@@ -143,11 +145,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify fetched from cache',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify fetched from cache',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       await secondaryKeyStore.remove(keyName);
@@ -190,7 +192,7 @@ void main() {
       // *************************************************************
 
       // Now let's do the lookup again - this time it should be fetched from cache
-      // This time the 'key' in the response should have the 'cached:' prefix e.g. cached:@alice:foo.bar@bob
+      // This time the 'key' in the response should have the 'cached:' prefix e.g. cached:$alice:foo.bar@bob
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -207,11 +209,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify bypassCache',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify bypassCache',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       await secondaryKeyStore.remove(keyName);
@@ -263,11 +265,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr 10 - verify lookup flavours',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify lookup flavours',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       await secondaryKeyStore.remove(keyName);
@@ -329,11 +331,11 @@ void main() {
     });
 
     test(
-        '@alice, to @alice server, lookup a key that @bob has shared with ttr null or zero',
+        '$alice, to $alice server, lookup a key that @bob has shared with ttr null or zero',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
-      // if @alice caches, the key would be prefixed with 'cached:@alice:'
+      // if $alice caches, the key would be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       expect(secondaryKeyStore.isKeyExists(keyName), false);
@@ -361,7 +363,7 @@ void main() {
       expect(secondaryKeyStore.isKeyExists(keyName), false);
 
       Map mapSentToClient;
-      // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
+      // When returned from remote lookup, the 'key' in the response should be e.g.. $alice:foo.bar@bob
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(
@@ -370,7 +372,7 @@ void main() {
       expect(mapSentToClient['key'], '$alice:$keyName');
     });
 
-    test('@alice, to @alice server, lookup a key that does not exist',
+    test('$alice, to $alice server, lookup a key that does not exist',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';
@@ -390,9 +392,9 @@ void main() {
     });
 
     test(
-        '@bob, via pol connection to @alice server, lookup a key that @alice has shared',
+        '@bob, via pol connection to $alice server, lookup a key that $alice has shared',
         () async {
-      // some key sharedBy @alice
+      // some key sharedBy $alice
       var keyName = 'some_key.some_namespace$alice';
 
       AtData aliceData = createRandomAtData(alice);
@@ -405,13 +407,13 @@ void main() {
       expect(secondaryKeyStore.isKeyExists('$bob:$keyName'), true);
 
       inboundConnection.metaData.isPolAuthenticated =
-          true; // connection from @bob atServer to @alice atServer, polAuthenticated
+          true; // connection from @bob atServer to $alice atServer, polAuthenticated
       inboundConnection.metadata.self = false;
       inboundConnection.metadata.from = true;
       inboundConnection.metadata.fromAtSign = bob;
 
       // The sharedWith atSign is always prepended, even if it's been supplied. So, when it is
-      // supplied, the search will be for e.g. @bob:@bob:foo.bar@alice
+      // supplied, the search will be for e.g. @bob:@bob:foo.bar$alice
       // So let's just assert that this will throw a KeyNotFoundException
       await expectLater(
           lookupVerbHandler.process(
@@ -422,7 +424,7 @@ void main() {
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       Map mapSentToClient;
-      // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
+      // When returned from remote lookup, the 'key' in the response should be e.g.. $alice:foo.bar@bob
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], aliceData.data);
       expect(
@@ -432,13 +434,13 @@ void main() {
     });
 
     test(
-        '@bob, via pol connection to @alice server, lookup a key that does not exist',
+        '@bob, via pol connection to $alice server, lookup a key that does not exist',
         () async {
-      // some key sharedBy @alice
+      // some key sharedBy $alice
       var keyName = 'some_key.some_namespace$alice';
 
       inboundConnection.metadata.isPolAuthenticated =
-          true; // connection from @bob atServer to @alice atServer, polAuthenticated
+          true; // connection from @bob atServer to $alice atServer, polAuthenticated
       inboundConnection.metadata.self = false;
       inboundConnection.metadata.from = true;
       inboundConnection.metadata.fromAtSign = bob;
@@ -449,9 +451,9 @@ void main() {
     });
 
     test(
-        'unauthenticated client to @alice server lookup a key owned by @alice that exists and is public',
+        'unauthenticated client to $alice server lookup a key owned by $alice that exists and is public',
         () async {
-      // some key sharedBy @alice
+      // some key sharedBy $alice
       var keyName = 'firstname.wavi$alice';
 
       AtData aliceData = createRandomAtData(alice);
@@ -469,7 +471,7 @@ void main() {
       expect(inboundConnection.metadata.fromAtSign, null);
 
       // public: is always prepended, even if it's been supplied. So, when it is
-      // supplied, the search will be for e.g. public:public:foo.bar@alice
+      // supplied, the search will be for e.g. public:public:foo.bar$alice
       // So let's just assert that this will throw a KeyNotFoundException
       await expectLater(
           lookupVerbHandler.process(
@@ -480,7 +482,7 @@ void main() {
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       Map mapSentToClient;
-      // When returned from remote lookup, the 'key' in the response should be e.g.. @alice:foo.bar@bob
+      // When returned from remote lookup, the 'key' in the response should be e.g.. $alice:foo.bar@bob
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], aliceData.data);
       expect(mapSentToClient['data'], 'Alice');
@@ -491,9 +493,9 @@ void main() {
     });
 
     test(
-        'unauthenticated client to @alice server lookup a key owned by @alice that exists and is not public',
+        'unauthenticated client to $alice server lookup a key owned by $alice that exists and is not public',
         () async {
-      // some key owned by @alice
+      // some key owned by $alice
       var keyName = 'some_key.some_namespace$alice';
 
       AtData aliceData = createRandomAtData(alice);
@@ -531,15 +533,15 @@ void main() {
 
     test('test lookup getVerb', () {
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
       var verb = handler.getVerb();
       expect(verb is Lookup, true);
     });
 
     test('test lookup command accept test', () {
-      var command = 'lookup:location@alice';
+      var command = 'lookup:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -556,7 +558,7 @@ void main() {
 
     test('test lookup key- invalid atsign', () {
       var verb = Lookup();
-      var command = 'lookup:location@alice@';
+      var command = 'lookup:location$alice@';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -585,7 +587,7 @@ void main() {
 
     test('test lookup key- invalid keyword', () {
       var verb = Lookup();
-      var command = 'lokup:location@alice';
+      var command = 'lokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -602,7 +604,7 @@ void main() {
       await verbTestsSetUp();
     });
 
-    test('when enrollment namespace *:r, @alice lookup a key shared by bob',
+    test('when enrollment namespace *:r, $alice lookup a key shared by bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -616,14 +618,13 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var enrollmentKey = '$enrollmentId.new.enrollments.__manage@alice';
+      var enrollmentKey = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollJson));
 
       // Wavi key
       String waviKey = 'some_key.wavi$bob';
       AtData bobWaviData = createRandomAtData(bob);
-      print('Wavi key: ${bobWaviData.data}');
       bobWaviData.metaData!.ttr = 100;
       bobWaviData.metaData!.ttb = null;
       bobWaviData.metaData!.ttl = null;
@@ -634,7 +635,6 @@ void main() {
       // Buzz key
       String buzzKey = 'some_key.buzz$bob';
       AtData bobBuzzData = createRandomAtData(bob);
-      print('Buzz key: ${bobBuzzData.data}');
       bobBuzzData.metaData!.ttr = 100;
       bobBuzzData.metaData!.ttb = null;
       bobBuzzData.metaData!.ttl = null;
@@ -655,20 +655,20 @@ void main() {
       Map mapSentToClient;
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process('lookup:all:$waviKey', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobWaviData.data);
 
       lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process('lookup:all:$buzzKey', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobBuzzData.data);
     });
 
     test(
-        'when enrollment namespace is authorized, @alice lookup a key shared by bob - cached key does not exist',
+        'when enrollment namespace is authorized, $alice lookup a key shared by bob - cached key does not exist',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -682,13 +682,13 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       // some key sharedBy @bob
       keyName = 'some_key.wavi$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
       expect(secondaryKeyStore.isKeyExists(keyName), false);
@@ -711,7 +711,7 @@ void main() {
       Map mapSentToClient;
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Response should have been cached
@@ -723,7 +723,7 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
       expect(cachedAtData.key, cachedKeyName);
 
-      // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. @alice:foo.bar@bob
+      // First lookup:all (when it's not in the cache) will have 'key' in the response of e.g.. $alice:foo.bar@bob
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobData.data);
       expect(
@@ -736,7 +736,7 @@ void main() {
     });
 
     test(
-        'when enrollment namespace is authorized, @alice lookup a key shared by bob - cached key exists on alice secondary',
+        'when enrollment namespace is authorized, $alice lookup a key shared by bob - cached key exists on alice secondary',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -750,13 +750,13 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       // some key sharedBy @bob
       keyName = 'some_key.wavi$bob';
-      // when @alice caches, the key will be prefixed with 'cached:@alice:'
+      // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
       AtData bobData = AtData()
         ..data = 'cached_key_value'
@@ -765,7 +765,7 @@ void main() {
       await secondaryKeyStore.put(cachedKeyName, bobData);
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       var mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -776,7 +776,7 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
     });
 
-    test('when enrollment namespace is authorized, @alice lookup a self key',
+    test('when enrollment namespace is authorized, $alice lookup a self key',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -790,7 +790,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -801,14 +801,14 @@ void main() {
       await secondaryKeyStore.put('$alice:$keyName', aliceData);
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
       var mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(aliceData.data, mapSentToClient['data']);
     });
 
     test(
-        'A test to verify enrollment namespace not authorized throws exception when @alice lookup a self key',
+        'A test to verify enrollment namespace not authorized throws exception when $alice lookup a self key',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -822,7 +822,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -833,18 +833,18 @@ void main() {
       await secondaryKeyStore.put('$alice:$keyName', aliceData);
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       expect(
           () async => await lookupVerbHandler.process(
               'lookup:all:$keyName', inboundConnection),
           throwsA(predicate((e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: $alice:some_key.buzz$alice')));
     });
 
     test(
-        'A test to verify enrollment namespace is not authorized, @alice lookup a key shared by bob',
+        'A test to verify enrollment namespace is not authorized, $alice lookup a key shared by bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
@@ -858,7 +858,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -866,18 +866,18 @@ void main() {
       keyName = 'some_key.buzz$bob';
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       expect(
           () async => await lookupVerbHandler.process(
               'lookup:all:$keyName', inboundConnection),
           throwsA(predicate((e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:some_key.buzz@bob')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: $alice:some_key.buzz@bob')));
     });
 
     test(
-        'A test to verify read access is allowed if key is @alice:shared_key@bob',
+        'A test to verify read access is allowed if key is $alice:shared_key@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
       String sharedKeyForThem = 'shared_key$bob';
@@ -892,7 +892,7 @@ void main() {
       });
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       String lookupCommand = 'lookup:all:$sharedKeyForThem';
       expect(
           await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -912,7 +912,7 @@ void main() {
       String sharedKeyForMe = 'shared_key.alice$bob';
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       expect(
           await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
               atKey: sharedKeyForMe),
@@ -936,7 +936,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
 
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -952,7 +952,7 @@ void main() {
       });
 
       LookupVerbHandler lookupVerb = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       String lookupCommand = 'lookup:all:$reservedKey';
       expect(
           await lookupVerb.isAuthorized(inboundConnection.metadata,
@@ -982,7 +982,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
 
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -991,7 +991,7 @@ void main() {
       await secondaryKeyStore.put('$alice:$testKey', aliceWaviData);
 
       LookupVerbHandler lookupVerb = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       String lookupCommand = 'lookup:all:$testKey';
 
       expect(
@@ -1021,14 +1021,14 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       String testKey = 'test_key_no_namespace_1$alice';
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       String lookupCommand = 'lookup:all:$testKey';
       expect(
           await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -1040,7 +1040,7 @@ void main() {
           throwsA(predicate((e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:test_key_no_namespace_1@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to lookup key: $alice:test_key_no_namespace_1$alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -1075,21 +1075,21 @@ void main() {
           'approval': {'state': operation}
         };
         await secondaryKeyStore.put(
-            '$enrollmentId.new.enrollments.__manage@alice',
+            '$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String llookupCommand = 'lookup:dummykey.wavi$bob';
         HashMap<String, String?> lookupVerbParams =
             getVerbParam(VerbSyntax.lookup, llookupCommand);
         LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-            secondaryKeyStore, mockOutboundClientManager, cacheManager);
+            secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
         expect(
             () async => await lookupVerbHandler.processVerb(
                 response, lookupVerbParams, inboundConnection),
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Connection with enrollment ID $enrollmentId is not authorized to lookup key: @alice:dummykey.wavi@bob')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to lookup key: $alice:dummykey.wavi@bob')));
       });
     }
   });
@@ -1116,7 +1116,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var enrollmentKey = '$enrollmentId.new.enrollments.__manage@alice';
+      var enrollmentKey = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollJson));
 
@@ -1137,7 +1137,7 @@ void main() {
       Map mapSentToClient;
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
       await lookupVerbHandler.process(
           'lookup:all:$sharedKey', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);

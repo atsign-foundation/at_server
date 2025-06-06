@@ -17,10 +17,12 @@ import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   MockSocket mockSocket = MockSocket();
+
+  verbTestsSetUpLogging();
 
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
@@ -42,7 +44,6 @@ void main() {
       var handler =
           NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -137,7 +138,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -224,7 +225,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '100';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -362,7 +363,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -370,7 +371,6 @@ void main() {
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
-      print(result);
       expect(result.length, 1);
       expect(result[0]['id'], '125');
       await AtNotificationKeystore.getInstance().remove('122');
@@ -432,7 +432,7 @@ void main() {
       var verbParams = getVerbParam(regex, command);
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -440,7 +440,6 @@ void main() {
       await notifyListVerbHandler.processVerb(
           response, verbParams, atConnection);
       var result = jsonDecode(response.data!);
-      print(result);
       expect(result.length, 2);
       expect(result[0]['id'], '122');
       expect(result[1]['id'], '125');
@@ -591,7 +590,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:122');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -618,7 +617,7 @@ void main() {
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@alice'
+        ..fromAtSign = alice
         ..isAuthenticated = true;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
@@ -626,7 +625,6 @@ void main() {
       await notifyFetchVerbHandler.processVerb(
           response, verbParams, atConnection);
       var atNotification = jsonDecode(response.data!);
-      print(atNotification);
       expect(atNotification['id'], '123');
       expect(atNotification['notificationStatus'],
           NotificationStatus.expired.toString());

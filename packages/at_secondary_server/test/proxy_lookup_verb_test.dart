@@ -250,8 +250,7 @@ void main() {
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
-        bobOriginalData.metaData!.ttr =
-            60; // 2 seconds, just to be different from original
+        bobOriginalData.metaData!.ttr = 2; // 2 seconds, just to be different
         String bobNewDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
             'all', bobNewData,
             key: 'public:$keyName')!;
@@ -259,8 +258,8 @@ void main() {
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
 
-        await Future.delayed(Duration(
-            seconds: 1)); // Wait for a second so that it's time to refresh
+        // Wait for a second so that it's time to refresh
+        await Future.delayed(Duration(milliseconds: 1001));
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
           socketOnDataFn("data:$bobNewDataAsJsonWithKey\n@".codeUnits);
@@ -416,7 +415,7 @@ void main() {
     });
 
     test('test proxy_lookup command accept test', () {
-      var command = 'plookup:location@alice';
+      var command = 'plookup:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
@@ -434,7 +433,7 @@ void main() {
 
     test('test proxy_lookup with invalid atsign', () {
       var verb = ProxyLookup();
-      var command = 'plookup:location@alice@@@';
+      var command = 'plookup:location$alice@@@';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -454,7 +453,7 @@ void main() {
 
     test('test proxy_lookup key invalid keyword', () {
       var verb = ProxyLookup();
-      var command = 'plokup:location@alice';
+      var command = 'plokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

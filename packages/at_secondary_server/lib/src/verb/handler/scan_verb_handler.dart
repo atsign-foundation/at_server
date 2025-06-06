@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -187,7 +186,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
     // Therefore, added non-null assertation operator.
     var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
             .enrollmentManager
-            .get(atConnectionMetadata.enrollmentId!))
+            .getEnrollmentById(atConnectionMetadata.enrollmentId!))
         .namespaces;
 
     // No namespace to filter keys. So, return.
@@ -197,10 +196,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
       return [];
     }
     // If enrollment namespace contains ".*" return all keys.
-    if (enrollNamespaces.containsKey(allNamespaces)) {
+    if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       return localKeysList;
     }
-    // Return only keys whose namespace is authorized.
+
+    // We've dealt with no access and with '*' access; now we have to check
+    // access on each key individually.
     int index = 0;
     // Iterates through the list of local keys.
     // Removes the key from the list if any of the below condition is met:

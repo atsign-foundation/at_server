@@ -7,20 +7,18 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
-
 import 'test_utils.dart';
 
-// the atSign for the server for these tests is @alice - see test_utils.dart
 void main() {
-  AtSignLogger.root_level = 'WARNING';
+  verbTestsSetUpLogging();
+
   group('Handling resets of other atSigns', () {
     late LookupVerbHandler lookupVerbHandler;
 
-    var sharedEncryptionKeyName = 'shared_key.bob@alice';
+    var sharedEncryptionKeyName = 'shared_key.bob$alice';
     var sharedEncryptionKeyData = AtData()
       ..metaData = (AtMetaData()..ttr = -1)
       ..data = 'alice_shared_key_for_bob';
@@ -32,7 +30,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
     });
 
     tearDown(() async {
@@ -42,15 +40,15 @@ void main() {
     test('lookup some bob key, bob public encryption key unchanged', () async {
       // Given
       //   * a cached:public:publickey@bob in the cache
-      //   * a shared_key.bob@alice in the keystore
+      //   * a shared_key.bob$alice in the keystore
       // When
-      //   * @alice client to this @alice server does a remote lookup of a non-existent key from @bob server
+      //   * $alice client to this $alice server does a remote lookup of a non-existent key from @bob server
       //   * or does a remote lookup of a @bob key that exists
       // Then
       //   * a KeyNotFoundException is thrown, or not, as expected, and in both cases
       //   * publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob is unchanged (updatedAt should not have changed)
-      //   * shared_key.bob@alice is unchanged
+      //   * shared_key.bob$alice is unchanged
       await cacheManager.put(
           cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
       await secondaryKeyStore.put(
@@ -111,7 +109,7 @@ void main() {
       // Given
       //   * a cached:public:publickey@bob in the cache
       // When
-      //   * @alice client to this @alice server does a remote lookup to @bob server
+      //   * $alice client to this $alice server does a remote lookup to @bob server
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
@@ -188,24 +186,24 @@ void main() {
           true);
     }
 
-    test('bob public encryption key changed, no current shared_key.bob@alice',
+    test('bob public encryption key changed, no current shared_key.bob$alice',
         () async {
       await doPKChangeAndAssertions();
     });
 
     test(
-        'bob public encryption key changed, shared_key.bob@alice removed but preserved',
+        'bob public encryption key changed, shared_key.bob$alice removed but preserved',
         () async {
       // Given
       //   * a cached:public:publickey@bob in the cache
-      //   * a shared_key.bob@alice in the keystore
+      //   * a shared_key.bob$alice in the keystore
       // When
-      //   * @alice client to this @alice server does a remote lookup to @bob server
+      //   * $alice client to this $alice server does a remote lookup to @bob server
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
-      //   * shared_key.bob@alice no longer exists
-      //   * but there is a copy of it called shared_key.bob.until.<millis>@alice
+      //   * shared_key.bob$alice no longer exists
+      //   * but there is a copy of it called shared_key.bob.until.<millis>$alice
 
       await doPKChangeAndAssertions();
 
@@ -216,10 +214,8 @@ void main() {
       expect(matches.contains(sharedEncryptionKeyName), false);
       bool found = false;
       for (String mkn in matches) {
-        print("regex matched $mkn");
         if (mkn.startsWith('shared_key.bob.until')) {
           found = true;
-          print("Found match - $mkn");
         }
       }
       expect(found, true);
@@ -232,15 +228,13 @@ void main() {
           regex: '\\d*'
               '\\.events'
               '\\.${AtConstants.atServerReservedNamespace}'
-              '@alice');
+              '$alice');
       expect(eventKeys.length, 1);
       AtData? atData = await secondaryKeyStore.get(eventKeys.first);
 
-      print('Event found: ${atData!.toJson()}');
-
       AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
       AtSignPKChangedEvent actualEvent =
-          AtSignPKChangedEvent.fromJson(jsonDecode(atData.data!));
+          AtSignPKChangedEvent.fromJson(jsonDecode(atData!.data!));
       expect(actualEvent.atSign, expectedEvent.atSign);
       expect(actualEvent.toJson(), expectedEvent.toJson());
     });
@@ -270,8 +264,6 @@ void main() {
       expect(notificationJson['value'], isNotNull);
       final valueJson = jsonDecode(notificationJson['value']);
 
-      print('self notification received: $notificationJson');
-      print('Notification value: $valueJson');
       AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
       AtSignPKChangedEvent actualEvent =
           AtSignPKChangedEvent.fromJson(valueJson);

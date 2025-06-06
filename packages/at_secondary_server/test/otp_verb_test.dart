@@ -3,8 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
@@ -200,7 +198,7 @@ void main() {
     });
 
     test('validate backwards compatability with legacy otp key', () async {
-      String atsign = '@alice';
+      String atsign = alice;
       String testOtp = 'ABCD12';
       String otpLegacyKey = 'private:${testOtp.toLowerCase()}$atsign';
       AtData value = AtData()
@@ -220,10 +218,10 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       String enrollmentKey =
-          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace$alice';
+          '$enrollmentId.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy_session_id', 'dummy-app', 'dummy-device', 'dummy-apkam-key')
-        ..namespaces = {enrollManageNamespace: 'rw'}
+        ..namespaces = {EnrollmentConstants.enrollManageNamespace: 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.approved.name);
       await secondaryKeyStore.put(
           enrollmentKey, AtData()..data = jsonEncode(enrollDataStoreValue));
@@ -236,8 +234,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -252,8 +249,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -270,8 +266,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -289,8 +284,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       await Future.delayed(Duration(milliseconds: 2));
@@ -307,8 +301,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
-      (inboundConnection.metaData as InboundConnectionMetadata).enrollmentId =
-          enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -322,7 +315,7 @@ void main() {
     });
 
     test('validate backwards compatability with legacy ssp key', () async {
-      String atsign = '@alice';
+      String atsign = alice;
       String testOtp = 'ABC123';
       String otpLegacyKey = 'private:spp$atsign';
       AtData value = AtData()..data = testOtp;

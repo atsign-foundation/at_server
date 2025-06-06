@@ -11,6 +11,8 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() {
+  verbTestsSetUpLogging();
+
   late MockSocket mockSocket;
 
   setUp(() {

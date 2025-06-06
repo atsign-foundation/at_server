@@ -50,29 +50,45 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     if (atSign.isNotNullOrEmpty) {
       atSign = AtUtils.fixAtSign(atSign!);
     }
-    var keyName = '$entityName$atSign';
-    var cachedKeyName = 'cached:public:$keyName';
+    var keyAtAtSign = '$entityName$atSign';
+    var cachedKeyName = 'cached:public:$keyAtAtSign';
 
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
         .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog?.insert(atSign!, pLookup.name(), lookupKey: keyName);
+      await atAccessLog?.insert(atSign!, pLookup.name(),
+          lookupKey: keyAtAtSign);
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }
 
+    final bool bypassCache;
+
+    // - If it looks like *.<enrollmentId>.[ard].__e@thisAtsign
+    // - Then set bypassCache to true, because we always want to go to the
+    // source atServer
+    if (perEnrollmentRegex.hasMatch(keyAtAtSign)) {
+      bypassCache = true;
+    } else {
+      bypassCache = byPassCacheStr == 'true';
+    }
+
+    AtData? atData;
+    String? result;
+
     // First, check if we've even got a cached value
-    var atData =
-        await cacheManager.get(cachedKeyName, applyMetadataRules: true);
-    var result = SecondaryUtil.prepareResponseData(operation, atData);
+    if (!bypassCache) {
+      atData = await cacheManager.get(cachedKeyName, applyMetadataRules: true);
+      result = SecondaryUtil.prepareResponseData(operation, atData);
+    }
 
     // If we don't have a cached value, or byPassCache parameter is set to 'true', then do a remote lookUp.
-    if (result == null || byPassCacheStr == 'true') {
+    if (result == null || bypassCache) {
       AtData? atData =
           await cacheManager.remoteLookUp(cachedKeyName, maintainCache: true);
       if (atData != null) {
         result = SecondaryUtil.prepareResponseData(operation, atData,
-            key: 'public:$keyName');
+            key: 'public:$keyAtAtSign');
       }
     }
     response.data = result;

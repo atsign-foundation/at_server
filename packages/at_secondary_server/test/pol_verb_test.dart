@@ -4,6 +4,7 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -18,11 +19,14 @@ import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   MockSocket mockSocket = MockSocket();
+  EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+
+  verbTestsSetUpLogging();
 
   setUpAll(() {
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
@@ -41,7 +45,6 @@ void main() {
     var handler = PolVerbHandler(
         mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
     var result = handler.accept(command);
-    print('result : $result');
     expect(result, true);
   });
 
@@ -61,11 +64,14 @@ void main() {
     var inbound = InboundConnectionImpl(mockSocket, null);
     var defaultVerbExecutor = DefaultVerbExecutor();
     var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-        mockKeyStore,
-        mockOutboundClientManager,
-        mockAtCacheManager,
-        StatsNotificationService.getInstance(),
-        NotificationManager.getInstance());
+      mockKeyStore,
+      mockOutboundClientManager,
+      mockAtCacheManager,
+      StatsNotificationService.getInstance(),
+      NotificationManager.getInstance(),
+      mockEnrollmentManager,
+      alice,
+    );
 
     expect(
         () => defaultVerbExecutor.execute(

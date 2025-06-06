@@ -62,7 +62,11 @@ void main() {
     test('test update meta handler processVerb with ttb', () async {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => alice);
@@ -77,7 +81,11 @@ void main() {
       int ttb = 100; // ttb, in milliseconds
       //Update Meta
       var upMetaHandler = UpdateMetaVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var upMetaR = Response();
       var upMetaParams = HashMap<String, String>();
       upMetaParams.putIfAbsent('atSign', () => alice);
@@ -88,7 +96,8 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);
@@ -107,7 +116,11 @@ void main() {
     test('test update meta handler processVerb with ttl', () async {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => alice);
@@ -122,7 +135,11 @@ void main() {
 
       //Update Meta
       var updateMetaVerbHandler = UpdateMetaVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateMetaResponse = Response();
       var upMetaParams = HashMap<String, String>();
       upMetaParams.putIfAbsent('atSign', () => alice);
@@ -135,7 +152,8 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);

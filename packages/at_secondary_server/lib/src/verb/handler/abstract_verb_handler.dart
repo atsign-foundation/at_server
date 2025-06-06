@@ -1,10 +1,8 @@
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
@@ -24,6 +22,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
   late AtSignLogger logger;
   ResponseHandlerManager responseManager =
       DefaultResponseHandlerManager.getInstance();
+
+  RegExp perEnrollmentRegex =
+      RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
   AbstractVerbHandler(this.keyStore) {
     logger = AtSignLogger(runtimeType.toString());
@@ -99,7 +100,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       EnrollDataStoreValue enrollDataStoreValue =
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
-              .get(atConnectionMetadata.enrollmentId!);
+              .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       // If the enrollment status is expired, then the enrollment is not active. Return false.
       if (enrollDataStoreValue.approval?.state ==
           EnrollmentStatus.expired.name) {
@@ -140,23 +141,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
-  /// Fetch for an enrollment key in the keystore.
-  /// If key is available returns [EnrollDataStoreValue],
-  /// else throws [KeyNotFoundException]
-  Future<EnrollDataStoreValue> getEnrollDataStoreValue(
-      String enrollmentKey) async {
-    try {
-      AtData enrollData = await keyStore.get(enrollmentKey);
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
-      if (!SecondaryUtil.isActiveKey(enrollData)) {
-        enrollDataStoreValue.approval?.state = EnrollmentStatus.expired.name;
-      }
-      return enrollDataStoreValue;
-    } on KeyNotFoundException {
-      logger.severe('$enrollmentKey does not exist in the keystore');
-      rethrow;
-    }
+  static String enrollmentReservedNamespace(String enrollmentId) {
+    return '$enrollmentId.${EnrollmentConstants.perEnrollmentApproved}';
   }
 
   /// Verifies whether the current connection has permission to
@@ -203,9 +189,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .get(inboundConnectionMetadata.enrollmentId!);
+          .getEnrollmentById(inboundConnectionMetadata.enrollmentId!);
     } on KeyNotFoundException {
-      logger.shout(
+      logger.severe(
           'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
       return false;
     }
@@ -230,11 +216,21 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // should be available for read by all clients. The initial driver for
     // creating this reserved namespace was that we needed a place to
     // store information about "another atSign's public key changed" events.
+    //
+    // Unit tests to assert this are in scan_verb_test.dart
     if (!enrollDataStoreValue.namespaces
         .containsKey(AtConstants.atServerReservedNamespace)) {
       enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] =
           'r';
     }
+
+    // All enrollments should have rw access to a namespace which is unique
+    // to their enrollment. Other enrollments should not have access, except
+    // to public data, or if the enrollment has "*:rw"
+    //
+    // Unit tests to assert this are in update_verb_test.dart
+    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(
+        inboundConnectionMetadata.enrollmentId!)] = 'rw';
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
@@ -252,7 +248,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Only spp and enroll operations are allowed to access
     // the enrollManageNamespace
     // Prevents update, delete or any other operations on the enrollment key
-    if (authorizedNamespace.$1 == enrollManageNamespace) {
+    if (authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
       return (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor)
           ? (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw')
           : false;
@@ -312,8 +308,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     // If enrolledDataStore value contains *, it means at is authorised for all namespaces
     if (authorisedNamespace.isEmpty &&
-        enrollDataStoreValue.namespaces.containsKey(allNamespaces)) {
-      authorisedNamespace = allNamespaces;
+        enrollDataStoreValue.namespaces
+            .containsKey(EnrollmentConstants.allNamespaces)) {
+      authorisedNamespace = EnrollmentConstants.allNamespaces;
     }
     access = enrollDataStoreValue.namespaces[authorisedNamespace];
     return (authorisedNamespace, access);
@@ -331,12 +328,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // an enrollment request. If enrollmentId does not have access to "__manage" access, then
     // cannot perform enrollment operations.
     if (operation.isNotEmpty &&
-        enrollDataStoreValue.namespaces.containsKey(enrollManageNamespace) ==
+        enrollDataStoreValue.namespaces
+                .containsKey(EnrollmentConstants.enrollManageNamespace) ==
             false) {
-      logger.warning(
-          'Failed to $operation  the request. The enrollment does not have access to "__manage" namespace');
-      throw AtEnrollmentException(
-          'The approving enrollment does not have access to "__manage" namespace');
+      logger.warning('Failed to $operation the request.'
+          ' The enrollment does not have access to "__manage" namespace');
+      throw UnAuthorizedException(
+          'The approving enrollment does not have access'
+          ' to "__manage" namespace');
     }
 
     if (atKey != null && namespace != null) {
@@ -344,16 +343,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
       try {
         atKeyObj = AtKey.fromString(atKey);
       } catch (e) {
-        throw AtEnrollmentException('AtKey.fromString($atKey) failed: $e');
+        throw IllegalArgumentException('AtKey.fromString($atKey) failed: $e');
       }
       if (atKeyObj.namespace != namespace) {
-        throw AtEnrollmentException(
+        throw IllegalArgumentException(
             'AtKey namespace and passed namespace do not match');
       }
     }
     return true;
   }
 
+  // TODO This function is overridden by EnrollVerbHandler which caused me some
+  // confusion. Future maintainers beware, if this hasn't been improved.
   bool checkEnrollmentNamespaceAccess(String authorisedNamespaceAccess,
       {String enrolledNamespaceAccess = ''}) {
     return _isReadAllowed(getVerb(), authorisedNamespaceAccess) ||
@@ -367,7 +368,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is NotifyStatus ||
             verb is NotifyList ||
             verb is Monitor ||
-            verb is Scan) &&
+            verb is Scan ||
+            verb is SyncFrom) &&
         (access == 'r' || access == 'rw');
   }
 
@@ -377,7 +379,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Notify ||
             verb is NotifyAll ||
             verb is NotifyRemove ||
-            verb is Monitor) &&
+            verb is Monitor ||
+            verb is SyncFrom) &&
         access == 'rw';
   }
 
@@ -438,7 +441,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       otpAtData ??= await keyStore.get(otpKey);
     } on KeyNotFoundException {
-      logger.finer('OTP NOT found in KeyStore');
       return false;
     }
 

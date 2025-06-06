@@ -15,19 +15,19 @@ void main() {
   group('a group of config verb regex test', () {
     test('test config add operation', () {
       var verb = Config();
-      var command = 'config:block:add:@alice @bob';
+      var command = 'config:block:add:$alice @bob';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AtConstants.atSign], '@alice @bob');
+      expect(paramsMap[AtConstants.atSign], '$alice @bob');
       expect(paramsMap[AtConstants.operation], 'add');
     });
 
     test('test config remove operation', () {
       var verb = Config();
-      var command = 'config:block:remove:@alice';
+      var command = 'config:block:remove:$alice';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AtConstants.atSign], '@alice');
+      expect(paramsMap[AtConstants.atSign], alice);
       expect(paramsMap[AtConstants.operation], 'remove');
     });
 
@@ -62,11 +62,11 @@ void main() {
 
     test('config verb with upper case', () {
       var verb = Config();
-      var command = 'CONFIG:block:add:@alice @bob';
+      var command = 'CONFIG:block:add:$alice @bob';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AtConstants.atSign], '@alice @bob');
+      expect(paramsMap[AtConstants.atSign], '$alice @bob');
       expect(paramsMap[AtConstants.operation], 'add');
     });
   });
@@ -102,24 +102,24 @@ void main() {
 
   group('A group of config verb handler test', () {
     test('test config verb handler - add config', () {
-      var command = 'config:block:add:@alice @bob';
+      var command = 'config:block:add:$alice @bob';
       AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[AtConstants.atSign], '@alice @bob');
+      expect(verbParameters[AtConstants.atSign], '$alice @bob');
       expect(verbParameters[AtConstants.operation], 'add');
     });
 
     test('test config verb handler - remove config', () {
-      var command = 'config:block:remove:@alice @bob';
+      var command = 'config:block:remove:$alice @bob';
       AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[AtConstants.atSign], '@alice @bob');
+      expect(verbParameters[AtConstants.atSign], '$alice @bob');
       expect(verbParameters[AtConstants.operation], 'remove');
     });
 
@@ -149,7 +149,7 @@ void main() {
     });
 
     test('test config key- invalid show command', () {
-      var command = 'config:block:show:@alice';
+      var command = 'config:block:show:$alice';
       AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
