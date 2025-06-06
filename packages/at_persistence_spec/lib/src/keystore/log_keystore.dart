@@ -39,7 +39,7 @@ abstract class LogKeyStore<K, V> {
 
   ///Returns the list of expired keys
   ///@param expiryInDays
-  ///@return List<dynamic>
+  ///@return `List<dynamic>`
   Future<List<dynamic>> getExpired(int expiryInDays);
 
   /// Returns the size of the storage
