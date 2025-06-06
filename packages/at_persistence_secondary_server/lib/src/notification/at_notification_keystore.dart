@@ -20,6 +20,12 @@ class AtNotificationKeystore
   final _notificationExpiryInHours = 72;
   static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
 
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
@@ -188,8 +194,15 @@ class AtNotificationKeystore
 
   @override
   Future remove(key, {bool skipCommit = false}) async {
+    for (final hook in preRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
     assert(key != null);
     await _getBox().delete(key);
+
+    for (final hook in postRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
   }
 
   Future<Map>? _toMap() async {
