@@ -1,5 +1,3 @@
-library at_persistence_secondary_server;
-
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job.dart';
 export 'package:at_persistence_secondary_server/src/compaction/commit_log_compaction_service.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service.dart';

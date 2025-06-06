@@ -21,6 +21,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
   late AtCommitLog _commitLog;
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
 
   /// A map-based cache that stores "expiresAt" and "availableAt" from AtMetadata
   /// of keys with TTL or TTB set, to efficiently track the active or expired state
@@ -207,6 +213,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @override
   Future<int?> remove(String key, {bool skipCommit = false}) async {
     key = key.toLowerCase();
+
+    for (final hook in preRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
+
+    int retVal;
     try {
       await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
@@ -216,11 +228,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         // from commitLog to ensure that commitLog and KeyStore are in sync
         CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(key);
         if (commitEntry != null) {
-          _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+          await _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
         }
-        return -1;
+        retVal = -1;
       } else {
-        return await _commitLog.commit(key, CommitOp.DELETE);
+        retVal = (await _commitLog.commit(key, CommitOp.DELETE))!;
       }
     } on Exception catch (exception) {
       logger.severe('HiveKeystore delete exception: $exception');
@@ -230,6 +242,12 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       logger.severe('HiveKeystore delete error: $error');
       throw DataStoreException(error.message);
     }
+
+    for (final hook in postRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
+
+    return retVal;
   }
 
   @override

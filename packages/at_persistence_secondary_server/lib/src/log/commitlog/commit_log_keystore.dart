@@ -17,7 +17,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   late SyncKeysFetchStrategy _syncKeysFetchStrategy;
 
-  CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
+  CommitLogKeyStore(super.currentAtSign) {
     commitLogCache = CommitLogCache(this);
     _syncKeysFetchStrategy = FetchAllKeysStrategy();
   }
@@ -259,7 +259,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
       if (commitEntry == null) {
         _logger.warning(
             'CommitLog seqNum $seqNum has a null commitEntry - removing');
-        remove(seqNum);
+        await remove(seqNum);
         return;
       }
       String? atKey = commitEntry.atKey;
@@ -273,7 +273,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         _logger.warning(
             'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
-        remove(seqNum);
+        await remove(seqNum);
         return;
       } else {
         _logger.finer(
@@ -290,7 +290,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await Future.forEach(commitLogMap.keys, (key) async {
       CommitEntry? commitEntry = commitLogMap[key];
       if (commitEntry?.commitId == null) {
-        commitEntry!.commitId = key as int;
+        commitEntry!.commitId = key;
         await getBox().put(commitEntry.commitId, commitEntry);
       }
     });
@@ -350,7 +350,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
   /// The key represents the regex and value represents the [CommitEntry]
   final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
 
-  ClientCommitLogKeyStore(String currentAtSign) : super(currentAtSign);
+  ClientCommitLogKeyStore(super.currentAtSign);
 
   /// Initializes the key store and makes it ready for the persistence
   @override
