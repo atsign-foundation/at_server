@@ -16,8 +16,29 @@ class EnrollmentManager {
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final String atSign;
 
+  static int cacheHits = 0;
+  static int cacheMisses = 0;
+  static int cacheInvalidations = 0;
+
   /// log messages here are important, so hard-coding level to 'info'
   final AtSignLogger logger = AtSignLogger('EnrollmentManager')..level = 'info';
+
+  /// Keep a cache per enrollment key of both the json Map and the
+  /// AtData as stored. We need to cache the AtData because we can only check
+  /// the 'isActiveKey' with the AtData, but we also don't want to take the
+  /// jsonDecode hit every time we fetch. And we cache the json Map rather than
+  /// an EnrollDataStoreValue because the EnrollDataStoreValue is mutable and
+  /// we don't want its state changing and thus polluting the cache.
+  ///
+  /// Cache is used by [getEnrollmentByFullKey]. It is invalidated by calls to
+  /// [put] and [remove]
+  ///
+  /// Context:<p/>
+  /// Enrollments are fetched on every new verb command received, and on every
+  /// check for a connection's authorization to read or write a particular key.
+  /// Modifications to enrollments are infrequent - extremely infrequent in
+  /// comparison to the number of times they are fetched.
+  final Map<String, (AtData, Map<String, dynamic>)> atDataCache = {};
 
   /// Creates an instance of [EnrollmentManager].
   ///
@@ -70,6 +91,10 @@ class EnrollmentManager {
   Future<void> put(
       String enId, AtData atData, EnrollmentStatus newStatus) async {
     String ek = buildEnrollmentKey(enId);
+
+    // invalidate the cache
+    cacheInvalidations++;
+    atDataCache.remove(ek);
 
     switch (newStatus) {
       case EnrollmentStatus.approved:
@@ -207,6 +232,10 @@ class EnrollmentManager {
     }
     String ek = buildEnrollmentKey(enId);
 
+    // invalidate the cache
+    cacheInvalidations++;
+    atDataCache.remove(ek);
+
     await keyStore.remove(ek, skipCommit: true);
   }
 
@@ -220,9 +249,23 @@ class EnrollmentManager {
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {
-    AtData enrollData = (await keyStore.get(ek))!;
-    EnrollDataStoreValue value =
-        EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+    AtData enrollData;
+    Map<String, dynamic> enrollJson;
+
+    // Check the cache
+    if (atDataCache.containsKey(ek)) {
+      // it's in the cache
+      cacheHits++;
+      (enrollData, enrollJson) = atDataCache[ek]!;
+    } else {
+      // not in cache - fetch from keystore, and populate the cache
+      cacheMisses++;
+      enrollData = (await keyStore.get(ek))!;
+      enrollJson = jsonDecode(enrollData.data!);
+      atDataCache[ek] = (enrollData, enrollJson);
+    }
+
+    EnrollDataStoreValue value = EnrollDataStoreValue.fromJson(enrollJson);
     if (!SecondaryUtil.isActiveKey(enrollData)) {
       // When an expired enrollment is encountered, delete it immediately
       logger.warning('getEnrollmentByFullKey:'

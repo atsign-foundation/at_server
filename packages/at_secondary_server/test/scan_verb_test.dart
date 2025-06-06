@@ -227,11 +227,11 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      await AtSecondaryServerImpl.getInstance().enrollmentManager.put(
-            enrollmentId,
-            AtData()..data = jsonEncode(enrollJson),
-            EnrollmentStatus.approved,
-          );
+      await enMgr.put(
+        enrollmentId,
+        AtData()..data = jsonEncode(enrollJson),
+        EnrollmentStatus.approved,
+      );
 
       inboundConnection.metaData.isAuthenticated = true;
 

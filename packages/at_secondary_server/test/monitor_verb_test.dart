@@ -567,9 +567,11 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await enMgr.put(
+        enrollmentId,
+        AtData()..data = jsonEncode(enrollJson),
+        EnrollmentStatus.approved,
+      );
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(secondaryKeyStore);
@@ -608,9 +610,11 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'revoked'}
       };
-      keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await enMgr.put(
+        enrollmentId,
+        AtData()..data = jsonEncode(enrollJson),
+        EnrollmentStatus.revoked,
+      );
       atNotification = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@bob'

@@ -72,7 +72,7 @@ void main() async {
     late EnrollDataStoreValue enrollData;
     late PkamVerbHandler pkamVerbHandler;
 
-    setUpAll(() {
+    setUp(() {
       // dummy enroll value
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
