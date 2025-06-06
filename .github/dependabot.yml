@@ -12,6 +12,7 @@ updates:
           - "*"
   - package-ecosystem: "docker"
     directories:
+      - "/tools/build_ephemeral_environment/ee_base"
       - "/tools/build_secondary"
       - "/tools/build_virtual_environment/ve"
       - "/tools/build_virtual_environment/ve_base"
