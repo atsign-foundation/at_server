@@ -39,6 +39,11 @@ dependency_overrides:
     path: ../at_persistence_secondary_server
   at_persistence_spec:
     path: ../at_persistence_spec
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      ref: at_commons_add_enrollment_constants
+      path: packages/at_commons
 
 dev_dependencies:
   build_runner: ^2.3.3
