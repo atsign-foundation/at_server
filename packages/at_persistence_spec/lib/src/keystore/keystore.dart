@@ -1,7 +1,7 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
 // ignore_for_file: non_constant_identifier_names, constant_identifier_names
 
-abstract class Keystore<K, V> {
+abstract interface class Keystore<K, V> {
   /// Retrieves a Future value for the key passed from the key store.
   ///
   /// @param key Key associated with a value.
@@ -10,7 +10,7 @@ abstract class Keystore<K, V> {
 }
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
-abstract class WritableKeystore<K, V> implements Keystore<K, V> {
+abstract interface class WritableKeystore<K, V> implements Keystore<K, V> {
   /// Subclasses should put any necessary post-construction async initialization
   /// in this method
   Future<void> initialize() async {}
@@ -41,9 +41,14 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
   Future<dynamic> remove(K key, {bool skipCommit = false});
+
+  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+      get preRemoveHooks;
+  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+      get postRemoveHooks;
 }
 
-abstract class SynchronizableKeyStore<K, V, T> {
+abstract interface class SynchronizableKeyStore<K, V, T> {
   Future<dynamic> putMeta(K key, T metadata);
 
   Future<dynamic> putAll(K key, V value, T metadata);
