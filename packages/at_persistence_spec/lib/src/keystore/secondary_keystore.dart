@@ -12,7 +12,7 @@ abstract interface class SecondaryKeyStore<K, V, T>
   ///Returns the list of keys, optionally keys can be searched on regular expression
   ///@param - String : This is an optional parameter that accepts the regular expression
   /// and returns keys that finds the match
-  /// @return - List<K> : Returns list of keys
+  /// @return - `List<K>` : Returns list of keys
   List<K> getKeys({String? regex});
 
   /// Checks whether the keystore contains the key. Returns a true if key is present, else false.

@@ -228,7 +228,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         // from commitLog to ensure that commitLog and KeyStore are in sync
         CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(key);
         if (commitEntry != null) {
-          _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+          await _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
         }
         retVal = -1;
       } else {
