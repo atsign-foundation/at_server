@@ -259,7 +259,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
       if (commitEntry == null) {
         _logger.warning(
             'CommitLog seqNum $seqNum has a null commitEntry - removing');
-        remove(seqNum);
+        await remove(seqNum);
         return;
       }
       String? atKey = commitEntry.atKey;
@@ -273,7 +273,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         _logger.warning(
             'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
-        remove(seqNum);
+        await remove(seqNum);
         return;
       } else {
         _logger.finer(

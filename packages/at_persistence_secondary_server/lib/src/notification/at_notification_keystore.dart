@@ -81,7 +81,7 @@ class AtNotificationKeystore
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
-    AtNotificationCallback.getInstance().invokeCallbacks(value);
+    await AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
 
@@ -127,8 +127,8 @@ class AtNotificationKeystore
           expired.add(key);
         }
         //Todo: remove obsolete code
-        //This method was introduced for backwards compatability to accomodate notifications without expiresAt.
-        // If concluded that all notifications have an epiresAt param defined, the below block of code is obsolete and can be removed.
+        //This method was introduced for backwards compatability to accommodate notifications without expiresAt.
+        // If concluded that all notifications have an expiresAt param defined, the below block of code is obsolete and can be removed.
         if (value?.expiresAt == null &&
             DateTime.now()
                     .toUtc()
@@ -155,7 +155,7 @@ class AtNotificationKeystore
                 ..atMetaData = value.atMetadata
                 ..ttl = value.ttl)
               .build();
-          put(key, newNotification);
+          await put(key, newNotification);
         }
       });
 
