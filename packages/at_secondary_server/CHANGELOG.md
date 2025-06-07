@@ -1,3 +1,16 @@
+# 3.5.1
+- build: update version number to 3.5.1
+
+# 3.5.0
+- fix: scan verb now using AbstractVerbHandler.isAuthorized for namespace
+  access checks by @gkc in https://github.com/atsign-foundation/at_server/pull/2276
+- feat: Created Docker ephemeral enviroment for standalone atPlatform by 
+  @cconstab in https://github.com/atsign-foundation/at_server/pull/2288
+- feat: Update Dart version to 3.8.0 for Ephemeral Environment Dockerfile by 
+  @cconstab in https://github.com/atsign-foundation/at_server/pull/2294
+- feat: per-enrollment data by @gkc in https://github.
+  com/atsign-foundation/at_server/pull/22
+
 # 3.4.1
 - fix: potential bugs handling atSigns which end in `data`
 
