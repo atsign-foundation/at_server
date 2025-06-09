@@ -1291,7 +1291,7 @@ void main() {
       String status = jsonDecode(response.data!)['status'];
       expect(status, 'pending');
       //Deny enrollment
-      await Future.delayed(Duration(milliseconds: 1));
+      await Future.delayed(Duration(milliseconds: 2));
       String denyEnrollmentCommand =
           'enroll:deny:{"enrollmentId":"$enrollmentId"}';
       enrollVerbParams = getVerbParam(VerbSyntax.enroll, denyEnrollmentCommand);
