@@ -7,7 +7,6 @@ import 'pkam_utils.dart';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-// ignore: depend_on_referenced_packages
 import 'package:at_utils/at_logger.dart';
 
 const int maxRetryCount = 10;
@@ -28,7 +27,7 @@ List<String> knownAtSigns() {
 /// Utility method which will return a socket handler. Gets config from [atSignConfigMap] which in turn calls
 /// [_loadTheYaml] if it hasn't yet been loaded.
 /// Can evolve this to use a pooling approach if/when it becomes necessary.
-Future<SimpleOutboundConnection> getSocketHandler(atSign) async {
+Future<SimpleOutboundConnection> getSocketHandler(String atSign) async {
   _loadTheYaml();
 
   _AtSignConfig? asc = atSignConfigMap[atSign];
@@ -148,7 +147,7 @@ abstract class SimpleOutboundConnection {
     }
   }
 
-  void _checkBufferOverFlow(data) {
+  void _checkBufferOverFlow(dynamic data) {
     if (_buffer.isOverFlow(data)) {
       int bufferLength = (_buffer.length() + data.length) as int;
       _buffer.clear();
@@ -336,12 +335,12 @@ class _AtSignConfig {
 
 /// Thrown when an [_AtSignConfig] has already been created for a given atSign
 class _AtSignAlreadyAddedException extends AtException {
-  _AtSignAlreadyAddedException(message) : super(message);
+  _AtSignAlreadyAddedException(String message) : super(message);
 }
 
 /// Thrown when attempting to make a [SimpleOutboundSocketHandler] for an atSign for which we don't have an [_AtSignConfig]
 class _NoSuchAtSignException extends AtException {
-  _NoSuchAtSignException(message) : super(message);
+  _NoSuchAtSignException(String message) : super(message);
 }
 
 bool _yamlLoaded = false;

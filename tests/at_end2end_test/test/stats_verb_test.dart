@@ -98,7 +98,7 @@ void main() {
     expect(statusAfterDelete, statusBeforeDelete + 1);
 
     // notify:list on the other atsign
-     // notify:list on the other atsign
+    // notify:list on the other atsign
     String keyRequired =
         '"key":"$atSign_2:country$atSign_1","value":null,"operation":"delete"';
     String response = await notification.retryCommandUntilMatchOrTimeout(
@@ -132,7 +132,7 @@ void main() {
     expect(textCountAfterNotify, textCountBeforeNotify + 1);
 
     // notify:list on the other atsign
-     // notify:list on the other atsign
+    // notify:list on the other atsign
     String keyRequired =
         'key":"$atSign_2:$value","value":null,"operation":"update"';
     String response = await notification.retryCommandUntilMatchOrTimeout(

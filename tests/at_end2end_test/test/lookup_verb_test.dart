@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:test/test.dart';
+// ignore: depend_on_referenced_packages
 import 'package:uuid/uuid.dart';
 import 'package:version/version.dart';
 
