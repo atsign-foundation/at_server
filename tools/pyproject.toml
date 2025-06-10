@@ -8,7 +8,7 @@ packages = [{include = "at_server_tools"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-requests = "2.32.3"
+requests = "2.32.4"
 dnspython = "2.7.0"
 
 [build-system]
